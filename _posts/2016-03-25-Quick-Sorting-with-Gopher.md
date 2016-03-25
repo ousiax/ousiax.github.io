@@ -2,7 +2,7 @@
 layout: post
 title: "Quick Sorting with Gopher"
 date: 2016-03-25 16-38-07 +0800
-categories: Data Structures
+categories: ['Data Structures',]
 ---
 *quicksorting.go*
 {% highlight go %}
