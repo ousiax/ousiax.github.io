@@ -4,7 +4,7 @@ title: "Quick Sorting with Gopher"
 date: 2016-03-25 16-38-07 +0800
 categories: Data Structures
 ---
-***quicksorting.go***
+*quicksorting.go*
 {% highlight go %}
 package main
 
@@ -48,7 +48,7 @@ func QuickSort(l []int) {
 	qSort(l, 0, len(l)-1)
 }
 {% endhighlight %}
-***output***
+*output*
 {% highlight shell %}
 $ go run quicksorting.go
 [49 38 65 97 76 13 27 49]

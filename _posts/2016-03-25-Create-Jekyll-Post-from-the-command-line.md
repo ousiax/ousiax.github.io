@@ -4,7 +4,7 @@ title: "Create Jekyll Post from the command line"
 date: 2016-03-25 15-43-01 +0800
 categories: Jekyll
 ---
-***Jekyll-post.py***
+*Jekyll-post.py*
 {% highlight python %}
 #!/usr/bin/env python
 # -*- encoding:utf-8 -*-
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     main()
 {% endhighlight %}
 
-***Usage***
+*Usage*
 {% highlight shell %}
 $ jekyll-post.py "Create Jekyll Post from the command line" "Jekyll"
 $ ls
