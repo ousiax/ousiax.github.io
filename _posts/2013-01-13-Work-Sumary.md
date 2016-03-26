@@ -1,5 +1,4 @@
 ---
-disqus_identifier: 584DA09B-9888-4094-8FE6-49E39E461ACE
 layout: post
 title: "诞生与死去-2013年度工作总结"
 date: 2013-01-13 15-26-45 +0800

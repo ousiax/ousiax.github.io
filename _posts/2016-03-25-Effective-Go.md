@@ -1,5 +1,4 @@
 ---
-disqus_identifier: 9B5B07BC-451E-4E34-95DE-448BBAAC9713
 layout: post
 title: "Effective Go"
 date: 2016-03-25 23-55-56 +0800

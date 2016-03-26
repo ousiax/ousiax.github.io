@@ -1,5 +1,4 @@
 ---
-disqus_identifier: 3EA33F44-1C45-49F3-9966-0364565E0053
 layout: post
 title: "Quick Sorting with Gopher"
 date: 2016-03-25 16-38-07 +0800

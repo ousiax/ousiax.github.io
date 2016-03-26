@@ -1,5 +1,4 @@
 ---
-disqus_identifier: 74AE0C6F-4EFF-4693-BEBC-7726EFC21F8F
 layout: post
 title: "Create Jekyll Post from the command line"
 date: 2016-03-25 15-43-01 +0800

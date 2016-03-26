@@ -1,5 +1,4 @@
 ---
-disqus_identifier: C4443907-1496-4323-AA68-66751911304E
 layout: post
 title: "C track: compiling C programs"
 date: 2016-03-26 03-04-11 +0800
