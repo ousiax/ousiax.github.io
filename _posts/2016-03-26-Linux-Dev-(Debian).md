@@ -1,4 +1,5 @@
 ---
+disqus_identifier: A872EAA7-C1E9-465C-AC51-4A82B9A988D2
 layout: post
 title: "Linux Dev (Debian)"
 date: 2016-03-26 02-28-45 +0800

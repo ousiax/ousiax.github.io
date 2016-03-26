@@ -1,4 +1,5 @@
 ---
+disqus_identifier: 9F21998B-2F4B-4751-AEBD-6A9786FFE57E
 layout: post
 title: "Bubble Sorting with Gopher"
 date: 2016-03-25 21-49-16 +0800

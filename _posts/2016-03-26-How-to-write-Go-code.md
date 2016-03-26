@@ -1,4 +1,5 @@
 ---
+disqus_identifier: A45739F1-E378-4EF7-ACFC-B950106F3E22
 layout: post
 title: "How to write Go code"
 date: 2016-03-26 00-24-56 +0800

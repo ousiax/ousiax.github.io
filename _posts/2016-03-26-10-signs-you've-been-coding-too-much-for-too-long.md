@@ -1,4 +1,5 @@
 ---
+disqus_identifier: D3EC52F0-CBCB-4997-BC6B-667178EFD5A4
 layout: post
 title: "10-signs-you've-been-coding-too-much-for-too-long"
 date: 2016-03-26 12-45-23 +0800

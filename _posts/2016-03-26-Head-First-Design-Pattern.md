@@ -1,4 +1,5 @@
 ---
+disqus_identifier: FDD2A532-0B3A-48B1-AFD4-933AD0E71B86
 layout: post
 title: "Head First 设计模式"
 date: 2016-03-26 01-27-00 +0800
