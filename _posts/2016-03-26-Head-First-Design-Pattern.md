@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Head First 设计模式"
+title: "Head First Desgin Pattern"
 date: 2016-03-26 01-27-00 +0800
 categories: ['Head First', 'Desgin Pattern',]
 tags: ['Head First', 'Desgin Pattern',]
