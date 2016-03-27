@@ -22,6 +22,7 @@ In all these cases, *virtualenv* can help you. It creates an environment that ha
 * create isolated env
 
     $ mkdir diango184
+
     $ virtualenv django184
 
 * active virtual env 
