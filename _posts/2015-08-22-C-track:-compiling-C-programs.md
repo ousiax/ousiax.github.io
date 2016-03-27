@@ -1,8 +1,9 @@
 ---
 layout: post
 title: "C track: compiling C programs"
-date: 2016-03-26 03-04-11 +0800
-categories: ['C', 'Compiling']
+date: 2015-08-22 13-53-11 +0800
+categories: ['C', ]
+tags: ['C', 'Compiling']
 ---
 ##### Original：[C track: compiling C programs.](http://courses.cms.caltech.edu/cs11/material/c/mike/misc/compiling_c.html)
 
