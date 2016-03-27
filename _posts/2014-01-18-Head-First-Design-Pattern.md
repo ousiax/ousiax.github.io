@@ -1,4 +1,5 @@
 ---
+disqus_identifier: 89893101096617453930446368041614527864
 layout: post
 title: "Head First Desgin Pattern"
 date: 2014-01-18 13-22-00 +0800

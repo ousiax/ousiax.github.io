@@ -1,4 +1,5 @@
 ---
+disqus_identifier: 117786748938706904285550144624705447095
 layout: post
 title: "Installing-Go-from-source"
 date: 2016-03-26 00-11-25 +0800

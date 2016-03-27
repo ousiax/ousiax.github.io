@@ -1,4 +1,5 @@
 ---
+disqus_identifier: 206300561507362048657572104178660119172
 layout: post
 title: "C track: compiling C programs"
 date: 2015-08-22 13-53-11 +0800
