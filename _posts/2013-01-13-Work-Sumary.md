@@ -2,8 +2,8 @@
 layout: post
 title: "诞生与死去-2013年度工作总结"
 date: 2013-01-13 15-26-45 +0800
-categories: ['Work Summary',]
-tags: ['Work Summary',]
+categories: ['Work',]
+tags: ['Work',]
 ---
 ###### 诞生的生命 死去的生命 2016-03-26
 

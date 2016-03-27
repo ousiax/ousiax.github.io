@@ -2,7 +2,7 @@
 layout: post
 title: "Linux Dev (Debian)"
 date: 2016-03-26 02-28-45 +0800
-categories: ['Linux', 'Debian',]
+categories: ['Linux',]
 tags: ['Linux', 'Debian',]
 ---
 . show linux version

@@ -1,9 +1,9 @@
 ---
 layout: post
-title: "Quick Sorting with Gopher"
+title: "Quick Sorting with Go language"
 date: 2016-03-25 16-38-07 +0800
 categories: ['Data Structures',]
-tags: ['Data Structures', 'Algorithm', 'Sorting']
+tags: ['Data Structures', 'Algorithm', 'Go']
 ---
 *quicksorting.go*
 {% highlight go %}

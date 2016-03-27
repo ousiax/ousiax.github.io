@@ -1,9 +1,9 @@
 ---
 layout: post
-title: "Bubble Sorting with Gopher"
+title: "Bubble Sorting with Go language"
 date: 2016-03-25 21-49-16 +0800
 categories: [Data Structures,]
-tags: ['Data Structures', 'Algorithm', 'Sorting']
+tags: ['Data Structures', 'Algorithm', 'Go']
 ---
 *bubblesorting.go*
 {% highlight python %}

@@ -2,8 +2,8 @@
 layout: post
 title: "Effective Go"
 date: 2016-03-25 23-55-56 +0800
-categories: [Go, Golang,]
-tags: [Go, Golang, Gopher]
+categories: [Go,]
+tags: [Go, Golang]
 ---
 
 *Reference from [Effective Go (golang.org/doc)](https://golang.org/doc/effective_go.html)*

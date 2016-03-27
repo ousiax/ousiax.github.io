@@ -1,8 +1,8 @@
 ---
 layout: post
 title: "Head First Desgin Pattern"
-date: 2016-03-26 01-27-00 +0800
-categories: ['Head First', 'Desgin Pattern',]
+date: 2014-01-18 13-22-00 +0800
+categories: ['Desgin Pattern',]
 tags: ['Head First', 'Desgin Pattern',]
 ---
 ### OO 基础

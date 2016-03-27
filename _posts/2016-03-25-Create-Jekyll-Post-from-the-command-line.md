@@ -2,8 +2,8 @@
 layout: post
 title: "Create Jekyll Post from the command line"
 date: 2016-03-25 15-43-01 +0800
-categories: Jekyll
-tags: Jekyll
+categories: ['Jekyll',]
+tags: ['Python', 'Jekyll',]
 ---
 *Jekyll-post.py*
 {% highlight python %}

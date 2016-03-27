@@ -2,7 +2,7 @@
 layout: post
 title: "pip (package manager)"
 date: 2015-08-06 21-07-28 +0800
-categories: ['pip',]
+categories: ['Python',]
 tags: ['pip','pypi',]
 ---
 **pip** is a [package management system](https://en.wikipedia.org/wiki/Package_manager) used to install and manage [software packages](https://en.wikipedia.org/wiki/Package_(package_management_system)) written in [Python](https://en.wikipedia.org/wiki/Python_(programming_language)). Many packages can be found in the [Python Package Index](https://en.wikipedia.org/wiki/Python_Package_Index) (PyPI).

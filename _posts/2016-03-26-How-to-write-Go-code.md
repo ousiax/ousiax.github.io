@@ -2,8 +2,8 @@
 layout: post
 title: "How to write Go code"
 date: 2016-03-26 00-24-56 +0800
-categories: [Go, Golang,]
-tags: [Go, Golang, Gopher]
+categories: [Go,]
+tags: [Go, Golang, ]
 ---
 
 ###### Except as noted, the content of this page is licensed under the Creative Commons Attribution 3.0 License, and code is licensed under a BSD license.
