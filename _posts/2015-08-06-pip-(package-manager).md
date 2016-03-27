@@ -35,6 +35,8 @@ or
 
         $ pip install threadpool>=1.2.7&nbsp;# minimum version
 
+        $ pip install SomePackage-1.0-py2.py3-none-any.whl&nbsp;&nbsp;# Installing from Wheels
+
     * uninstall
 
         $ pip uninstall threadpool
@@ -66,5 +68,3 @@ or
 * [pip documentation](https://pip.pypa.io/)
 * [pip (package manager)](https://en.wikipedia.org/wiki/Pip_%28package_manager%29)
 * [如何使用科大 mirrors 加速 pip？](https://lug.ustc.edu.cn/wiki/mirrors/help/pypi)
-
-* * *
