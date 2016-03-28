@@ -149,3 +149,12 @@ tags: ['Linux', 'Debian',]
     # tzselect    # select timezone e.g. Asia/Shanghai
     # echo 'Asia/Shanghai' > /etc/timezone    # set timezone
     # ln -sf /usr/share/zoneinfo/Asia/Chongqing /etc/localtime
+    # apt-get install ntpdate
+    # service ntp start
+
+* * *
+
+### References
+
+* [How do I setup NTP to use the pool?](http://www.pool.ntp.org/en/use.html)
+* [NTP Servers in Asia, asia.pool.ntp.org](http://www.pool.ntp.org/zone/asia)
