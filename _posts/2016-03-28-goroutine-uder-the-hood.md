@@ -3,7 +3,7 @@ layout: post
 title: "goroutine 背后的系统知识"
 date: 2016-03-28 09-31-37 +0800
 categories: ['Go',]
-tags: ['Go',]
+tags: ['Go', 'Golang', 'goroutine']
 disqus_identifier: 134061240381408616971579976421490472030
 ---
 ##### 转载: [http://www.sizeofvoid.net/goroutine-under-the-hood/](http://www.sizeofvoid.net/goroutine-under-the-hood/)
