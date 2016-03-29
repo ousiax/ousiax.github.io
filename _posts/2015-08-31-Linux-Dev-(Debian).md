@@ -151,6 +151,7 @@ tags: ['Linux', 'Debian',]
     # ln -sf /usr/share/zoneinfo/Asia/Chongqing /etc/localtime
     # apt-get install ntpdate
     # service ntp start
+    # ntpdate -s 3.cn.pool.ntp.org # synchronize date time.
 
 * * *
 
