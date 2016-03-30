@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Web应用程序安全基础"
+title: "Web 应用安全基础"
 date: 2016-03-29 20-55-16 +0800
 categories: ['Web',]
 tags: ['Web', 'Security']
