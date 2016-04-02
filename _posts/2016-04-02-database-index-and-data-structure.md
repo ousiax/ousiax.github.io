@@ -112,56 +112,56 @@ Indexes also add to the cost of inserts, updates, and deletes because each index
 
 * Comparison of B-Tree and Hash Indexes
 
-    * B-Tree Index
+**B-Tree Index**
 
-        A B-tree index can be used for column comparisons in expressions that use the `=,>,>=,<,<=`, or `BETWEEN` operators. The index also can be used for `LIKE` comparisons if the argument to `LIKE` is a constant string that does not start with a wildcard character.
+A B-tree index can be used for column comparisons in expressions that use the `=,>,>=,<,<=`, or `BETWEEN` operators. The index also can be used for `LIKE` comparisons if the argument to `LIKE` is a constant string that does not start with a wildcard character.
 
-        The following `SELECT` statements use indexs:
+The following SELECT statements use indexs:
 
-            SELECT * FROM tbl_name WHERE key_col LIKE 'Patrick%';
-            SELECT * FROM tbl_name WHERE key_col LIKE 'Pat%_ck%';
+    SELECT * FROM tbl_name WHERE key_col LIKE 'Patrick%';
+    SELECT * FROM tbl_name WHERE key_col LIKE 'Pat%_ck%';
 
-        The following `SELECT` statements do *not* use indexes:
+The following `SELECT` statements do *not* use indexes:
 
-            SELECT * FROM tbl_name WHERE key_col LIKE '%Patrick%';
-            SELECT * FROM tbl_name WHERE key_col LIKE other_col;
+    SELECT * FROM tbl_name WHERE key_col LIKE '%Patrick%';
+    SELECT * FROM tbl_name WHERE key_col LIKE other_col;
 
-        A search using **col_name** `IS NULL` employs indexes if **col_name** is indexed.
+A search using **col_name** `IS NULL` employs indexes if **col_name** is indexed.
 
 
-         Any index that does not span all `AND` levels in the `WHERE` clause is not used to optimize the query. In other words, to be able to use an index, a prefix of the index must be used in every `AND` group.
+Any index that does not span all `AND` levels in the `WHERE` clause is not used to optimize the query. In other words, to be able to use an index, a prefix of the index must be used in every `AND` group.
 
-        The following WHERE clauses use indexes: 
+The following WHERE clauses use indexes: 
 
-            ... WHERE index_part1=1 AND index_part2=2 AND other_column=3
-
-                /* index = 1 OR index = 2 */
-            ... WHERE index=1 OR A=10 AND index=2
+    ... WHERE index_part1=1 AND index_part2=2 AND other_column=3
+    
+    /* index = 1 OR index = 2 */
+    ... WHERE index=1 OR A=10 AND index=2
+    
+    /* optimized like "index_part1='hello'" */
+    ... WHERE index_part1='hello' AND index_part3=5
             
-                /* optimized like "index_part1='hello'" */
-            ... WHERE index_part1='hello' AND index_part3=5
+    /* Can use index on index1 but not on index2 or index3 */
+    ... WHERE index1=1 AND index2=2 OR index1=3 AND index3=3;
+
+    These WHERE clauses do *not* use indexes:
+
+    /* index_part1 is not used */
+    ... WHERE index_part2=1 AND index_part3=2
             
-                /* Can use index on index1 but not on index2 or index3 */
-            ... WHERE index1=1 AND index2=2 OR index1=3 AND index3=3;
+    /*  Index is not used in both parts of the WHERE clause  */
+    ... WHERE index=1 OR A=10
+    
+    /* No index spans all rows  */
+    ... WHERE index_part1=1 OR index_part2=10
 
-        These WHERE clauses do *not* use indexes:
+**Hash Index**
 
-                /* index_part1 is not used */
-            ... WHERE index_part2=1 AND index_part3=2
-            
-                /*  Index is not used in both parts of the WHERE clause  */
-            ... WHERE index=1 OR A=10
-            
-                /* No index spans all rows  */
-            ... WHERE index_part1=1 OR index_part2=10
+* They are used only for equality comparisons that use the `=` or `<=>` operators (but are *very* fast). They are not used for comparison operators such as `<` that find a range of values. Systems that rely on this type of single-value lookup are known as "key-value stores".
 
-    * Hash Index
+* The optimizer cannot use a hash index to speed up `ORDER BY` operations. (This type of index cannot be used to search for the next entry in order.) 
 
-        * They are used only for equality comparisons that use the `=` or `<=>` operators (but are *very* fast). They are not used for comparison operators such as `<` that find a range of values. Systems that rely on this type of single-value lookup are known as "key-value stores".
-
-        * The optimizer cannot use a hash index to speed up ORDER BY operations. (This type of index cannot be used to search for the next entry in order.) 
-
-        * Only whole keys can be used to search for a row. (With a B-tree index, any leftmost prefix of the key can be used to find rows.)
+* Only whole keys can be used to search for a row. (With a B-tree index, any leftmost prefix of the key can be used to find rows.)
 
 * * *
 
