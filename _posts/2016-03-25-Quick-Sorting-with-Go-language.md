@@ -3,8 +3,8 @@ disqus_identifier: 298394254168171934440292191313523866499
 layout: post
 title: "Quick Sorting with Go language"
 date: 2016-03-25 16-38-07 +0800
-categories: ['Data Structures',]
-tags: ['Data Structures', 'Algorithm', 'Go']
+categories: ['Data structure',]
+tags: ['Data structure', 'Algorithm', 'Go']
 ---
 *quicksorting.go*
 {% highlight go %}
