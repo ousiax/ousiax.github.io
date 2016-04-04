@@ -13,7 +13,7 @@ disqus_identifier: 304705226039501129190960351359847979001
 
 1. Blocks and Iterators
 
-    There are a special kind of method known as *iterator*, and they like loops. The code within curly braces—known as *block—is associated with the method invocation and serves as the body of the loop.
+    There are a special kind of method known as *iterator*, and they like loops. The code within curly braces—known as *blok*—is associated with the method invocation and serves as the body of the loop.
 
         3.times { print "Ruby! " }   # Prints "Ruby! Ruby! Ruby!"
         1.upto(9) {|x| print x }     # Prints "123456789"
@@ -125,7 +125,7 @@ disqus_identifier: 304705226039501129190960351359847979001
 
     * Ruby's strings are mutable.
 
-    * Conditional expression often evaluate to **true** or **false**, but not required. The value of `nil` is treated the same as `false`, and ***any other value is the same as true***.
+    * Conditional expression often evaluate to **true** or **false**, but not required. The value of `nil` is treated the same as `false`, and **any other value is the same as true**.
 
 1. The Ruby Interpreter
 
