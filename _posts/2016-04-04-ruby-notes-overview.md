@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Ruby Notes"
+title: "Ruby Notes Overview"
 date: 2016-04-04 20-27-17 +0800
 categories: ['Ruby']
 tags: ['Ruby']
@@ -91,6 +91,16 @@ disqus_identifier: 304705226039501129190960351359847979001
 
 1. Classes and Modules
 
+    * `.`, `::`, `#`
+
+        Normally, you can separate a class or module name from a method name with a period `.`. If a class defines a class method and an instance method by the same name, you must instead use `::` to refer to the class method or `#` to refer to the instance method.
+
+            ri Array
+            ri Array.sort
+            ri Hash#each
+            ri Math::sqrt
+
+
     * ***Class***
             
             class Sequence
@@ -171,6 +181,24 @@ disqus_identifier: 304705226039501129190960351359847979001
         
         __END__                     mark end of code program data goes here
         ...
+
+1. Comments
+
+    Comments in Ruby begin with a `#` character and continue to the end of the line.
+
+    Ruby has *no* quivalent of the C-style `/*...*/` comment.
+
+    * **Embedded documents**
+
+        Ruby supports another style of multiline comment known as ***embedded doucment*** that an text that apears between `=begin` and `=end`.
+
+            =begin Someone needs to fix the broken code below!
+                Any code here is commented out
+            =end
+
+    * **Documentation comments**
+
+        Ruby programs can include embedded API documentation as specially formatted (e.g. Markdown) comments that precede method, class, and module definitions.
 
 * * *
 
