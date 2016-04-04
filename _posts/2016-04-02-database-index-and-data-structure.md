@@ -70,7 +70,7 @@ The **B-tree** is a generalization of a *binary search tree* in that a node can 
 
 A **B+ tree** can be viewed as a *B-tree* in which each node contains only keys (not key-values pairs), and to which an additional level is added at the bottom with linked leaves.
 
-The primary value of a B+ tree is in storing data for efficient retrieval in a *block-oriented* storage context — in particular, filesystems. This is primarily because unlike*binary search trees*, B+ trees have very high fanout (number of pointers to child nodes in a node, typically on the order of 100 or more), which reduces the number of I/O operations required to find an element in the tree.
+The primary value of a B+ tree is in storing data for efficient retrieval in a *block-oriented* storage context — in particular, filesystems. This is primarily because unlike *binary search trees*, B+ trees have very high fanout (number of pointers to child nodes in a node, typically on the order of 100 or more), which reduces the number of I/O operations required to find an element in the tree.
 
 <img alt="" src="//upload.wikimedia.org/wikipedia/commons/thumb/3/37/Bplustree.png/400px-Bplustree.png" class="thumbimage" srcset="//upload.wikimedia.org/wikipedia/commons/thumb/3/37/Bplustree.png/600px-Bplustree.png 1.5x, //upload.wikimedia.org/wikipedia/commons/thumb/3/37/Bplustree.png/800px-Bplustree.png 2x" data-file-width="1121" data-file-height="516" height="184" width="400">
 
