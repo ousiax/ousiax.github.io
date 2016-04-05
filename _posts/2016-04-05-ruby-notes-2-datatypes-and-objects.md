@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Ruby Notes Datatypes and Objects"
+title: "Ruby Notes 2 Datatypes and Objects"
 date: 2016-04-05 01-44-27 +0800
 categories: ['Ruby',]
 tags: ['Ruby',]

@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Ruby Notes Overview"
+title: "Ruby Notes 1 Overview"
 date: 2016-04-04 20-27-17 +0800
 categories: ['Ruby']
 tags: ['Ruby']
