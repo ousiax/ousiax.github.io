@@ -159,11 +159,11 @@ disqus_identifier: 304705226039501129190960351359847979001
 
     * **Encoding comments**
     
-        1. \# coding: utf-8
+        1. `# coding: utf-8`
     
-        1. \# -*- coding: utf-8 -*-
+        1. `# -*- coding: utf-8 -*-`
     
-        1. \# vi: set fileencoding=utf-8 :
+        1. `# vi: set fileencoding=utf-8 :`
     
     * **Source Encoding and Default External Encoding**
     
