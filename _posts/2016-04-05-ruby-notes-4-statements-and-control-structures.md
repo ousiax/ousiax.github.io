@@ -33,7 +33,7 @@ Alter the sequential execution, or *flow-of-control*, of a program with Ruby's *
 
     The `code` between `if` and `end` is executed if (and only if) the `expression` evaluates to something other than `false` or `nil`.
 
-    The `code` must be separated from the `expression` with a newline or semicolon or the keyword `then`.
+    The `code` must be separated from the `expression` with a *newline* or *semicolon* or the keyword `then`.
 
            # If x is less than 10, increment it
 
@@ -76,13 +76,13 @@ Alter the sequential execution, or *flow-of-control*, of a program with Ruby's *
 
 1. if As a Modifer
 
-        Instead of writing:
+    Instead of writing:
 
-            if expression then code end
+        if expression then code end
 
-        we can simply write:
+    we can simply write:
 
-            code if expression
+        code if expression
 
 1. unless
 
@@ -441,7 +441,7 @@ Alter the sequential execution, or *flow-of-control*, of a program with Ruby's *
 
 1. Fibers for Coroutines
 
-    The name "fiber" has been used elsewhere for a kind of lightweight thread, but Ruby's fibers are better described as *coroutines` or, more accurately, *semi-coroutines*.
+    The name "fiber" has been used elsewhere for a kind of lightweight thread, but Ruby's fibers are better described as *coroutines* or, more accurately, *semi-coroutines*.
 
     The most common use for coroutines is to implement *generators*: objects that can compute a partial result, *yield* the result back to the caller, and save the state of the computaiton so that the caller can *resume* that compuation to obtain the next result.
 
