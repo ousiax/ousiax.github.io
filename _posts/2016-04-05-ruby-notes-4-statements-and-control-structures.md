@@ -413,6 +413,24 @@ Alter the sequential execution, or *flow-of-control*, of a program with Ruby's *
         # Compute factorial of x, or use 0 if the method raises an exception 
         y = factorial(x) rescue 0
 
+### BEGIN and END
+
+`BEGIN` and `END` are reserved words in Ruby that declare code to be executed at the very beginning and very end of a Ruby program.
+
+If there is more than one `BEGIN` statement in a program, they are executed in the order which the interpreter encounters them.
+
+If there is more than one `END` statement, they are executed in the reverse of the order in which they are encountered—that is, the first one is executed last.
+
+These statements are not commonly used in Ruby. They are inherited from Perl, which in turn inherited them from the awk text-processing language.
+
+        BEGIN { # The curly braces are required
+            # Global initialization code goes here
+        }
+        
+        END {
+            # Global shutdown code goes here
+        }
+
 ### Threads, Fibers, and Continuations
 
 1. Threads for Concurrency
@@ -524,6 +542,11 @@ Alter the sequential execution, or *flow-of-control*, of a program with Ruby's *
 
 1. Continuations
 
+A `continuation` is another complex and obscure control structure that most programmers will *never need to use*.
+
+A `continuation` takes the form of the Kernel method callcc and the `Continuation` object.
+
+Continuations are part of the core platformin Ruby 1.8, but they have been replaced by fibers and moved to the standard library in Ruby 1.9. 
 
 * * *
 
