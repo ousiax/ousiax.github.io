@@ -3,7 +3,7 @@ layout: post
 title: "Ruby Notes 4 Statements and Control Structures"
 date: 2016-04-05 04-37-29 +0800
 categories: ['Ruby',]
-tags: ['Ruby',]
+tags: ['Ruby', 'The Ruby Programming Language']
 disqus_identifier: 306601145746773585543222304277535818207
 ---
 A sequential program that are executed one line of code after the other without branching or repetition.
