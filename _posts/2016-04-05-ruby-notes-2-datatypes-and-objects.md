@@ -178,6 +178,76 @@ disqus_identifier: 93736917096573817128848063245533052220
 
         But garbage collection does *not* mean that *memory leaks* are impossible: any code that creates long-lived references to objects that would otherwise be short-lived can be a source of memory leaks.
 
+    * **Object Identify**
+
+        Every object has an object identifier, a **Fixnum**, that you can obtain with the `object_id` method.
+
+        The value returned by this method is constant and unique for the life of the object.
+
+        The method `id` is a *deprecated* synonym for `object_id`.
+
+        `__id__` is a valid synonym for `object_id`. It exists as a fallback, so you can access an object's ID even if the `object_id` method has been undefined or overridden.
+
+        The `Object` class implements the `hash` method to simply return an object's ID.
+
+    * **Object Class and Object Type**
+
+        1. Determine the class of an object
+
+                o="test"                      # This is a value
+                o.class                       # String: o is a String object
+                o.class.superclass            # Object: superclass of String is Object
+                o.class.superclass.superclass # nil: Object has no superclass
+    
+            In Ruby 1.9, `Object` is no longer the true root of the class hierachy.
+    
+                # Ruby 1.9 only
+                Object.superclass
+                BasicObject.superclass
+
+        2. Check the class of an object
+
+            * `==`
+
+                    o.class == String       # true if o is a String
+
+            * `instance_of?` method
+
+                *The `instance_of?` method does the same thing and is a litte more elegant than `==`.
+
+                    o.instance_of? String   # true if o is a String
+
+            * `is_a?` and `kind_of?`
+
+                *Use the `is_a?` method, or its synonym `kind_of?` to test if an object is an instance of any subclass of that class.*
+
+                    x = 1                  # This is the value we're working with
+                    x.instance_of? Fixnum  # true: is an instance of Fixnum
+                    x.instance_of? Numeric # false: instance_of? doesn't check inheritance
+                    x.is_a? Fixnum         # true: x is a Fixnum
+                    x.is_a? Integer        # true: x is an Integer
+                    x.is_a? Numeric        # true: x is a Numeric
+                    x.is_a? Comparable     # true: works with mixin modules, too
+                    x.is_a? Object         # true for any value of x
+
+                *The `Class` class defines the `===` operator in such a way that it can used in place of `is_a?` but is probaly less readable.*
+
+                    Numeric === x          # true: x is_a Numeric
+
+        3. Ducking Type
+
+            Every object has a well-defined class in Ruby, and that class never changes during the lifetime of the object.
+
+            The type of an object is related to its class, but the class is only part of an object's type.
+
+            The type of an object is the set of methods it can it can respond to.
+
+            In Ruby, we often don't care about the class of an object, we just want to know whether we can invoke some method on it.
+
+            Focusing on types rather than classes leads to a programming style known in Ruby as "ducking typing".
+
+                o.respond_to? :"<<"    # true if o has an << operator
+
     * **Object Equality**
 
         1. The `equal?` method
@@ -216,12 +286,136 @@ disqus_identifier: 93736917096573817128848063245533052220
                 String === "s"      # true: "s" is an instance of the class String 
                 :s === "s"          # true in Ruby 1.9
 
+    * **Object Order**
+
+        * `<=>`
+
+            In Ruby, classes define an ordering by implementing the `<=>` operator.
+
+            `-1: less than`, `0: equal`, `1: greater than`, `nil: cannot be meaningfully compared`
+
+                1 <=> 5     # -1
+                5 <=> 5     # 0
+                9 <=> 5     # 1
+                "1" <=> 5   # nil: integers and strings are not comparable
+
+        * `Comparable` module as a mixin
+
+            The `<=>` operator is all that is needed to compare values. But it isn’t particularly intuitive.
+
+                < Less than
+                <= Less than or equal
+                == Equal
+                >= Greater than or equal
+                > Greater than
+
+            `Comparable` also defines a useful comparison method named `between?`:
+
+                1.between?(0,10)    # true: 0 <= 1 <= 10
+
+            If the `<=>` operator return `nil`, all the comparision operators dervided from it return `false`.
+
+                nan = 0.0/0.0;              # zero divided by zero is not-a-number
+                nan < 0                     # false: it is not less than zero
+                nan > 0                     # false: it is not greater than zero
+                nan == 0                    # false: it is not equal to zero
+                nan == nan                  # false: it is not even equal to itself!
+                nan.equal?(nan)             # this is true, of course
+
+            *Note that defining `<=>` and including the `Comparable` module defines a `==` operator for your class.*
+
+    * **Object Conversion**
+
+        * Explicit conversions
+
+            Classes define explicit conversion methods for use by application code that needs to convert a value to another representation.
+
+            `to_s`, `to_i`, `to_f`, and `to_a` to convert to `String`, `Integer`, `Float`,  and `Array`.
+
+            Built-in methods do not typically invoke these methods for you.
+
+            * `to_s` and `inspect`
+
+                `to_s` is generally intended to return a human-readable representation of the object, suitalbe for end users.
+
+                `inspect` is tended for debugging use, and should return a representation that is helpful to Ruby developers.
+
+                The default `inspect` method, inherited from `Object`, simply call `to_s`.
+
+        * Implicit conversions
+
+            Sometimes a class has strong characteristics of some other class.
+
+            `to_str`, `to_int`, `to_ary`, `to_hash`, `try_convert`
+
+        * Conversion functions
+
+            The `Kernel` module defines four conversion methods that behave as global conversion functions.
+
+            `Array`, `Float`, `Integer`, `String`
+
+        * Arithmetic operator type coercions
+
+            `Numeric` types define a conversoin method named `coerce` to convert the argument to the same type as the numeric object on which the method is invoked, or to convert both objects to some more general compatible type.
+
+            The `coecre` method always returns an array that holds two numeric values of the same type.
+
+        * Boolean type convrsion
+
+            `to_b`
+
+            There are no implicit conversions that convert other values to `true` or `false`.
+
+            Ruby’s Boolean operators and its conditional and looping constructs that use `Boolean expressions` can work with values other than `true` and `false`.
+
+             In `Boolean expressions`, any value other than `false` or `nil` behaves like (but is not converted to) `true`. `nil`, on the other hand behaves like `false`.
+
+    * **Copying Objects**
+
+        * `clone`, `dup`
+
+            The `Object` class defines two closely related methods `clone` and `dup` for copying objects.
+
+            If copied object includes one internal state that refers to other objects, only the object references are copied, not the referenced objects themselves.
+
+            * `clone` copies both the frozen and tainted state of an object, whereas `dup` only copies the tainted state; calling `dup` on a frozen object returns an unfrozen copy.
+
+            * `clone` copies any singleton methods of the object, whereas `dup` does not.
+
+        * `initialize_copy`
+
+            `initialize_copy` method could recursively copy the internal data of an object so the resulting object is not a simple shallow copy of the original.
+
     * **Marshaling Objects**
 
         `Mrshal.dump`,`Marshal.load`
+
+    * **Freezing Objects**
+
+        Any object may be *frozen* by calling its `freeze` method.
+
+        A frozen object becomes immutable.
+
+        Freezing a class object prevents the addition of any methods to the class.
+
+        Once frozen, there is no way to "thaw" an object.
+
+        If you copy a frozen object with `clone`, the copy will also be frozen.
+
+        If you copy a frozen object with `dup`, however, the copy will not frozen.
+
+            s = "ice"     # Strings are mutable objects
+            s.freeze      # Make this string immutable
+            s.frozen ?    # true: it has been frozen
+            s.upcase!     # TypeError: can't modify frozen string 
+            s[0] = "ni"   # TypeError: can't modify frozen string
+
+    * **Tainting Objects**
+
+       `taint`, `untaint`, `$$SAFE` 
 
 * * *
 
 #### References
 
-* [The Ruby Programming LanguageFeb by David Flanagan and Yukihiro Matsumoto](http://www.amazon.com/Ruby-Programming-Language-David-Flanagan/dp/0596516177/ref=sr_1_1?ie=UTF8&qid=1459784613&sr=8-1&keywords=The+Ruby+Programming+Language)
+* [The Ruby Programming Language by David Flanagan and Yukihiro Matsumoto](http://www.amazon.com/Ruby-Programming-Language-David-Flanagan/dp/0596516177/ref=sr_1_1?ie=UTF8&qid=1459784613&sr=8-1&keywords=The+Ruby+Programming+Language)
