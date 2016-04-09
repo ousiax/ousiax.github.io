@@ -145,13 +145,67 @@ disqus_identifier: 304705226039501129190960351359847979001
 
     * Interactive Ruby with **irb**
 
+            $ irb 
+            irb(main):001:0> puts 'Hello, Ruby'
+            Hello, Ruby
+            => nil
+
     * Viewing Ruby Documentation with **ri**
+
+            ri Array
+            ri Array.sort
+            ri Hash#each
+            ri Math::sqrt
 
     * Ruby Package Management with **gem**
 
-    * **Bundler** provides a consistent environment for Ruby projects by tracking and installing the exact gems and versions that are needed. 
+            gem list             # List installed gems
+            gem enviroment       # Display RubyGems configuration information
+            gem update rails     # Update a named gem
+            gem update           # Update all installed gems
+            gem update --system  # Update RubyGems itself
+            gem uninstall rails  # Remove an installed gem
 
     * **RVM** is a command-line tool which allows you to easily install, manage, and work with multiple ruby environments from interpreters to sets of gems. 
+
+            rvm -v          # RVM version
+            rvm list known  # List Ruby interpreters available for installation
+            rvm list        # List Ruby interpreters you've already installed
+
+            rvm info     # Ruby information for the current shell
+
+            rvm gemdir   # Switch to gems directory for current ruby
+            rvm system   # Use the system ruby (as if no rvm)
+
+            rvm install 2.1.1    # Install a version of Ruby (eg 2.1.1)
+            rvm uninstall 2.0.0  # Unisntall RVM installed 2.0.0 version
+
+            rvm gemset create rails4  # Greate a named gemset rails4
+            rvm gemset use rails4     # Use the rails4 gemset
+
+            rvm 2.1.1          # Use Ruby 2.1.1. Equivalently: rvm use 2.1.1
+            rvm 2.1.1@rails4   # Use Ruby 2.1.1 and gemset rails4
+
+    * **Bundler** provides a consistent environment for Ruby projects by tracking and installing the exact gems and versions that are needed. 
+
+            $ gem install bundler
+            $ bundle install
+
+        * Gemfile
+
+                # A sample Gemfile
+                source "https://rubygems.org"
+
+                # gem "rails"
+
+        * RubyGems
+
+            * https://rubygems.org
+            * https://gems.ruby-china.org
+            * https://ruby.taobao.org/
+
+                    $ gem sources --add https://ruby.taobao.org/ --remove https://rubygems.org/
+                    $ gem sources -l
 
 1. Specifying Program Encoding
 
