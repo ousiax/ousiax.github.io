@@ -250,4 +250,8 @@ tags: ['Head First', 'Desgin Pattern',]
 * Model 2是MVC在Web上的应用。
 * 在Model 2中，控制器实现Servlet，而JSP/HTML实现视图。
 
-[![Head First设计模式(中文版)](http://ec4.images-amazon.com/images/I/51-qD5RmDZL._SX432_BO1,204,203,200_.jpg)](http://www.amazon.cn/Head-First%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-%E5%BC%97%E9%87%8C%E6%9B%BC/dp/B0011FBU34/ref=sr_1_1?ie=UTF8&qid=1458930645&sr=8-1&keywords=head+first+%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F)
+* * *
+
+#### References
+
+* [Head First设计模式(中文版)](http://www.amazon.cn/Head-First%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-%E5%BC%97%E9%87%8C%E6%9B%BC/dp/B0011FBU34/ref=sr_1_1?ie=UTF8&qid=1458930645&sr=8-1&keywords=head+first+%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F)
