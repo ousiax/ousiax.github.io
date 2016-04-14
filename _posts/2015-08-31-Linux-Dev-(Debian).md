@@ -144,18 +144,77 @@ tags: ['Linux', 'Debian',]
     export PATH
 {% endhighlight %}
 
-. tzselect
+. Date & Time
 
-    # tzselect    # select timezone e.g. Asia/Shanghai
-    # echo 'Asia/Shanghai' > /etc/timezone    # set timezone
-    # ln -sf /usr/share/zoneinfo/Asia/Chongqing /etc/localtime
-    # apt-get install ntpdate
-    # service ntp start
-    # ntpdate -s 3.cn.pool.ntp.org # synchronize date time.
+* Select a **timezone**
 
+        # tzselect    # select timezone e.g. Asia/Shanghai
+        # echo 'Asia/Shanghai' > /etc/timezone    # set timezone
+        # ln -sf /usr/share/zoneinfo/Asia/Chongqing /etc/localtime
+
+    OR
+
+        # dpkg-reconfigure tzdata
+
+* Set the time manually
+
+        date --set 1998-11-02
+        date --set 21:08:00
+
+* Set the time automatically
+
+    * Install **ntp**
+
+            apt-get install ntp
+
+    * Adjust */etc/ntp.conf*
+
+        Change the
+
+            server pool.ntp.org
+
+        line to
+
+            server XX.pool.ntp.org
+
+        where XX is your continent or two letter country code.
+
+* Force a clock update
+
+        # service ntp stop
+        # ntpd -gq
+        # service ntp start
+
+    OR
+
+        # service ntp stop
+        # ntpdate -s 3.cn.pool.ntp.org # synchronize date time.
+        # service ntp start
+
+* Asia — asia.pool.ntp.org
+
+    To use this pool zone, add the following to your ntp.conf file:
+
+           server 0.asia.pool.ntp.org
+           server 1.asia.pool.ntp.org
+           server 2.asia.pool.ntp.org
+           server 3.asia.pool.ntp.org
+
+* China — cn.pool.ntp.org
+
+    There are not enough servers in this zone, so we recommend you use the Asia zone (asia.pool.ntp.org):
+
+           server 0.asia.pool.ntp.org
+           server 1.asia.pool.ntp.org
+           server 2.asia.pool.ntp.org
+           server 3.asia.pool.ntp.org
+    
 * * *
 
 ### References
 
 * [How do I setup NTP to use the pool?](http://www.pool.ntp.org/en/use.html)
 * [NTP Servers in Asia, asia.pool.ntp.org](http://www.pool.ntp.org/zone/asia)
+* [DateTime](https://wiki.debian.org/DateTime)
+* [TimeZoneChanges](https://wiki.debian.org/TimeZoneChanges)
+* [How to force a clock update using ntp?](http://askubuntu.com/questions/254826/how-to-force-a-clock-update-using-ntp)
