@@ -54,4 +54,42 @@ The value of an integer can be specified in octal or hexadecimal instead of deci
 
 A **character constant** is an integer, written as one character with single quotes, such as *'x'*. The value of a character constant is the numberic value of the character in the machine's character set. *Character constants participate in numeric operations just as any other integers, although they are most often used in comparisions with other characters.
 
+Certain characters can be represented in character and string constants by escape sequences like *\n* (newline); these sequences looks like two characters, but represent only one. In addition, an arbitrary bytesized bit pattern can be specified by 
+
+    '\000'
+
+where *000* in one to three octal digits (0...7) or by
+
+    '\xhh'
+
+where *hh* is one or more hexadecimal digits (0...9, a...f, A...F).
+
+    #define VTAB '\013'     /* ASCII vertical tab */
+    #define BELL '\007'     /* ASCII bell character */
+
+or, in hexadecimal,
+
+    #define VTAB '\xb'      /* ASCII vertical tab */
+    #define BELL '\x7'      /* ASCII bell character */
+
+The complete set of escape sequences is
+
+    \a      alert(bell) character       \\      backslash
+    \b      backspace                   \?      question mark
+    \f      formfeed                    \'      single quote
+    \n      newline                     \"      double quote
+    \r      carriage return             \000    octal number
+    \t      horizontal tab              \xhh    hexadecimal number
+    \v      vertical tab 
+
+The character constant '\0' represents the character with value zero, the null character.
+
+A ***constant expression*** is an expression that involves only consants. Such expression may be evaluated at during compilation rather run-time.
+
+A ***string constant***, or ***string literal***, is a sequence of zero or more characters surrounded by double quotes.
+
+There is one other kind of constant, the ***enumeration constant***. A enumeratioin is a list of constant
+
+    enum boolean { NO, YES }
+
 #### 2.4 Declarations
