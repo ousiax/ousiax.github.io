@@ -42,17 +42,15 @@ The qualifiers **signed** or **unsigned** may be applied to **char** or any **in
 
 The type **long double** specifies extended-precision floating point. As with integers, the sizes of floating-point objects are implementation-defined; **float**, **double** and **long double** could represent one, two or three distinct sizes.
 
-The standard headers **&lt;limits&gt;** and **&lt;float.h&gt;** contain symbolic constants for all of these sizes, along with other properties of the machine and compiler.
-
 #### 2.3 Constants
 
 An integer constant like *12334* is an *int*. A *long* constant is written with a terminal **l** (ell) or **L**, as in *123456789L*; an integer constant too big to fit into an *int* will also be taken as a *long*. Unsigned constants are written with a terminal **u** or **U**, and the suffix **ul** or **UL** indicates *unsigned long*.
 
 Floating-point consants contain a decimal point (*123.4*) or an exponent (*1e-2*) or both; their type is *double*, unless suffixed. The suffixes **f** or **F** indicate a *float* constant; **l** or **L** indicate a *long double*.
 
-The value of an integer can be specified in octal or hexadecimal instead of decimal. A leading **0** (zero) on an integer constant means *octal*; a leading **0x** or **0X** meanns hexadecimal. For example, decimal *31* can be write as *037* in octal and *0x1f* or *0x1F* in hex. Octal and hexadecimal contants may also be followed by **L** to make them *long* and **U** to make them *unsigned: 0XFUL* is an *unsigned long* constant with value 15 decimal.
+A leading **0** (zero) on an integer constant means *octal*; a leading **0x** or **0X** meanns hexadecimal. For example, decimal *31* can be write as *037* in octal and *0x1f* or *0x1F* in hex. Octal and hexadecimal contants may also be followed by **L** to make them *long* and **U** to make them *unsigned: 0XFUL* is an *unsigned long* constant with value 15 decimal.
 
-A **character constant** is an integer, written as one character with single quotes, such as *'x'*. The value of a character constant is the numberic value of the character in the machine's character set. *Character constants participate in numeric operations just as any other integers, although they are most often used in comparisions with other characters.
+A **character constant** is an integer, written as one character with single quotes, such as *'x'*. The value of a character constant is the numberic value of the character in the machine's character set.
 
 Certain characters can be represented in character and string constants by escape sequences like *\n* (newline); these sequences looks like two characters, but represent only one. In addition, an arbitrary bytesized bit pattern can be specified by 
 
@@ -88,8 +86,89 @@ A ***constant expression*** is an expression that involves only consants. Such e
 
 A ***string constant***, or ***string literal***, is a sequence of zero or more characters surrounded by double quotes.
 
-There is one other kind of constant, the ***enumeration constant***. A enumeratioin is a list of constant
+There is one other kind of constant, the ***enumeration constant***. An enumeratioin is a list of constant integer values, as in
 
     enum boolean { NO, YES }
 
+The first name in an **enum** has value 0, the next 1, and so on, unless explicit values are specified. If not all values are specified, unspecified values continue the progression from the last specified value.
+
+Names in different enumerations must be distinct. Values need not be distinct in the same enumeration.
+
 #### 2.4 Declarations
+
+All variables must be declared before use, although certain declarations can be made implicitly by content.
+
+    int  lower, upper, step; 
+    char c, line[1000];
+
+A variable may also be initialized in its declaration.
+
+    char  esc = '\\';
+    int   i = 0;
+    int   limit = MAXLINE + 1;
+    float eps = 1.0e-5;
+
+If the variable in question is not automatic, the initialization is done once only, conceptionally before the program starts executing, and the initializer must be a constant expressoin.
+
+The qualifier **const** can be applied to the declaration of any variable to specify that its value will not be changed. For an array, the **const** qualifier says that the elements will not be altered.
+
+    const double e = 2.71828182845905;
+    const char msg[] = "warning: ";
+
+    int strlen(const char[]);
+
+#### 2.5 Arithmetic Operators
+
+*binary arithmetic operators*
+
+**+**&nbsp;&nbsp;&nbsp;&nbsp;**\-**&nbsp;&nbsp;&nbsp;&nbsp;**\***&nbsp;&nbsp;&nbsp;&nbsp;**/**&nbsp;&nbsp;&nbsp;&nbsp;**%**
+
+Integer division truncates any fractional part.
+
+The **%** operator cannot be applied to a **float** or **double**.
+
+The direction of trucation for **/** and the sign of the result for **%** are machine-dependent for negative operands, as is the action token on overflow or underflow.
+
+*unary arithmetic operators*
+
+**+**&nbsp;&nbsp;&nbsp;&nbsp;**\-**
+
+#### 2.6 Relational and Logical Operators
+
+*relational operators*
+
+**>**&nbsp;&nbsp;&nbsp;&nbsp;**>=**&nbsp;&nbsp;&nbsp;&nbsp;**<**&nbsp;&nbsp;&nbsp;&nbsp;**<=**&nbsp;&nbsp;&nbsp;&nbsp;**==**&nbsp;&nbsp;&nbsp;&nbsp;**!=**
+
+*logical operators*
+
+**&&**&nbsp;&nbsp;&nbsp;&nbsp;**\|\|**&nbsp;&nbsp;&nbsp;&nbsp;**!**
+
+#### 2.7 Type Conversions
+
+
+#### 2.8 Increment and Decrement Operators
+
+#### 2.9 Bitwise Operators
+
+#### 2.10 Assignment Operators and Expressions
+
+#### 2.11 Conditional Expressions
+
+#### 2.12 Precedence and Order of Evaluation
+
+    Operators                           Associativity
+    () [] -> .                          left to right
+    ! ~ ++ -- + - * (type) sizeof       right to left
+    * / %                                left to right
+    + -                                  left to right
+    << >>                               left to right
+    < <= > >=                           left to right
+    == !=                               left to right
+    &                                   left to right
+    ^                                   left to right
+    |                                   left to right
+    &&                                  left to right
+    ||                                  left to right
+    ?:                                  right to left
+    = += -= *= /= %= &= ^= |= <<= >>=   right to left
+    ,                                   left to right
