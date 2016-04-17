@@ -48,15 +48,15 @@ A leading **0** (zero) on an integer constant means *octal*; a leading **0x** or
 
 A **character constant** is an integer, written as one character with single quotes, such as *'x'*. The value of a character constant is the numberic value of the character in the machine's character set.
 
-Certain characters can be represented in character and string constants by escape sequences like *\n* (newline); these sequences looks like two characters, but represent only one. In addition, an arbitrary bytesized bit pattern can be specified by 
+Certain characters can be represented in character and string constants by **escape sequence**s like **\n** (newline); these sequences looks like two characters, but represent only one. In addition, an arbitrary bytesized bit pattern can be specified by 
 
     '\000'
 
-where *000* in one to three octal digits (0...7) or by
+where **000** in one to three octal digits (0...7) or by
 
     '\xhh'
 
-where *hh* is one or more hexadecimal digits (0...9, a...f, A...F).
+where **hh** is one or more hexadecimal digits (0...9, a...f, A...F).
 
 The complete set of escape sequences is
 
@@ -152,7 +152,7 @@ The incremen eand decrement operators can only be applied to variables; an expre
 
 Most binary operators (operators like **+** that have a left and right operand) have a corresponding assignment operator op=, where op is one of
 
-   +   -   *   /   %   <<   >>   &   ^   |
+    +   -   *   /   %   <<   >>   &   ^   |
    
 If *expr1* and *expr2* are expressions, then
 
