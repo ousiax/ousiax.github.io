@@ -10,11 +10,6 @@ int main()
     return 0;
 }
 ```
-
-```bash
-$ cc hello.c && ./a.out 
-Hello, 世界!
-```
     
 * * *
 
@@ -24,11 +19,6 @@ class Hello {
         System.out.println("Hello, 世界!");
     }
 }
-```
-
-```bash
-$ javac hello.java && java Hello
-Hello, 世界!
 ```
 
 * * *
@@ -41,11 +31,6 @@ class Program {
         Console.WriteLine("Hello, 世界!");
     }   
 }
-```
-
-```bash
-$ mono-csc hello.cs && mono hello.exe
-Hello, 世界!
 ```
 
 * * *
@@ -62,11 +47,6 @@ if __name__ == '__main__':
    main()
 ```
 
-```bash
-$ python hello.py 
-Hello, 世界!
-```
-
 * * *
 
 ```go
@@ -80,25 +60,16 @@ func main() {
     fmt.Printf('Hello, 世界!\n')
 }
 ```
-```bash
-$ go run hello.go
-Hello, 世界!
-```
 
 * * *
 
 ```ruby
-    #!/usr/bin/env ruby
-    # -*- coding: utf-8 -*-
-    
-    def main()
-      puts 'Hello, 世界!'
-    end
-    
-    main()
-```
+#!/usr/bin/env ruby
+# -*- coding: utf-8 -*-
 
-```bash
-$ ruby hello.rb 
-Hello, 世界!
+def main()
+  puts 'Hello, 世界!'
+end
+
+main()
 ```
