@@ -88,6 +88,10 @@ tags: ['Linux', 'Debian',]
 
     # apt-get install git
 
+*base_completion*
+
+    # apt-get install git-core bash-completion
+
 *configuration*
 
     $ git config --global user.name "John Doe"
