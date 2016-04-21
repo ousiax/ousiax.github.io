@@ -88,6 +88,25 @@ tags: ['Linux', 'Debian',]
 
     # apt-get install git
 
+*configuration*
+
+    $ git config --global user.name "John Doe"
+    $ git config --global user.email johndoe@example.com
+
+    $ git config --global core.editor emacs
+
+*configuring a remote for a fork*
+
+    $ git remote -v
+    
+    $ git remote add upstream https://github.com/ORIGINAL_OWNER/ORIGINAL_REPOSITORY.git
+
+*syncing a fork*
+
+    $ git fetch upstream
+    $ git checkout master
+    $ git merge upstream/master
+
 . pip
 
 *install*
@@ -218,3 +237,6 @@ tags: ['Linux', 'Debian',]
 * [DateTime](https://wiki.debian.org/DateTime)
 * [TimeZoneChanges](https://wiki.debian.org/TimeZoneChanges)
 * [How to force a clock update using ntp?](http://askubuntu.com/questions/254826/how-to-force-a-clock-update-using-ntp)
+* [Customizing Git - Git Configuration](https://git-scm.com/book/en/v2/Customizing-Git-Git-Configuration)
+* [Configuring a remote for a fork](https://help.github.com/articles/configuring-a-remote-for-a-fork/)
+* [Syncing a fork](https://help.github.com/articles/syncing-a-fork/)
