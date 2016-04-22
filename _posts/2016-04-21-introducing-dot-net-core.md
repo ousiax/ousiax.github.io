@@ -67,6 +67,16 @@ The .NET Execuation Environment (DNX) is a software development kit (SDK) and ru
 
 **Cross-platform .NET development** DNX provides a consistent development and execution environment across multiple platforms (Windows, Mac and Linux) and across different .NET flavors (.NET Framework, .NET Core and Mono). With DNX you can development your application on one platform and run it on a different platform as long as you have a compatilbe DNX installed on that platform.
 
+*To install DNX for .NET Core (Debian):*
+
+1. Install the DNX prerequisites
+
+        sudo apt-get install libunwind8 gettext libssl-dev libcurl4-openssl-dev zlib1g libicu-dev uuid-dev
+
+2. User DNVM to install DNX for .NET Core:
+
+        dnvm upgrade -r coreclr
+
 Use this snippet to install the lastest stable DNX (.NET Excution Environment).
 
     dnvm install latest
