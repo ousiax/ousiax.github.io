@@ -231,7 +231,58 @@ tags: ['Linux', 'Debian',]
            server 1.asia.pool.ntp.org
            server 2.asia.pool.ntp.org
            server 3.asia.pool.ntp.org
+
+. Uninstall softeware / package
+
+* Uninstall / Delete / Remove Package
     
+    * Remove package called mplaer,
+     
+             $ sudo apt-get remove mplayer
+     
+    * Remove package called lighttpd along with all configuration files,
+     
+             $ sudo apt-get --purge remove lighttpd
+     
+    * To list all installed package,
+    
+            $ dpkg --list
+    
+* Uninstall files installed from a source code tar ball
+    
+    * Method # 1: make command
+    
+            # make uninstall
+    
+        This method sounds very easy but not supported by all tar balls make file.
+    
+    * Method # 2: find command
+    
+        First, make a list of all files on system before installing software i.e. pre-installation list of all files on your system,
+    
+            find /* > packagelist.b4
+    
+        Next compile and install the software (use configure & make to compile it),
+    
+            ./configure --option=1 --foo=bar etc
+            make
+            make install
+    
+        Now, make a list of all files on the system after installing software i.e. postinstall list,
+    
+            find /* > packagelist.after
+    
+        Finally compare both lists using the diff utility to find out what files are placed where.
+    
+            diff packagelist.b4 packagelist.after > package.uninstall.list
+    
+        Use the following small for loop at shell prompt to remove all files,
+    
+            for i in $(grep ">" package.uninstall.list | awk '{ print $2 }')
+            do
+             /bin/rm -fi "$i"
+            done
+
 * * *
 
 ### References
