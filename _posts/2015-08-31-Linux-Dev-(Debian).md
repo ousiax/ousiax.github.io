@@ -283,6 +283,12 @@ tags: ['Linux', 'Debian',]
              /bin/rm -fi "$i"
             done
 
+. net-tools (CentOS)
+
+* ifconfig command not found
+
+        # yum install net-tools
+
 * * *
 
 ### References
