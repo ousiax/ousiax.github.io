@@ -168,23 +168,38 @@ disqus_identifier: 304705226039501129190960351359847979001
 
     * **RVM** is a command-line tool which allows you to easily install, manage, and work with multiple ruby environments from interpreters to sets of gems. 
 
-            rvm -v          # RVM version
-            rvm list known  # List Ruby interpreters available for installation
-            rvm list        # List Ruby interpreters you've already installed
+    *install*
 
-            rvm info     # Ruby information for the current shell
+        $ gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+        $ \curl -sSL https://get.rvm.io | bash -s stable
 
-            rvm gemdir   # Switch to gems directory for current ruby
-            rvm system   # Use the system ruby (as if no rvm)
+    *修改 RVM ，改用本站作为下载源, 提高安装速度。*
 
-            rvm install 2.1.1    # Install a version of Ruby (eg 2.1.1)
-            rvm uninstall 2.0.0  # Unisntall RVM installed 2.0.0 version
+    For Mac
 
-            rvm gemset create rails4  # Greate a named gemset rails4
-            rvm gemset use rails4     # Use the rails4 gemset
+        $ sed -i .bak -E 's!https?://cache.ruby-lang.org/pub/ruby!https://ruby.taobao.org/mirrors/ruby!' $rvm_path/config/db
 
-            rvm 2.1.1          # Use Ruby 2.1.1. Equivalently: rvm use 2.1.1
-            rvm 2.1.1@rails4   # Use Ruby 2.1.1 and gemset rails4
+    For Linux
+
+        $ sed -i -E 's!https?://cache.ruby-lang.org/pub/ruby!https://ruby.taobao.org/mirrors/ruby!' $rvm_path/config/db
+
+    *commands*
+
+        rvm -v          # RVM version rvm list known  # List Ruby interpreters available for installation rvm list        # List Ruby interpreters you've already installed
+
+        rvm info     # Ruby information for the current shell
+
+        rvm gemdir   # Switch to gems directory for current ruby
+        rvm system   # Use the system ruby (as if no rvm)
+
+        rvm install 2.1.1    # Install a version of Ruby (eg 2.1.1)
+        rvm uninstall 2.0.0  # Unisntall RVM installed 2.0.0 version
+
+        rvm gemset create rails4  # Greate a named gemset rails4
+        rvm gemset use rails4     # Use the rails4 gemset
+
+        rvm 2.1.1          # Use Ruby 2.1.1. Equivalently: rvm use 2.1.1
+        rvm 2.1.1@rails4   # Use Ruby 2.1.1 and gemset rails4
 
     * **Bundler** provides a consistent environment for Ruby projects by tracking and installing the exact gems and versions that are needed. 
 
@@ -265,3 +280,5 @@ disqus_identifier: 304705226039501129190960351359847979001
 * [Bundler: The best way to manage a Ruby application's gems](http://bundler.io/)
 
 * [bundler vs RVM vs gems vs RubyGems vs gemsets vs system ruby](http://stackoverflow.com/questions/15586216/bundler-vs-rvm-vs-gems-vs-rubygems-vs-gemsets-vs-system-ruby)
+
+* [RubyGems 镜像 - 淘宝网](https://ruby.taobao.org/)
