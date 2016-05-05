@@ -289,6 +289,31 @@ tags: ['Linux', 'Debian',]
 
         # yum install net-tools
 
+. Network Configuration (Debian)
+
+The majority of network setup can be done via *interfaces* configuration file at */etc/network/interfaces*.
+
+* Using DHCP to automatically configure the interface
+
+        auto eth0
+        allow-hotplug eth0
+        iface eth0 inet dhcp
+
+* Configuring the interface manually
+
+        auto eth0
+        iface eth0 inet static
+            address 192.0.2.7
+            netmask 255.255.255.0
+            gateway 192.0.2.254
+
+* Defining the (DNS) Nameservers
+
+    The configuration file *resolv.conf* at */etc/resolv.conf* contains information that allows a computer connected to a network to resolve names into addresses.
+
+        nameserver 12.34.56.78
+        nameserver 12.34.56.79
+
 * * *
 
 ### References
@@ -301,3 +326,4 @@ tags: ['Linux', 'Debian',]
 * [Customizing Git - Git Configuration](https://git-scm.com/book/en/v2/Customizing-Git-Git-Configuration)
 * [Configuring a remote for a fork](https://help.github.com/articles/configuring-a-remote-for-a-fork/)
 * [Syncing a fork](https://help.github.com/articles/syncing-a-fork/)
+* [NetworkConfiguration](https://wiki.debian.org/NetworkConfiguration#Setting_up_an_Ethernet_Interface)
