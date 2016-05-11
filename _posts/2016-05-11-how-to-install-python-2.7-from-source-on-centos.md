@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "How to Install Python 2.7 On CentOS 6"
+title: "How to Install Python 2.7 from source On CentOS"
 date: 2016-05-11 23-38-01 +0800
 categories: ['Python']
 tags: ['Python', 'CentOS']
@@ -10,6 +10,8 @@ Show CentOS version
 
     $  uname -ri
     2.6.18-398.el5 i386
+    $ cat /etc/*release
+    CentOS release 5.11 (Final)
 
 Install "Develement Tools"
 
@@ -75,7 +77,7 @@ Install virtualenv
 
 Create a virtualenv
 
-    $ export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH
+    $ echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc
     $ export LC_ALL=C
     $ virtualenv venv
     $ source venv/bin/activate
