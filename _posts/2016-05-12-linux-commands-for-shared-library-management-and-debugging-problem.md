@@ -16,11 +16,11 @@ In Linux or UNIX like operating system, a library is nothing but a collection of
 
 1. **Static libraries**
 
-    All lib\*.a files are included into executables that use their functions.
+    All `lib*.a` files are included into executables that use their functions.
 
 2. **Dynamic libraries or linking** \[also known as DSO (dynamic shared object)\]
 
-    All lib\*.so\* files are not copied into executables. The executable will automatically load the libraries using `ld.so` or `ld-linux.so`.
+    All `lib*.so*` files are not copied into executables. The executable will automatically load the libraries using `ld.so` or `ld-linux.so`.
 
 ## Linux Library Management Commands
 
@@ -32,7 +32,7 @@ In Linux or UNIX like operating system, a library is nothing but a collection of
 
 4. **ld.so/ld-linux.so**: Dynamic linker/loader.
 
-## Important Files
+### Important Files
 
 As a sys admin you should be aware of important files related to shared libraries:
 
@@ -49,7 +49,8 @@ As a sys admin you should be aware of important files related to shared librarie
 You need to use the **ldconfig command** to create, update, and remove the necessary links and cache (for use by the run-time linker, *ld.so*) to the most recent shared libraries foudn in the directories specified on the command line, in the file */etc/ld.so.conf*, and in the trused directories (*/usr/lib*, */lib64* and */lib*). The ldconfig command checks the header and file names of the libraries it encounters when determining which versions should have their links updated. This command also creates a file called ***/etc/ld.so.cache which is used to speed up linking.***
 
 **Examples**
-In this exmaple, you've installed a new set of shared libraries at **/usr/local/lib/**:
+
+In this exmaple, you've installed a new set of shared libraries at */usr/local/lib/*:
 
     $ ls -l /usr/local/lib/
 
@@ -187,6 +188,7 @@ The **LD\_PRELOAD** allow an *extra library* not specified in the executable to 
 Please note that these variables are ignored when executing setuid/setgid programs.
 
 * * *
+
 ## References
 
 * [Linux Commands For Shared Library Management & Debugging Problem](http://www.cyberciti.biz/tips/linux-shared-library-management.html)
