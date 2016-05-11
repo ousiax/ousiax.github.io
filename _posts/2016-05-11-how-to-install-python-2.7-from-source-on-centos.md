@@ -63,11 +63,13 @@ You can also use `--enable-shared` option to build shared versions of libraries.
 
 #### Add `/usr/local/python2.7/lib/` to `ld.so.conf`,
 
+If you use `--enable-shared` option, you should append python DSO to `ld.so.conf`.
+
     # echo "/usr/local/python27/lib/" > /etc/ld.so.conf.d/python2.7-x86_64.conf
 
 #### Add Python2.7 to PATH,
 
-    # echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc
+    # echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc && source $HOME/.bashrc
     # python --version
     Python 2.7.11
 
@@ -83,7 +85,7 @@ You can also use `--enable-shared` option to build shared versions of libraries.
 
 #### Create a virtualenv
 
-    $ echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc
+    $ echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc && source $HOME/.bashrc
     $ export LC_ALL=C
     $ virtualenv venv
     $ source venv/bin/activate
