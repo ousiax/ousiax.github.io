@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "How to Install Python 2.7 from source On CentOS"
+title: "How to install Python 2.7 from source on CentOS"
 date: 2016-05-11 23-38-01 +0800
 categories: ['Python']
 tags: ['Python', 'CentOS']
