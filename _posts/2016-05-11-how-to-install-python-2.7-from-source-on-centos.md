@@ -6,18 +6,18 @@ categories: ['Python']
 tags: ['Python', 'CentOS']
 disqus_identifier: 94384535001828622001171135555741952473
 ---
-Show CentOS version
+#### Show CentOS version
 
     $  uname -ri
     2.6.18-398.el5 i386
     $ cat /etc/*release
     CentOS release 5.11 (Final)
 
-Install "Develement Tools"
+#### Install "Develement Tools"
 
-    # yum groupinstall "Development Tools"
+    # yum -y groupinstall "Development Tools"
 
-Download [Gzipped source tarball](https://www.python.org/ftp/python/2.7.11/Python-2.7.11.tgz)
+#### Download [Gzipped source tarball](https://www.python.org/ftp/python/2.7.11/Python-2.7.11.tgz)
 
     # mkdir $HOME/tmp
     # cd $HOME/tmp
@@ -46,7 +46,9 @@ To install these modules,
     # yum -y install gdbm-devel
     # yum -y install openssl-devel
 
-Configure & Make install Python-2.7.11
+#### Configure & Make install Python-2.7.11
+
+You can also use `--enable-shared` option to build shared versions of libraries.
 
     # cd $HOME/tmp/Python-2.7.11
     # ./configure --prefix=/usr/local/python2.7
@@ -59,23 +61,27 @@ Configure & Make install Python-2.7.11
     running build_scripts
     # make install
 
-Add Python2.7 to PATH,
+#### Add `/usr/local/python2.7/lib/` to `ld.so.conf`,
+
+    # echo "/usr/local/python27/lib/" > /etc/ld.so.conf.d/python2.7-x86_64.conf
+
+#### Add Python2.7 to PATH,
 
     # echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc
     # python --version
     Python 2.7.11
 
-Install pip with [get-pip.py](https://bootstrap.pypa.io/get-pip.py)
+#### Install pip with [get-pip.py](https://bootstrap.pypa.io/get-pip.py)
 
     # cd $HOME/tmp
     # wget https://bootstrap.pypa.io/get-pip.py --no-check-certificate
     # python get-pip.py
 
-Install virtualenv
+#### Install virtualenv
 
     # pip install virtualenv
 
-Create a virtualenv
+#### Create a virtualenv
 
     $ echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc
     $ export LC_ALL=C
