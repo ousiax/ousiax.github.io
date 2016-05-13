@@ -233,8 +233,57 @@ A common problem with webapp deployment is "stuck request". All of your threads/
 
 In addition to this, since uWSGI 1.9, the stats server exports the whole set of request variables, so you can see (in realtime) what your instance is doing (for each worker, thread or async core).
 
+## Managing the uWSGI server
+
+### Reloading the server
+
+When running with the `master` process mode, the uWSGI server can be gracefully restarted without closing the main sockets.
+
+This funcitonality allows you patch/upgrade the uWSGI server without closing the connection with the web server and losing a single request.
+
+When you send the *SIGHUP* to the master process it will try to gracefully stop all the workers, waiting for the completion of any currently running requests.
+
+Then it closes all the eventually opened file descriptors not related to uWSGI.
+
+Lastly, it binary patches (using `execve()`) the uWSGI process image with a new one, inheriting all of the previous file descriptors.
+
+The server will known that it is a reloaded instance and will skip all the sockets initialization, reusing the previous ones.
+
+*Sending the SIGTERM signal will obtain the same result reload-wise but will not wait for the completion of running requests.*
+
+There are several ways to make uWSGI gracefully restart.
+
+There are several ways to make uWSGI gracefully restart.
+
+    # using kill to send the signal
+    kill -HUP `cat /tmp/project-master.pid`
+    # or the convenience option --reload
+    uwsgi --reload /tmp/project-master.pid
+    # or if uwsgi was started with touch-reload=/tmp/somefile
+    touch /tmp/somefile
+
+Or from your application, in Python:
+
+    uwsgi.reload()
+
+Or in Ruby,
+
+    UWSGI.reload
+
+### Stoping the server
+
+If you have the uWSGI process running in the foreground for some reason, you can just hit CTRL+C to kill it off.
+
+When dealing with background processes, you'll need to use the master pidfile again. The SIGINT singal will kill uWSGI.
+
+    kill -INT `cat /tmp/project-master.pid`
+    # or for convenience...
+    uwsgi --stop /tmp/project-master.pid
+
 * * *
 
 ## References
 
 * [Quickstart for Python/WSGI applications](http://uwsgi.readthedocs.io/en/latest/WSGIquickstart.html)
+
+* [Managing the uWSGI server](http://uwsgi.readthedocs.io/en/latest/Management.html)
