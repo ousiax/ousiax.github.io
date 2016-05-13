@@ -121,14 +121,56 @@ tags: ['Linux', 'Debian',]
 
 *configuration*
 
-        # mkdir /etc/pip
-        # vi /etc/pip/pip.ini
+**Per-user**:
 
-        [global]
-        timeout=60
-        index-url=https://pypi.mirrors.ustc.edu.cn/simple
+* On Unix the default configuration file is: `$HOME/.config/pip/pip.conf` which respects the `XDG_CONFIG_HOME` environment variable.
 
-        # echo 'PIP_CONFIG_FILE="/etc/pip/pip.ini"' >> /etc/bash.bashrc
+* On Mac OS X the configuration file is `$HOME/Library/Application Support/pip/pip.conf`.
+
+* On Windows the configuration file is `%APPDATA%\pip\pip.ini`.
+
+There are also a legacy per-user configuration file which is also respected, these are located at:
+
+* On Unix and Mac OS X the configuration file is: `$HOME/.pip/pip.conf`
+
+* On Windows the configuration file is: `%HOME%\pip\pip.ini`
+
+You can set a custom path location for this config file using the environment variable `PIP_CONFIG_FILE`.
+
+    # mkdir /etc/pip
+    # vi /etc/pip/pip.ini
+
+    [global]
+    timeout=60
+    index-url=https://pypi.mirrors.ustc.edu.cn/simple
+
+    # echo 'PIP_CONFIG_FILE="/etc/pip/pip.ini"' >> /etc/bash.bashrc
+
+**Inside a virtualenv**:
+
+* On Unix and Mac OS X the file is `$VIRTUAL_ENV/pip.conf`
+
+* On Windows the file is: `%VIRTUAL_ENV%\pip.ini`
+
+**Site-wide**:
+
+* On Unix the file may be located in `/etc/pip.conf`. Alternatively it may be in a "pip" subdirectory of any of the paths set in the environment variable `XDG_CONFIG_DIRS` (if it exists), for example `/etc/xdg/pip/pip.conf`.
+
+* On Mac OS X the file is: `/Library/Application Support/pip/pip.conf`
+
+* On Windows XP the file is: `C:\Documents and Settings\All Users\Application Data\pip\pip.ini`
+
+* On Windows 7 and later the file is hidden, but writeable at `C:\ProgramData\pip\pip.ini`
+
+* Site-wide configuration is not supported on Windows Vista
+
+If multiple configuration files are found by pip then they are combined in the following order:
+
+* Firstly the site-wide file is read, then
+
+* The per-user file is read, and finally
+
+* The virtualenv-specific file is read.
 
 . virtualenv
 
