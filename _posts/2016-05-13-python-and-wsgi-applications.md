@@ -3,7 +3,7 @@ layout: post
 title: "Python & WSGI applications"
 date: 2016-05-13 14-51-33 +0800
 categories: ['Python']
-tags: ['Python']
+tags: ['Python', 'wsgi', 'uWSGI', 'Django']
 disqus_identifier: 86045526457165983718688743244436200313
 ---
 
@@ -282,8 +282,8 @@ When dealing with background processes, you'll need to use the master pidfile ag
 
 * * *
 
-## References
+### References
 
-* [Quickstart for Python/WSGI applications](http://uwsgi.readthedocs.io/en/latest/WSGIquickstart.html)
+* [Quickstart for Python/WSGI applications — uWSGI 2.0 documentation](http://uwsgi.readthedocs.io/en/latest/WSGIquickstart.html)
 
-* [Managing the uWSGI server](http://uwsgi.readthedocs.io/en/latest/Management.html)
+* [Managing the uWSGI server — uWSGI 2.0 documentation](http://uwsgi.readthedocs.io/en/latest/Management.html)
