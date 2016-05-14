@@ -130,6 +130,7 @@ If you use `--enable-shared` option, you should append python DSO to `ld.so.conf
 
 * * *
 
-* [Python Source Releases](https://www.python.org/downloads/source/)
-* [Installing with get-pip.py](https://pip.pypa.io/en/stable/installing/#installing-with-get-pip-py)
+* [Python Source Releases | Python.org](https://www.python.org/downloads/source/)
+* [Installation — pip 8.1.2 documentation](https://pip.pypa.io/en/stable/installing/#installing-with-get-pip-py)
+* [Installing Python 2.6, virtualenv, and virtualenvwrapper on Dreamhost](http://andrew.io/weblog/2010/02/installing-python-2-6-virtualenv-and-virtualenvwrapper-on-dreamhost/)
 * [pip install - locale.Error: unsupported locale setting](http://stackoverflow.com/questions/36394101/pip-install-locale-error-unsupported-locale-setting/36394262#36394262)

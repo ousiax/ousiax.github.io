@@ -3,7 +3,7 @@ layout: post
 title: "How to install Read The Docs on CentOS"
 date: 2016-05-12 01-36-16 +0800
 categories: ['ReadTheDocs']
-tags: ['ReadTheDocs', 'Python', 'CentOS']
+tags: ['ReadTheDocs', 'Python', 'CentOS', 'Git']
 disqus_identifier: 320150661822729104925016946000399763251
 ---
 First, obtain [Python 2.7](http://www.python.org/) and [virtualenv](http://pypi.python.org/pypi/virtualenv) if you do not already have them. Using a virtualenv environment will make the installation easier, and will help to avoid clutter in your system-wide libraries.
