@@ -36,15 +36,51 @@ disqus_identifier: 94384535001828622001171135555741952473
 
 To install these modules,
 
-    # yum -y install bzip2-devel
-    # yum -y install zlib-devel
-    # yum -y install readline-devel
-    # yum -y install sqlite-devel
-    # yum -y install tk-devel
-    # yum -y install ncurses-devel
-    # yum -y install db4-devel
-    # yum -y install gdbm-devel
-    # yum -y install openssl-devel
+* bz2
+
+        # yum -y install bzip2-devel
+
+* zlib
+
+        # yum -y install zlib-devel
+
+* readline
+
+        # yum -y install readline-devel
+
+* \_sqlite3
+
+        # yum -y install sqlite-devel
+
+* \_tkinter
+
+        # yum -y install tk-devel
+
+* \_curses \_curses\_panel
+
+        # yum -y install ncurses-devel
+
+* \_bsddb
+
+        # yum -y install db4-devel
+
+* gdbm
+
+        # yum -y install gdbm-devel
+
+* \_ssl
+
+    With dist packages
+
+        # yum -y install openssl-devel
+
+    Make with source
+
+        # wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
+        # tar xf openssl-1.0.2h.tar.gz
+        # cd openssl-1.0.2h
+        # ./config --prefix=/usr shared
+        # make install
 
 #### Configure & Make install Python-2.7.11
 
