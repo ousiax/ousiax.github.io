@@ -6,7 +6,11 @@ categories: ['ReadTheDocs']
 tags: ['ReadTheDocs', 'Python', 'CentOS', 'Git']
 disqus_identifier: 320150661822729104925016946000399763251
 ---
+## Installation Read The Docs
+
 First, obtain [Python 2.7](http://www.python.org/) and [virtualenv](http://pypi.python.org/pypi/virtualenv) if you do not already have them. Using a virtualenv environment will make the installation easier, and will help to avoid clutter in your system-wide libraries.
+
+### Python 2.7
 
 To install Python 2.7 from source, please see [How to install Python 2.7 from source on CentOS](/python/2016/05/11/how-to-install-python-2.7-from-source-on-centos.html).
 
@@ -18,6 +22,8 @@ Linux users may find they need to install a few additional packages in order to 
     cd /tmp
     wget https://bootstrap.pypa.io/get-pip.py --no-check-certificate
     python get-pip.py
+
+### Git 2.8
 
 You will also need [Git](http://git-scm.com/) in order to clone the repository.
 
@@ -33,6 +39,8 @@ If you install (lib)curl-devel, then rebuild/install git, this should solve the 
     cd git-2.8.2
     ./configure --prefix=/usr/local
     make install
+
+### Read The Docs
 
 Once you have these, create a virtual environment somewhere on your disk, then active it:
 
@@ -90,6 +98,99 @@ Example `local_settings.py`:
     #ALLOW_ADMIN = False
     DEBUG = False
 
+## Configuration of the production servers
+
+### uWSGI
+
+To install uWSGI with Python support, please refer to [Python & WSGI applications](python/2016/05/13/python-and-wsgi-applications.html)
+
+    cd rtd
+    source bin/active
+    pip install uwsgi
+
+Configuration file `readthedocs_wsgi.ini`
+
+    [uwsgi]
+    ini = :pro
+    
+    [pro]
+    env = DJANGO_SETTINGS_MODULE=readthedocs.settings.pro
+    ini = :readthedocs
+    
+    [dev]
+    env = DJANGO_SETTINGS_MODULE=readthedocs.settings.dev
+    ini = :readthedocs
+    
+    [readthedocs]
+    virtualenv = /home/x/rtd/
+    chdir = /home/x/rtd/checkouts/readthedocs.org/
+    wsgi-file = readthedocs/wsgi.py
+    env = DJANGO_SETTINGS_MODULE=readthedocs.settings.dev
+    # module = django.core.handlers.wsgi:WSGIHandler()
+    # module = readthedocs.wsgi:applicaiton
+    
+    # http = 0.0.0.0:8000
+    socket = 127.0.0.1:3031
+    # socket = /tmp/%n.sock
+    # chmod-socket = 777
+    
+    uid = x
+    gid = x
+    
+    stats = 127.0.0.1:9191
+    pidfile = logs/%n.pid
+    # daemonize = logs/%n.log
+    
+    master = true
+    workers = 4
+    enable-threads = true
+    
+    vaccum = true
+
+### Nginx
+
+Building nginx from Sources, refer to [Building nginx from Sources](http://nginx.org/en/docs/configure.html)
+
+
+    wget http://nginx.org/download/nginx-1.10.0.tar.gz
+    tar xf nginx-1.10.0.tar.gz
+    wget ftp://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-8.38.tar.gz
+    tar xf pcre-8.38.tar.gz
+    wget http://zlib.net/zlib-1.2.8.tar.gz
+    tar xf zlib-1.2.8.tar.gz
+    cd nginx-1.10.0
+    ./configure
+    --prefix=/usr/local
+    --conf-path=/etc/nginx/nginx.conf
+    --pid-path=/var/run/nginx.pid
+    --error-log-path=/var/log/nginx/error.log
+    --http-log-path=/var/log/nginx/access.log
+    --with-http_ssl_module
+    --with-pcre=../pcre-8.38
+    --with-zlib=../zlib-1.2.8
+    make && make install
+
+Configuration File's Structure
+
+        location / {
+                root /home/x/rtd/checkouts/readthedocs.org/;
+                include uwsgi_params;
+                uwsgi_pass 127.0.0.1:3031;
+        }
+
+        location /static/ {
+                alias /home/x/rtd/checkouts/readthedocs.org/media/static/;
+        }
+
+        location /media/ {
+                alias /home/x/rtd/checkouts/readthedocs.org/media/;
+        }
+
+        location /docs/ {
+                alias /home/x/rtd/checkouts/readthedocs.org/public_web_root/;
+                index  index.html index.htm;
+        }    
+
 * * *
 
 ### References
@@ -100,3 +201,8 @@ Example `local_settings.py`:
 
 * [linux - git clone: fatal: Unable to find remote helper for 'https' - Stack Overflow](http://stackoverflow.com/questions/8329485/git-clone-fatal-unable-to-find-remote-helper-for-https)
 
+* [Python & WSGI applications](/python/2016/05/13/python-and-wsgi-applications.html)
+
+* [Building nginx from Sources](http://nginx.org/en/docs/configure.html)
+
+* [Module ngx_http_core_module](http://nginx.org/en/docs/http/ngx_http_core_module.html)
