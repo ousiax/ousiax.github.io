@@ -102,7 +102,7 @@ Example `local_settings.py`:
 
 ### uWSGI
 
-To install uWSGI with Python support, please refer to [Python & WSGI applications](python/2016/05/13/python-and-wsgi-applications.html)
+To install uWSGI with Python support, please refer to [Python & WSGI applications](/python/2016/05/13/python-and-wsgi-applications.html)
 
     cd rtd
     source bin/active
