@@ -9,7 +9,7 @@ disqus_identifier: 86045526457165983718688743244436200313
 
 ## Installing uWSGI with Python support
 
-*When you start learning uWSGI, try to build from offical sources: using distribution-supplied packages may brings you plenty of headaches. When things are clear, you can use modular builds (like the ones available in your distribution).
+*When you start learning uWSGI, try to build from offical sources: using distribution-supplied packages may brings you plenty of headaches. When things are clear, you can use modular builds (like the ones available in your distribution).*
 
 uWSGI is a (big) C application, so you need a C compiler (like gcc or clang) and the Python development headers.
 
@@ -235,6 +235,43 @@ In addition to this, since uWSGI 1.9, the stats server exports the whole set of 
 
 ## Managing the uWSGI server
 
+### INI files
+
+.INI files are a standard de-facto cofiguration format used by many applications. It consists of `[section]`s and `key=value` pairs.
+
+An example uWSGI INI configuration:
+
+    [uwsgi]
+    socket = /tmp/uwsgi.sock
+    socket = 127.0.0.1:3031
+    master = true
+    workers = 3
+
+By default, uWSGI uses the `[uwsgi]` section, but you can specify another section name while loading the INI file with the syntax `filename:section`, that is:
+
+    uwsgi --ini myconf.ini:app1
+
+Alternatively, you can load another section from the same file by ommitting the filename and specifying just the section name. Note that technically, this loads the named section from the last.ini file loaded instead of the current one, so be careful when including other files.
+
+    [uwsgi]
+    # This will load the app1 section below
+    ini = :app1
+    # This will load the defaults.ini file
+    ini = defaults.ini
+    # This will load the app2 section from the defaults.ini file!
+    ini = :app2
+    
+    [app1]
+    plugin = rack
+    
+    [app2]
+    plugin = php
+
+* Whitespace is insignificant within lines.
+* Lines starting with a semicolon (`;`) or a hash/octothorpe (`#`) are ignored as comments.
+* Boolean values may be set without the value part. Simply `master` is thus equivalent to `master=true`. This may not be compatible with other INI parsers such as `paste.deploy`.
+* For convenience, uWSGI recognizes bare `.ini` arguments specially, so the invocation `uwsgi myconf.ini` is equal to `uwsgi --ini myconf.ini`.
+
 ### Reloading the server
 
 When running with the `master` process mode, the uWSGI server can be gracefully restarted without closing the main sockets.
@@ -287,3 +324,7 @@ When dealing with background processes, you'll need to use the master pidfile ag
 * [Quickstart for Python/WSGI applications — uWSGI 2.0 documentation](http://uwsgi.readthedocs.io/en/latest/WSGIquickstart.html)
 
 * [Managing the uWSGI server — uWSGI 2.0 documentation](http://uwsgi.readthedocs.io/en/latest/Management.html)
+
+* [Configuring uWSGI — uWSGI 2.0 documentatio](http://uwsgi.readthedocs.io/en/latest/Configuration.html)
+
+* [uWSGI Options — uWSGI 2.0 documentatio](http://uwsgi.readthedocs.io/en/latest/Options.html)
