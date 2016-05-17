@@ -103,27 +103,20 @@ If you use `--enable-shared` option, you should append python DSO to `ld.so.conf
 
     # echo "/usr/local/python27/lib/" > /etc/ld.so.conf.d/python2.7-x86_64.conf
 
-#### Add Python2.7 to PATH,
-
-    # echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc && source $HOME/.bashrc
-    # python --version
-    Python 2.7.11
-
 #### Install pip with [get-pip.py](https://bootstrap.pypa.io/get-pip.py)
 
     # cd $HOME/tmp
     # wget https://bootstrap.pypa.io/get-pip.py --no-check-certificate
-    # python get-pip.py
+    # /usr/local/python2.7/bin/python get-pip.py
 
 #### Install virtualenv
 
-    # pip install virtualenv
+    # /usr/local/python2.7/bin/pip install virtualenv
 
 #### Create a virtualenv
 
-    $ echo "export PATH=/usr/local/python2.7/bin:/usr/local/python2.7/lib/python2.7/site-packages:$PATH" > $HOME/.bashrc && source $HOME/.bashrc
     $ export LC_ALL=C
-    $ virtualenv venv
+    $ /usr/local/python2.7/bin/virtualenv venv
     $ source venv/bin/activate
     $ python --version
     Python 2.7.11
