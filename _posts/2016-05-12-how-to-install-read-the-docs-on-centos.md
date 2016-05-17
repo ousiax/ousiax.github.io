@@ -27,13 +27,8 @@ Linux users may find they need to install a few additional packages in order to 
 
 You will also need [Git](http://git-scm.com/) in order to clone the repository.
 
-* ***fatal: Unable to find remote helper for 'https'***
-
-It looks like not having (lib)curl-devel installed when you compile git can cause this.
-
-If you install (lib)curl-devel, then rebuild/install git, this should solve the problem.
-
     yum -y install curl-devel
+    yum -y install perl-devel
     wget https://www.kernel.org/pub/software/scm/git/git-2.8.2.tar.gz
     tar xf git-2.8.2.tar.gz
     cd git-2.8.2
@@ -58,6 +53,17 @@ Next, install the depedencies using `pip` (included inside of [virtualenv](http:
 
     cd readthedocs.org
     pip install -r requirements.txt
+
+*  Could not find a version that satisfies the requirement backports.ssl\_match\_hostname (from tornado&gt;=4.1\-&gt;mkdocs==0.14.0\-&gt;\-r requirements/pip.txt (line 7)) (from versions: )
+
+    No matching distribution found for backports.ssl_match_hostname (from tornado&gt;=4.1\-&gt;mkdocs==0.14.0\-&gt;\-r requirements/pip.txt (line 7))
+
+        source rtd/bin/active
+        cd /tmp 
+        wget https://pypi.python.org/packages/76/21/2dc61178a2038a5cb35d14b61467c6ac632791ed05131dda72c20e7b9e23/backports.ssl_match_hostname-3.5.0.1.tar.gz
+        tar xf backports.ssl_match_hostname-3.5.0.1.tar.gz
+        cd backports.ssl_match_hostname-3.5.0.1
+        python setup.py install
 
 This may take a while, so go grab a beverage. When it's done, build your database:
 
@@ -125,7 +131,6 @@ Configuration file `readthedocs_wsgi.ini`
     virtualenv = /home/x/rtd/
     chdir = /home/x/rtd/checkouts/readthedocs.org/
     wsgi-file = readthedocs/wsgi.py
-    env = DJANGO_SETTINGS_MODULE=readthedocs.settings.dev
     # module = django.core.handlers.wsgi:WSGIHandler()
     # module = readthedocs.wsgi:applicaiton
     
