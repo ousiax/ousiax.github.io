@@ -178,9 +178,9 @@ Building nginx from Sources, refer to [Building nginx from Sources](http://nginx
 Configuration File's Structure
 
         location / {
-                root /home/x/rtd/checkouts/readthedocs.org/;
                 include uwsgi_params;
                 uwsgi_pass 127.0.0.1:3031;
+                uwsgi_read_timeout 60;
         }
 
         location /static/ {
