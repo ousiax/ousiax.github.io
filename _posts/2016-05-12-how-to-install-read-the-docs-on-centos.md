@@ -96,12 +96,13 @@ If you put a file named `local_settings.py` in the `readthedocs/settings` direct
 Example `local_settings.py`:
 
     PRODUCTION_DOMAIN = '192.168.241.130:8000'
-
     SLUMBER_API_HOST = 'http://192.168.241.130:8000'
+    PUBLIC_API_URL = 'http://192.168.241.130:8000'
+    MEDIA_URL = 'http://192.168.241.130:80/media/'
 
     TIME_ZONE = 'Asia/Chongqing'
-
-    #ALLOW_ADMIN = False
+    
+    ALLOW_ADMIN = False
     DEBUG = False
 
 ## Configuration of the production servers
@@ -177,24 +178,71 @@ Building nginx from Sources, refer to [Building nginx from Sources](http://nginx
 
 Configuration File's Structure
 
-        location / {
-                include uwsgi_params;
-                uwsgi_pass 127.0.0.1:3031;
-                uwsgi_read_timeout 60;
-        }
+`nginx.conf`
 
-        location /static/ {
-                alias /home/x/rtd/checkouts/readthedocs.org/media/static/;
-        }
+    location / {
+            include uwsgi_params;
+            uwsgi_pass 127.0.0.1:3031;
+            uwsgi_read_timeout 60;
+    }
 
-        location /media/ {
-                alias /home/x/rtd/checkouts/readthedocs.org/media/;
-        }
+    location /static/ {
+            alias /home/x/rtd/checkouts/readthedocs.org/media/static/;
+    }
 
-        location /docs/ {
-                alias /home/x/rtd/checkouts/readthedocs.org/public_web_root/;
-                index  index.html index.htm;
-        }    
+    location /media/ {
+            alias /home/x/rtd/checkouts/readthedocs.org/media/;
+    }
+
+    location /docs/ {
+            alias /home/x/rtd/checkouts/readthedocs.org/public_web_root/;
+            index  index.html index.htm;
+    }
+
+XSendfile: Nginx & Django
+
+`nginx.conf`
+    
+    location /protected/docs/ {
+            alias /home/x/rtd/checkouts/readthedocs.org/public_web_root/;
+            index  index.html index.htm;
+    }
+
+`middleware.py`
+
+```python
+from django.http import HttpResponse
+
+
+class AuthenticationMiddleware(object):
+    def __init__(self):
+        self.mime_map = {
+            '.css': 'text/css',
+            '.htm': 'text/html',
+            '.html': 'text/html',
+            '.jpeg': 'image/jpeg',
+            '.jpg': 'image/jpeg',
+            '.js': 'application/javascript',
+            '.json': 'application/json',
+            '.zip': 'application/x-zip-compressed',
+        }
+        self.protected_url = '/protected'
+
+    def is_authenticated(self, request):
+        return True
+
+    def x_accel_redirect(self, request_path):
+        resp = HttpResponse()
+        ext = path.splitext(request_path)[1]
+        if ext:
+            resp['Content-Type'] = self.mime_map[ext]
+        resp['X-Accel-Redirect'] = self. protected_url + request_path
+        return resp
+
+    def process_request(self, request):
+        if request.path.startswith('/docs') and self.is_authenticated(request):
+            return self.x_accel_redirect(request.path)
+```
 
 * * *
 
@@ -211,3 +259,5 @@ Configuration File's Structure
 * [Building nginx from Sources](http://nginx.org/en/docs/configure.html)
 
 * [Module ngx_http_core_module](http://nginx.org/en/docs/http/ngx_http_core_module.html)
+
+* [XSendfile | NGINX](https://www.nginx.com/resources/wiki/start/topics/examples/xsendfile/)
