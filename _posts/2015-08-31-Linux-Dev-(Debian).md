@@ -356,6 +356,22 @@ The majority of network setup can be done via *interfaces* configuration file at
         nameserver 12.34.56.78
         nameserver 12.34.56.79
 
+. redirect stderr to stdout
+
+    $ command-name 2>&1
+
+OR
+
+    $ command-name &>
+
+* examples
+
+Write all output data to file `list`.    
+
+    $ find /home -name .bashrc > list 2>&1
+
+    $ find /home -name .bashrc &> list
+
 * * *
 
 ### References
