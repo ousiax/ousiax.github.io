@@ -6,7 +6,7 @@ date: 2015-08-31 09-10-45 +0800
 categories: ['Linux',]
 tags: ['Linux', 'Debian',]
 ---
-. show linux version
+### . show linux version
 
     $ uname -a
     $ cat /proc/version
@@ -14,62 +14,63 @@ tags: ['Linux', 'Debian',]
     $ lsb_release -a
     $ cat /etc/*release
 
-. setterm (Disable PC speaker beep)
+### . setterm (Disable PC speaker beep)
 
     $ setterm -blength 0
 
-. apt
+### . apt
 
     # cd /etc/apt/
     # wget http://mirrors.163.com/.help/sources.list.jessie -O sources.list
     # apt-get update
 
-. vim
+### . vim
 
     # apt-get install vim
 
 *basic configuration*
-{% highlight vim %}
-    " line enables syntax highlighting
-    syntax on
 
-    " display line number
-    set number
+```vim
+" line enables syntax highlighting
+syntax on
 
-    " disable vim swap and backup
-    set nobackup
-    set nowritebackup
-    set noswapfile
+" display line number
+set number
 
-    " expands tab as spaces
-    set expandtab
-    set tabstop=4
-    set shiftwidth=4
+" disable vim swap and backup
+set nobackup
+set nowritebackup
+set noswapfile
 
-    " UTF-8
-    set encoding=utf-8
-    set fileencoding=utf-8
-    set fileencodings=ucs-bom,utf-8,chinese
-    set ambiwidth=double
-{% endhighlight %}
+" expands tab as spaces
+set expandtab
+set tabstop=4
+set shiftwidth=4
 
-. sudo
+" UTF-8
+set encoding=utf-8
+set fileencoding=utf-8
+set fileencodings=ucs-bom,utf-8,chinese
+set ambiwidth=double
+```
+
+### . sudo
 
 *install*
 
-        # apt-get install sudo
+    # apt-get install sudo
 
 *configuration*
 
-        # usermod -aG sudo x # x is my login user name
+    # usermod -aG sudo x # x is my login user name
 
-. home directory for user [x]
+### . home directory for user [x]
 
     # mkdir -p /home/x
     # chown x:x /home/x
     # usermod -d /home/x -m x
 
-. OpenSSH
+### . OpenSSH
 
 *install*
 
@@ -79,12 +80,12 @@ tags: ['Linux', 'Debian',]
 
         # /etc/init.d/ssh start
 
-. gcc
+### . gcc
     
     # apt-get install gcc
     # apt-get install make
 
-. git
+### . git
 
     # apt-get install git
 
@@ -111,13 +112,13 @@ tags: ['Linux', 'Debian',]
     $ git checkout master
     $ git merge upstream/master
 
-. pip
+### . pip
 
 *install*
 
-        # cp /tmp
-        # wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
-        # python get-pip.py
+    # cp /tmp
+    # wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
+    # python get-pip.py
 
 *configuration*
 
@@ -172,24 +173,24 @@ If multiple configuration files are found by pip then they are combined in the f
 
 * The virtualenv-specific file is read.
 
-. virtualenv
+### . virtualenv
 
     $ pip install virtualenv
 
-. django
+### . django
 
     # pip install django
 
-. uwsgi
+### . uwsgi
 
     # apt-get install python-dev
     # pip install uwsgi
 
-. nginx
+### . nginx
 
     # apt-get install nginx
 
-. java
+### . java
 
 *download*
 
@@ -200,16 +201,16 @@ If multiple configuration files are found by pip then they are combined in the f
 
 *configuration (/etc/profile or /etc/bash.bashrc)*
 
-{% highlight shell %}
-    JAVA_HOME=/opt/java # jdk1.8.0_66
-    JRE_HOME=$JAVA_HOME/jre
-    PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
-    export JAVA_HOME
-    export JRE_HOME
-    export PATH
-{% endhighlight %}
+```bash
+JAVA_HOME=/opt/java # jdk1.8.0_66
+JRE_HOME=$JAVA_HOME/jre
+PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
+export JAVA_HOME
+export JRE_HOME
+export PATH
+```
 
-. Date & Time
+### . Date & Time
 
 * Select a **timezone**
 
@@ -274,17 +275,17 @@ If multiple configuration files are found by pip then they are combined in the f
            server 2.asia.pool.ntp.org
            server 3.asia.pool.ntp.org
 
-. Uninstall softeware / package
+### . Uninstall softeware / package
 
 * Uninstall / Delete / Remove Package
     
     * Remove package called mplaer,
      
-             $ sudo apt-get remove mplayer
+            $ sudo apt-get remove mplayer
      
     * Remove package called lighttpd along with all configuration files,
      
-             $ sudo apt-get --purge remove lighttpd
+            $ sudo apt-get --purge remove lighttpd
      
     * To list all installed package,
     
@@ -325,13 +326,13 @@ If multiple configuration files are found by pip then they are combined in the f
              /bin/rm -fi "$i"
             done
 
-. net-tools (CentOS)
+### . net-tools (CentOS)
 
 * ifconfig command not found
 
         # yum install net-tools
 
-. Network Configuration (Debian)
+### . Network Configuration (Debian)
 
 The majority of network setup can be done via *interfaces* configuration file at */etc/network/interfaces*.
 
@@ -356,7 +357,14 @@ The majority of network setup can be done via *interfaces* configuration file at
         nameserver 12.34.56.78
         nameserver 12.34.56.79
 
-. redirect stderr to stdout
+### . redirecting to and from the standard file handles
+
+    Handle  Name    Description
+    0       stdin   Standard input
+    1       stdout  Standard output
+    2       stderr  Standard error
+
+* redirect `stderr` to `stdout`
 
     $ command-name 2>&1
 
@@ -366,11 +374,10 @@ OR
 
 * examples
 
-Write all output data to file `list`.    
+    Write all output data to file `list`.    
 
-    $ find /home -name .bashrc > list 2>&1
-
-    $ find /home -name .bashrc &> list
+        $ find / -name .bashrc > list 2>&1
+        $ find / -name .bashrc &> list
 
 * * *
 
