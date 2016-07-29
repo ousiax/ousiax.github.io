@@ -89,4 +89,28 @@ I/O device.
 
 ---
 
-![Process virtual address space](/assets/images/computer_systems/0113_process_virtual_address_space.png)
+ ![Process virtual address space](/assets/images/computer_systems/0112_process_context_switching.png)
+ 
+ ---
+
+ ![Process virtual address space](/assets/images/computer_systems/0113_process_virtual_address_space.png)
+  
+ ---
+
+ ![Process virtual address space](/assets/images/computer_systems/0114_a_network_is_another_i_o_device.png)
+  
+ ---
+
+ ![Process virtual address space](/assets/images/computer_systems/0115_using_telnet_to_run_hello_remotely_over_a_network.png)
+  
+ ---
+
+ ![Process virtual address space](/assets/images/computer_systems/0116_categorizing_different_processor_configurations.png)
+  
+ ---
+
+ ![Process virtual address space](/assets/images/computer_systems/0117_intel_core_i7_organization.png)
+  
+ ---
+
+ ![Process virtual address space](/assets/images/computer_systems/0118_some_abstractions_provided_by_a_computer_system.png)
