@@ -114,3 +114,9 @@ I/O device.
  ---
 
  ![Process virtual address space](/assets/images/computer_systems/0118_some_abstractions_provided_by_a_computer_system.png)
+
+- - -
+
+### References
+
+- [计算机科学丛书:深入理解计算机系统](https://www.amazon.cn/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6%E4%B8%9B%E4%B9%A6-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%B3%BB%E7%BB%9F-%E5%B8%83%E8%8E%B1%E6%81%A9%E7%89%B9/dp/B004BJ18KM/ref=sr_1_2?ie=UTF8&qid=1470109371&sr=8-2&keywords=computer+systems+a+programmer%27s+perspective)
