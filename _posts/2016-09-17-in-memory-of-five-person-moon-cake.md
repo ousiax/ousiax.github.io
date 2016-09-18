@@ -2,8 +2,7 @@
 layout: post
 title: "五仁（月饼）墓碑记"
 date: 2016-09-17 21-52-53 +0800
-categories: ['阿里巴巴月饼事件']
-tags: ['月饼', '五仁']
+categories: ['Mooncake']
 disqus_identifier: 252226992090708946277344080990849984067
 ---
 > “Life is like a box of mooncakes; you never know what you’re gonna’ get.”— by Jack    . Ma.[\[1\]](https://www.zhihu.com/question/50600301)
