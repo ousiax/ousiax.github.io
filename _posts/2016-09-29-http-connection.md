@@ -118,11 +118,8 @@ HTTP 紧挨着 TCP，位于其上层，所以 HTTP 事务的性能很大程度�
 
         注意，keep-alive 首部只是请求将连接保持在活跃状态。发出 keep-alive 请求之后，客户端和服务器并一定会进行 keep-alive 会话。它们可以在任意时刻关闭空闲的 keep-alive 连接，并可以随意现在 keep-alive 连接所处理事务的数量。
 
-        ```
-        Connection: Keep-Alive
-
-        Keep-Alive: max=5, timeout=120
-        ```
+            Connection: Keep-Alive
+            Keep-Alive: max=5, timeout=120
 
         服务器最多还会为另外 5 个事务保持连接的打开状态，或者将打开状态保持空闲 2 分钟之后。
 
