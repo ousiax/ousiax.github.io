@@ -47,14 +47,15 @@ HTTP 报文是简单的格式化数据块。每条报文都包含一条来自客
 
 - 起始行 (start line)
     - 请求行
-        ```
+        ```txt
         <method> <request-url> <version>
         ```
 
     - 响应行
-        ```
+        ```txt
         <version> <status> <reson-phrase>
         ```
+        
 
 - 方法 (method)
 
