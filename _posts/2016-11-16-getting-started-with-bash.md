@@ -19,22 +19,22 @@ disqus_identifier: 180988753761717130939285996517108463885
 - 变量设定规则
     1. 变量与变量内容以一个等号『=』来连结，如下所示：
 
-    ```sh
-    myname=myvalue
-    ```
+        ```sh
+        myname=myvalue
+        ```
 
     2. 等号两边不能直接接空格符，如下所示错误：
 
-    ```sh
-    myname = myvalue
-    myname=my value
-    ```
+        ```sh
+        myname = myvalue
+        myname=my value
+        ```
 
     3. 变量名称只能是英文字符与数字，但是开头字符不能是数字，如下为错误：
 
-    ```sh
-    2myname=myvalue
-    ```
+        ```sh
+        2myname=myvalue
+        ```
 
     4. 变量内容若有空格符可以使用双引号`"`或者单引号`'`将变量内容结合起来，但
         - 双引号的特殊字符如 `$` 等，可以保有原本的特性，如下所示：
