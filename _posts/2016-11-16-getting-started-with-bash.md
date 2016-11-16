@@ -9,7 +9,7 @@ disqus_identifier: 180988753761717130939285996517108463885
 ## 变量的取用与设定: echo, unset
 - 变量的取用: echo
 
-    ```shell
+    ```sh
     # echo $PATH
     /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/usr/local/go/bin:/opt/local/java/bin:/opt/local/scala/bin 
     ```
@@ -17,7 +17,6 @@ disqus_identifier: 180988753761717130939285996517108463885
     变量的读取只需要在变量名前面加上 `$`,或者以 `${变量}` 的方式来取用都可以。
 
 - 变量设定规则
-
     1. 变量与变量内容以一个等号『=』来连结，如下所示：
 
     ```sh
@@ -36,6 +35,7 @@ disqus_identifier: 180988753761717130939285996517108463885
     ```sh
     2myname=myvalue
     ```
+
     4. 变量内容若有空格符可以使用双引号`"`或者单引号`'`将变量内容结合起来，但
         - 双引号的特殊字符如 `$` 等，可以保有原本的特性，如下所示：
 
