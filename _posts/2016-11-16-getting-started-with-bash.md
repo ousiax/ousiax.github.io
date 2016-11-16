@@ -9,7 +9,7 @@ disqus_identifier: 180988753761717130939285996517108463885
 ## 变量的取用与设定: echo, unset
 - 变量的取用: echo
 
-    ```sh
+    ```
     # echo $PATH
     /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/usr/local/go/bin:/opt/local/java/bin:/opt/local/scala/bin 
     ```
@@ -19,20 +19,20 @@ disqus_identifier: 180988753761717130939285996517108463885
 - 变量设定规则
     1. 变量与变量内容以一个等号『=』来连结，如下所示：
 
-        ```sh
+        ```
         myname=myvalue
         ```
 
     2. 等号两边不能直接接空格符，如下所示错误：
 
-        ```sh
+        ```
         myname = myvalue
         myname=my value
         ```
 
     3. 变量名称只能是英文字符与数字，但是开头字符不能是数字，如下为错误：
 
-        ```sh
+        ```
         2myname=myvalue
         ```
 
