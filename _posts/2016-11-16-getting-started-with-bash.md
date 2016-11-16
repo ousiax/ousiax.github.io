@@ -1,11 +1,15 @@
 ---
 layout: post
-title: "Getting Started with Bash"
+title: "认识与学习 BASH"
 date: 2016-11-16 09-30-39 +0800
 categories: Linux
 tags: ['Linux', 'Shell', 'Bash']
 disqus_identifier: 180988753761717130939285996517108463885
 ---
+## 硬件、核心与 Shell
+
+**Shell, KDE, application** -> **核心( Kernel)** -> **硬件( Hardware)**
+
 ## 变量的取用与设定: echo, unset
 - 变量的取用: echo
 
@@ -62,3 +66,19 @@ disqus_identifier: 180988753761717130939285996517108463885
     10. 取消变量的方法是使用 **unset**: `unset 变量`,例如取消 `myname` 的设定：
 
         `unset myname`
+
+## Bash shell 功能
+
+bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distributions 的标准 shell。bash 主要兼容于 sh，并且依据一些使用者的需求，而加强的 shell 版本。
+
+- 命令编修能力(history)
+- 命令与档案补全功能: ([tab] 按键的好处)
+
+    - [Tab] 接在一串指令的第一个字的后面，则为命令补全；
+    - [Tab] 接在一串指令的第二个字以后时，则为『档案补全』
+- 命令别名设定功能: (alias)
+- 工作控制、前景背景控制: (job control, foreground, background)
+- 程序化脚本: (shell scripts)
+- 通配符: (Wildcard)
+
+    除了完整的字符串之外，base 还支持许多的通配符来帮助用户查询与指令下达。
