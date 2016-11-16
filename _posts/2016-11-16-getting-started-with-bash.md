@@ -10,6 +10,36 @@ disqus_identifier: 180988753761717130939285996517108463885
 
 **Shell, KDE, application** -> **核心( Kernel)** -> **硬件( Hardware)**
 
+## Bash shell 功能
+
+bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distributions 的标准 shell。bash 主要兼容于 sh，并且依据一些使用者的需求，而加强的 shell 版本。
+
+- 命令编修能力(history)
+- 命令与档案补全功能: ([tab] 按键的好处)
+
+    - [Tab] 接在一串指令的第一个字的后面，则为命令补全；
+    - [Tab] 接在一串指令的第二个字以后时，则为『档案补全』
+- 命令别名设定功能: (alias)
+- 工作控制、前景背景控制: (job control, foreground, background)
+- 程序化脚本: (shell scripts)
+- 通配符: (Wildcard)
+
+    除了完整的字符串之外，base 还支持许多的通配符来帮助用户查询与指令下达。
+
+## Bash shell 的内建命令: type
+
+```
+# type [-tpa] name
+选项不参数：
+：不加任何选项不参数时，type 会显示出 name 是外部指令还是 bash 内建指令
+-t ：当加入 -t 参数时，type 会将 name 以底下这些字眼显示出他的意义：
+    file ：表示为外部指令；
+    alias ：表示该指令为命令删名所讴定的名称；
+    builtin ：表示该指令为 bash 内建的指令功能；
+-p ：如果后面接的 name 为外部指令时，才会显示完整文件名；
+-a ：会由 PATH 发量定义的路径中，将所有吨 name 的指令都列出来，包含 alias
+```
+
 ## 变量的取用与设定: echo, unset
 - 变量的取用: echo
 
@@ -67,18 +97,104 @@ disqus_identifier: 180988753761717130939285996517108463885
 
         `unset myname`
 
-## Bash shell 功能
+## 环境变量的功能: (env 与 export)
 
-bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distributions 的标准 shell。bash 主要兼容于 sh，并且依据一些使用者的需求，而加强的 shell 版本。
+- HOME
+    代表用户的家目录
+- SHELL
+    目前环境使用的 SHELL 是那支程序。Linux 预设时候用 /bin/bash 。
+- HISTSIZE
+- MAIL
+- PATH
+    执行文件的搜索目录，目录与目录之间以冒号(:)分隔，档案的搜寻是依序由 PATH 的变量内的目录来查询
+- LANG
+- RANDOM
+    随机数变量
 
-- 命令编修能力(history)
-- 命令与档案补全功能: ([tab] 按键的好处)
+## SHELL 的操作接口有关的变量
 
-    - [Tab] 接在一串指令的第一个字的后面，则为命令补全；
-    - [Tab] 接在一串指令的第二个字以后时，则为『档案补全』
-- 命令别名设定功能: (alias)
-- 工作控制、前景背景控制: (job control, foreground, background)
-- 程序化脚本: (shell scripts)
-- 通配符: (Wildcard)
+- PS1: (命令提示字符的设定)
 
-    除了完整的字符串之外，base 还支持许多的通配符来帮助用户查询与指令下达。
+    ```
+    $ echo $PS1
+    \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\u@\h:\w\$
+    ```
+
+    ```
+    \d ：可显示出『星期 月 日』癿日期格式，如："Mon Feb 2"
+    \H ：完整癿主机名。丼例杢说，鸟哥癿练习机为『www.vbird.tsai』
+    \h ：仅叏主机名在第一个小数点乊前癿名字，如鸟哥主机则为『www』后面省略
+    \t ：显示时间，为 24 小时格式癿『HH:MM:SS』
+    \T ：显示时间，为 12 小时格式癿『HH:MM:SS』
+    \A ：显示时间，为 24 小时格式癿『HH:MM』
+    \@ ：显示时间，为 12 小时格式癿『am/pm』样式
+    \u ：目前使用者癿账号名称，如『root』；
+    \v ：BASH 癿版本信息，如鸟哥癿测试主板本为 3.2.25(1)，仅叏『3.2』显示
+    \w ：完整癿工作目录名称，由根目录写起癿目录名称。但家目录会以 ~ 叏代；
+    \W ：刟用 basename 凼数叏得工作目录名称，所以仅会列出最后一个目录名。
+    \# ：下达癿第几个挃令。
+    \$ ：提示字符，如果是 root 时，提示字符为 # ，否则就是 $ 啰～
+    ```
+- $: (关于本 shell 的 PID)
+
+    ```
+    ~$ echo $$
+    631
+    ```
+- ?: (关于上个执行指令的回传值)
+
+    ```
+    $ ehco $?
+    -bash: ehco: command not found
+    $ echo $?
+    127
+    ```
+- OSTYPE, HOSTTYPE, MACHTYPE: (主机硬件与核心的等级)
+
+    ```
+    $ echo $OSTYPE
+    linux-gnu
+    $ echo $HOSTTYPE
+    x86_64
+    $ echo $MACHTYPE
+    x86_64-pc-linux-gnu
+    ```
+
+较高阶的硬件通常会向下兼容旧有的软件，但较高的软件可能无法在就机器上面安装！
+
+- export: 自定义变量转成环境变量
+- declare: 环境变量转成自定义变量
+
+## 影响显示结果的语系变量 (locale)
+
+```
+$ locale
+LANG=en_US.UTF-8
+LANGUAGE=
+LC_CTYPE="en_US.UTF-8"
+LC_NUMERIC="en_US.UTF-8"
+LC_TIME="en_US.UTF-8"
+LC_COLLATE="en_US.UTF-8"
+LC_MONETARY="en_US.UTF-8"
+LC_MESSAGES="en_US.UTF-8"
+LC_PAPER="en_US.UTF-8"
+LC_NAME="en_US.UTF-8"
+LC_ADDRESS="en_US.UTF-8"
+LC_TELEPHONE="en_US.UTF-8"
+LC_MEASUREMENT="en_US.UTF-8"
+LC_IDENTIFICATION="en_US.UTF-8"
+LC_ALL=
+```
+
+## 变量的有效范围
+
+环境变量=全局变量 (global variable)
+自定义变量=局部变量 (local variable)
+
+为什么环境变量的数据可以被子程序所引用呢？
+
+- 当启动一个 shell，操作系统会分配一记忆区块给 shell 使用，此内存之变量可以让子程序取用
+- 若在父程序利用 export 功能，可以让自定义变量的内容写到上述的记忆区快当中 (环境变量)
+- 当加载另一个 shell 时（亦即启动子程序，而离开原本的父程序了），子 shell 可以将父 shell 的环境变量所在的记忆区快导入自己的环境变量区快当中
+
+『环境变量』与『bash 的操作环境』意思不太一样，举例来说，PS1 并不是环境变量，但是这个 PS1 会影响到 bash 的接口 (命令提示符).
