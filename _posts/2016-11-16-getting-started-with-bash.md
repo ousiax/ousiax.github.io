@@ -43,10 +43,8 @@ bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distribut
 ## 变量的取用与设定: echo, unset
 - 变量的取用: echo
 
-    ```
-    # echo $PATH
-    /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/usr/local/go/bin:/opt/local/java/bin:/opt/local/scala/bin 
-    ```
+        # echo $PATH
+        /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/usr/local/go/bin:/opt/local/java/bin:/opt/local/scala/bin 
 
     变量的读取只需要在变量名前面加上 `$`,或者以 `${变量}` 的方式来取用都可以。
 
@@ -59,10 +57,8 @@ bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distribut
 
     2. 等号两边不能直接接空格符，如下所示错误：
 
-        ```
-        myname = myvalue
-        myname=my value
-        ```
+            myname = myvalue
+            myname=my value
 
     3. 变量名称只能是英文字符与数字，但是开头字符不能是数字，如下为错误：
 
@@ -115,35 +111,30 @@ bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distribut
 
 - PS1: (命令提示字符的设定)
 
-    ```
-    $ echo $PS1
-    \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\u@\h:\w\$
-    ```
+
+        $ echo $PS1
+        \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\u@\h:\w\$
 
 - $: (关于本 shell 的 PID)
 
-    ```
-    ~$ echo $$
-    631
-    ```
+        ~$ echo $$
+        631
+
 - ?: (关于上个执行指令的回传值)
 
-    ```
-    $ ehco $?
-    -bash: ehco: command not found
-    $ echo $?
-    127
-    ```
+        $ ehco $?
+        -bash: ehco: command not found
+        $ echo $?
+        127
+
 - OSTYPE, HOSTTYPE, MACHTYPE: (主机硬件与核心的等级)
 
-    ```
-    $ echo $OSTYPE
-    linux-gnu
-    $ echo $HOSTTYPE
-    x86_64
-    $ echo $MACHTYPE
-    x86_64-pc-linux-gnu
-    ```
+        $ echo $OSTYPE
+        linux-gnu
+        $ echo $HOSTTYPE
+        x86_64
+        $ echo $MACHTYPE
+        x86_64-pc-linux-gnu
 
 较高阶的硬件通常会向下兼容旧有的软件，但较高的软件可能无法在就机器上面安装！
 
