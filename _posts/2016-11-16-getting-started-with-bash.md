@@ -136,7 +136,7 @@ bash 是 GNU 计划中重要的工具软件之一，目前也是 Linux distribut
         $ echo $MACHTYPE
         x86_64-pc-linux-gnu
 
-较高阶的硬件通常会向下兼容旧有的软件，但较高的软件可能无法在就机器上面安装！
+    较高阶的硬件通常会向下兼容旧有的软件，但较高的软件可能无法在就机器上面安装！
 
 - export: 自定义变量转成环境变量
 - declare: 环境变量转成自定义变量
@@ -174,3 +174,9 @@ LC_ALL=
 - 当加载另一个 shell 时（亦即启动子程序，而离开原本的父程序了），子 shell 可以将父 shell 的环境变量所在的记忆区快导入自己的环境变量区快当中
 
 『环境变量』与『bash 的操作环境』意思不太一样，举例来说，PS1 并不是环境变量，但是这个 PS1 会影响到 bash 的接口 (命令提示符).
+
+- - - 
+
+## References
+
+1. [鸟哥的 Linux 私房菜](http://cn.linux.vbird.org/linux_basic/linux_basic.php)
