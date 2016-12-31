@@ -7,8 +7,8 @@ tags: ['Annual Summary']
 disqus_identifier: 323420764988949745083623973698881591202
 ---
 
-<audio controls autoplay loop>
-  <source src="http://other.web.rh03.sycdn.kuwo.cn/f8b16e700e723d038110d3bad6552bb1/5867c507/resource/a1/96/93/2209181776.aac" type="audio/mpeg" />
+<audio controls autoplay>
+  <source src="/assets/audio/hero.mp3" type="audio/mpeg" />
 </audio>
 
 这是过去的我，也是现在的我，也许也是将来的我。你可能有所不知，此时此刻，这些文字是在公司生产的。没错，哥哥我是在办公室加班。在这个辞旧迎新的时刻，我却依然奋斗在编码的第一线，不知道是不是上帝或者其他的什么神在给我一些什么启示？想多了吧，我不相信。所谓一切的命运与祸福，可以用**物以类聚，人以群分**来说明。
@@ -61,6 +61,6 @@ disqus_identifier: 323420764988949745083623973698881591202
 
 2016 将只是回忆，再见吧 2016 的我，来吧 2017 的我。
 
-<audio controls loop>
-  <source src="http://other.web.rf03.sycdn.kuwo.cn/fb9f9387c7c4c5b4eb93441eebce266b/5867d049/resource/a2/27/10/236694914.aac" type="audio/mpeg" />
+<audio controls>
+  <source src="/assets/audio/zhuimengzhizixin.mp3" type="audio/mpeg" />
 </audio>
