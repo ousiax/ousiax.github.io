@@ -2,7 +2,7 @@
 layout: post
 title: "五角场－上海－行记"
 date: 2016-03-31 01-57-10 +0800
-categories: ['Diary',]
+categories: ['Misc',]
 tags: ['Diary',]
 disqus_identifier: 328150845599091191537428770118744507160
 ---

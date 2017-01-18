@@ -3,8 +3,8 @@ disqus_identifier: 273860214031930165419421469673428164101
 layout: post
 title: "10-signs-you've-been-coding-too-much-for-too-long"
 date: 2016-03-26 12-45-23 +0800
-categories: ['Article',]
-tags: ['Article',]
+categories: ['Misc',]
+tags: ['Essay',]
 ---
 ##### 原文地址：[10 signs you’ve been coding too much for too long](http://www.javaworld.com/article/2878960/core-java/10-signs-you-ve-been-coding-too-much-for-too-long.html)
 

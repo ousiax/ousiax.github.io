@@ -3,7 +3,7 @@ disqus_identifier: 143146002224280357836584319499369029021
 layout: post
 title: "03 Python Basics"
 date: 2013-03-16 17-47-18 +0800
-categories: ['Core.Python.Programming']
+categories: ['Python']
 tags: ['Core.Python.Programming', 'Python']
 ---
 * 􀁺 语句和语法

@@ -3,7 +3,7 @@ disqus_identifier: 102799273928567868197245214345597966628
 layout: post
 title: "02 Python Getting Started"
 date: 2013-03-16 10-06-56 +0800
-categories: ['Core.Python.Programming',]
+categories: ['Python',]
 tags: ['Core.Python.Programming', 'Python']
 ---
 * 􀁺 介绍
