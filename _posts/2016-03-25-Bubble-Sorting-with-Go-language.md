@@ -3,11 +3,11 @@ disqus_identifier: 49619100138803264217613581163402351402
 layout: post
 title: "Bubble Sorting with Go language"
 date: 2016-03-25 21-49-16 +0800
-categories: [Data structure,]
-tags: ['Data structure', 'Algorithm', 'Go']
+categories: ['Algorithm']
+tags: ['Algorithm', 'Go']
 ---
 *bubblesorting.go*
-{% highlight python %}
+{% highlight go %}
 package main
 
 import (
