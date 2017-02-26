@@ -89,4 +89,4 @@ int numberOfClients = 0;
 
 #### References:
 
-1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html)
+1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Keywords](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html)
