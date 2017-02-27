@@ -33,10 +33,14 @@ inline  _Bool   _Complex    _Imaginary
 and **GNU extensions** add these keywords:
 
 ```c
-__FUNCTION__    __PRETTY_FUNCTION__    __alignof    __alignof__    __asm    __asm__    __attribute    __attribute__
-__builtin_offsetof    __builtin_va_arg    __complex    __complex__    __const    __extension__    __func__
-__imag    __imag__        __inline    __inline__    __label__    __null    __real    __real__
-__restrict    __restrict__    __signed    __signed__    __thread    __typeof    __volatile    __volatile__
+__FUNCTION__    __PRETTY_FUNCTION__    __alignof    __alignof__
+__asm    __asm__    __attribute    __attribute__
+__builtin_offsetof    __builtin_va_arg    __complex    __complex__
+__const    __extension__    __func__
+__imag    __imag__        __inline    __inline__
+__label__    __null    __real    __real__
+__restrict    __restrict__    __signed    __signed__
+__thread    __typeof    __volatile    __volatile__
 ```
 
 In both ISO C99 and C89 with GNU extensions, the following is also recognized as a keyword:
@@ -89,4 +93,4 @@ int numberOfClients = 0;
 
 #### References:
 
-1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Keywords](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html)
+1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Keywords)
