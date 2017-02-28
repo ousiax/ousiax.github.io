@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "A Sample C Program"
+title: "A Sample Program in C Language"
 date: 2017-02-26 12-40-33 +0800
 categories: ['C']
 tags: ['C']

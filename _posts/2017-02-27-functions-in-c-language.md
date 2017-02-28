@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Functions in C Program Language"
+title: "Functions in C Language"
 date: 2017-02-27 14-43-39 +0800
 categories: ['C']
 tags: ['C']

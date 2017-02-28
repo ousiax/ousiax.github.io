@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "C Program Structure and Sope"
+title: "Structure and Sope in C Language"
 date: 2017-02-26 12-00-08 +0800
 categories: ['C']
 tags: ['C']

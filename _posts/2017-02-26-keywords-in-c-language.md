@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Keywords in C Programming Language"
+title: "Keywords in C Language"
 date: 2017-02-26 09-32-02 +0800
 categories: ['C']
 tags: ['C']
