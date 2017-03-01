@@ -60,7 +60,7 @@ union numbers first_number, second_number;
 
 That example declares two variables of type `union numbers`, `first_number` and `second_number`.
 
-### 3. Initializing Union Members
+#### 2.3. Initializing Union Members
 
 You can initialize the first member of a union variable when you declare it:
 
