@@ -18,8 +18,7 @@ You should also include a name for the union between the `union` keyword and the
 Here is an example of defining a simple union for holding an integer value and a floting point value:
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 };
@@ -36,8 +35,7 @@ You can declare variables of a union type when both you initially define the uni
 You can declare variables of a union type when you define the union type by putting the variable names after the closing brace of the union definition, but before the final semicolon. You can declare more than one such variable by separating the names with commas.
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 } first_number, second_number;
@@ -50,8 +48,7 @@ That example declares two variables of type `union numbers`, `first_number` and 
 You can declare variables of a union type after you define the union by using the `union` keyword and the name you gave the union type, followed by one or more variable names separated by commas.
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 };
@@ -65,8 +62,7 @@ That example declares two variables of type `union numbers`, `first_number` and 
 You can initialize the first member of a union variable when you declare it:
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 };
@@ -90,8 +86,7 @@ union numbers first_number = { .f = 3.14159 };
 You can also intialize a union member when you declare the union variable during the definition:
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 } first_number = { 5 };
@@ -102,8 +97,7 @@ union numbers
 You can access the members of a union variable using the member access operator. You put the name of the union variable on the left side of the operator, and the name of the member on the right side:
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 };
@@ -119,8 +113,7 @@ Notice in that example, that giving a value to the `f` member overrides the valu
 The size of a union is equal to the size of its largest member. Consider the first union example from this section:
 
 ```c
-union numbers
-{
+union numbers {
     int i;
     float f;
 };
