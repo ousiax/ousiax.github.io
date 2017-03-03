@@ -84,6 +84,28 @@ number_ptr -> i = 450;
 
 Now the `i` member in `foo` is 450.
 
+### 4. Pointers to Structures
+
+You can create a pointer to a structure type just as you can a pointer to a primitive data type.
+
+```c
+struct fish {
+    float length, weight;
+};
+struct fish salmon = { 4.3, 5.8 };
+struct fish *fish_prt = &salmon;
+```
+
+That example creates a new structure type, `struct fish`, and declares (and initializes) a variable of that type named `salmon`.
+
+You can access the members of a structure variable through a pointer, but you can't use the regular memeber access operator anymore. Instead, you have to use the indirect member access operator. Continuing with the previous example, the following example will change the values of the members of `salmon`:
+
+```c
+fish_ptr -> length = 5.1;
+fish_ptr -> weight = 6.2;
+```
+
+Now the `length` and `width` members in `salmon` are 5.1 and 6.2, respectively.
 
 ### 5. Dangling, Void , Null and Wild Pointers <sup>[[1]](http://www.geeksforgeeks.org/dangling-void-null-wild-pointers/)</sup>
 
