@@ -107,7 +107,7 @@ fish_ptr -> weight = 6.2;
 
 Now the `length` and `width` members in `salmon` are 5.1 and 6.2, respectively.
 
-### 5. Dangling, Void , Null and Wild Pointers <sup>[[1]](http://www.geeksforgeeks.org/dangling-void-null-wild-pointers/)</sup>
+### 5. Dangling, Void , Null and Wild Pointers
 
 - **Dangling Pointer**
 
