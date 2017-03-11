@@ -487,6 +487,127 @@ pthread_attr_getdetachstate (attr, detachstate)
     }
     ``` 
 
+#### 7. Condition Variables
+
+- Condition variables provide yet another way for threads to synchronize. While mutexes implement synchronization by controlling thread access data, condition variables allow threads to synchronize based upon the actual value of data.
+
+- Without condition variables, the programmer would need to have threads continually polling (possibly in a critical section), to check if the condition is met. This can be very resource consuming since the thread would be continuously busy in this activity. A condition variable is a way to achieve the same goal without polling.
+
+- A condition variable is always used in conjunction with a mutex lock.
+
+- A representative sequence for using condition variable is shown below.
+
+    <table width="90%" cellspacing="0" cellpadding="5" border="1">
+        <tbody>
+            <tr valign="top">
+                <td colspan="2" bgcolor="#FOF5FE"><span class="heading3">Main Thread</span>
+                    <ul>
+                        <li>Declare and initialize global data/variables which require synchronization (such as "count")
+                        </li>
+                        <li>Declare and initialize a condition variable object
+                        </li>
+                        <li>Declare and initialize an associated mutex
+                        </li>
+                        <li>Create threads A and B to do work
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+            <tr valign="top">
+                <td width="50%">
+                    <strong>Thread A</strong>
+                    <ul>
+                        <li>Do work up to the point where a certain condition must occur (such as "count" must reach a specified value)
+                        </li>
+                        <li>Lock associated mutex and check value of a global variable
+                        </li>
+                        <li>Call
+                            <tt>pthread_cond_wait()</tt> to perform a blocking wait for signal from Thread-B. Note that a call to
+                            <tt>pthread_cond_wait()</tt> automatically and atomically unlocks the associated mutex variable so that it can be used by Thread-B.
+                        </li>
+                        <li>When signalled, wake up. Mutex is automatically and atomically locked.
+                        </li>
+                        <li>Explicitly unlock mutex
+                        </li>
+                        <li>Continue
+                        </li>
+                    </ul>
+                </td>
+                <td width="50%">
+                    <strong>Thread B</strong>
+                    <ul>
+                        <li>Do work
+                        </li>
+                        <li>Lock associated mutex
+                        </li>
+                        <li>Change the value of the global variable that Thread-A is waiting upon.
+                        </li>
+                        <li>Check value of the global Thread-A wait variable. If it fulfills the desired condition, signal Thread-A.
+                        </li>
+                        <li>Unlock mutex.
+                        </li>
+                        <li>Continue
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+            <tr valign="top">
+                <td colspan="2" bgcolor="#FOF5FE">
+                    <span class="heading3">Main Thread</span>
+                    <ul>
+                        Join / Continue
+                    </ul>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+- **Routines**
+
+    ```c
+    pthread_cond_init (condition,attr)
+    
+    pthread_cond_destroy (condition)
+    
+    pthread_condattr_init (attr)
+    
+    pthread_condattr_destroy (attr) 
+    
+    pthread_cond_wait (condition,mutex)
+    
+    pthread_cond_signal (condition)
+    
+    pthread_cond_broadcast (condition) 
+    
+    ```
+
+    - Condition variables must be decalred with type **pthread_cond_t**, and must be intialized before they can be used. There are two ways to initialize a condition variable:
+
+        1. Statically, when it is declared.
+
+            ```c
+            pthread_cond_t myconvar = PTHREAD_COND_INITIALIZER;
+            ```
+
+        1. Dynamically, with the **pthread_cond_init()** routine. The ID of the created condition variable is returned to the calling thread through the *condition* parameter. This method permits setting condition variable object attributes, *attr*.
+
+    - **pthread_cond_wait()** blocks the calling thread until the specified *condition* is signalled. This routine should be called while *mutex* is locked, and it will automatically release the mutex while it waits. After signal is received and thread is awakened, *mutex* will be automatically locked for use by the thread. The programmer is the responsible for unlocking *mutex* when the thread is finished it.
+
+        **Recommendation**: Using a WHILE loop instead of an IF statement to check the waited for condition can help deal with several potential problems, such as:
+        - If several threads are wating for the same wake up signal, they will take turns acquiring the mutex, and any one of them can then modify the condition they all waited for.
+        - If the thread received the signal in error due to a program bug.
+        - The Pthreads library is permitted to issue spurious wake ups to a waiting thread without violating the standard.
+
+    - The **pthread_cond_signal()** routine is used to signal (or wake up) another thread which is waiting on the condition variable. It should be called after *mutex* is locked, and must unlock *mutex* in order for *pthread_cond_wait()** routine to complete.
+
+    - The **pthread_cond_broadcast()** routine should be used instead of **phtread_cond_signal** if more than one thread is in a blocking wait state.
+
+    - It is a logical error to call **pthread_cond_wait()** before calling **pthread_cond_wait()**.
+
+        Proper locking and unlocking of the associate mutex variable is essential when using these routines. For example:
+        - Failing to lock the mutex before calling **pthread_cond_wait()** may cause it NOT to block.
+        - Failing to unclok the mutex after calling **phtread_cond_signal()** may not allow a matching **pthread_cond_wait()** routine to complete (it will remain blocked).
+
 * * *
 
 #### References
