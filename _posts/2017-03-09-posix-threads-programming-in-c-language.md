@@ -608,6 +608,81 @@ pthread_attr_getdetachstate (attr, detachstate)
         - Failing to lock the mutex before calling **pthread_cond_wait()** may cause it NOT to block.
         - Failing to unclok the mutex after calling **phtread_cond_signal()** may not allow a matching **pthread_cond_wait()** routine to complete (it will remain blocked).
 
+    ```c
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <pthread.h>
+    #include <unistd.h>
+    
+    #define INCR_TIMES      10
+    #define LIMIT           8
+    
+    typedef struct {
+        pthread_mutex_t mut;
+        pthread_cond_t  cv;
+        int count;
+    } data;
+    
+    static void *incr(void *d);
+    static void *watch(void *d);
+    
+    int main(int argc, char *argv[])
+    {
+        pthread_t in;
+        pthread_t wt;
+        pthread_attr_t attr;
+        data d;
+        d.count = 0;
+        pthread_mutex_init(&d.mut, NULL);
+        pthread_cond_init(&d.cv, NULL);
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+        pthread_create(&in, & attr, incr, &d);
+        pthread_create(&wt, & attr, watch, &d);
+        pthread_join(in, NULL);
+        pthread_join(wt, NULL);
+        pthread_attr_destroy(&attr);
+        exit(EXIT_SUCCESS);
+    }
+    
+    static void *incr(void *d)
+    {
+        data *p = (data *)d;
+        int i;
+    
+        for(i = 0; i < INCR_TIMES; i++) {
+            usleep(500000);
+            pthread_mutex_lock(&p->mut);
+            p->count = p->count + 1;
+    
+            if(p->count == LIMIT) {
+                pthread_cond_signal(&p->cv);
+                printf("INCR.SIGNAL: %d\n", p->count);
+            } else {
+                printf("INCR: %d\n", p->count);
+            }
+    
+            pthread_mutex_unlock(&p->mut);
+        }
+    
+        pthread_exit(NULL);
+    }
+    
+    static void *watch(void *d)
+    {
+        data *p = (data *)d;
+        pthread_mutex_lock(&p->mut);
+    
+        while(p->count < LIMIT) {
+            pthread_cond_wait(&p->cv, &p->mut);
+            printf("WATCH: %d\n", p->count);
+        }
+    
+        pthread_mutex_unlock(&p->mut);
+        pthread_exit(NULL);
+    }
+    ```
+
 * * *
 
 #### References
