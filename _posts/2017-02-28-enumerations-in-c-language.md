@@ -6,6 +6,11 @@ categories: ['C']
 tags: ['C']
 disqus_identifier: 303038926370320173773895282387259497157
 ---
+* TOC
+{:toc}
+
+* * *
+
 An enumeration is a custom data type used for storing constant integer values and referring to them by names. By default, these values are of type `signed int`; however, you can use the `-fshort-enums` GCC compiler option to cause the samllest possible integer type to be used instead.
 
 Both of these behaviors conform to the C89 standard, but mixing the use of these options within the same program can produce incompatibilities.
@@ -67,6 +72,6 @@ Enumerations are useful in conjunction with the `switch` statement, because the 
 
 - - -
 
-#### References:
+### 3. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Enumerations)

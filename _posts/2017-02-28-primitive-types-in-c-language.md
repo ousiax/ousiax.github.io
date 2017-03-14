@@ -6,6 +6,10 @@ categories: ['C']
 tags: ['C']
 disqus_identifier: 144634406855718786306315904227731548500
 ---
+* TOC
+{:toc}
+
+* * *
 
 `Integer Types` `Real Number Types` `Complex Number Types`
 
@@ -113,6 +117,6 @@ __complex__ long double
 ```
 - - -
 
-#### References:
+### 4. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Primitive-Types)

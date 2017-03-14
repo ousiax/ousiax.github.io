@@ -6,6 +6,10 @@ categories: ['C']
 tags: ['C']
 disqus_identifier: 285213004662888038072671205127722289136
 ---
+* TOC
+{:toc}
+
+* * *
 
 A structure is a programmer-defined data type made up of variables of other data types (possibly including other structure types).
 
@@ -181,6 +185,6 @@ If you wish to explicitly omit padding from your structure types (which may, in 
 
 - - -
 
-##### References:
+### 6. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Structures)

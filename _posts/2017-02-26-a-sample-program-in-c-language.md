@@ -245,6 +245,6 @@ There is NO WARRANTY, to the extent permitted by law.\n"),
 
 - - -
 
-#### References:
+#### References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#A-Sample-Program)

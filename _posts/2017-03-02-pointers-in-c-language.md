@@ -7,6 +7,11 @@ tags: ['C']
 disqus_identifier: 186579721564951921087832385494630209132
 ---
 
+* TOC
+{:toc}
+
+- - -
+
 Pointers hold memory address of stored constants or variables. For any data type, including both primitive types and custom types, you can create a pointer that holds the memory address of an instance of that type.
 
 ### 1. Declaring Pointers
@@ -277,7 +282,7 @@ Now the `length` and `width` members in `salmon` are 5.1 and 6.2, respectively.
 
 * * *
 
-#### References
+### 6. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Pointers)
 

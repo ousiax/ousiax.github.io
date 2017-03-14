@@ -7,6 +7,11 @@ tags: ['C']
 disqus_identifier: 267566994083730237143405316276747173260
 ---
 
+* TOC
+{:toc}
+
+* * *
+
 A union is a custom data type used for storing several variables in the same memory space. Although you can access any of those variables at any time, you should only read from one of them at a time—assigning a value to one of them overwrites the values in the others.
 
 ### 1. Defining Unions
@@ -123,6 +128,6 @@ The size of the union data type is the same of `sizeof (float)`, because the `fl
 
 - - -
 
-##### References:
+### 5. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Enumerations)

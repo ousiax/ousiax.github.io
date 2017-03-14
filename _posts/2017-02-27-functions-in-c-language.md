@@ -6,6 +6,11 @@ categories: ['C']
 tags: ['C']
 disqus_identifier: 110626711474074828223206922383299503229
 ---
+* TOC
+{:toc}
+
+* * *
+
 You can write functions to separate parts of your program into distinct subprocedures. To write a function, you must at least create a function definition. It is a good idea also have an explicit function declaration; you don't have to, but if you leave it out, then the default implicit declaration might not match the function itself, and you will get some compile-time warnings.
 
 ### 1. Function Declarations
@@ -280,6 +285,6 @@ Note that nested functions must be defined along with variable declarations at t
 
 * * *
 
-#### References:
+### 11. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Functions)

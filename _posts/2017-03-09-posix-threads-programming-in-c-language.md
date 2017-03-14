@@ -6,6 +6,10 @@ categories: ['C']
 tags: ['C']
 disqus_identifier: 21493735310366146726844093771521945239
 ---
+* TOC
+{:toc}
+
+- - -
 
 ### What is Parallel Computing ?
 
@@ -120,6 +124,8 @@ Since then, virtually all computers have followed the basic design:
 
     - Involves only those tasks executing a communication operation
     - When a task performs a communication operation, some form of coordination is required with the other task(s) participating in the communication. For example, before a task can perform a send operation, it must first receive an acknowledgment from the receiving task that it is OK to send.
+
+* * *
 
 ### POSIX Threads Programming
 
@@ -685,7 +691,7 @@ pthread_attr_getdetachstate (attr, detachstate)
 
 * * *
 
-#### References
+### References
 
 1. [Introduction to Parallel Computing](https://computing.llnl.gov/tutorials/parallel_comp/)
 1. [POSIX Threads Programming](https://computing.llnl.gov/tutorials/pthreads/)

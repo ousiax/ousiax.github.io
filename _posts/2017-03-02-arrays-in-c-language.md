@@ -7,6 +7,11 @@ tags: ['C']
 disqus_identifier: 328214664511166649524359910736345732450
 ---
 
+* TOC
+{:toc}
+
+- - -
+
 An array is a data structure that lets you store one or more elements consecutively in memory. In C, array elements are indexed beginning at position zero, not one.
 
 ### 1. Declaring Arrays
@@ -231,6 +236,6 @@ point_array[0].y = 3;
 
 * * *
 
-##### References:
+### 8. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Arrays)

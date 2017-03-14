@@ -6,8 +6,12 @@ categories: ['C']
 tags: ['C']
 disqus_identifier: 212712969519156400470368935825558304067
 ---
+* TOC
+{:toc}
 
-### Program Structure
+* * *
+
+### 1. Program Structure
 
 A C program may exist entirely within a single source file, but more commonly, any non-trivial program will consist of serval custom header files and source files, and will also include and link with files from existing libraries.
 
@@ -36,7 +40,7 @@ double computeSqrt(double x)
 }
 ```
 
-### Scope
+### 2. Scope
 
 Scope refers to what parts of the program can "see" a declared object. A declared object can be visible only within a particular function, or within a particular file, or may be visible to an entire set of files by way of including header files and using `extern` declarations.
 
@@ -62,6 +66,6 @@ will not.
 
 - - -
 
-#### References:
+### 3. References
 
 1. [https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html](https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Keyword)
