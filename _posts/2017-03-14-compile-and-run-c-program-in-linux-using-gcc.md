@@ -45,8 +45,6 @@ This is the first stage of compilation process where preprocessor directives (ma
 $ cpp hello.c > hello.i
 ```
 
-The result is a file `hello.i` that contains the source code with all macros expaned.
-
 #### 2. Compilation
 
 In this phase compilation proper takes place. The compiler (*cll*) translates `hello.i` into `hello.s`. File `hello.s` contains assembly code. You can explicitly tell *gcc* to translate `hello.i` to `hello.s` by executing the following command.
@@ -65,7 +63,7 @@ Here, the assembler (*as*) translates `hello.s` into machine language instructio
 $ as hello.s -o hello.o
 ```
 
-The above command will generate `hello.o` as it is specified with `-o` option. And, the resulting file contains the machine instructions for classic "Hello World!" program, with an undefined reference to `printf` (or `puts`).
+The above command will generate `hello.o` as it is specified with `-o` option. And, the resulting file contains the machine instructions for classic "Hello World!" program, with an undefined reference to `printf`.
 
 #### 4. Linking
 
@@ -95,7 +93,17 @@ Hello World!
 
 Static and dynamic linking are two processes of collecting and combining multiple object files in order to create a single executable. Linking can be performed at both **compile time**, when the source code is translated into machine code and **load time**, when the program is loaded into memory and executed by the loader, and even at **run time**, by application programs. And, it is performed by programs called **linkers**. Linkers are also called link editors.
 
-#### What is Linker ?
+#### 1. What is Linker ?
+
+Linker is system software which plays curcial role in software development because it enables separate compilation. Instead of organizing a large application as one monolithic source file, you can decompose it into smaller, more manageable chunks that can be modified and compiled separately. When you change one of the modules, you simply recompile it and re-link the application, without recompiling the other source files.
+
+During static linking the linker copies all library routines used in the program into the executable image. This of course takes more space on the disk and in memory than dynamic linking. But static linking is faster and more portable because it does not require the presence of the library on the system where it runs.
+
+At the other hand, in dynamic linking shareable library name is placed in the executable image, while actual linking takes place at run time when both the executable and the library are placed in memory. Dynamic linking serves the advantage of sharing a single shareable library among multiple programs.
+
+Linker as a system program takes relocatable object files and command line arguments in order to generate an executable object file. To produce an executable file the Linker has to perform the symbol resolution, and Relocation.
+
+*Note: Object files come in three flavors viz Relocatable, Executable, and Shared. **Relocatable object files** contain code and data in a form which can be combined with other objects files of its kind at compile time to create an executable object file. They consist of various code and data sections. Instructions are in one section, initialized global variables in another section, and unitialized variables are yet in another section. **Executable object files** contain binary code and data in a form which can directly be copied into memory and executed. **Shared object files** are files those can be loaded into memory and linked dynamically, at either load or run time by a linker.*
 
 ### References
 
