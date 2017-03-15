@@ -105,6 +105,139 @@ Linker as a system program takes relocatable object files and command line argum
 
 *Note: Object files come in three flavors viz Relocatable, Executable, and Shared. **Relocatable object files** contain code and data in a form which can be combined with other objects files of its kind at compile time to create an executable object file. They consist of various code and data sections. Instructions are in one section, initialized global variables in another section, and unitialized variables are yet in another section. **Executable object files** contain binary code and data in a form which can directly be copied into memory and executed. **Shared object files** are files those can be loaded into memory and linked dynamically, at either load or run time by a linker.*
 
+While linking, the linker complains about missing function definitions, if there is any. During compilation, if compiler does not find a function definition for a particular module, it just assumes that the function is defined in another file, and treats it as an **external reference**. The compiler does not look at more than one file at a time. Whereas, linker may look at multiple files and seeks references for the modules that were not mentioned. The separate compilation and linking processes reduce the complexity of program and gives the ease to break code into smaller pieces which are better manageable.
+
+#### 2. What is Static Linking?
+
+Static linking is the process of copying all library modules used in the program into the final executable image. The linker combines library routines with the program code in order to resolve external references, and to generate an executable image suitable for loading into memory.
+
+We will deveop an `add` module and place in a separate `add.c` file. Prototype of `add` module will be placed inn a separate file called `add.h`. Code file `hello.c` will be created to demonstrate the linking process.
+
+```c
+/* add.h */
+
+int add(int , int);
+```
+
+```c
+/* add.c */
+
+int add(int a, int b)
+{
+    return a + b;
+}
+```
+
+```c
+/* hello.c */
+
+#include <stdio.h>
+#include <add.h>
+
+int main(void)
+{
+    int a = 3, b = 4;
+    printf("%d + %d = %d\n", a, b, add(a, b));
+    return 0;
+}
+```
+
+After having created above files, you can start building the executable as follows:
+
+```shell
+$ gcc -I . -c hello.c
+```
+
+The `-I` option tells *gcc* compiler to search for header files in the directory which is specified after it.
+
+The `-c` option tells *gcc* compiler to compile into an object file. It will stop after that and won't perform the linking to create the executable.
+
+As similar to the above command, compile `add.c` to create the object file.
+
+```shell
+$ gcc -c add.c
+```
+
+Now the final step is to generate the executable by linking `add.o`, and `hello.o` together. 
+
+```shell
+$ gcc -o hello add.o hello.o
+```
+
+#### 3. How to Create Static Libraries?
+
+A library contains hundreds or thousands of object files to keep the orgnaization of object files simple and maintainable.
+
+Static libraries are bundle of *relocatable* object files. Usually they have `.a` extension.
+
+For more explanatory demonstration of use of libraries we would create a new header file `math.h` and will add singatures of two functions `add`, `sub` to that.
+
+```c
+/* math.h */
+
+int add(int, int);
+int sub(int, int);
+```
+
+```c
+
+/* sub.c */
+
+int sub(int a, int b)
+{
+    return a - b;
+}
+```
+
+Now compile `add.c` and `sub.c` as follows in order to get the binary object files.
+
+```shell
+$ gcc -c add.c sub.c
+```
+
+Create the static library `libmath.a` to collecting both `add.o` and `sub.o` files together by executing the following command:
+
+```shell
+$ ar rs libmath.a add.o sub.o
+```
+
+To use the `sub` funciton in `hello` we need to replace the `#include <math.h>` by `#include <math.h>` and recompile it.
+
+```c
+/* hello.c */
+
+#include <stdio.h>
+#include <math.h>
+
+int main(void)
+{
+    int a = 3, b = 4;
+    printf("%d + %d = %2d\n", a, b, add(a, b));
+    printf("%d - %d = %2d\n", a, b, sub(a, b));
+    return 0;
+}
+```
+
+```shell
+$ gcc -c hello.c -I .
+```
+
+And link it with `libmath.a` to generate final executable object file.
+
+```shell
+$ gcc -o hello hello.o libmath.a
+```
+
+You can also use the following command as an alternative to link the `libmath.a` with `hello.o` in order to generate the final executable file.
+
+```shell
+$ gcc -o hello hello.o -L . -lmath
+```
+
+In above command `-lmath` should be read as `-l math` which tells the linker to link the object files contained in `lib<library>.a` with `hello.o` to generate the executable object file.
+
+The `-L` option tells the linker to search for libraries in the following argument (similar to how we did for `-I`).
+
 ### References
 
 1. [C track: compiling C programs.](http://courses.cms.caltech.edu/cs11/material/c/mike/misc/compiling_c.html)
