@@ -97,10 +97,6 @@ Static and dynamic linking are two processes of collecting and combining multipl
 
 Linker is system software which plays curcial role in software development because it enables separate compilation. Instead of organizing a large application as one monolithic source file, you can decompose it into smaller, more manageable chunks that can be modified and compiled separately. When you change one of the modules, you simply recompile it and re-link the application, without recompiling the other source files.
 
-During static linking the linker copies all library routines used in the program into the executable image. This of course takes more space on the disk and in memory than dynamic linking. But static linking is faster and more portable because it does not require the presence of the library on the system where it runs.
-
-At the other hand, in dynamic linking shareable library name is placed in the executable image, while actual linking takes place at run time when both the executable and the library are placed in memory. Dynamic linking serves the advantage of sharing a single shareable library among multiple programs.
-
 Linker as a system program takes relocatable object files and command line arguments in order to generate an executable object file. To produce an executable file the Linker has to perform the symbol resolution, and Relocation.
 
 *Note: Object files come in three flavors viz Relocatable, Executable, and Shared. **Relocatable object files** contain code and data in a form which can be combined with other objects files of its kind at compile time to create an executable object file. They consist of various code and data sections. Instructions are in one section, initialized global variables in another section, and unitialized variables are yet in another section. **Executable object files** contain binary code and data in a form which can directly be copied into memory and executed. **Shared object files** are files those can be loaded into memory and linked dynamically, at either load or run time by a linker.*
@@ -109,7 +105,7 @@ While linking, the linker complains about missing function definitions, if there
 
 #### 2. What is Static Linking?
 
-Static linking is the process of copying all library modules used in the program into the final executable image. The linker combines library routines with the program code in order to resolve external references, and to generate an executable image suitable for loading into memory.
+Static linking is the process of copying all library modules used in the program into the final executable image. The linker combines library routines with the program code in order to resolve external references, and to generate an executable image suitable for loading into memory. This of course takes more space on the disk and in memory than dynamic linking. But static linking is faster and more portable because it does not require the presence of the library on the system where it runs.
 
 We will deveop an `add` module and place in a separate `add.c` file. Prototype of `add` module will be placed inn a separate file called `add.h`. Code file `hello.c` will be created to demonstrate the linking process.
 
@@ -237,6 +233,56 @@ $ gcc -o hello hello.o -L . -lmath
 In above command `-lmath` should be read as `-l math` which tells the linker to link the object files contained in `lib<library>.a` with `hello.o` to generate the executable object file.
 
 The `-L` option tells the linker to search for libraries in the following argument (similar to how we did for `-I`).
+
+#### 4. What is Dynamic Linking?
+
+Dynamic linking defers much of the linking process until a program starts running. During dynamic linking the name of the shared library is placed in the executable image, while the actual linking takes place at run time when both the executable and library are placed in memory. Dynamic linking serves the advantage of sharing a single shareable library among multiple programs.
+
+#### 5. How to Create and Use Shared Libraries?
+
+Let's continue with the previous example of `add`, and `sub` modules. Now we will have to recompile both `add.c` and `sub.c` again with `-fpic` or `-fPIC` option. The `-fpic` or `-fPIC` option enable "*position independent code*" generation, a requirement for shared libraries, and used to generate code that is target-dependent. The `-fPIC` choice always works, but may produce larger code than `-fpic`. Using `-fpic` option usually generates smaller and faster code, but will have platform-dependent limitations. So, while creating shared library you have to recompile both `add.c`, and `sub.c` with following options:
+
+```sh
+$ gcc -Wall -fPIC -c add.c sub.c
+```
+
+Now build the library `libmath.so` using the following command.
+
+```sh
+$ gcc -shared -o libmath.so add.o sub.o
+```
+
+But to use a shared library is not as straightfoward as static library was. And, the simplest approach of installation is to copy the library into one of the standard directories (e.g., /usr/lib) and run `ldconfig` command.
+
+Now recompile `hello.c` and generate the executable object file as following:
+
+```sh
+$ gcc -c hello.c -I .
+```
+
+```sh
+$ gcc -o hello hello.o libmath.so
+```
+
+or 
+
+```sh
+$ gcc -o hello hello.o -L . -lmath
+```
+
+You can list the shared library dependencies which your executable is depedent upon with `ldd <name-of-executable>` command.
+
+```sh
+$ ldd hello
+        linux-vdso.so.1 (0x00007ffdfdda2000)
+        libmath.so => not found
+        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f318cde8000)
+        /lib64/ld-linux-x86-64.so.2 (0x00007f318d193000)
+```
+
+For more information about shared library, please refer to [Linux Shared Library Management & Debugging Problem](/linux/2016/05/12/linux-commands-for-shared-library-management-and-debugging-problem.html).
+
+- - -
 
 ### References
 
