@@ -225,6 +225,36 @@ disqus_identifier: 200638505825154188109093812439264257291
 
 * * *
 
+### Chapter 6 Formal Relational Query Languages
+
+```txt
+• Relational algebra
+• Relational-algebra operations
+    ◦ Select
+    ◦ Project
+    ◦ Union
+    ◦ Set difference
+    ◦ Cartesian product
+    ◦ Rename
+• Additional operations
+    ◦ Set intersection
+    ◦ Natural join
+    ◦ Assignment operation
+    ◦ Outer join
+         Left outer join
+         Right outer join
+         Full outer join
+• Multisets
+• Grouping
+• Null value
+• Tuple relational calculus
+• Domain relational calculus
+• Safety of expressions
+• Expressive power of languages
+```
+
+* * *
+
 ### References
 
 1. [Database.System.Concepts(6th.Edition.2010).Abraham.Silberschatz]()
