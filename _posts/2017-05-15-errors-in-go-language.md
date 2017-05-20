@@ -102,7 +102,7 @@ Because error message are frequently chained together, message strings should no
 
 When designing error messages, be deliberate, so that each one is meaningful description of the problem with sufficient and relevant detail, and be consistent, so that errors returned b y the same function or by a group of functions in the same package are similar in form and can be dealt with in the same way.
 
-For example, the `os` package guarantees that every error returned by a file operation, such as `os.Open` or the `Read`, `Write`, or `Close1` of an open file, describes not just the nature of the failure (permission denied, no such directory, and so on) but also the name of the file, so the caller needn't include this information in the error message it constructs.
+For example, the `os` package guarantees that every error returned by a file operation, such as `os.Open` or the `Read`, `Write`, or `Close` of an open file, describes not just the nature of the failure (permission denied, no such directory, and so on) but also the name of the file, so the caller needn't include this information in the error message it constructs.
 
 In general, the call `f(x)` is responsible for reporting the attempted operation `f` and the argument value `x` as they relate to the context of the error. The caller is responsible for adding further information that it has but the call `f(x)` does not, such as the URL in the call to `html.Parse` above.
 
