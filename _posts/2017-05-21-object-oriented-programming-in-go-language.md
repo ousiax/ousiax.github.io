@@ -14,6 +14,8 @@ disqus_identifier: 203179644519977345273349616101311842042
 
 Since the early 1990s, object-oriented programming (OOP) has been the dominant programming paradigm in industry and education, and nearly all widely used languages developed since then have inlcuded support for it. Go is no exception.
 
+## Methods
+
 Although there is no universally accepted definition of object-oriented programming, for our purposes, an ***object*** is simply a value or variables that has methods, and a ***method*** is a function associated with a particular type. An object-oriented program is one that uses methods to express the properties and operations of each data structure so that clients need not access the object's representation directly.
 
 ### Method Declarations
@@ -296,6 +298,184 @@ func main() {
 	fmt.Printf("%t\n", day) // %!t(time.Duration=86400000000000)
 }
 ```
+
+- - -
+
+## Interfaces
+
+Interface types express generalizations or abstractions about the behaviors of other types. By generalizing, interfaces let us write functions that are more flexible and adaptable because they are not tied to the details of one particular implementation.
+
+Many object-oriented languages have some notion of interface, but what makes Go's interfaces so distinctive is they are ***satisfied implicitly***. In other words, there's no need to declare all the interfaces that a given concrete type satisfies; simply possessing the necessary methods is enough. This design lets you create new interfaces that are satisfied by existing concrete types without changing the existing types, which is particularly useful for types defined in packages that you don't control.
+
+### Interface as Contracts
+
+A concrete type specifies the exact representation of its values and exposes the intrinsic operations of that representation, such as arithmetric for numbers, or indexing, *append*, and *range* for slices. A concrete type may also provide additional behaviors through its methods. **When you have a value of a concrete type, you knonw exactly what it *is* and what you can *do* with it.**
+
+An interface is an ***abstract type***. It doesn't expose the representation or iternal structure of its values, or the set of basic operations they support; it reveals only some of their methods. **When you have a value of an interface type, you know nothing about what it *is*; you know only what it can *do*, or more precisely, what behaviors are provided by its methods.**
+
+### Interface Types
+
+An interface type specifies a set of methods that a concrete type must possess to be considered an instance of that interface.
+
+The **io.Writer** type is one of the most widely used interfaces because it provides an abstraction of all the types to which bytes can be written, which includes files, memory buffers, network connections, HTTP clients, archivers, hashers, and so on. The **io** package defines many other useful interfaces. A **Reader** represents any type from which you can read bytes, and a **Closer** is any value that you can close, such as a file or a network connection.
+
+```go
+package io
+
+type Writer interface {
+	Write(p []byte) (n int, err error)
+}
+
+type Reader interface {
+	Read(p []byte) (n int, err error)
+}
+
+type Closer interface {
+	Close() error
+}
+```
+
+Looking farther, we find declarations of new interface types as combinations of existing ones.
+
+Here are two examples:
+
+```go
+package io
+
+// ReadWriter is the interface that groups the basic Read and Write methods.
+type ReadWriter interface {
+	Reader
+	Writer
+}
+
+// ReadWriteCloser is the interface that groups the basic Read, Write and Close methods.
+type ReadWriteCloser interface {
+	Reader
+	Writer
+	Closer
+}
+```
+
+The syntax used above, which resembles struct embedding, lets us name another interface as a shorthand for writting out all of its methods. This is called ***embedding*** an interface.
+
+### Interface Satisfaction
+
+A type *statisfies an interface if it possesses all the methods the interface requires. For example, an **\*os.File** satisfies **io.Reader**, **Writer**, **Closer**, and **ReadWriter**. A **\*bytes.Buffer** satisfies **Reader**, **Writer**, and **ReadWriter**, but does not satisfy **Closer** because it does not have a **Close** method.
+
+The assignability rule for interfaces is very simple: an expression may be assigned to an interface only if its type satifies the interface. So:
+
+```go
+	var w io.Writer
+	w = os.Stdout         // OK: *os.File has Write method
+	w = new(bytes.Buffer) // OK: *bytes.Buffer has Write method
+	w = time.Second       // compile error: time.Duration lacks Write method
+
+	var rwc io.ReadWriteCloser
+	rwc = os.Stdout         // OK: *os.File has Read, Write, Close methods
+	rwc = new(bytes.Buffer) // compile error: *bytes.Buffer lacks Close method
+```
+
+This rule applies even when the right-hand side is itself an interface:
+
+```go
+	w = rwc // OK: io.ReadWriteCloser has Write method
+	rwc = w // compile error: io.Writer lacks Close method
+```
+
+The type **interface{}**, which is called the ***empty interface*** type places no demands on the types that statisfy it, we can assign ***any*** value to the empty interface.
+
+```go
+	var any interface{}
+	any = true
+	any = 12.34
+	any = "hello"
+	any = map[string]int{"one": 1}
+	any = new(bytes.Buffer)
+```
+
+Since interface satisfcation depends only on the methods of the two type involved, there is no need to declare the relationship between a concrete type and the interface it satifies. That said, it is occasionally useful to document and assert the relationship when it is intended but not otherwise enforced by the program. The declaration below assets at compile time that a value of type **\*bytes.Buffer** satifies **io.Writer**:
+
+```go
+	// *bytes.Buffer must satisfy io.Writer
+	var w io.Writer = new(bytes.Buffer)
+```
+
+We needn't allocate a new variable since any value of type **\*bytes.Buffer** will do, even **nil**, which we writes as **(\*bytes.Buffer)(nil)** using an explicit conversion. And since we never intend to refer to **w**, we can replace it with the blank identifier. Together, these changes give us this more frugal variant:
+
+```go
+	// *bytes.Buffer must satisfy io.Writer
+	var _ io.Writer = (*bytes.Buffer)(nil)
+```
+
+### Interface Values
+
+Conceptually, a value of an interface type, or ***interface value***, has two components, a concrete type and a value of that type. These are called the interface's ***dynamic type*** and ***dynamic value***.
+
+For a statically typed language like Go, types are a compile-time concept, so a type is not a value. In our conceptual model, a set of values called ***type descriptors*** provide information about each type, such as its name and methods. In an interface value, the type component is represented by the appropriate type descriptor.
+
+**The zero value for an interface has both its type and value components set to *nil***.
+
+```go
+	var w io.Writer
+```
+
+![A nil interface value]({{ site.baseurl }}/assets/gopl/a-nil-interface-value.png "A nil interface value")
+
+**An interface value is described as nil or non-nil based on its dynamic type**, so this is a nil interface value.
+
+The below statement assigns a value of type **\*os.File** to **w**:
+
+```go
+	var w io.Writer = os.Stdout
+```
+
+This assignment involves an implicit conversion from a concrete type to an interface type, and is equivalent to the explicit conversion **io.Writer(os.Stdout)**. A conversion of this kind, whether explicit or implicit, captures the type and the value of its operand. The interface values' dynamic type is set to the type descriptor for the pointer type **\*os.File**, and its dynamic value holds a copy of **os.Stdout**, which is a pointer to the **os.File** variable representing the standard output of process.
+
+![An interface value containing an \*os.File pointer]({{ site.baseurl }}/assets/gopl/an-interface-value-containing-an-os-File-pointer.png)
+
+Calling the **Write** method on an interface value containing an **\*os.File** pointer causes the **(\*os.File).Write** method to be called. The call prints **"hello"**.
+
+```go
+	w.Write([]byte("hello"))         // "hello"
+```
+
+In general, we cannot know at compile time that what the dynamic type of an interface value will be, so a call through an interface must use ***dynamic dispatch***. Instead of a direct call, the compiler must generate code to obtain the address of the method named **Write** from the type descriptor, then make an indirect call to the address. The receiver argument for the  call is a copy of the interface's dynamic value, **os.Stdout**. The effect is as if we had make this call directly:
+
+```go
+	os.Stdout.Write([]byte("hello")) // "hello"
+```
+
+Interface values may be compared using `==` and `!=`. Two interface values are equal if both are nil, or if their dynamic types are identical and their dynmaic values are equal according to the usual behavior of `==` for that type. However, if two interface values are compared and have the same dynamic type, but the that type is not comparable (a slice, for instance), then the comparision fails with a panic:
+
+```go
+	var x interface{} = []int{1, 2, 3}
+	fmt.Println(x == x) // panic: comparing uncomparable type []int
+```
+
+#### Caveat: An Interface Containing a Nil Pointer Is Non-Nil
+
+A nil interface value, which contains no value at all, is not the same as an interface value containing a pointer that happens to be nil.
+
+```go
+package main
+
+import (
+	"bytes"
+	"io"
+)
+
+func main() {
+	var buf *bytes.Buffer
+	var out io.Writer
+	out = buf // NOTE: subtly incorrect!
+	if out != nil {
+		out.Write([]byte("done!\n")) // panic: runtime error: invalid memory address or nil pointer dereference
+	}
+}
+```
+
+![A non-nil interface containing a nil pointer]({{ site.baseurl }}/assets/gopl/a-non-nil-interface-containing-a-nil-pointer.png)
+
 
 - - -
 
