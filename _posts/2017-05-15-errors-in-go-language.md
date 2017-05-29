@@ -177,6 +177,42 @@ The call to `os.RemoveAll` may fail, but the program ignores it because the oper
 
 Error handling in Go has a particular rhythm. After checking an error, failure is usually dealt with before success. If failure causes the function to return, the logic for success is not indented with an `else` block but follows at the outer level. Function tend to exhibit a common structure, with a series of initial checks to reject errors, followed by the substance of the function at the end, minimally indented.
 
+### The error Interface
+
+The type of **error** is an interface type with a single method that returns an error message:
+
+```go
+type error interface {
+	Error() string
+}
+```
+
+The simplest way to create an **error** is by calling **errors.New**, which return a new **error** for a given error message. The entire **errors** package is only four lines long:
+
+```go
+package errors
+
+func New(text string) error { return &errorString{text} }
+
+type errorString struct{ text string }
+
+func (e *errorString) Error() string { return e.text }
+```
+
+The underlying type of **errorString** is a struct, not a string, to protect its representation from inadvertent (or premeditated) update.
+
+Calls to **errors.New** are relatively infrequent because there's a conveninent wrapper function, **fmt.Errorf**, that does string formatting too.
+
+```go
+package fmt
+
+import "errors"
+
+func Errorf(format string, args ...interface{}) error {
+	return errors.New(Sprintf(format, args...))
+}
+```
+
 - - -
 
 ### References
