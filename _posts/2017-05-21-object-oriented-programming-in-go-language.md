@@ -55,7 +55,7 @@ fmt.Println(p.Distance(q))  // "5", method call
 
 There's no conflict between the two declarations of functions called `Distance` above. The first declares a package-level function called `geometry.Distance`. The second declares a method of the type `Point`, so its name is `Point.Distance`.
 
-The expression `p.Distance` is called a ***selector***, because it select the appropriate `Distance` method for the receiver `p` of type `Point`. Selectors are also used to select fields of struct types, as in `p.X`. **Since mehtods and fields inhabit the same name space, declaring a method `X` on the struct `Point` would be ambiguous and the compiler will reject it.**
+The expression `p.Distance` is called a ***selector***, because it select the appropriate `Distance` method for the receiver `p` of type `Point`. Selectors are also used to select fields of struct types, as in `p.X`. **Since methods and fields inhabit the same name space, declaring a method `X` on the struct `Point` would be ambiguous and the compiler will reject it.**
 
 ### Methods with a Pointer Receiver
 
@@ -482,3 +482,5 @@ func main() {
 ### References
 
 1. Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.
+1. [Interface types](https://golang.org/ref/spec#Interface_typeshttps://golang.org/ref/spec#Interface_types), The Go Programming Language Specification.
+1. [Interface names](https://golang.org/doc/effective_go.html#interface-names), Effective Go - The Go Programming Language
