@@ -479,9 +479,9 @@ func main() {
 
 ### Type Assertions
 
-A ***type assertion*** is an operation applied to an interface value. Syntactically, it looks like **x.(T)**, where **x** is an expression of an interface type and **T** is a type, called the "asserted" type. A type assertion checks that the dynamic type of its operand matches the asserted type.
+**A *type assertion* is an operation applied to an interface value.** Syntactically, it looks like **x.(T)**, where **x** is an expression of an interface type and **T** is a type, called the "asserted" type. A type assertion checks that the dynamic type of its operand matches the asserted type.
 
-There are two possibilites. First, if the asserted type `T` is a concrete type, then then type assertion checks whether `x`'s dynmaic is *identical* to `T`. If this check succeeds, the result of the type assertion is `x`'s dynamic value, whose type is of course `T`. In other words, **a type assertion to a concrete type extracts the concrete value from its operand. If the check fails, then the operation panics**.
+**A type assertion to a concrete type extracts the concrete value from its operand.** If the check fails, then the operation panics.
 
 ```go
 	var w io.Writer
@@ -489,8 +489,7 @@ There are two possibilites. First, if the asserted type `T` is a concrete type, 
 	f := w.(*os.File)      // success: f == os.Stdout
 	c := w.(*bytes.Buffer) // panic: interface holds *os.File, not *bytes.Buffer
 ```
-
-Second, if instead the asserted type `T` is an interface, then the type assertion checks whether's `x`'s dynamic type `satisfies`. If this check succeeds, the dynamic value is not extracted; the result is still an interface value with the same type and value components, but the result has the interface type `T`. In other words, **a type assertion to an interface type changes the type of the expression, making a different (and usually larger) set of methods accessible, but it preserves the dynamic type and value components inside the interface**.
+**A type assertion to an interface type changes the type of the expression, making a different (and usually larger) set of methods accessible, but it preserves the dynamic type and value components inside the interface**.
 
 ```go
 	var w io.Writer
@@ -510,8 +509,6 @@ If the type assertion appears is an assignment in which two results are expected
 	f, ok := w.(*os.File)      // success:  ok, f == os.Stdout
 	b, ok := w.(*bytes.Buffer) // failure: !ok, b == nil
 ```
-
-The second result is conventionally assigned to a variable named `ok`. If the operation failed, `ok` is false, and the first result is equal to the zero value of the asserted type, which in this example is a nil **\*bytes.Buffer**.
 
 When the operand of a type assertion is a variable, rather than invent another name for the new local variable, you'll sometimes see the original name reused, shadowing the original, like this:
 
