@@ -476,10 +476,11 @@ func main() {
 
 ![A non-nil interface containing a nil pointer]({{ site.baseurl }}/assets/gopl/a-non-nil-interface-containing-a-nil-pointer.png)
 
+* * *
 
 ### Type Assertions
 
-**A *type assertion* is an operation applied to an interface value.** Syntactically, it looks like **x.(T)**, where **x** is an expression of an interface type and **T** is a type, called the "asserted" type. A type assertion checks that the dynamic type of its operand matches the asserted type.
+A ***type assertion*** is an operation applied to an interface value. Syntactically, it looks like **x.(T)**, where **x** is an expression of an interface type and **T** is a type, called the "asserted" type. A type assertion checks that the dynamic type of its operand matches the asserted type.
 
 **A type assertion to a concrete type extracts the concrete value from its operand.** If the check fails, then the operation panics.
 
@@ -489,7 +490,7 @@ func main() {
 	f := w.(*os.File)      // success: f == os.Stdout
 	c := w.(*bytes.Buffer) // panic: interface holds *os.File, not *bytes.Buffer
 ```
-**A type assertion to an interface type changes the type of the expression, making a different (and usually larger) set of methods accessible, but it preserves the dynamic type and value components inside the interface**.
+**A type assertion to an interface type changes the type of the expression**, making a different (and usually larger) set of methods accessible, but it preserves the dynamic type and value components inside the interface.
 
 ```go
 	var w io.Writer
@@ -500,7 +501,7 @@ func main() {
 	rw = w.(io.ReadWriter) // panic: *ByteCounter has no Read method
 ```
 
-**No matter what type was asserted, if the operand is a nil interface value, the value assertion fails**.
+No matter what type was asserted, **if the operand is a nil interface value, the value assertion fails**.
 
 If the type assertion appears is an assignment in which two results are expected, such as the following declarations, the operation does not panic on failure but instead returns an additional second result, a boolean indicating success.
 
@@ -518,6 +519,94 @@ When the operand of a type assertion is a variable, rather than invent another n
 		w.Write([]byte("Hello world"))
 		// ...use w...
 	}
+```
+
+### Type Switches
+
+Interfaces are used in two distinct styles. In the first style, exemplified by **io.Reader**, **io.Writer**, **fmt.Stringer**, **sort.Interface**, **http.Handler**, and **error**, an interface's methods express the similarities of the concrete types that satisfy the interface but hide the representation detail and intrinsic operations of those concrete types. **The emphasis is on the methods, not on the concrete types.**
+
+The second style exploits the ablility of an interface value to hold values of a variety of concrete types and considers the interface to be the **union** of those types. Type assertions are used to discriminate among these types dynamically and treat each case differently. In this style, **the emphasis is on the concrete types that satisfy the interface**, not on the interface's methods (if indeed it has any), and there is no hiding of information.
+
+Go's API for quering an SQL database, like those of other languages, lets us cleanly separate the fixed part of a query from the variable parts. An example client might look like this:
+
+```go
+import "database/sql"
+
+func listTracks(db sql.DB, artist string, minYear, maxYear int) {
+	result, err := db.Exec(
+		"SELECT * FROM tracks WHERE artist = ? AND ? <= year AND year <= ?",
+		artist, minYear, maxYear)
+	// ...
+}
+```
+
+The **Exec** method replace each '**?**' in the query string with an SQL literal denoting the coresponding argument value, which may be a boolean, a number, a string, or **nil**. Within **Exec**, we might find a function like the one below, which converts each argument value to its literal SQL notation.
+
+```go
+func sqlQuote(x interface{}) string {
+	if x == nil {
+		return "NULL"
+	} else if _, ok := x.(int); ok {
+		return fmt.Sprintf("%d", x)
+	} else if _, ok := x.(uint); ok {
+		return fmt.Sprintf("%d", x)
+	} else if b, ok := x.(bool); ok {
+		if b {
+			return "TRUE"
+		}
+		return "FALSE"
+	} else if s, ok := x.(string); ok {
+		return sqlQuoteString(s) // (not shown)
+	} else {
+		panic(fmt.Sprintf("unexpected type %T: %v", x, x))
+	}
+}
+```
+
+A **switch** statement simplifies an **if-else** chain that performs a series of value equality tests. An analogous **type switch** statement simplifies an **if-else** chain of type assertions.
+
+In its simplest form, a type switch looks like an oridinary switch statement in which the operand is **x.(type)**—that's literally the keyword **type**—and each case has one or more types. **A type switch enables a multi-way branch based on the interface value's dynamic type.** The **nil** case matchs if **x == nil**, and the **default** case matches if no other case does. No **fallthrough** is allowed. A type switch for **sqlQuote** would have these cases:
+
+```go
+	switch x.(type) {
+	case nil: // ...
+	case int, uint: // ...
+	case bool: // ...
+	case string: // ...
+	default: // ...
+	}
+```
+
+Typically, the type switch statement has an extended form that binds the extracted value to a new variable within each case:
+
+```go
+	switch x := x.(type) {
+	// ...
+	}
+```
+
+Like a **switch** statement, a type switch implicitly creates a lexical block, so the declration of the new variable called **x** does not conflict with a variable **x** in an outer block. Each **case** also implicitly creates a separate lexical block.
+
+Rewriting **sqlQuote** to use the extended form of type switch makes it significantly clearer:
+
+```go
+func sqlQuote(x interface{}) string {
+	switch x := x.(type) {
+	case nil:
+		return "NULL"
+	case int, uint:
+		return fmt.Sprintf("%d", x) // x has type interface{} here.
+	case bool:
+		if x {
+			return "TRUE"
+		}
+		return "FALSE"
+	case string:
+		return sqlQuoteString(x) // (not shown)
+	default:
+		panic(fmt.Sprintf("unexpected type %T: %v", x, x))
+	}
+}
 ```
 
 - - -
