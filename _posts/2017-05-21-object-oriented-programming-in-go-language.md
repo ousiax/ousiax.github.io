@@ -614,5 +614,5 @@ func sqlQuote(x interface{}) string {
 ### References
 
 1. Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.
-1. [Interface types](https://golang.org/ref/spec#Interface_typeshttps://golang.org/ref/spec#Interface_types), The Go Programming Language Specification.
+1. [Interface types](https://golang.org/ref/spec#Interface_types), The Go Programming Language Specification.
 1. [Interface names](https://golang.org/doc/effective_go.html#interface-names), Effective Go - The Go Programming Language
