@@ -86,6 +86,42 @@ Communication over an unbuffered channel causes the sending and receving gorouti
 
 Channels can be used to connect goroutines together so that the output of one is the input to another. This is called a ***pipeline***.
 
+```go
+// Counter generates the integers 0, 1, 2, ..., 
+// and sends them over a channel to the second goroutine,
+// squarer, which receives each value, squares it,
+// and sends the result over another channel to the third goroutine,
+// printer, which receives the squared values and prints them.
+package main
+
+import "fmt"
+
+func main() {
+	naturals := make(chan int)
+	squares := make(chan int)
+
+	go func(out chan<- int) {
+		for x := 0; x < 100; x++ {
+			out <- x
+		}
+		close(out)
+	}(naturals)
+
+	// Squarer
+	go func(out chan<- int, in <-chan int) {
+		for v := range in {
+			out <- v * v
+		}
+		close(out)
+	}(squares, naturals)
+
+	// Printer (main goroutine)
+	for v := range squares {
+		fmt.Println(v)
+	}
+}
+```
+
 #### Unidirectional Channel Types
 
 When a channel is supplied as a function parameter, it is nearly always with the intent that is be used exclusively for sending or exclusively for receiving.
