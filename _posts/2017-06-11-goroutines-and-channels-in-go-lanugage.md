@@ -16,7 +16,7 @@ Go enables two styles of concurrent programming, ***communicating sequential pro
 
 ### Goroutines
 
-In Go, each concurrently executing activity is called a *goroutine*. When a program starts, is only goroutine is the one that calls the **main** function, so we call it the ***main goroutin***. New goroutines are created by the **go** statement. Syntacticaly, a **go** statement is an ordinary function or method call prefixed by the keyword **go**. A **go** statement causes the function to be called in a newly created goroutine. The **go** statement itself completes immediately:
+In Go, each concurrently executing activity is called a *goroutine*. When a program starts, is only goroutine is the one that calls the **main** function, so we call it the ***main goroutine***. New goroutines are created by the **go** statement. Syntacticaly, a **go** statement is an ordinary function or method call prefixed by the keyword **go**. A **go** statement causes the function to be called in a newly created goroutine. The **go** statement itself completes immediately:
 
 ```go
 	f()    // call f(); wait for it to return
@@ -336,6 +336,7 @@ Of course, when **main** returns, a program exits, so it can be hard to tell a m
 ### References
 
 1. Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.
+1. [Visualizing Concurrency in Go ·  divan's blog](http://divan.github.io/posts/go_concurrency_visualize/)
 1. [Concurrency](https://golang.org/doc/effective_go.html#concurrency), Effective Go - The Go Programming Language
 1. [Channel types](https://golang.org/ref/spec#Channel_types), The Go Programming Language Specification.
 1. [goroutine背后的系统知识](http://www.sizeofvoid.net/goroutine-under-the-hood/), http://www.sizeofvoid.net/goroutine-under-the-hood/
