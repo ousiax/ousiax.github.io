@@ -10,17 +10,18 @@ disqus_identifier: 54531108245291027721254300040613364965
 - TOC
 {:toc}
 
-### Race Conditions
-
-In a sequential program, that is, a program with only one groutine, the steps of the program happen in the familiar execution order determined by the program logic. For instance, in a sequence of statements, the first one happens before the second one, and so on. In a program with two or more goroutines, the steps within each goroutine happen in the familiar order, bute in general we don't know whether an event ***x*** in one goroutine happens before an eventy ***y*** in another goroutine, or happens after it, or is simulaaneous with it. We we cannot confidently say that one event ***happens before*** the other, then the event ***x*** and ***y*** are ***concurrent***.
+In a sequential program, that is, a program with only one groutine, the steps of the program happen in the familiar execution order determined by the program logic. For instance, in a sequence of statements, the first one happens before the second one, and so on. In a program with two or more goroutines, the steps within each goroutine happen in the familiar order, bute in general we don't know whether an event ***x*** in one goroutine happens before an eventy ***y*** in another goroutine, or happens after it, or is simultaneous with it. We we cannot confidently say that one event ***happens before*** the other, then the event ***x*** and ***y*** are ***concurrent***.
 
 Consider a function that works correctly in a sequential program. That function is ***concurrency-safe*** if it continues to work correctly even when called concurrently, that is, from two or more goroutines with no additional syncrhonization. We can generalize this notion to a set of collaborating functions, such as the methods and operations of a particular type. A type is concurrency-safe if all its accessible methods and operations are concurrency-safe.
 
 *We avoid concurrent access to most variables either by **confining** them to a single goroutine or by maintaining a higher-level invariant of **mutual exclusion***.
 
+
+### Race Conditions
+
 A **race condition** is a situation in which the program does not give the correct result for some interleaving of the operations of multiple goroutines.
 
-A **data race**, that is, a particular kind of race condition, occurs whenever two goroutines access the same variable concurrently and at least one of the accesses is a write. A good rule of thumb is that *there is no such thing as a benign data race*. It follows from this definition that there are three ways to avoid a data race.
+A **data race**, that is, a particular kind of race condition, occurs whenever two goroutines access the same variable concurrently and at least one of the accesses is a write.  It follows from this definition that there are three ways to avoid a data race.
 
 *The first way is not to write the variable.*
 
@@ -52,7 +53,7 @@ var icons = map[string]image.Image{
 func Icon(name string) image.Image { return icons[name] }
 ```
 
-*The second way to avoid a data race is to avoid accessing the variable from multiple goroutines.* These variables are ***confined*** to a single goroutine. Since other goroutines cannot access the varible directly, they must use a channel to send the confining goroutine a request to query or update the variable. This is what is meant by the Go mantra "**Do not communicate by sharing memory; instead, share memory by communication.**" A goroutine that brokers access to a confined variable using channel requests is called a ***monitor goroutine*** for that variable.
+*The second way to avoid a data race is to avoid accessing the variable from multiple goroutines.* These variables are ***confined*** to a single goroutine. Since other goroutines cannot access the varible directly, they must use a channel to send the confining goroutine a request to query or update the variable. This is what is meant by the Go mantra "***Do not communicate by sharing memory; instead, share memory by communication.***" A goroutine that brokers access to a confined variable using channel requests is called a ***monitor goroutine*** for that variable.
 
 ```go
 // Package bank implements a bank with only one account.
@@ -112,9 +113,9 @@ func icer(iced chan<- *Cake, cooked <-chan *Cake) {
 }
 ```
 
-The third way to avoid a data race is to allow many gorotines to access the variable, but only one at a time. This approach is known as *mutual exclusion*.
+The third way to avoid a data race is to allow many goroutines to access the variable, but only one at a time. This approach is known as *mutual exclusion*.
 
-A semaphore that counts only to 1 is called a *binary semaphore*.
+> A semaphore that counts only to 1 is called a *binary semaphore*.
 
 ```go
 // Package bank implements a bank with only one account.
@@ -165,11 +166,9 @@ func Balance() int {
 }
 ```
 
-By convention, the variables guarded by a mutex are declared immediately after the declaration of the mutex itself. If you devviate from this, be sure to document it.
+By convention, the variables guarded by a mutex are declared immediately after the declaration of the mutex itself. If you deviate from this, be sure to document it.
 
 The region of code between **Lock** and **Unlock** in which a goroutine is free to read and modify the shared variables is called a ***critial section***. The lock holder's call to **Unlock** *happens before* any other goroutine can acquire the lock itself.
-
-When you use a mutex, make sure that both it and the variables it guards are not exported, whether they are package-level variables or the fields of a struct.
 
 
 ### Read/Write Mutexes: sync.RWMutex
@@ -334,7 +333,7 @@ func Icon(name string) image.Image {
 
 Even with greatest of care, it's all too easy to make concurrency mistakes. Fortunately, the Go runtime and toolchain are  equipped with a sophisticated and easy-to-use dynamic analysis too, the ***race detector***.
 
-Just Add the **-race** flag to your **go build**, **go run**, or **go test** command. This cause the compiler to build a modified version of your application or test with additional instrumentation that effectively records all accesses to shared variables that occured during execution, along with the identity of the goroutine that read or wrote the varible. In addition, the modified program records all synchronization events, such as **go** statements, channel operations, and calls to **(\*sync.Mutex).Lock**, **(\*sync.WaitGroup).Wait**, and so on.
+Just add the **-race** flag to your **go build**, **go run**, or **go test** command. This cause the compiler to build a modified version of your application or test with additional instrumentation that effectively records all accesses to shared variables that occured during execution, along with the identity of the goroutine that read or wrote the varible. In addition, the modified program records all synchronization events, such as **go** statements, channel operations, and calls to **(\*sync.Mutex).Lock**, **(\*sync.WaitGroup).Wait**, and so on.
 
 The race detector studies this steam of events, looking for cases in which one goroutine reads or writes a shared variables that was most recently written by a different goroutine without an intervening synchronization operation. This indicates a concurrent access to the shared variable, and thus a data race. The tool prints a report that includes the identity of the variable, and the stacks of active function calls in the reading goroutine and the writing goroutine. This is is usually sufficient to pinpoint the problem.
 
