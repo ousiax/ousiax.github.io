@@ -456,4 +456,5 @@ Go encourages a simpler style of programming in which parameters that affect the
 ### References
 
 1. Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.
+1. [The Go Memory Model](https://golang.org/ref/mem) - The Go Programming Language
 1. [Thread\_(computing)#Models](https://en.wikipedia.org/wiki/Thread\_(computing)#Models), Wikipedia
