@@ -267,7 +267,7 @@ but depending on the compiler, CPU, and many other factors, they can happen too.
 
 Within a single goroutine, the effects of each statement are guaranteed to occur in the order of execution; goroutines are ***sequentially consistent***. But in the absence of explicit synchronization using a channel or mutex, there is no guarantee that events are seen in the same order by all goroutines. Although goroutine *A* must observe the effect of the write **x = 1** before it reads the value of **y**, it does not necessarily observe the write to **y** done by goroutine *B*, so *A* may print a *stale* value of *y*.
 
-It is tempting to try to understand concurrency as if it corresponds to *some* interleaving of the statements of each goroutine, but as the example above shows, this is not how a modern compiler or CPU works. Because the assignment and the **Print** refer to different variables, a compiler may conclude that the order of the two statements cannot affect the result, and swap them. If the two goroutines execute on different CPUs, each with its own cache, writes by one goroutine are not visible to the other goroutine's **Print** until the caches are synchorinzed with main memory.
+It is tempting to try to understand concurrency as if it corresponds to *some* interleaving of the statements of each goroutine, but as the example above shows, this is not how a modern compiler or CPU works. Because the assignment and the **Print** refer to different variables, a compiler may conclude that the order of the two statements cannot affect the result, and swap them. If the two goroutines execute on different CPUs, each with its own cache, writes by one goroutine are not visible to the other goroutine's **Print** until the caches are synchroinzed with main memory.
 
 All these concurrency problems can be avoided by the consistent use of simple, established patterns. Wehre possible, confine variables to a single goroutines; for all other variables, use mutual exclusion.
 
@@ -294,7 +294,7 @@ func Icon(name string) image.Image {
 }
 ```
 
-**In the absence of explicit synchornization, the compiler and CPU are free to reorder accesses to memory in any number of ways, so long as the behavior of each goroutine is sequentially consistent.** One possible reordering of the statements of **loadIcons** is show below.
+**In the absence of explicit synchronization, the compiler and CPU are free to reorder accesses to memory in any number of ways, so long as the behavior of each goroutine is sequentially consistent.** One possible reordering of the statements of **loadIcons** is show below.
 
 ```go
 func loadIcons() {
@@ -334,9 +334,9 @@ func Icon(name string) image.Image {
 
 Even with greatest of care, it's all too easy to make concurrency mistakes. Fortunately, the Go runtime and toolchain are  equipped with a sophisticated and easy-to-use dynamic analysis too, the ***race detector***.
 
-Just Add the **-race** flag to your **go build**, **go run**, or **go test** command. This cause the compiler to build a modified version of your application or test with additional instrumentation that effectively records all accesses to shared variables that occured during execution, along with the identity of the goroutine that read or wrote the varible. In addition, the modified program records all synchornization events, such as **go** statements, channel operations, and calls to **(*sync.Mutex).Lock**, **(*sync.WaitGroup).Wait**, and so on.
+Just Add the **-race** flag to your **go build**, **go run**, or **go test** command. This cause the compiler to build a modified version of your application or test with additional instrumentation that effectively records all accesses to shared variables that occured during execution, along with the identity of the goroutine that read or wrote the varible. In addition, the modified program records all synchronization events, such as **go** statements, channel operations, and calls to **(\*sync.Mutex).Lock**, **(\*sync.WaitGroup).Wait**, and so on.
 
-The race detector studies this steam of events, looking for cases in which one goroutine reads or writes a shared variables that was most recently written by a different goroutine without an intervening synchornization operation. This indicates a concurrent access to the shared variable, and thus a data race. The tool prints a report that includes the identity of the variable, and the stacks of active function calls in the reading goroutine and the writing goroutine. This is is usually sufficient to pinpoint the problem.
+The race detector studies this steam of events, looking for cases in which one goroutine reads or writes a shared variables that was most recently written by a different goroutine without an intervening synchronization operation. This indicates a concurrent access to the shared variable, and thus a data race. The tool prints a report that includes the identity of the variable, and the stacks of active function calls in the reading goroutine and the writing goroutine. This is is usually sufficient to pinpoint the problem.
 
 The race detector reports all data races that wre actually executed. However, it can only detect race conditions that occur during a run; it cannot prove that none will ever occur. For best results, make sure that your test exercise your packages using concurrency.
 
