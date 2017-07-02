@@ -77,7 +77,7 @@ Test failure messages are usually of the form **"f(x) = y, want z"**, where **f(
 
 ### Randomized Testing
 
-Table-driven tests are convenient for checking that a function works on inputs carefully selected to exercise interesting cases in the logic. Another approach, ***randomized testing***, explores a broader range of inputs by constructing inuts at random.
+Table-driven tests are convenient for checking that a function works on inputs carefully selected to exercise interesting cases in the logic. Another approach, ***randomized testing***, explores a broader range of inputs by constructing inputs at random.
 
 ```go
 import "math/rand"
@@ -234,6 +234,62 @@ $ go list -f={{.XTestGoFiles}} fmt
 ```
 
 Sometimes an external test package may need privileged access to the internals of the package under test, if for example a white-box test must live in a separate package to avoid an import cycle. In such cases, we use a trick: we add declaration to an in-package **\_test.go** file to expose the necessary internals to the external test. This file thus offers the test a "back door" to the package. If the source file exists only for this purpose and contains no tests itself, it is often called **export_test.go**.
+
+### Writing Effective Tests
+
+Other languages' frameworks provide mechanisms for identifying test functions (often using reflection or metadata), hooks for perforrming "setup" and "teardown" operations before and after the tests run, and libraries of utility functions for asserting common predicates, comparing values, formatting error messages, and aborting a failed test (often using exceptions). Although these mechanisms can make tests very concise, the resulting tests often seem like they are written in a foreign language. Furthermore, although they may report **PASSS** or **FALL** correctly, their manner may be unfriendly to the unfortunate maintainer, with cryptic failure message like "**assert: 0 == 1**" or page after page of stack traces.
+
+A good test does not explode on failure but prints a clear and succinct description of the symptom of the problem, and perhaps other relevant facts about the context. Ideally, the maintainer should not need to read the source code to decipher a test failure. A good test should not give up after one failure but should try to report several errors in a single run, since the pattern of failures may itself be revealing.
+
+The assertion function below compares two values, constructs a generic error message, and stops the program. It's easy to use and it's correct, but when it fails, the error message is almost useless.
+
+```go
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
+
+// A poor assertion function.
+func assertEqual(x, y int) {
+	if x != y {
+		panic(fmt.Sprintf("%d != %d", x, y))
+	}
+}
+func TestSplit(t *testing.T) {
+	words := strings.Split("a:b:c", ":")
+	assertEqual(len(words), 3)
+	// ...
+}
+```
+
+In this sense, assertion functions suffer from *premature abstraction*: by treating the failure of this particular test as a mere difference of two integers, we forfeit the opportunity to provide meaningful context. We can provide a better message by starting from the concrete details, as in the example below.
+
+```go
+import (
+	"strings"
+	"testing"
+)
+
+func TestSplit(t *testing.T) {
+	var tests = []struct {
+		s    string
+		sep  string
+		want int
+	}{
+		{"a:b:c", ":", 3},
+	}
+	for _, test := range tests {
+		words := strings.Split(test.s, test.sep)
+		if got := len(words); got != test.want {
+			t.Errorf("Split(%q, %q) returned %d words, want %d",
+				test.s, test.sep, got, test.want)
+		}
+	}
+}
+```
+
+Now the test reports the function that was called, its inputs, and the significance of the results; it explicitly identifies the actual value and the expectation; and it continues to execute even if this assertion should fail.
 
 - - -
 
