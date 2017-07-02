@@ -291,8 +291,232 @@ func TestSplit(t *testing.T) {
 
 Now the test reports the function that was called, its inputs, and the significance of the results; it explicitly identifies the actual value and the expectation; and it continues to execute even if this assertion should fail.
 
+### Avoiding Brittle Tests
+
+An application that often fails when it encounters new but valid inputs is called *buggy*; a test that spuriously fails when a sound change was made to the program is called *brittle*. Just as a buggy program frustrates its users, a brittle test exasperates its maintainers. The most brittle tests, which fail from almost any change to the production code, good or bad, are sometimes called *change detector* or *status quo* tests, and the time dealing with them can quickly deplete any benefit they once seemed to provide.
+
+The easiest way to avoid brittle tests is to check only the properties you care about. Test your program's simpler and more stable interfaces in preference to its internal functions. Be selective in your assertions. Don't check for exact string matches, for example, but look for relevant substrings that remain unchanged as the program evolves. It's often worth writing a substantial function to distill a complex output down to its essence so that assertions will be reliable. Even though that may seem like a lot of up-front effort, it can pay for itself quickly in time that would otherwise be spent fixing spuriously failing tests.
+
+### Coverage
+
+No quantity of tests can ever prove a package free of bugs. At best, they increase our confidence that the package works well in a wide range of important scenarios.
+
+The degree to which a test exercises the package under test is called the test's ***coverage***. ***Statement coverage*** is the simplest and most widely used of these heuristics. The statement coverage of a test suite is the fraction of source statements that are executed at least once during the test. We'll use the Go's **cover** tool, which is integrated into **go test**, to measure statement coverage and help identify obvious gaps in the tests.
+
+This command displays the usage message of the coverage tool:
+
+```sh
+$ go tool cover
+Usage of 'go tool cover':
+Given a coverage profile produced by 'go test':
+        go test -coverprofile=c.out
+
+Open a web browser displaying annotated source code:
+        go tool cover -html=c.out
+
+Write out an HTML file instead of launching a web browser:
+        go tool cover -html=c.out -o coverage.html
+
+Display coverage percentages to stdout for each function:
+        go tool cover -func=c.out
+```
+
+The **go tool** command runs one of the executable from the Go toolchain. These programs live in the directory **$GOROOT/pkg/tool/${GOOS}_${GOARCH}**.
+
+```go
+package cover
+
+func foo(s string) string {
+        return s
+}
+
+func bar(s string) string {
+        return s
+}
+```
+
+```go
+package cover
+
+import "testing"
+
+func TestFoo(t *testing.T) {
+        var tests = []struct {
+                s    string
+                want string
+        }{
+                {"hello", "hello"},
+                {"world", "world"},
+        }
+
+        for _, test := range tests {
+                if got := foo(test.s); got != test.want {
+                        t.Errorf("foo(%q) == %q, want %q", test.s, got, test.want)
+                }
+        }
+}
+```
+
+```sh
+$ go test -covermode=count
+PASS
+coverage: 50.0% of statements
+ok      gopl.io/ch11/cover      0.002s
+$ go test -coverprofile=c.out
+PASS
+coverage: 50.0% of statements
+ok      gopl.io/ch11/cover      0.002s
+$ go tool cover -func=c.out
+gopl.io/ch11/cover/cover.go:3:  foo             100.0%
+gopl.io/ch11/cover/cover.go:7:  bar             0.0%
+total:                          (statements)    50.0%
+```
+
+### Benchmark Functions
+
+Benchmarking is the practice of measuring the performance of a program on a fixed workload. In Go, a benchmark function looks like a test function, but with the **Benchmark** prefix and a **\*testing.B** parameter that provides most of the same methods as a **\*testing.T**, plus a few extra related to performance measurement. It also exposes an integer filed **N**, which specifies the number of times to perform the operation being measured.
+
+```go
+func foo(s string) string {
+	var letters []rune
+	for _, b := range s {
+		letters = append(letters, b)
+	}
+	return string(letters)
+}
+
+func bar(s string) string {
+	// pre-allocate a sufficiently large array for use by letters,
+	// rather than expand it by successive calls to append
+	letters := make([]rune, 0, len(s))
+	for _, b := range s {
+		letters = append(letters, b)
+	}
+	return string(letters)
+}
+
+func BenchmarkFoo(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		foo("hello world")
+	}
+}
+
+func BenchmarkBar(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		bar("hello world")
+	}
+}
+```
+
+Unlike tests, by default no benchmarks are run. The argument to the **-bench** flag selects which benchmarks to run. It is a regular expression matching the names of **Benchmark** functions, with a default value that matches none of them. The "." pattern causes it to match all benchmarks.
+
+```sh
+BenchmarkFoo-2           5000000               339 ns/op
+BenchmarkBar-2          10000000               188 ns/op
+PASS
+ok      _/tmp   4.123s
+```
+
+The benchmark names's numeric suffix, **2** here, indicates the value of **GOMAXPROCS**, which is important for concurrent benchmarks.
+
+The report tells us that each call to **foo** took about 0.339 microseconds, averaged over 5000000 runs.
+
+The **-benchmem** command-line flag will include memory allocation statistics in its report.
+
+```sh
+$ go test -bench=. -benchmem
+BenchmarkFoo-2           5000000               333 ns/op             136 B/op          5 allocs/op
+BenchmarkBar-2          10000000               188 ns/op              64 B/op          2 allocs/op
+PASS
+ok      _/tmp   4.088s
+```
+
+Benchmarks like this tell us the absolute time required for a given operation, but in many settings the interesting performance questions are about the *relative* timings of two different operations. For example, if a function takes 1ms to process 1,000 elements, how long will it take to process 10,000 or a million?
+
+Comarative benchmarks are just regular code. They typically take the form os a single parameterized function, called from several **Benchmark** function with different values, like this:
+
+```go
+func benchmark(b *testing.B, size int) { /* ... */ }
+func Benchmark10(b *testing.B)         { benchmark(b, 10) }
+func Benchmark100(b *testing.B)        { benchmark(b, 100) }
+func Benchmark1000(b *testing.B)       { benchmark(b, 1000) }
+```
+
+### Profiling
+
+Benchmarks are useful for measuring the performance of specific operations, but when we're trying to make a slow program faster, we often have no idea where to begin.
+
+Programmer waste enormous amounts of time thinking about, or worry about, the speed of noncritical parts of their programs. We should forget about small efficiencies, say about 97% of the time: premature optimization is the root of all evil. Yet we should not pass up our opportunities in that critical 3%.
+
+When we wish to look carefully at the speed of our programs, the best technique for identifying the critical code is ***profiling***. Profiling is an automated approach to performance measurement based on sampling a number of profile ***events*** during execution, then extrapolating from them during a post-processing step; the resutling statistical summary is called a ***profile***.
+
+The **go test** tool has built-in support for serval kinds of profiling.
+
+A ***CPU profile*** identifies the functions whose executation reuqires the most CPU time. The currently running thread on each CPU is interrupted periodically by the operating system every few milliseconds, with each interruption recording once profile event before normal execution resumes.
+
+A ***heap profile*** identifies the statements responsible for allocating the most memory. The profiling library samples calls to the internal memory allocation routines so that on average, on profile event is recorded per 512KB of allocated memory.
+
+A ***blocking profile*** identifies the operations resposible for blocking goroutines the longest, such system calls, channel sends and receives, and acquisitions of locks. The profiling library records an event every time a goroutine is blocked by one the these operations.
+
+Gathering a profile for code under test is as easy as enabling one of the flags below. Be careful when using more than one flag at a time, however: the machinery for gathering one kind of profile may skew the results of others.
+
+```sh
+$ go test -cpuprofile=cpu.log
+$ go test -blockprofile=block.log
+$ go test -memprofile=mem.log
+```
+
+Profiling is especially useful in lonng-running applications, so the Go runtime's profiling features can be eanbled under programmer control using the **runtime** API.
+
+Once we've gathered a profile, we need to analyze it using the **pprof** tool. This is a standard part of the Go distribution, but since it's not an everyday tool, it's accessed indirectly using **go tool pprof**.
+
+To make profiling efficient and save space, the log does not include function names; instead, functions are identified by their address. This mean that **pprof** needs the executalbe in order to make sense of the log. Although **go test** usually discards the test executable once the test is complete, when profiling is enabled it saves the executable as **foo.test**, where **foo** is the name of the tested package.
+
+The command below show how to gather and display a simple CPU profile. We've selected one of the benchmarks from the **net/http** package. It is usually better to profile specific benchmarks that have been constuctured to be representative of workloads one cares about. Benchmarking test cases is almost never representative, which is why we disabled them by using the filter **-run=NONE**.
+
+```sh
+$ go test -run=NONE -bench=ClientServerParallelTLS64 -cpuprofile=cpu.log net/http
+BenchmarkClientServerParallelTLS64-2       30000             47156 ns/op           5201 B/op          67 allocs/op
+PASS
+ok      net/http        2.726s
+$ go tool pprof -text -nodecount=5 ./http.test cpu.log
+1380ms of 4870ms total (28.34%)
+Dropped 203 nodes (cum <= 24.35ms)
+Showing top 5 nodes out of 223 (cum >= 140ms)
+      flat  flat%   sum%        cum   cum%
+     760ms 15.61% 15.61%      840ms 17.25%  syscall.Syscall
+     170ms  3.49% 19.10%      490ms 10.06%  runtime.mallocgc
+     170ms  3.49% 22.59%      170ms  3.49%  runtime.memmove
+     140ms  2.87% 25.46%      320ms  6.57%  runtime.pcvalue
+     140ms  2.87% 28.34%      140ms  2.87%  vendor/golang_org/x/crypto/curve25519.ladderstep
+```
+
+### Example Functions
+
+The third kind of function treated specially by **go test** is an example function, one whose name starts with **Exmaple**. It has neither parameters nor results. Here's an example function for **IsPalindrome**:
+
+```go
+func ExampleIsPalindrome() {
+	fmt.Println(IsPalindrome("A man, a plan, a canal: Panama"))
+	fmt.Println(IsPalindrome("palindrome"))
+	// Output:
+	// true
+	// false
+}
+```
+
+Example functions serve three purposes. The primary one is documentation: a good example can be a more succinct or intuitive way to convey the behavior of a library function than its prose description, especially when used as a reminder or quick reference. An example can also demostrate the interaction between several types and functions belonging to one API, whereas prose documentation must always be attached to one place, like a type or function declaration or the package as a whole. And unlike exmpales within comments, example functions are real Go code, subject to compile-time checking, so they don't become stale as the code evolves.
+
+Based on the suffix of the **Example** function, the web-based documentation server **godoc** associates example functions with the function or package they exemplify, so **ExampleIsPanlidrome** would be shown with the documentation for the **IsPalindrome** function, and an example called just **Example** would be associated with the **word** package as a whole.
+
+The second purpose is that examples are executable tests run by **go test**. If the exaple function contains a final **// Output:** comment like the one above, the test driver will execute the function and check that what it printed to its standard output matches the text within the comment.
+
+The third purpose of an example is hands-on experimentation. The **godoc** server at **golang.org** uses the Go Playground to let the user edit and run each example function from within a web browser.
+
 - - -
 
 ### References
 
 1. Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.
+1. [testing](https://golang.org/pkg/testing/) - The Go Programming Language
+1. [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) - The Go Blog
