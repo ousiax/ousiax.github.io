@@ -135,6 +135,7 @@ if err := WaitForServer(url); err != nil {
     fmt.Fprintf(os.Stderr, "Site is donw: %v\n", err)
     os.Exit(1)
 }
+```
 
 A more convenient way to achieve the same effect is to call `log.Fatalf`. As with all the `log` functions, by default it prefixes the time and date to the error message.
 
