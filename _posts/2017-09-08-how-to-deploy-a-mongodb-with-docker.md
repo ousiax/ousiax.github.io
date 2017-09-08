@@ -373,12 +373,12 @@ rs0:PRIMARY>
 
 ### References:
 
-1. [mongo | Docker Documentation](https://docs.docker.com/samples/library/mongo/#authentication-and-authorization)
+1. [mongo \| Docker Documentation](https://docs.docker.com/samples/library/mongo/#authentication-and-authorization)
 1. [Enable Auth — MongoDB Tutorials](https://docs.mongodb.com/tutorials/enable-authentication/)
 2. [Manage Users and Roles — MongoDB Tutorials](https://docs.mongodb.com/tutorials/manage-users-and-roles/)
 3. [Built-In Roles — MongoDB Manual 3.4](https://docs.mongodb.com/manual/reference/built-in-roles/)
 1. [Deploy a Replica Set — MongoDB Manual 3.4](https://docs.mongodb.com/manual/tutorial/deploy-replica-set/)
 1. [Enforce Keyfile Access Control in a Replica Set — MongoDB Manual 3.4](https://docs.mongodb.com/manual/tutorial/enforce-keyfile-access-control-in-existing-replica-set/)
-1. [Compose file version 3 reference | Docker Documentation](https://docs.docker.com/compose/compose-file/)
+1. [Compose file version 3 reference \| Docker Documentation](https://docs.docker.com/compose/compose-file/)
 1. [Deploy a MongoDB Cluster in 9 steps Using Docker](https://medium.com/@gargar454/deploy-a-mongodb-cluster-in-steps-9-using-docker-49205e231319)
 1. [Mongodb KeyFile too open permissions - Stack Overflow](https://stackoverflow.com/questions/14789622/mongodb-keyfile-too-open-permissions)
