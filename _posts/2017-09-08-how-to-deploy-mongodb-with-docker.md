@@ -1,9 +1,9 @@
 ---
 layout: post
-title: "How to Deploy a MongoDB with Docker"
+title: "How to Deploy MongoDB with Docker"
 date: 2017-09-08 15-37-56 +0800
-categories: ['Mongo']
-tags: ['Mongo']
+categories: ['Docker']
+tags: ['Docker', 'Mongo']
 disqus_identifier: 32306689283863169736250327311358675453
 ---
 * TOC
@@ -18,7 +18,7 @@ disqus_identifier: 32306689283863169736250327311358675453
 $ docker run -d -p 27017:27017 --name db mongo:3
 ```
 
-### 2. Start the MongoDB Instance with Access Control.
+### 2. Start a MongoDB Instance with Access Control.
 
 ```sh
 $ docker run -d -p 27017:27017 --name db mongo:3 --auth
