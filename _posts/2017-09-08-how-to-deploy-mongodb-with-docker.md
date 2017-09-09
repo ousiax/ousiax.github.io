@@ -11,6 +11,9 @@ disqus_identifier: 32306689283863169736250327311358675453
 
 * * *
 
+### 0. Prerequisites
+
+Make sure you have already installed both [Docker Engine](https://docs.docker.com/engine/installation/) and [Docker Compose](https://docs.docker.com/compose/install/). You don’t need to install MongoDB, as it's provided by Docker images.
 
 ### 1. Start a MongoDB Instance.
 
