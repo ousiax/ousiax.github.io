@@ -40,7 +40,7 @@ Installing Command Completion for Bash.
 # 1. Make sure bash completion is installed. 
 $ yum install -y bash-completion
 # 2. Install docker completion.
-$ curl -L https://raw.githubusercontent.com/docker/docker-ce/master/components/cli/contrib/completion/bash/docker > /etc/bash_completion.d/docker
+$ sudo curl -L https://raw.githubusercontent.com/docker/docker-ce/master/components/cli/contrib/completion/bash/docker -o /etc/bash_completion.d/docker
 # 3. Make docker completion to be available.
 $ sudo . /etc/profile
 ```
@@ -54,14 +54,16 @@ RE: [Command-line completion](https://docs.docker.com/machine/completion/)
 Run this command to download Docker Compose, replacing `$dockerComposeVersion` with the specific version of Compose you want to use:
 
 ```sh
-curl -L https://github.com/docker/compose/releases/download/$dockerComposeVersion/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+sudo curl -L https://github.com/docker/compose/releases/download/$dockerComposeVersion/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
 ```
 
 For example, to download Compose version 1.14.0, the command is:
 
 ```sh
-curl -L https://github.com/docker/compose/releases/download/1.14.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+sudo curl -L https://github.com/docker/compose/releases/download/1.14.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
 ```
+
+> Use the latest Compose release number in the download command.
 
 Apply executable permissions to the binary:
 
@@ -72,7 +74,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 Installing Command Completion for Bash:
 
 ```sh
-curl -L https://raw.githubusercontent.com/docker/compose/master/contrib/completion/bash/docker-compose -o /etc/bash_completion.d/docker-compose
+sudo curl -L https://raw.githubusercontent.com/docker/compose/master/contrib/completion/bash/docker-compose -o /etc/bash_completion.d/docker-compose
 ```
 
 RE: [Install Docker Compose](https://docs.docker.com/compose/install/)
