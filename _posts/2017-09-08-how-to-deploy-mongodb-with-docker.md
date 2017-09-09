@@ -13,7 +13,7 @@ disqus_identifier: 32306689283863169736250327311358675453
 
 ### 0. Prerequisites
 
-Make sure you have already installed both [Docker Engine](https://docs.docker.com/engine/installation/) and [Docker Compose](https://docs.docker.com/compose/install/). You don’t need to install MongoDB, as it's provided by Docker images.
+Make sure you have already installed both [Docker Engine](https://docs.docker.com/engine/installation/) and [Docker Compose](https://docs.docker.com/compose/install/). You don’t need to install MongoDB, as it's provided by Docker image.
 
 ### 1. Start a MongoDB Instance.
 
@@ -148,12 +148,6 @@ c4c04bfc53f3        mongo:3             Up 46 seconds       27017/tcp           
 
 ```sh
 $ docker exec -it db-0 mongo --quiet
-Welcome to the MongoDB shell.
-For interactive help, type "help".
-For more comprehensive documentation, see
-        http://docs.mongodb.org/
-Questions? Try the support group
-        http://groups.google.com/group/mongodb-user
 > rs.initiate( {
 ...    _id : "rs0",
 ...    members: [ { _id : 0, host : "db-0" } ]
