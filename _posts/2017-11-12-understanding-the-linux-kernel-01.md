@@ -27,11 +27,11 @@ The various Unix-like systems on the market, some of which have a long history a
 
 - Multithreaded application support.
 
-Most modern operating systems have some kind of support for multithreaded applications, that is, user programs that are well designed in terms of many relatively independent execution flows sharing a large portion of the application data structures.
+    Most modern operating systems have some kind of support for multithreaded applications, that is, user programs that are well designed in terms of many relatively independent execution flows sharing a large portion of the application data structures.
 
-A multithreaded user application could be composed of many *lightweight processes* (LWP), or processes that can operate on a common address space, common physical memory pages, common opened files, and so on.
+    A multithreaded user application could be composed of many *lightweight processes* (LWP), or processes that can operate on a common address space, common physical memory pages, common opened files, and so on.
 
-While all the commercial Unix variants of LWP are on kernel threads, Linux regards lightweight processes as the basic execution context and handles them via the nonstandard `clone()` system call.
+    While all the commercial Unix variants of LWP are on kernel threads, Linux regards lightweight processes as the basic execution context and handles them via the nonstandard `clone()` system call.
 
 - Linux is a nonpreemptive kernel.
 
