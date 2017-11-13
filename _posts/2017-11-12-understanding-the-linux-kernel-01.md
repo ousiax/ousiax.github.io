@@ -195,6 +195,122 @@ The main advantages of using modules include:
 
     Once linked in, the object code of a modue is equivalent to the object code of the statically linked kernel. Therefore, no explicit message passing is required when the functions of the module are invoked.
 
+### 1.5 An Overview of the Unix Filesystem
+
+#### 1.5.1 Files
+
+A Unix file is an inforamtion container strutured as a sequence of bytes; the kernel does not intepret the contents of a file.
+
+Many programming libraries implement higher-level abstractions, such as records structured into fields and record addressing based on keys. However, the programs in these libraries must rely on system calls offered by the kernel.
+
+From the user's point of view, files are organized in a tree-structured name space.
+
+![An example of a directory tree]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/an example of a directory tree.png)
+
+- All the nodes of the tree, except the leaves, donote directory names.
+- A directory node contians information about the files and directories just beneath it.
+- A file or directory name consists of a sequence of arbitrary ASCII characters, with the exception of `/` and of the null character `\0`.
+- Most filessytems place a limit on the length of a filename, typically no more than 255 characters.
+- The directory corresponding to the root of the tree is called the *root directory*. By convention, its name is a slash (`/`).
+- Names must be different within the same directory, but the same name may be used in different directories.
+
+Unix associates a *current working directory* with each process; it belongs to the process execution context, and it identifies the directory currently used by the process.
+
+In order to identify a specific file, the process uses a *pathname*, which consists of slashes alternating with a sequence of directory names that lead to the file.
+
+- If the first item in the pathname is a slash, the pathname is said to be *absolute*, since its starting point is the root direcotry.
+- Otherwise, if the first item is a directory name or filename, the pathname is said to be *relative*, since its starting point is the process's current directory.
+
+While specifying filenames, the notations "." and ".." are also used. They denote the current working directory and its parent directory, respectively. If the current working directory is the root directory, "." and ".." coincide.
+
+#### 1.5.2 Hard and Soft Links
+
+A filename included in a directory is called a *file hard link*, or more simply a *link*.
+
+The same file may have several links included in the same directory or in different ones, thus several filenames.
+
+The Unix command:
+
+```sh
+$ ln f1 f2
+```
+ is used to create a new hard lin that has the pathname `f2` for a file identified by the pathname `f1`.
+
+Hard links have two limitations:
+
+- Users are not allowed to create hard links for directories. This might transform the directory tree into graph with cycles, thus making it impossible to locate a file according to its name.
+
+- Links can be created only aomong files included in the same filesystem. This is a serious limitation since modern Unix systems may include several filesystems located on different disk and/or partions, and users my be unaware of the physical divisions between them.
+
+In order to overcome these limitations, *soft links* (also called *symbolic links*) have been introduced. Symbolic links are short files that contains an arbitrary pathname of another file. The pathname may refer to any file located in any filesystem; it may even refer to a nonexistent file.
+
+The Unix command:
+
+```sh
+$ ln -s f1 f2
+```
+
+create a new soft link with pathname `f2` that refers to pathname `f1`. When this command is executed, the filesystem creates a soft link and writes into it the `f1` pathname. It then inserts—in the proper directory—a new entry containing the last name of the `f2` pathname. In this way, any reference to `f2` can be translated automatically into a reference to `f1`.
+
+#### 1.5.3 File Types
+
+Unix files may have one of the following types:
+
+- `-` Regular file
+- `d` Directory
+- `l` Symbolic link
+- `b` Block-oriented device file
+- `c` Character-oriented device file
+- `p` Pipe and named pipe (also called FIFO)
+- `s` Socket
+
+1.5.4 File Descriptor and Inode
+
+Unix makes a clear distinction between a file and a file descriptor. With the exception of device and special files, each file consists of a sequence of characters. The file does not include any control information such as its length, or and End-Of-File (EOF) delimiter.
+
+All information needed by the filesystem to handle a file is included in a data structure called an *inode*. Each file has its own inode, which the filesystem uses to indentify the file.
+
+While filesystems and the kernel functions handling them can vary widely from on Unix system to antoher, they must always provide at least the following attributes, which are specified in the POSIX standard:
+
+- File type
+- Number of hard links associated with the file
+- File length in bytes
+- Device ID (i.e., an identifier of the device containing the file)
+- Inode number that indentifies the file within the filesystem
+- User ID of the file owner
+- Group ID of the file
+- Several timestamps that specify the inode status change time, the last access time, and the last modify time
+- Access rights and file mode
+
+#### 1.5.5 Access Rights and File Mode
+
+The potential users of a file fall into three classes:
+- The user who is the onwer of the file
+- The users who belong to the same group as the file, not including the owner
+- All remaining users (others)
+
+There are three types of access rights, *Read*, *Write*, and *Execute*, for each of these three classes. Thus, the set of access rights associated with a file consists of nine different binary flags. Three additional flags, called *suid* (Set User ID), *sgid* (Set Group ID), and *sticky* define the file mode. These flags have the following meaning when applied to executable files:
+
+- *suid*
+
+    A process executing a file nornamlly keeps the User ID (UID) of the process owner. However, if the executable file has the *suid* flag set, the process gets the UID of the file owner.
+
+- *sgid*
+
+    A process executing a file keeps the Group ID (GID) of the proces group. However, if the executable file has the *sgid* flag set, the process gets the ID of the file group.
+
+-  *sticky*
+
+    An executable file with the *sticky* flag set corresponds to a request to the kernel to keep the program in memory after its execution terminates.
+
+When a file is created by a process, its owner ID is the UID of the process. Its onwer group ID can be either the GID of the creator process or the GID of the parent directory, depending on the value of the `sgid` flag of the parent directory.
+
+#### 1.5.6 File-Handling System Calls
+
+When a user accesses the contents of either a regular file or a directory, he actually accesses some data stored in a hardware block device. In this sense, a filesystem is a user-level view of the physical organization of a hard disk partition. Since a process in User Mode cannot directly interact with the low-level hardware components, each actual file operation must be performed in Kernel Mode.
+
+Therefore, the Unix operating system defines several system calls related to file handing. Whenever a process wants to perform some operation on a specific file, it uses the proper system call and passes the file pathname as a parameter.
+
 - - -
 
 ### References
