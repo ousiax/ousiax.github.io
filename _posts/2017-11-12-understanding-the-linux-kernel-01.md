@@ -240,7 +240,7 @@ Hard links have two limitations:
 
 - Users are not allowed to create hard links for directories. This might transform the directory tree into graph with cycles, thus making it impossible to locate a file according to its name.
 
-- Links can be created only aomong files included in the same filesystem. This is a serious limitation since modern Unix systems may include several filesystems located on different disk and/or partions, and users my be unaware of the physical divisions between them.
+- Links can be created only among files included in the same filesystem. This is a serious limitation since modern Unix systems may include several filesystems located on different disk and/or partions, and users my be unaware of the physical divisions between them.
 
 In order to overcome these limitations, *soft links* (also called *symbolic links*) have been introduced. Symbolic links are short files that contains an arbitrary pathname of another file. The pathname may refer to any file located in any filesystem; it may even refer to a nonexistent file.
 
@@ -264,7 +264,7 @@ Unix files may have one of the following types:
 - `p` Pipe and named pipe (also called FIFO)
 - `s` Socket
 
-1.5.4 File Descriptor and Inode
+#### 1.5.4 File Descriptor and Inode
 
 Unix makes a clear distinction between a file and a file descriptor. With the exception of device and special files, each file consists of a sequence of characters. The file does not include any control information such as its length, or and End-Of-File (EOF) delimiter.
 
@@ -293,7 +293,7 @@ There are three types of access rights, *Read*, *Write*, and *Execute*, for each
 
 - *suid*
 
-    A process executing a file nornamlly keeps the User ID (UID) of the process owner. However, if the executable file has the *suid* flag set, the process gets the UID of the file owner.
+    A process executing a file normally keeps the User ID (UID) of the process owner. However, if the executable file has the *suid* flag set, the process gets the UID of the file owner.
 
 - *sgid*
 
@@ -303,13 +303,62 @@ There are three types of access rights, *Read*, *Write*, and *Execute*, for each
 
     An executable file with the *sticky* flag set corresponds to a request to the kernel to keep the program in memory after its execution terminates.
 
-When a file is created by a process, its owner ID is the UID of the process. Its onwer group ID can be either the GID of the creator process or the GID of the parent directory, depending on the value of the `sgid` flag of the parent directory.
+When a file is created by a process, its owner ID is the UID of the process. Its owner group ID can be either the GID of the creator process or the GID of the parent directory, depending on the value of the `sgid` flag of the parent directory.
 
 #### 1.5.6 File-Handling System Calls
 
 When a user accesses the contents of either a regular file or a directory, he actually accesses some data stored in a hardware block device. In this sense, a filesystem is a user-level view of the physical organization of a hard disk partition. Since a process in User Mode cannot directly interact with the low-level hardware components, each actual file operation must be performed in Kernel Mode.
 
 Therefore, the Unix operating system defines several system calls related to file handing. Whenever a process wants to perform some operation on a specific file, it uses the proper system call and passes the file pathname as a parameter.
+
+##### 1.5.6.1 Opening a file
+
+Processes can access only "opened" files. In order to open a file, the process invokes the system call:
+
+```c
+fd = open(path, flag, mode)
+```
+
+This system call creates an "open file" object and returns an identifier called *file descriptor*.
+
+An open file object contians:
+
+- Some file-handling data structures, like a pointer to the kernel buffer memory area where file data will be copied; an *offset* field that denotes the current position in the file from which the next operation will take place (the so-called *file pointer*); and so on.
+- Some pointers to kernel functions that the process is enabled to invoke. The set of permitted functions depends on the value of the *flag* parameter.
+
+In order to create a new file, the process may also invoke the `create()` system call, which is handled by the kernel excactly like `open()`.
+
+##### 1.5.6.2 Accessing an opened file
+
+Regular Unix files can be addressed either sequentially or randomly, while device files and named pipes are usually accessed sequenctially. In both kinds of access, the kernel stores the file pointer in the open file object, that is, the current position at which the next read or write operation will take place.
+
+Sequential access is implicitly assumed: the `read()` and `write()` system calls always refer to the position of the current file pointer. In order to modify the value, a program must explicitly invoke the `lseek()` system call. When a file is opened, the kernel sets the file pointer to the position of the first byte in the file (offset 0).
+
+1.5.6.3 Closing a file
+
+When a process does not need to access the contents of a file anymore, it can invoke the system call:
+
+```c
+res = close(fd);
+```
+
+which releases the open file object corresponding to the file descriptor `fd`. When a process terminates, the kernel closes all its stil opened files.
+
+1.5.6.4 Renaming and deleting a file
+
+In order to rename or delete a file, a process does not need to open it. Indeed, such operations do not act on the contents of the affected file, but rather on the contents of one or more directories. For example, the system call:
+
+```c
+res = rename(oldpath, newpath);
+```
+
+changes the name of a file link, while the system call:
+
+```c
+res = unlink(pathname);
+```
+
+decrements the file link count and removes the corresponding directory entry. The file deleted only when the link count assumes the value 0.
 
 - - -
 
