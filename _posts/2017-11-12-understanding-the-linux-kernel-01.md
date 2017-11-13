@@ -323,6 +323,34 @@ res = unlink(pathname);
 
 decrements the file link count and removes the corresponding directory entry. The file deleted only when the link count assumes the value 0.
 
+### 1.6 An Overview of Unix Kernels
+
+Unix kernels provide an execution environment in which applications may run. Therefore, the kernel must implement a set of services and corresponding interfaces. Applications use those interfaces and do not usually interact directly with hardware resources.
+
+#### 1.6.1 The Process/Kernel Model
+
+As already mentioned, a CPU can run either in User Mode or in Kernel Mode. Actually, some CPUs can have more than two execution states. For instance, the Intel 80x86 microprocessors have four different execution states. But all standard Unix kernels make use of only Kernel Mode and User Mode.
+
+- When a program is executed in User Mode, it cannot directly access the kernel data structures or the kernel programs.
+
+- When an application executes in Kernel Mode, however, these restrictions no longer apply.
+
+- Each CPU model provides special instructions to switch from User Mode to Kernel Mode and vice versa.
+
+- A program executes most of the time in User Mode and switchs to Kernel Mode only when requesting a service provided by the kernel.
+
+- When the kernel has satisfied the program's request, it puts the program back in User Mode.
+
+Processes are dynamic entities that usually have a limited life span within the system. The task of creating, eliminating, and sysnchronizing the existing processes is delegated to a group of rountines in the kernel.
+
+The kernel itself is not a process but a process manager.
+
+- The process/kernel model assumes that proceese that require a kernel service make use of specific programming constructs called *system calls*.
+
+- Each system call sets up the group of parameters that identifies the process request and then executes the hardware-dependent CPU instruction to switch from User Mode to Kernel Mode.
+
+
+
 - - -
 
 ### References
