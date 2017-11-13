@@ -6,6 +6,8 @@ categories: ['Linux']
 tags: ['Linux', 'Kernel']
 disqus_identifier: 214637421380564030329447675521549613702
 ---
+- TOC
+{:toc}
 
 Linux is a member of the large family of Unix-like operating system.
 
@@ -349,10 +351,71 @@ The kernel itself is not a process but a process manager.
 
 - Each system call sets up the group of parameters that identifies the process request and then executes the hardware-dependent CPU instruction to switch from User Mode to Kernel Mode.
 
+Besides user processes, Unix systems include a few privileged processes called *kernel threads* with the following characteristics:
 
+- They run in Kernel Mode in the kernel address space.
+- They do not interact with users, and thus do not require terminal devices.
+- They are usually created during system startup and remain alive unitl the system is shut down.
+
+Notice how the process/kernel model is somewhat orthogonal to the CPU state: on a uniprocessor system, only one process is running at any time and it may run either in User or in Kernel Mode. If it runs in Kernel Mode, the processor is executing some kernel routine.
+
+![Transitions between User and Kernel Mode]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Transitions between User and Kernel Mode.png)
+
+Unix kernels do much more than handle system calls; in fact, kernel routines can be activated in serveral ways:
+
+- A process invokes a system call.
+
+- The CPU executing the process signals an *exception*, which is some unusual condition such as an invalid instruction. The kernel handles the exception on behalf of the process that caused it.
+
+- A peripheral device issues an *interrupt signal* to the CPU to notify it of an event such as a request for attention, a status change, or the completion of an I/O operation.
+
+    Each interrupt signal is dealt by a kernel program called an *interrupt handler*. Since peripheral devices operate asynchronously with respect to the CPU, interrupts occur at unpredicatable times.
+
+- A kernel thread is executed; since it runs in Kernel Mode, the corresponding program must be considered part of the kernel, albeit encapsualted in a process.
+
+#### 1.6.2 Process Implementation
+
+To let the kernel processes, each process is represented by a *process descriptor* that includes information about the current state of the process.
+
+When the kernel stops the execution of a process, it saves the current contents of several processor registers in the process descriptor. These include:
+
+- The program counter (PC) and stack pointer (SP) registers
+- The general-purpose registers
+- The floating point registers
+- The processor control registers (Process Status Word) containing information about the CPU state.
+- The memory management registers used to keep track of the RAM accessed by the process.
+
+When the kernel decides to resume executing a process, it uses the proper process descriptor fields to load the CPU registers. Since the stored value of the program counter points to the instruction following the last instruction executed, the process resumes execution from where it was stopped.
+
+When a process is not executing on the CPU, it is waiting for some event. Unix kernels distinguish many wait sates, which are usually implemented by queues of process descriptors; each (possible empty) queue corresponds to the set of processes waiting for a specific event.
+
+#### 1.6.3 Reentrant Kernels
+
+All Unix kernels are *reentrant*: this means that several processes may be executing in Kernel Mode at the same time. Of course, on uniprocessor systems only one process can progress, but many of them can be blocked in Kernel Mode waiting for the CPU or the completion of some I/O operation.
+
+For instance, after issuing a read to a disk on behalf of some process, the kernel will let the disk controller handle it and will resume executing other processes. An interrupt notifies the kernel when the device has statified the read, so the former process can resume the execution.
+
+- One way to provide reentrancy is to write functions so that they modify only local variables and do not alter global data structures. Such functions are called *reentrant functions*.
+- But a reentrant kernel is not limited just to such reentrant functions (although that is how some real-time kernels are implemented). Instead, the kernel can include nonreentrant functions and use locking mechanisms to ensure that only one process can execute a nonreentrant function at a time.
+- Every process in the Kernel Mode acts on its own set of memory locations and conannot interface with others.
+
+If a hardware interrupt occurs, a reentrant kernel is able to suspend the current running process even if that process is in Kernel Mode. This capability is very important, since it imporves the throughput of the device controllers that issue interrupts. Once a device has issued an interrupt, it waits until the CPU acknowledges it. If the kernel is able to answer quickly, the device controller will be able to perform other tasks while the CPU handles the interrupt.
+
+A *kernel control path* denotes the sequence of instructions executed by the kernel to handle a system call, an exception, or an interrupt.
+
+In the simplest case , the CPU executes a kernel control path from the first instruction to the last. When one of the following events occurs, however, the CPU interleaves the kernel control paths:
+
+- A process executing in User Mode invokes a system call and the corresponding kernel control path verifies that the request cannot be satisfied immediately; it then invokes the scheduler to select a new process tor un. As a result, a  process switch occurs. The first kernel control path is left unfinished and the CPU resumes the execution of some other kernel control path. In this case, the two control paths are executed on behalf of two different processes.
+
+- The CPU detects an exception—for example, an access to a page not present in RAM—while running a kernel control path. The first control path is suspended, and the CPU starts the execution of a suitable procedure. In our example, this type of procedure could allocate a new page for the process and read its contents from disk. When the procedure terminates, the first control path can be resumed. In this case, the two control paths are executed on behalf of the same process.
+
+- A hardware interrupt occurs while the CPU is running in kernel control path with the interrupts enabled. The first kernel control path is left unfinished and the CPU starts processing another kernel control path to hanle the interrupt. The first kernel path resumes when the interrupt handler terminates. In this case the two kernel control paths run in the execution context of the same process and the total elapsed system time is accounted to it. However, the interrupt handler doesn't necessarily operate on behalf of the process.
 
 - - -
 
 ### References
 
 1. Daniel P. Bovet、 Marco Cesati (2005-11), "Chapter 1: Understanding the Linux Kernel"
+1. What's program counter, [http://whatis.techtarget.com/definition/program-counter](http://whatis.techtarget.com/definition/program-counter)
+1. Protection ring, [https://en.wikipedia.org/wiki/Protection_ring](https://en.wikipedia.org/wiki/Protection_ring)
+1. Call stack, [https://en.wikipedia.org/wiki/Call_stack#STACK-POINTER](https://en.wikipedia.org/wiki/Call_stack#STACK-POINTER)
