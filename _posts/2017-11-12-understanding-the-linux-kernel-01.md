@@ -51,50 +51,13 @@ The various Unix-like systems on the market, some of which have a long history a
 
 ### 1.2 Hardware Dependency
 
-Linux tries to maintain a neat distinction between hardware-dependent and hardware-independent source code. To that end, both the *arch* and the *include* directories include nine subdirectories correspoding to the nine hardware platforms supported. The standard names of the platforms are:
-
-- *arm*
-
-    Acorn personal computers
-
-- *alpha*
-
-    Compaq Alpha workstations
-
-- *i386*
-
-    IBM-compatible personal computers based on Intel 80x86 or Intel 80x86-compatible microprocessors
-
-- *m68k*
-
-    Personal computers based on Motorola MC680x0 microprocessors
-
-- *mips*
-
-    Workstations based on Silicon Graphics MIPS microprocessors
-
-- *ppc*
-
-    Workstations based on Motorola-IBM PowerPC microprocessors
-
-- *sparc*
-
-    Workstations based on Sum Microsystems SPARC microprocessors
-
-- *sparc64*
-
-    Workstations based on Sum Microsystems 64-bit Ultra SPARC microprocessors
-
-- *s390*
-
-    IBM System/390 mainframes
+Linux tries to maintain a neat distinction between hardware-dependent and hardware-independent source code. To that end, both the *arch* and the *include* directories include subdirectories correspoding to the hardware platforms supported.
 
 ### 1.3 Linux Versions
 
 Linux distinguishes stable kernels from development kernels through a simple numbering scheme. Each version is characterized by three numbers, separated by periods. The first two numbers are used to indentify the version; the third number indentifies the release.
 
 If the second number is even, it denotes a stable kernel; otherwise, it denotes a development kernel.
-
 
 ![Numbering Linux versions]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Numbering Linux Versions.png)
 
