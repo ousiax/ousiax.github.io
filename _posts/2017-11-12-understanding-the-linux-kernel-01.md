@@ -489,6 +489,69 @@ Processes or kernel control paths that synchronize with other control paths may 
 
 As far as kernel design is concerned, deadlock becomes an issue when the number of kernel semaphore types used is high. In this case, it may be quite difficult to ensure that no deadlock state will ever be reached for all possible ways to interleave kernel paths. Several operating systems, including Linux, avoid this problem by introducting a very limited number of semaphore types and by requesting semaphores in an assending order.
 
+### 1.6.6 Signals and Interprocess Communication
+
+Unix signals provide a mechanism for notifying processes of system events. Each event has it own signal number, which is usually referred to by a symbolic constant such as `SIGTERM`.
+
+There are two kinds of system events:
+
+- *Asynchronous notifications*
+
+    For instance, a user can send the interrupt signal `SIGTERM` to a foreground process by pressing the interrupt keycode (usually, CTRL-C) at the terminal.
+
+- *Synchronous errors or exceptions*
+
+    For instance, the kernel sends the signal `SIGSEGV` to a process when it accesses a memory location at an illegal address.
+
+The POSIX standard defines about 20 different signals, two of which are user-defined and may be used as a primitive mechanism for commucation and synchronization among process in User Mode. In general, a process may react to a signal reception in two possible ways:
+
+- Ignore the signal
+- Asynchronously execute a specified procedure (the signal handler).
+
+If the process does not specify one of these alternatives, the kernel performs a *default action* that depends on the signal number. The five possible default actions are:
+
+- Terminate the process.
+- Write the execution context and the contents of the address space in a file (*core dump*) and terminate the process.
+- Ignore the signal.
+- Suspend the process.
+- Resume the process's execution, if it was stopped.
+
+Kernel signal handling is rather elaborate since the POSIX semantics allows processes to temporarily block signals. Moreover, a few signals such as `SIGKILL` cannot be directly handled by the process and cannot be ignored.
+
+AT&Ts Unix System V introduced other kinds of interprocess communication among processes in User Mode, which have been adopted by many Unix kernels: *semaphore*, *message queues*, and *shared memory*. They are colectively known as *System V IPC*.
+
+### 1.6.7 Process Management
+
+Unix makes a neat distinction between the process and the program it is executing. To that end, the `fork()` and `exit()` system calls are used respectively to create a new process and to terminate it, while an `exec()`-like system call is invoked to load a new program. After such a system call has been executed, the process resumes execution with a brand new address space containing the loaded program.
+
+The process that invoked a `fork()` is the *prarent* while the new process is its *child*. Parents and children can find each other because the data structure describing each process includes a pointer to its immediate parent and pointers to all its children.
+
+A naive implementation of the `fork()` would require both the parent's data and the parent's code to be dumplicated and assign the copies to the child. This would be quite time-consuming. Current kernels that can rely on hardware paging units follow the Copy-On-Write approach, which defers page duplication until the last moment (i.e., until the parent or the child is required to write into a page).
+
+The `exit()` system call terminates a process. The kernel handles this system call by releasing the resources owned by the process and sending the parent process a `SIGCHLD` signal, which is ignored by default.
+
+##### 1.6.7.1 Zombie processes
+
+How can a parent inquire about termination of its children? The `wait()` systemc all allows a process to wait unitl one of its children terminates; it return the process ID (PID) of the terminated child.
+
+When executing this system call, the kernel checks whether a child has alreadly terminated. A special *zombie* process state is introducred to respesent terminated processes: a process remains in that state until its parent process executes a `wait()` system call on it. The system call handler extracts some data about resource usage has been collected. In no child process has already terminated when the `wait()` system call is executed, the kernel usually puts the process in a wait state until a child terminates.
+
+It's a good practice for the kernel to keep around informantion on a child process until the parent issues its `wait()` call, but suppose the parent process terminates without issuing that call? The information takes up valuable memory slots that could be used to serve living processes. For example, many shells allow the user to start a command in the background and then log out. The process that is running the command shell terminates, but its children continue their execution.
+
+The solution lies in a special system process called *init* that is created during system intialization. When a process terminates, the kernel changes the appropriate process descriptor pointers of all the existing children of the terminates process to make them become children of *init*. This process monitors the execution of all its children and routinely issues `wait()` system calls, whose side effect is to get rid of all zombies.
+
+##### 16.7.2 Process groups and login sessions
+
+Modern Unix operating systems introduce the notion of *process groups* to represent a "job" abstraction. For example, in order to execute the command line:
+
+```sh
+$ ls | sort | more
+```
+
+a shell that supports process group, such as *bash*, creates a new group for the three processes corresponding to `ls`, `sort`, and `more`. In this way, the shell acts on the three processes as if they were a signle entity (the job, to be precise). Each process descriptor includes a *process group ID* field. Each group of processes may have a *group leader*, which is the process whose PID coincides with the process group ID. A newly created process is initially inserted into the process group of its prarent.
+
+Modern Unix kernels also introduce *login sessions*. Informally, a login session contains all processes that are descendants of the process that has started a working session on a specific terminal—usually, the first command shell process created for the user. All processes in a process group must be in the same login session. A login session may have several process group active simultaneously; one of these process groups is always in the foreground, which means that it has access to the terminal. The other active process groups are in the backgroud. When a background process tries to access the terminal, it receives a `SIGTTIN` or `SIGTTOUT` signal. In many command shells the internal commands `bg` and `fg` can be used to put a process group in either the background or the foreground.
+
 - - -
 
 ### References
