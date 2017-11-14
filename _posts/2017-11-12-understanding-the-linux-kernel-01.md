@@ -405,11 +405,89 @@ A *kernel control path* denotes the sequence of instructions executed by the ker
 
 In the simplest case , the CPU executes a kernel control path from the first instruction to the last. When one of the following events occurs, however, the CPU interleaves the kernel control paths:
 
-- A process executing in User Mode invokes a system call and the corresponding kernel control path verifies that the request cannot be satisfied immediately; it then invokes the scheduler to select a new process tor un. As a result, a  process switch occurs. The first kernel control path is left unfinished and the CPU resumes the execution of some other kernel control path. In this case, the two control paths are executed on behalf of two different processes.
+- A process executing in User Mode invokes a system call and the corresponding kernel control path verifies that the request cannot be satisfied immediately; it then invokes the scheduler to select a new process to run. As a result, a  process switch occurs. The first kernel control path is left unfinished and the CPU resumes the execution of some other kernel control path. In this case, the two control paths are executed on behalf of two different processes.
 
 - The CPU detects an exception—for example, an access to a page not present in RAM—while running a kernel control path. The first control path is suspended, and the CPU starts the execution of a suitable procedure. In our example, this type of procedure could allocate a new page for the process and read its contents from disk. When the procedure terminates, the first control path can be resumed. In this case, the two control paths are executed on behalf of the same process.
 
-- A hardware interrupt occurs while the CPU is running in kernel control path with the interrupts enabled. The first kernel control path is left unfinished and the CPU starts processing another kernel control path to hanle the interrupt. The first kernel path resumes when the interrupt handler terminates. In this case the two kernel control paths run in the execution context of the same process and the total elapsed system time is accounted to it. However, the interrupt handler doesn't necessarily operate on behalf of the process.
+- A hardware interrupt occurs while the CPU is running in kernel control path with the interrupts enabled. The first kernel control path is left unfinished and the CPU starts processing another kernel control path to handle the interrupt. The first kernel control path resumes when the interrupt handler terminates. In this case the two kernel control paths run in the execution context of the same process and the total elapsed system time is accounted to it. However, the interrupt handler doesn't necessarily operate on behalf of the process.
+
+![Interleaving of kernel control paths]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Interleaving of kernel control paths.png)
+
+#### 1.6.4 Process Address Space
+
+Each process runs in its private address space. A process running in User Mode refers to private stack, data, and code areas. When running in Kernel Mode, the process addresses the kernel data and code area and makes use of another stack.
+
+Since the kernel is reentrant, several kernel control paths—each related to a different process—may be executed in turn. In this case, each kernel control path refers to its own private kernel stack.
+
+While it appears to each process that it has access to a private address space, there are times when part of the address space is shared among processes. In some case this sharing is explicitly requested by processes; in others it is done automatically by the kernel to reduce memory usage.
+
+Processes can also share parts of their address space as a kind of interprocess communication, using the "shared memory" technique introduced in System V and supported by Linux.
+
+Finally, Linux supports the `mmap()` system call, which allows part of a file or the memory residing on a device to be mapped into part of a process address space. Memory mapping can provide an alternative to normal reads and writes for transferring data. If the same file is shared by several processes, it memory mapping is included in the address space of each of the processes that share it.
+
+#### 1.6.5 Synchronization and Critical Regions
+
+Implementating a reentrant kernel requires the use of synchronization: if a kernel control path is suspended while acting on a kernel data structure, no other kernel control path will be allowed to act on the same data structure unless it has been reset to a consistent state. Otherwise, the interaction of the two control paths could corrupt the stored information.
+
+For example, let's suppose that a global variable V contains the number of available items of some system resource.
+
+- A first kernel control path A reads the variable and determines that there just on available item.
+- At this point, another kernel control path B is actived and reads the same variable, which still contains the value 1.
+- Thus, B decrements V and starts using the resource item.
+- Then A resumes the execution; because it has already read the value of V, it assumes that it can be decrement V and take the resoure item, which B alread uses.
+- As a final result, V contains -1, and two kernel control paths are usings the same resource item with potentially disastrous effects.
+
+When the outcome of some computation depends on how two or more processes are scheduled, the code is incorrect: we say that there is a *race condition*.
+
+In general, safe access to a global variable is ensured by using *atomic operations*. In previous example, data corruption would not be possible if the two control paths read and decrement V with a single, noninterruptible operation.
+
+However, kernels contain many data strucutres that cannot be accessed with a signle operation. For example, it usually isn't possible to remove an element from a linked list with a single operation, because the kernel needs to access at least two pointers at once.
+
+Any section of code that should be finished by each process that begins another process can enter it called a *critial region*.
+
+These problems occur not only among kernel control paths but also among processes sharing common data.
+
+##### 1.6.5.1 Nonpreemptive kernels
+
+In search of a drastically simple solution to synchronization problems, most traditional Unix kernels are nonpreemptive: when a process executes in Kernel Mode, it cannot be arbitrarily suspended and substitued with another process. Therefore, on a uniprocessor system all kernel data structures that are not updated by interrupts or exception handlers are safe for the kernel access.
+
+Of course, a process in Kernel Mode can voluntarily reliquish the CPU, but this case it must ensure that all data structures are left in a consistent state. Moreover, when it resumes its execution, it must recheck the value of any previously accessed data structures that could be changed.
+
+Nonpreemptability is ineffective in multprocessor, since two kernel control paths running on different CPUs could concurrently access the same data structure.
+
+##### 1.6.5.2 Interrupt disabling
+
+Another syschorization mechanism for uniprocessor systems consists of disabling all hardware interrupts before entering a criptial region and reenabling them right after leaving it. This mechanism, while simple, is far from optimal. If the critical region is large, interrupts can remain disabled for a relatively long time, potentially causing all hardware activities to freeze.
+
+Moreoever, on a multiprocessor system this mechanism doesn't work at all. There is no way to ensure that no other CPU can access the same data strutures updated in the protected critical region.
+
+##### 1.6.3 Semaphores
+
+A widely used mechanism, effective in both uniprocessor and multiprocessor systems, relies on the use of *sempaphores*. A semaphore is simply a counter associated with a data structure; the semaphore is checked by all kernel threads before they try to access the data structure.
+
+Each semaphore may be viewed as an object composed of:
+
+- An integer varible
+- A list of wainting processes
+- Two atomic method: `down()` and `up()`
+
+The `down()` method decrements the value of the semaphore. If the new value is less than 0, the method adds the running process to the semaphore list and then blocks (i.e., invokes the scheduler). The `up()` method increments the value of the semaphore and, if its new value if greater than or equal to 0, reactivates one or more processes in the semaphore list.
+
+Each data structure to be protected has its own semaphore, which is initialization to 1. When a kernel control path wishes to access the data structure, it executes the `down()` method on the semaphore. If the value of the new semaphore isn't negative, access to the data structure is granted. Otherwise, the process that is executing kernel control path is added to the semaphore list and blocked. When another process executes the `up()` method on that semaphore, one of the processes in semaphore list is allowed to proceed.
+
+##### 1.6.5.4 Spin locks
+
+In multiprocessor systems, semaphores are not always the best solution to the synchronization problems. Some kernel data structures should be protected from being concurrently accessed by kernel control paths that run on different CPUs. In this case, if the time required to update the data structure is short, a semaphore could be very inefficient. To check a semaphore, the kernel must insert a process in the semaphore list and then suspend it. Since both operations are relatively expensive, in the time it takes to complete them, the other kernel control path could have already released the semaphore.
+
+In these cases, multiprocessor operating systems make use of *spin locks*. A spin lock is very similar to a semaphore, but it has no proces list: when a process finds the lock closed by another process, it "spin" around repeatly, executing a tight instruction loop until the lock becomes open.
+
+Of course, spin locks are useless in a uniprocessor environment. When a kernel control path tries to access a locked data structure, it starts an endless loop. Therefore, the kernel control path that is updating the protected data structure would not have a chance to continue the execution and release the spin lock. The final result is that the system hangs.
+
+##### 1.6.5.6 Avoiding deadlocks
+
+Processes or kernel control paths that synchronize with other control paths may easily enter in a *deadlocked* state. The simplest case of deadlock occurs when process *p1* gains access to data structure *a* and process *p2* gains access to *b*, but *p1* then waits for *b* and *p2* waits for *a*. Other more complex cyclic waitings among groups of processes may also occur. Of course, a deadlock condition causes a complete freeze of the affected processes or kernel control paths.
+
+As far as kernel design is concerned, deadlock becomes an issue when the number of kernel semaphore types used is high. In this case, it may be quite difficult to ensure that no deadlock state will ever be reached for all possible ways to interleave kernel paths. Several operating systems, including Linux, avoid this problem by introducting a very limited number of semaphore types and by requesting semaphores in an assending order.
 
 - - -
 
