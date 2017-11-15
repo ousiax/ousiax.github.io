@@ -15,7 +15,7 @@ Linux was initially deveoped by Linus Torvalds in 1991 as an operating system fo
 
 Technically speaking, Linux is a true Unix kernel, although it is not a full Unix operating system, because it does not include all the applications such as filesystem utilities, windowing systems and graphical desktops, system administrator commands, text editors, compilers, and so on. However, since most of thes programs are freely available under the GNU General Public License, they can be installed into one of the filesytems supported by Linux.
 
-### 1.1 Linux Versus Other Unix-Like Kernels
+## 1.1 Linux Versus Other Unix-Like Kernels
 
 The various Unix-like systems on the market, some of which have a long history and may show signs of archaic practices, differ in many important respects. All commercial variants were derived from either SVR4 or 4.4BSD; all of them tend to agree on some common standards like IEEE's POSIX (Portable Operating Systems based on Unix) and X/Open's CAE (Common Applications Environment).
 
@@ -33,7 +33,7 @@ The various Unix-like systems on the market, some of which have a long history a
 
     A multithreaded user application could be composed of many *lightweight processes* (LWP), or processes that can operate on a common address space, common physical memory pages, common opened files, and so on.
 
-    While all the commercial Unix variants of LWP are on kernel threads, Linux regards lightweight processes as the basic execution context and handles them via the nonstandard `clone()` system call.
+    While all the commercial Unix variants of LWP are on kernel threads, Linux regards lightweight processes as the basic execution context and handles them via the nonstandard `clone( )` system call.
 
 - Linux is a nonpreemptive kernel.
 
@@ -51,11 +51,11 @@ The various Unix-like systems on the market, some of which have a long history a
 
     Linux has no analog to the STREAMS I/O subsystem introduced in SVR4, although it is included nowadays in most Unix kernels and it has become the preferred interface for writing device drivers, terminal drivers, and network protocals.
 
-### 1.2 Hardware Dependency
+## 1.2 Hardware Dependency
 
 Linux tries to maintain a neat distinction between hardware-dependent and hardware-independent source code. To that end, both the *arch* and the *include* directories include subdirectories correspoding to the hardware platforms supported.
 
-### 1.3 Linux Versions
+## 1.3 Linux Versions
 
 Linux distinguishes stable kernels from development kernels through a simple numbering scheme. Each version is characterized by three numbers, separated by periods. The first two numbers are used to indentify the version; the third number indentifies the release.
 
@@ -63,7 +63,7 @@ If the second number is even, it denotes a stable kernel; otherwise, it denotes 
 
 ![Numbering Linux versions]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Numbering Linux Versions.png)
 
-### 1.4 Basic Operating System Concepts
+## 1.4 Basic Operating System Concepts
 
 Any computer system includes a basic set of programs called the *operating system*.
 
@@ -81,7 +81,7 @@ Some operating systems allow all user programs to directly play with the hardwar
 
 In order to enforce this mechnism, modern operating system rely on the availability of specific hardware features that forbid user programs to directly interact with low-level hardware components or to access arbitrary memory locations. In particular, the hardware introduces at least two different executions modes for the CPU: a nonprivileged mode for user programs and a privileged mode for the kernel. Unix call these *User Mode* and *Kernel Mode*, respectively.
 
-#### 1.4.1 Multiuser Systems
+### 1.4.1 Multiuser Systems
 
 A *mutliuser system* is a computer that is able to concurrently and independently execute several applications belonging to two or more users.
 
@@ -96,7 +96,7 @@ Multiuser operating systems must include several features:
 - A protection mechanism against malicious user programs that could interface with, or spy on, the activity of other users.
 - An accounting mechanism that limits the ammount of resource units assigned to each user.
 
-#### 1.4.2 Users and Groups
+### 1.4.2 Users and Groups
 
 In a multiuser system, each user has a private space on the machine: typically, he owns some quota of the disk space to store files, receives private mail messages, and so on. The operating system must ensure that the private portion of a user space is visiable only its owner. In particular, it must ensure that no user can exploit a system application for the purpose of violating the private space of another user.
 
@@ -106,7 +106,7 @@ In order to selectively share material with other users, each user is a member o
 
 Any Unix-like operating system has a special user called *root*, *superuser*, or *supervisor*. The system administrator must log in as root in order to handle user accounts, perform maintenances like system backups and program upgrades, and so on.
 
-#### 1.4.3 Processes
+### 1.4.3 Processes
 
 All operating systems make use of one fundamental abstraction: the *process*. A process can be defined either as "an instance of a program in execution," or as the "execution context" of a running programm. In traditional operating systems, a process executes a signle sequence of instructions in an *address space*; the address is the set of memory address that the process is allowed to reference. Modern operating systems allow processes with multiple execution flows, that is, multiple sequences of instructions executed in the same address space.
 
@@ -130,7 +130,7 @@ Unix-like operating system adopt a *process/kernel* model. Each process has the 
 - In this way, the operating system acts within the execution context of the process in order to satisfy its request.
 - Whenever the request is fully satisfied, the kernel procedure forces the hardware to return to User Mode and the process continues its execution form the instruction following the system call.
 
-#### 1.4.4 Kernel Architecture
+### 1.4.4 Kernel Architecture
 
 As stated before, most Unix kernels are monolithic: each kernel layer is integrated into the whole kernel program and runs in Kernel Mode on behalf of the current process. In contrast, *microkernel* operating systems demand a very small set of functions from the kernel, generally including a few synchronization primitives, a simple scheduler, and an interprocess communication mechanism. Several system processes that run on top of the microkernel implement other operting system-layer functions, like memory allocators, device drivers, system call handlers, and so on.
 
@@ -160,9 +160,9 @@ The main advantages of using modules include:
 
     Once linked in, the object code of a modue is equivalent to the object code of the statically linked kernel. Therefore, no explicit message passing is required when the functions of the module are invoked.
 
-### 1.5 An Overview of the Unix Filesystem
+## 1.5 An Overview of the Unix Filesystem
 
-#### 1.5.1 Files
+### 1.5.1 Files
 
 A Unix file is an inforamtion container strutured as a sequence of bytes; the kernel does not intepret the contents of a file.
 
@@ -188,7 +188,7 @@ In order to identify a specific file, the process uses a *pathname*, which consi
 
 While specifying filenames, the notations "." and ".." are also used. They denote the current working directory and its parent directory, respectively. If the current working directory is the root directory, "." and ".." coincide.
 
-#### 1.5.2 Hard and Soft Links
+### 1.5.2 Hard and Soft Links
 
 A filename included in a directory is called a *file hard link*, or more simply a *link*.
 
@@ -217,7 +217,7 @@ $ ln -s f1 f2
 
 create a new soft link with pathname `f2` that refers to pathname `f1`. When this command is executed, the filesystem creates a soft link and writes into it the `f1` pathname. It then inserts—in the proper directory—a new entry containing the last name of the `f2` pathname. In this way, any reference to `f2` can be translated automatically into a reference to `f1`.
 
-#### 1.5.3 File Types
+### 1.5.3 File Types
 
 Unix files may have one of the following types:
 
@@ -229,7 +229,7 @@ Unix files may have one of the following types:
 - `p` Pipe and named pipe (also called FIFO)
 - `s` Socket
 
-#### 1.5.4 File Descriptor and Inode
+### 1.5.4 File Descriptor and Inode
 
 Unix makes a clear distinction between a file and a file descriptor. With the exception of device and special files, each file consists of a sequence of characters. The file does not include any control information such as its length, or and End-Of-File (EOF) delimiter.
 
@@ -247,7 +247,7 @@ While filesystems and the kernel functions handling them can vary widely from on
 - Several timestamps that specify the inode status change time, the last access time, and the last modify time
 - Access rights and file mode
 
-#### 1.5.5 Access Rights and File Mode
+### 1.5.5 Access Rights and File Mode
 
 The potential users of a file fall into three classes:
 - The user who is the onwer of the file
@@ -270,13 +270,13 @@ There are three types of access rights, *Read*, *Write*, and *Execute*, for each
 
 When a file is created by a process, its owner ID is the UID of the process. Its owner group ID can be either the GID of the creator process or the GID of the parent directory, depending on the value of the `sgid` flag of the parent directory.
 
-#### 1.5.6 File-Handling System Calls
+### 1.5.6 File-Handling System Calls
 
 When a user accesses the contents of either a regular file or a directory, he actually accesses some data stored in a hardware block device. In this sense, a filesystem is a user-level view of the physical organization of a hard disk partition. Since a process in User Mode cannot directly interact with the low-level hardware components, each actual file operation must be performed in Kernel Mode.
 
 Therefore, the Unix operating system defines several system calls related to file handing. Whenever a process wants to perform some operation on a specific file, it uses the proper system call and passes the file pathname as a parameter.
 
-##### 1.5.6.1 Opening a file
+#### 1.5.6.1 Opening a file
 
 Processes can access only "opened" files. In order to open a file, the process invokes the system call:
 
@@ -291,13 +291,13 @@ An open file object contians:
 - Some file-handling data structures, like a pointer to the kernel buffer memory area where file data will be copied; an *offset* field that denotes the current position in the file from which the next operation will take place (the so-called *file pointer*); and so on.
 - Some pointers to kernel functions that the process is enabled to invoke. The set of permitted functions depends on the value of the *flag* parameter.
 
-In order to create a new file, the process may also invoke the `create()` system call, which is handled by the kernel excactly like `open()`.
+In order to create a new file, the process may also invoke the `create( )` system call, which is handled by the kernel excactly like `open( )`.
 
-##### 1.5.6.2 Accessing an opened file
+#### 1.5.6.2 Accessing an opened file
 
 Regular Unix files can be addressed either sequentially or randomly, while device files and named pipes are usually accessed sequenctially. In both kinds of access, the kernel stores the file pointer in the open file object, that is, the current position at which the next read or write operation will take place.
 
-Sequential access is implicitly assumed: the `read()` and `write()` system calls always refer to the position of the current file pointer. In order to modify the value, a program must explicitly invoke the `lseek()` system call. When a file is opened, the kernel sets the file pointer to the position of the first byte in the file (offset 0).
+Sequential access is implicitly assumed: the `read( )` and `write( )` system calls always refer to the position of the current file pointer. In order to modify the value, a program must explicitly invoke the `lseek( )` system call. When a file is opened, the kernel sets the file pointer to the position of the first byte in the file (offset 0).
 
 1.5.6.3 Closing a file
 
@@ -325,11 +325,11 @@ res = unlink(pathname);
 
 decrements the file link count and removes the corresponding directory entry. The file deleted only when the link count assumes the value 0.
 
-### 1.6 An Overview of Unix Kernels
+## 1.6 An Overview of Unix Kernels
 
 Unix kernels provide an execution environment in which applications may run. Therefore, the kernel must implement a set of services and corresponding interfaces. Applications use those interfaces and do not usually interact directly with hardware resources.
 
-#### 1.6.1 The Process/Kernel Model
+### 1.6.1 The Process/Kernel Model
 
 As already mentioned, a CPU can run either in User Mode or in Kernel Mode. Actually, some CPUs can have more than two execution states. For instance, the Intel 80x86 microprocessors have four different execution states. But all standard Unix kernels make use of only Kernel Mode and User Mode.
 
@@ -373,7 +373,7 @@ Unix kernels do much more than handle system calls; in fact, kernel routines can
 
 - A kernel thread is executed; since it runs in Kernel Mode, the corresponding program must be considered part of the kernel, albeit encapsualted in a process.
 
-#### 1.6.2 Process Implementation
+### 1.6.2 Process Implementation
 
 To let the kernel processes, each process is represented by a *process descriptor* that includes information about the current state of the process.
 
@@ -389,7 +389,7 @@ When the kernel decides to resume executing a process, it uses the proper proces
 
 When a process is not executing on the CPU, it is waiting for some event. Unix kernels distinguish many wait sates, which are usually implemented by queues of process descriptors; each (possible empty) queue corresponds to the set of processes waiting for a specific event.
 
-#### 1.6.3 Reentrant Kernels
+### 1.6.3 Reentrant Kernels
 
 All Unix kernels are *reentrant*: this means that several processes may be executing in Kernel Mode at the same time. Of course, on uniprocessor systems only one process can progress, but many of them can be blocked in Kernel Mode waiting for the CPU or the completion of some I/O operation.
 
@@ -413,7 +413,7 @@ In the simplest case , the CPU executes a kernel control path from the first ins
 
 ![Interleaving of kernel control paths]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Interleaving of kernel control paths.png)
 
-#### 1.6.4 Process Address Space
+### 1.6.4 Process Address Space
 
 Each process runs in its private address space. A process running in User Mode refers to private stack, data, and code areas. When running in Kernel Mode, the process addresses the kernel data and code area and makes use of another stack.
 
@@ -423,9 +423,9 @@ While it appears to each process that it has access to a private address space, 
 
 Processes can also share parts of their address space as a kind of interprocess communication, using the "shared memory" technique introduced in System V and supported by Linux.
 
-Finally, Linux supports the `mmap()` system call, which allows part of a file or the memory residing on a device to be mapped into part of a process address space. Memory mapping can provide an alternative to normal reads and writes for transferring data. If the same file is shared by several processes, it memory mapping is included in the address space of each of the processes that share it.
+Finally, Linux supports the `mmap( )` system call, which allows part of a file or the memory residing on a device to be mapped into part of a process address space. Memory mapping can provide an alternative to normal reads and writes for transferring data. If the same file is shared by several processes, it memory mapping is included in the address space of each of the processes that share it.
 
-#### 1.6.5 Synchronization and Critical Regions
+### 1.6.5 Synchronization and Critical Regions
 
 Implementating a reentrant kernel requires the use of synchronization: if a kernel control path is suspended while acting on a kernel data structure, no other kernel control path will be allowed to act on the same data structure unless it has been reset to a consistent state. Otherwise, the interaction of the two control paths could corrupt the stored information.
 
@@ -447,7 +447,7 @@ Any section of code that should be finished by each process that begins another 
 
 These problems occur not only among kernel control paths but also among processes sharing common data.
 
-##### 1.6.5.1 Nonpreemptive kernels
+#### 1.6.5.1 Nonpreemptive kernels
 
 In search of a drastically simple solution to synchronization problems, most traditional Unix kernels are nonpreemptive: when a process executes in Kernel Mode, it cannot be arbitrarily suspended and substitued with another process. Therefore, on a uniprocessor system all kernel data structures that are not updated by interrupts or exception handlers are safe for the kernel access.
 
@@ -455,13 +455,13 @@ Of course, a process in Kernel Mode can voluntarily reliquish the CPU, but this 
 
 Nonpreemptability is ineffective in multprocessor, since two kernel control paths running on different CPUs could concurrently access the same data structure.
 
-##### 1.6.5.2 Interrupt disabling
+#### 1.6.5.2 Interrupt disabling
 
 Another syschorization mechanism for uniprocessor systems consists of disabling all hardware interrupts before entering a criptial region and reenabling them right after leaving it. This mechanism, while simple, is far from optimal. If the critical region is large, interrupts can remain disabled for a relatively long time, potentially causing all hardware activities to freeze.
 
 Moreoever, on a multiprocessor system this mechanism doesn't work at all. There is no way to ensure that no other CPU can access the same data strutures updated in the protected critical region.
 
-##### 1.6.3 Semaphores
+#### 1.6.5.3 Semaphores
 
 A widely used mechanism, effective in both uniprocessor and multiprocessor systems, relies on the use of *sempaphores*. A semaphore is simply a counter associated with a data structure; the semaphore is checked by all kernel threads before they try to access the data structure.
 
@@ -469,13 +469,13 @@ Each semaphore may be viewed as an object composed of:
 
 - An integer varible
 - A list of wainting processes
-- Two atomic method: `down()` and `up()`
+- Two atomic method: `down( )` and `up( )`
 
-The `down()` method decrements the value of the semaphore. If the new value is less than 0, the method adds the running process to the semaphore list and then blocks (i.e., invokes the scheduler). The `up()` method increments the value of the semaphore and, if its new value if greater than or equal to 0, reactivates one or more processes in the semaphore list.
+The `down( )` method decrements the value of the semaphore. If the new value is less than 0, the method adds the running process to the semaphore list and then blocks (i.e., invokes the scheduler). The `up( )` method increments the value of the semaphore and, if its new value if greater than or equal to 0, reactivates one or more processes in the semaphore list.
 
-Each data structure to be protected has its own semaphore, which is initialization to 1. When a kernel control path wishes to access the data structure, it executes the `down()` method on the semaphore. If the value of the new semaphore isn't negative, access to the data structure is granted. Otherwise, the process that is executing kernel control path is added to the semaphore list and blocked. When another process executes the `up()` method on that semaphore, one of the processes in semaphore list is allowed to proceed.
+Each data structure to be protected has its own semaphore, which is initialization to 1. When a kernel control path wishes to access the data structure, it executes the `down( )` method on the semaphore. If the value of the new semaphore isn't negative, access to the data structure is granted. Otherwise, the process that is executing kernel control path is added to the semaphore list and blocked. When another process executes the `up( )` method on that semaphore, one of the processes in semaphore list is allowed to proceed.
 
-##### 1.6.5.4 Spin locks
+#### 1.6.5.4 Spin locks
 
 In multiprocessor systems, semaphores are not always the best solution to the synchronization problems. Some kernel data structures should be protected from being concurrently accessed by kernel control paths that run on different CPUs. In this case, if the time required to update the data structure is short, a semaphore could be very inefficient. To check a semaphore, the kernel must insert a process in the semaphore list and then suspend it. Since both operations are relatively expensive, in the time it takes to complete them, the other kernel control path could have already released the semaphore.
 
@@ -483,7 +483,7 @@ In these cases, multiprocessor operating systems make use of *spin locks*. A spi
 
 Of course, spin locks are useless in a uniprocessor environment. When a kernel control path tries to access a locked data structure, it starts an endless loop. Therefore, the kernel control path that is updating the protected data structure would not have a chance to continue the execution and release the spin lock. The final result is that the system hangs.
 
-##### 1.6.5.6 Avoiding deadlocks
+#### 1.6.5.6 Avoiding deadlocks
 
 Processes or kernel control paths that synchronize with other control paths may easily enter in a *deadlocked* state. The simplest case of deadlock occurs when process *p1* gains access to data structure *a* and process *p2* gains access to *b*, but *p1* then waits for *b* and *p2* waits for *a*. Other more complex cyclic waitings among groups of processes may also occur. Of course, a deadlock condition causes a complete freeze of the affected processes or kernel control paths.
 
@@ -522,25 +522,25 @@ AT&Ts Unix System V introduced other kinds of interprocess communication among p
 
 ### 1.6.7 Process Management
 
-Unix makes a neat distinction between the process and the program it is executing. To that end, the `fork()` and `exit()` system calls are used respectively to create a new process and to terminate it, while an `exec()`-like system call is invoked to load a new program. After such a system call has been executed, the process resumes execution with a brand new address space containing the loaded program.
+Unix makes a neat distinction between the process and the program it is executing. To that end, the `fork( )` and `exit( )` system calls are used respectively to create a new process and to terminate it, while an `exec( )`-like system call is invoked to load a new program. After such a system call has been executed, the process resumes execution with a brand new address space containing the loaded program.
 
-The process that invoked a `fork()` is the *prarent* while the new process is its *child*. Parents and children can find each other because the data structure describing each process includes a pointer to its immediate parent and pointers to all its children.
+The process that invoked a `fork( )` is the *prarent* while the new process is its *child*. Parents and children can find each other because the data structure describing each process includes a pointer to its immediate parent and pointers to all its children.
 
-A naive implementation of the `fork()` would require both the parent's data and the parent's code to be dumplicated and assign the copies to the child. This would be quite time-consuming. Current kernels that can rely on hardware paging units follow the Copy-On-Write approach, which defers page duplication until the last moment (i.e., until the parent or the child is required to write into a page).
+A naive implementation of the `fork( )` would require both the parent's data and the parent's code to be dumplicated and assign the copies to the child. This would be quite time-consuming. Current kernels that can rely on hardware paging units follow the Copy-On-Write approach, which defers page duplication until the last moment (i.e., until the parent or the child is required to write into a page).
 
-The `exit()` system call terminates a process. The kernel handles this system call by releasing the resources owned by the process and sending the parent process a `SIGCHLD` signal, which is ignored by default.
+The `exit( )` system call terminates a process. The kernel handles this system call by releasing the resources owned by the process and sending the parent process a `SIGCHLD` signal, which is ignored by default.
 
-##### 1.6.7.1 Zombie processes
+#### 1.6.7.1 Zombie processes
 
-How can a parent inquire about termination of its children? The `wait()` systemc all allows a process to wait unitl one of its children terminates; it return the process ID (PID) of the terminated child.
+How can a parent inquire about termination of its children? The `wait( )` systemc all allows a process to wait unitl one of its children terminates; it return the process ID (PID) of the terminated child.
 
-When executing this system call, the kernel checks whether a child has alreadly terminated. A special *zombie* process state is introducred to respesent terminated processes: a process remains in that state until its parent process executes a `wait()` system call on it. The system call handler extracts some data about resource usage has been collected. In no child process has already terminated when the `wait()` system call is executed, the kernel usually puts the process in a wait state until a child terminates.
+When executing this system call, the kernel checks whether a child has alreadly terminated. A special *zombie* process state is introducred to respesent terminated processes: a process remains in that state until its parent process executes a `wait( )` system call on it. The system call handler extracts some data about resource usage has been collected. In no child process has already terminated when the `wait( )` system call is executed, the kernel usually puts the process in a wait state until a child terminates.
 
-It's a good practice for the kernel to keep around informantion on a child process until the parent issues its `wait()` call, but suppose the parent process terminates without issuing that call? The information takes up valuable memory slots that could be used to serve living processes. For example, many shells allow the user to start a command in the background and then log out. The process that is running the command shell terminates, but its children continue their execution.
+It's a good practice for the kernel to keep around informantion on a child process until the parent issues its `wait( )` call, but suppose the parent process terminates without issuing that call? The information takes up valuable memory slots that could be used to serve living processes. For example, many shells allow the user to start a command in the background and then log out. The process that is running the command shell terminates, but its children continue their execution.
 
-The solution lies in a special system process called *init* that is created during system intialization. When a process terminates, the kernel changes the appropriate process descriptor pointers of all the existing children of the terminates process to make them become children of *init*. This process monitors the execution of all its children and routinely issues `wait()` system calls, whose side effect is to get rid of all zombies.
+The solution lies in a special system process called *init* that is created during system intialization. When a process terminates, the kernel changes the appropriate process descriptor pointers of all the existing children of the terminates process to make them become children of *init*. This process monitors the execution of all its children and routinely issues `wait( )` system calls, whose side effect is to get rid of all zombies.
 
-##### 16.7.2 Process groups and login sessions
+#### 1.6.7.2 Process groups and login sessions
 
 Modern Unix operating systems introduce the notion of *process groups* to represent a "job" abstraction. For example, in order to execute the command line:
 
@@ -551,6 +551,64 @@ $ ls | sort | more
 a shell that supports process group, such as *bash*, creates a new group for the three processes corresponding to `ls`, `sort`, and `more`. In this way, the shell acts on the three processes as if they were a signle entity (the job, to be precise). Each process descriptor includes a *process group ID* field. Each group of processes may have a *group leader*, which is the process whose PID coincides with the process group ID. A newly created process is initially inserted into the process group of its prarent.
 
 Modern Unix kernels also introduce *login sessions*. Informally, a login session contains all processes that are descendants of the process that has started a working session on a specific terminal—usually, the first command shell process created for the user. All processes in a process group must be in the same login session. A login session may have several process group active simultaneously; one of these process groups is always in the foreground, which means that it has access to the terminal. The other active process groups are in the backgroud. When a background process tries to access the terminal, it receives a `SIGTTIN` or `SIGTTOUT` signal. In many command shells the internal commands `bg` and `fg` can be used to put a process group in either the background or the foreground.
+
+### 1.6.8 Memory Management
+
+Memory management is by far the most complex activity in a Unix kernel.
+
+#### 1.6.8.1 Virtual memory
+
+All recent Unix systems provide a useful abstraction called *virtual memory*. Virtual memory acts as a logical layer between the application requests and the hardware Memory Management Unit (MMU). Virtual memory has many purposes and advantages:
+
+- Several processes can be executed concurrently.
+- It is possible to run applications whose memory needs are larger than the available physical memory.
+- Processes can execute a program whose code is only partially loaded in memory.
+- Each process is allowed to access a subset of the available physical memory.
+- Processes can share a single memory image of a library or program.
+- Programs can be relocatable, that is, they can be placed anywhere in physical memory.
+- Programmers can write machine-independent code, since they do not need to be concerned about physical memory organization.
+
+The main ingredient of a virtual memory subsystem is the notion of *virtual address space*.
+
+The set of memory references that a process can use is different from physical memory addresses. When a process uses a virtual address, the kernel and the MMU cooperate to locate the actual physical location of the requested memory item.
+
+Today's CPUs include hardware circuits that automatically translate the virtual addresses into physical ones.
+
+- To that end, the available RAM is partitioned into *page frames* 4 or 8 KB in length, and a set of page tables is introduced to specify the correspondence between virtual and physical addresses.
+- These circuits make memory allocation simpler, since a request for a block of contiguous virtual addresses can be satisfied by allocating a group of page frames having noncontiguous physical addresses.
+
+#### 1.6.8.2 Random access memory usage
+
+All Unix operating systems clearly distinguish two portions of the random access memory (RAM).
+
+- A few megabytes are dedicated to storing the kernel image (i.e., the kernel code and the kernel static data structures).
+
+- The remaining portion of RAM is usually handled by the virtual memory system and is used in three possible ways:
+
+    - To satisfy kernel requests for buffers, descriptors, and other dynamic kernel data structures
+    - To satisfy process requests for generic memory areas and for memory mapping of files
+    - To get better performance from disks and other buffered devices by means of caches
+
+Each request type is valuable. On the other hand, since the available RAM is limited, some balancing among request types must be done, particually when little available memory is left.
+
+Moreover, when some critical threshold of available memory is reached and a page-frame-reclaiming algorithm is invoked to free additional memory.
+
+On major problem that must be solved by the virtual memory system is *memory fragmentation*. Ideally, a memory request should fail only when the number of free page frames is too small. However, the kernel is often forced to use physically continguous memory areas, hence the memory request could fail even if there is enough available but it is not available as one contiguous chunk.
+
+#### 1.6.8.3 Kernel Memory Allocator
+
+The Kernel Memory Allocator (KMA) is a subsystem that tries to satisfy the requests for memory areas from all parts of the system. Some of these requests will come from other kernel subsystems needing memory for kernel use, and some requests will come vi system calls from user programs to increase their processes' address spaces. A good KMA should have the following features:
+
+- It must be fast. Actually, this is the most crucial atrribute, since it is invoked by all kernel subsystems (including the interrupt handlers).
+- It should minimize the amount of wasted memory.
+- It should try to reduce the memory fragmentation problem.
+- It should be able to cooperate with the other memory management subsystems in order to borrow and release page frames from them.
+
+#### 1.6.8.4 Process virtual address space handling
+
+The address space of a process contains all the virtual memory addresses that the process is allowed to reference.
+
+The kernel usually stores a process virtual address space as a list of *memory area descriptors*.
 
 - - -
 
