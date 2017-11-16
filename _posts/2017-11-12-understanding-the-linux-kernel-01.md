@@ -299,7 +299,7 @@ Regular Unix files can be addressed either sequentially or randomly, while devic
 
 Sequential access is implicitly assumed: the `read( )` and `write( )` system calls always refer to the position of the current file pointer. In order to modify the value, a program must explicitly invoke the `lseek( )` system call. When a file is opened, the kernel sets the file pointer to the position of the first byte in the file (offset 0).
 
-1.5.6.3 Closing a file
+#### 1.5.6.3 Closing a file
 
 When a process does not need to access the contents of a file anymore, it can invoke the system call:
 
@@ -309,7 +309,7 @@ res = close(fd);
 
 which releases the open file object corresponding to the file descriptor `fd`. When a process terminates, the kernel closes all its stil opened files.
 
-1.5.6.4 Renaming and deleting a file
+#### 1.5.6.4 Renaming and deleting a file
 
 In order to rename or delete a file, a process does not need to open it. Indeed, such operations do not act on the contents of the affected file, but rather on the contents of one or more directories. For example, the system call:
 
