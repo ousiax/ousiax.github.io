@@ -637,7 +637,11 @@ On the other hand, physical memory is also used as cache for hard disks and othe
 
 ### 1.6.9 Device Drivers
 
-The kernel interacts with I/O devices by means of *device drivers*. Device drivers are included in the kernel and consist of data structures and functions that control one or more devices, such as a hark disks, keyboards, mouses, monitors, network interfaces, and devices connected to a SCSI bus. Each driver interacts with the remaing part of the kernel (even with other drivers) through a specific interface.
+The kernel interacts with I/O devices by means of *device drivers*.
+
+Device drivers are included in the kernel and consist of data structures and functions that control one or more devices, such as a hark disks, keyboards, mouses, monitors, network interfaces, and devices connected to a SCSI bus.
+
+Each driver interacts with the remaing part of the kernel (even with other drivers) through a specific interface.
 
 - - -
 
@@ -647,3 +651,4 @@ The kernel interacts with I/O devices by means of *device drivers*. Device drive
 1. What's program counter, [http://whatis.techtarget.com/definition/program-counter](http://whatis.techtarget.com/definition/program-counter)
 1. Protection ring, [https://en.wikipedia.org/wiki/Protection_ring](https://en.wikipedia.org/wiki/Protection_ring)
 1. Call stack, [https://en.wikipedia.org/wiki/Call_stack#STACK-POINTER](https://en.wikipedia.org/wiki/Call_stack#STACK-POINTER)
+1. SCSI, [https://en.wikipedia.org/wiki/SCSI](https://en.wikipedia.org/wiki/SCSI)
