@@ -75,7 +75,7 @@ unixODBC is a project created to provide ODBC on non-Windows platforms. It inclu
 In unixODBC ODBC drivers are defined in the *odbcinst.ini* file. The location of this file is configure-time variable defined with `--sysconfdir` but it is always the file odbcinst.ini in the `--sysconfdir` defined path. If unixODBC is already installed you can use unixODBC's odbcinst program to locate the odbcinst.ini file used to defined driver:
 
 ```sh
-# odbcinst -j
+$ odbcinst -j
 unixODBC 2.3.4
 DRIVERS............: /etc/odbcinst.ini
 SYSTEM DATA SOURCES: /etc/odbc.ini
@@ -121,7 +121,7 @@ Database    =
 You can list user and system datasources with:
 
 ```sh
-# odbcinst -q -s
+$ odbcinst -q -s
 [Cloudera ODBC Driver for Impala]
 [MYSQL]
 ```
@@ -172,7 +172,7 @@ In the *odbcinst.ini* each driver definition begins with the driver name in squr
 You can list all installed ODBC drivers with:
 
 ```sh
-# odbcinst -q -d
+$ odbcinst -q -d
 [MySQL ODBC 5.3 Driver]
 [Cloudera ODBC Driver for Impala]
 ```
@@ -193,7 +193,7 @@ You can install both versions of the driver on the same machine.
 To install the Cloudera ODBC Driver for Impala on Debian:
 
 ```sh
-# dpkg -i ClouderaImpalaODBC-32bit-Version-Release_i386.deb # or ClouderaImpalaODBC-Version-Release_amd64.deb.
+$ sudo dpkg -i ClouderaImpalaODBC-32bit-Version-Release_i386.deb # or ClouderaImpalaODBC-Version-Release_amd64.deb.
 ```
 
 The Cloudera ODBC Driver for Impala files are installed in the */opt/cloudera/impalaodbc* directory.
@@ -291,6 +291,11 @@ namespace clouderaimpalaodbc
         }
     }
 }
+```
+
+```sh
+$ dotnet run
+2433
 ```
 
 - - -
