@@ -201,7 +201,7 @@ The Cloudera ODBC Driver for Impala files are installed in the */opt/cloudera/im
 You can also verify the driver version number on Linux like:
 
 ```sh
-# dpkg -l | grep cloudera
+$ dpkg -l | grep cloudera
 ii  clouderaimpalaodbc          2.5.40.1025-2                  all          Cloudera ODBC Driver for Impala
 ```
 
