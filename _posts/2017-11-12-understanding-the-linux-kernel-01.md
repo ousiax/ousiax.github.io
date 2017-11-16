@@ -589,15 +589,17 @@ All Unix operating systems clearly distinguish two portions of the random access
     - To satisfy process requests for generic memory areas and for memory mapping of files
     - To get better performance from disks and other buffered devices by means of caches
 
-Each request type is valuable. On the other hand, since the available RAM is limited, some balancing among request types must be done, particually when little available memory is left.
-
-Moreover, when some critical threshold of available memory is reached and a page-frame-reclaiming algorithm is invoked to free additional memory.
+Each request type is valuable. On the other hand, since the available RAM is limited, some balancing among request types must be done, particually when little available memory is left. Moreover, when some critical threshold of available memory is reached and a page-frame-reclaiming algorithm is invoked to free additional memory.
 
 On major problem that must be solved by the virtual memory system is *memory fragmentation*. Ideally, a memory request should fail only when the number of free page frames is too small. However, the kernel is often forced to use physically continguous memory areas, hence the memory request could fail even if there is enough available but it is not available as one contiguous chunk.
 
 #### 1.6.8.3 Kernel Memory Allocator
 
-The Kernel Memory Allocator (KMA) is a subsystem that tries to satisfy the requests for memory areas from all parts of the system. Some of these requests will come from other kernel subsystems needing memory for kernel use, and some requests will come vi system calls from user programs to increase their processes' address spaces. A good KMA should have the following features:
+The Kernel Memory Allocator (KMA) is a subsystem that tries to satisfy the requests for memory areas from all parts of the system.
+- Some of these requests will come from other kernel subsystems needing memory for kernel use.
+- And some requests will come vi system calls from user programs to increase their processes' address spaces.
+
+A good KMA should have the following features:
 
 - It must be fast. Actually, this is the most crucial atrribute, since it is invoked by all kernel subsystems (including the interrupt handlers).
 - It should minimize the amount of wasted memory.
@@ -609,6 +611,33 @@ The Kernel Memory Allocator (KMA) is a subsystem that tries to satisfy the reque
 The address space of a process contains all the virtual memory addresses that the process is allowed to reference.
 
 The kernel usually stores a process virtual address space as a list of *memory area descriptors*.
+
+For example, when a process starts the execution of some program via an `exec( )`-like system call, the kernel assigns to the process a virtual address space that comprises memory areas for:
+
+- The executable code of the program
+- The initialized data of the program
+- The uninitialized data of the program
+- The initial program stack (that is, the User Mode stack)
+- The executable code and data of needed shared libraries
+- The heap (the memory dynamically requested by the program) 
+
+All recent Unix operating systems adopt a memory allocation stratery called *demand paging*.
+
+- With demand paging, a process can start program execution with none of its pages in physical memory.
+- As it accesses a nonpresent page, the MMU generates an exception; the exception handler finds the affected memory region, allocates a free page, and initializes it with the appropriate data.
+- In a similar fashion, when the process dynamically requires some memory by using `malloc( )` or the `brk( )` system call (which is invoked internally by `malloc( )`), the kernel just updates the size of the heap memory region of the process. A page frame is assigned to the process only when it generates an exception by tring to refer its virtual memory addresses.
+
+Virtual address spaces also allow other efficient stargies, such as the Copy-On-Write strategy.
+
+#### 1.6.8.5 Swapping and caching
+
+In order to extend the size of the virtual address space usable by the processes, the Unix operating system makes use of *swap areas* on disk. The virtual memory system regards the contents of a page frame as the basic unit for swapping. Whenever some process refers to a swapped-out page, the MMU raise an exception. The exception handler then allocates a new page frame and initializes the page frame with its old contents save on disk.
+
+On the other hand, physical memory is also used as cache for hard disks and other block devices. This is because hard drives are very slow: a disk access requires several milliseconds, which is a very long time compared with the RAM access time. Therefore, disks are often the bottleneck in system performance. As a general rule, one of the policies already implemented in the earliest Unix system is to defer writing to disk as long as possible by loading into RAM a set of disk buffers corresponding to blocks read from disk. The `sync( )` system call forces disk synchronization by writting all of the "dirty" buffers (i.e., all the buffers whose contents differ from that of the corresponding disk blocks) into disk. In order to avoid data loss, all operating systems take care to periodically write dirty buffers back to disk.
+
+### 1.6.9 Device Drivers
+
+The kernel interacts with I/O devices by means of *device drivers*. Device drivers are included in the kernel and consist of data structures and functions that control one or more devices, such as a hark disks, keyboards, mouses, monitors, network interfaces, and devices connected to a SCSI bus. Each driver interacts with the remaing part of the kernel (even with other drivers) through a specific interface.
 
 - - -
 
