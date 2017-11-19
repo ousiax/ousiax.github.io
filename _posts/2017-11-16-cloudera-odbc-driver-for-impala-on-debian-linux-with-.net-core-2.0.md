@@ -133,8 +133,8 @@ You can directly edit your odbcinst.ini or .odbcinst.ini file and add the driver
 ```ini
 [DRIVER_NAME]
 Description = description of the ODBC driver
-Driver = path_to_odbc_driver_shared_object
-Setup = path_to_driver_setup_shared_object
+Driver      = path_to_odbc_driver_shared_object
+Setup       = path_to_driver_setup_shared_object
 ```
 
 In the *odbcinst.ini* each driver definition begins with the driver name in square brackets. The driver name is followed by Driver and Setup attributes where Driver is the path to the ODBC driver shared object (exporting the ODBC API) and Setup is the path to the ODBC driver setup library (exporting the ConfigDriver and ConfigDSN APIs used to install/remove the driver and create/edit/delete data sources).
@@ -143,8 +143,8 @@ The following is a sample for MySQL ODBC 5.3 Driver:
 
 ```ini
 [MySQL ODBC 5.3 Driver]
-Driver=/usr/local/lib/libmyodbc5w.so
-UsageCount=1
+Driver      = /usr/local/lib/libmyodbc5w.so
+UsageCount  = 1
 ```
 
 #### 2.5 What does a data source look like?
