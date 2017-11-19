@@ -220,10 +220,7 @@ $ dotnet new console -o clouderaimpalaodbc
 The template "Console Application" was created successfully.
 .
 .
-.
 Restore succeeded.
-
-$ dotnet new nugetconfig
 
 $ tree clouderaimpalaodbc/
 clouderaimpalaodbc/
@@ -235,21 +232,8 @@ clouderaimpalaodbc/
 
 ```
 
-*nuget.config*
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <clear />
-  <packageSources>
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
-    <add key="dotnet.myget.org/F/dotnet-core" value="https://dotnet.myget.org/F/dotnet-core/api/v3/index.json" />
-  </packageSources>
-</configuration>
-```
-
 ```sh
-$ dotnet add package System.Data.Odbc -v 4.5.0-preview1-25915-02
+$ dotnet add package System.Data.Odbc -v 4.5.0-preview1-25914-04
 ```
 
 *clouderaimpalaodbc.csproj*
@@ -261,7 +245,7 @@ $ dotnet add package System.Data.Odbc -v 4.5.0-preview1-25915-02
     <TargetFramework>netcoreapp2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.Data.Odbc" Version="4.5.0-preview1-25915-02" />
+    <PackageReference Include="System.Data.Odbc" Version="4.5.0-preview1-25914-04" />
   </ItemGroup>
 </Project>
 ```
@@ -295,7 +279,7 @@ namespace clouderaimpalaodbc
 
 ```sh
 $ dotnet run
-2433
+2333
 ```
 
 - - -
