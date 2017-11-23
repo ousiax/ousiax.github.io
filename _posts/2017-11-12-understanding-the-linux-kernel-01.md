@@ -6,6 +6,8 @@ categories: ['Linux']
 tags: ['Linux', 'Kernel']
 disqus_identifier: 214637421380564030329447675521549613702
 ---
+<small>*对枯燥的事情有所坚持—耗子*</small>
+
 - TOC
 {:toc}
 
