@@ -33,6 +33,10 @@ The CPU control unit transforms a logical address into a linear address by means
 
 ![An example of a directory tree]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Logical address translation.png)
 
+## 2.2 Segmentation in Hardware
+
+Starting with the 80386 model, Intel microprocessors perform address translation in two different ways called *real mode* and *protected mode*. Real mode exists mostly to maintain processor compatibility with older models and to allow the operating system to bootstrap.
+
 - - -
 
 ### References
@@ -41,3 +45,6 @@ The CPU control unit transforms a logical address into a linear address by means
 1. Real mode - Wikipedia, [https://en.wikipedia.org/wiki/Real_mode](https://en.wikipedia.org/wiki/Real_mode)
 1. Protected mode - Wikipedia, [https://en.wikipedia.org/wiki/Protected_mode](https://en.wikipedia.org/wiki/Protected_mode)
 1. Difference between real mode and protected mode - Geek.com, [https://www.geek.com/chips/difference-between-real-mode-and-protected-mode-574665/](https://www.geek.com/chips/difference-between-real-mode-and-protected-mode-574665/)
+1. Memory segmentation - Wikipedia, [https://en.wikipedia.org/wiki/Memory_segmentation](https://en.wikipedia.org/wiki/Memory_segmentation)
+1. x86 memory segmentation - Wikipedia, [https://en.wikipedia.org/wiki/X86_memory_segmentation](https://en.wikipedia.org/wiki/X86_memory_segmentation)
+1. x86 assembly language - Wikipedia, [https://en.wikipedia.org/wiki/X86_assembly_language](https://en.wikipedia.org/wiki/X86_assembly_language)
