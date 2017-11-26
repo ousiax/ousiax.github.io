@@ -647,7 +647,7 @@ Each driver interacts with the remaing part of the kernel (even with other drive
 
 - - -
 
-### References
+## References
 
 1. Daniel P. Bovet、 Marco Cesati (2005-11), "Chapter 1: Understanding the Linux Kernel"
 1. What's program counter, [http://whatis.techtarget.com/definition/program-counter](http://whatis.techtarget.com/definition/program-counter)
