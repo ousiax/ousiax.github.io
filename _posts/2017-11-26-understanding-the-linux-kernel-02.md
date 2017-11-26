@@ -39,7 +39,7 @@ Starting with the 80386 model, Intel microprocessors perform address translation
 
 - - -
 
-### References
+## References
 
 1. Daniel P. Bovet、 Marco Cesati (2005-11), "Chapter 2: Understanding the Linux Kernel"
 1. Real mode - Wikipedia, [https://en.wikipedia.org/wiki/Real_mode](https://en.wikipedia.org/wiki/Real_mode)
