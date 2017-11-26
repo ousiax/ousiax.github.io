@@ -11,6 +11,8 @@ disqus_identifier: 214637421380564030329447675521549613702
 - TOC
 {:toc}
 
+- - -
+
 Linux is a member of the large family of Unix-like operating system.
 
 Linux was initially deveoped by Linus Torvalds in 1991 as an operating system for IBM-compatible personal computers based on the Intel 80386 microprocessor.
