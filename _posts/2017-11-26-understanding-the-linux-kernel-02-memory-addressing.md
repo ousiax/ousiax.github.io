@@ -37,6 +37,31 @@ The CPU control unit transforms a logical address into a linear address by means
 
 Starting with the 80386 model, Intel microprocessors perform address translation in two different ways called *real mode* and *protected mode*. Real mode exists mostly to maintain processor compatibility with older models and to allow the operating system to bootstrap.
 
+### 2.2.1 Segmentation Registers
+
+A logical address consists of two parts: a segment identifier and an offset that specifies the relative address within the segment. The segment identifier is a 16-bit field called *Segment Selector*, while the offset is a 32-bit field.
+
+To make it easy to retrieve segment selectors quickly, the processor provides *segmentation registers* whose only purpose is to hold Segment Selectors: these registers are called **cs**, **ss**, **ds**, **es**, **fs** and **gs**. Although there are only six of them, a program can reuse the same segmentation register for different purposes by saving its content in memory and then restoring it later.
+
+Three of the six segmentation registers have specific purposes:
+
+**cs**
+
+    The code segment register, which points to a segment containing program instructions
+
+**ss**
+
+    The stack segment register, which points to a segment containing the current progam stack
+
+**ds**
+
+    The data segment register, which points to a segment containing static and external data
+
+The remaining three segmentation registers are general purpose and may refer to arbitrary segments.
+
+The **cs** register has another important function: it includes a 2-bit field that specifies the Current Privilege Level (**CPL**) of the CPU. The value 0 denotes the highest privilege level, while the value 3 denotes the lowest one. Linux uses only levels 0 and 3, which are respectively called **Kernel Mode** and **User Mode**.
+
+
 - - -
 
 ## References
