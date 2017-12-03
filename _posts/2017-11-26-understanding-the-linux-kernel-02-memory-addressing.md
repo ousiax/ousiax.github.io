@@ -41,26 +41,63 @@ Starting with the 80386 model, Intel microprocessors perform address translation
 
 A logical address consists of two parts: a segment identifier and an offset that specifies the relative address within the segment. The segment identifier is a 16-bit field called *Segment Selector*, while the offset is a 32-bit field.
 
-To make it easy to retrieve segment selectors quickly, the processor provides *segmentation registers* whose only purpose is to hold Segment Selectors: these registers are called **cs**, **ss**, **ds**, **es**, **fs** and **gs**. Although there are only six of them, a program can reuse the same segmentation register for different purposes by saving its content in memory and then restoring it later.
+To make it easy to retrieve segment selectors quickly, the processor provides *segmentation registers* whose only purpose is to hold Segment Selectors: these registers are called *cs*, *ss*, *ds*, *es*, *fs* and *gs*. Although there are only six of them, a program can reuse the same segmentation register for different purposes by saving its content in memory and then restoring it later.
 
 Three of the six segmentation registers have specific purposes:
 
-**cs**
+- **cs**
 
     The code segment register, which points to a segment containing program instructions
 
-**ss**
+- **ss**
 
     The stack segment register, which points to a segment containing the current progam stack
 
-**ds**
+- **ds**
 
     The data segment register, which points to a segment containing static and external data
 
 The remaining three segmentation registers are general purpose and may refer to arbitrary segments.
 
-The **cs** register has another important function: it includes a 2-bit field that specifies the Current Privilege Level (**CPL**) of the CPU. The value 0 denotes the highest privilege level, while the value 3 denotes the lowest one. Linux uses only levels 0 and 3, which are respectively called **Kernel Mode** and **User Mode**.
+The *cs* register has another important function: it includes a 2-bit field that specifies the Current Privilege Level (*CPL*) of the CPU. The value 0 denotes the highest privilege level, while the value 3 denotes the lowest one. Linux uses only levels 0 and 3, which are respectively called *Kernel Mode* and *User Mode*.
 
+### 2.2.2 Segment Descriptors
+
+Each segment is represented by an 8-byte *Segment Descriptor* that describes the segment characteristics. Segment Descriptors are stored either in the *Global Descriptor Table(GDT)* or in the *Local Descriptor Table(LDT)*.
+
+![Segment Descriptor format]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Segment Descriptor format.png)
+
+Usually only one GDT is defined, while each process have its onw LDT. The address of the GDT in main memory is contained in the *gdtr* processor register and the address of the currently used LDT is contained in the *ldtr* processor register.
+
+Each Segment Descriptor consists of the following fields:
+
+- A 32-bit *Base* field contains the linear address of the first byte of the segment.
+
+- A *G* grannularity flag: if it is cleared, the segment size is expressed in bytes; otherwise, it is expressed in multiples of 4096 bytes.
+- A 20-bit *Limit* field that denotes the segment length in bytes. If *G* is set to 0, the size of a non-null segment may vary between 1 byte and 1 MB; otherwise, it may vary between 4KB and 4 GB.
+- An *S* system flag: if it is cleared, the segment is a system segment that stores kernel data structures; otherwise, it is a normal code or data segment.
+- A 4-bit *Type* field that characterize the segment type and its access rights. The following Segment Descriptor type are widely used:
+
+    - **Code Segment Descritpor**
+    
+        Indicates that the Segment Descriptor refers to a code segment; it may be included either in the GDT or in the LDT. The descriptor has the *S* flag set.
+    
+    - **Data Segment Decriptor**
+    
+        Indicates that the Segment Descriptor refers to a data segment; it may be included either in the GDT or in the LDT. The descriptor has the *S* flag set. Stack segments are implemented by means of generic data segment.
+    
+    - **Task State Segment Descriptor (TSSD)**
+    
+        Indicates that the Segment Descriptor refers to a Task State Segment (TSS), that is, a segment used to save the contents of the processor registers, it can apear only in the GDT. The corresponding *Type* field has the value 11 or 9, depending on whether the corresponding process is currently executing on the CPU. The *S* flag of such descriptors is set to 0.
+    
+    - **Local Descritpor Table Descritpor (LDTD)**
+    
+        Indicates that the Segment Descriptor refers to a segment containing an LDT; it can apear only in the GDT. The corresponding *Type* field has the value 2. The *S* flag of such descriptors is set to 0.
+- A *DPL* (Descriptor Privilege Level) 2-bit field used to restrict accesses to the segment. It represent the minimal CPU privilege level requested for accessing the segment. Therefore, a segment with it *DPL* set to 0 is accssible only when the *CPL* is 0, that is, in Kernel Mode, while a segment with its *DPL* set to 3 is accessible with every *CPL* value.
+- A *Segment-Present* flag that is set to if the segment is currently not stored in main memory. Linux always set this filed to 1, since it never swaps out whole segments to disk.
+- An additional flag called *D* or *B* depending on whether the segment contains code or data. Its meaning is slightly different in the two cases, but it is basically set if the address used as segment offsets are 32 bits long and it is cleared if they are 16 bits long.
+- A reseved bit (bit 53) always set to 0.
+- An *AVL* flag that may be used by the operating system but is ignored in Linux.
 
 - - -
 
