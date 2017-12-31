@@ -13,6 +13,12 @@ disqus_identifier: 314492726868437670328850965387411297897
 - 出品一款牛逼哄哄的开源工具
 - 不要让 2018 的自己，如讨厌 2016 的自己一样，讨厌 2017 的自己
 
+<audio controls="" autoplay="" loop=""> 
+  <source src="/assets/audio/gymnopedies-1-erik-satie.mp3" type="audio/mpeg">
+Your browser does not support the audio element.
+</audio>
+
+<small>(如果没有背景音乐，可把上面的开始按钮手动点亮)</small>
 - - -
 
 从海上吹来咸咸的、浓重的冷风。风把陌生的异乡气味送到岸上来。但是，对于顿河人来说，不仅是风，而且这座沉闷的、到处是穿堂风的滨海城市里的一切都是陌生的、很不亲切的。顿河人成堆地站在防波堤上，等候上船……
@@ -126,7 +132,7 @@ Last day, 我们一起品尝了那个曾经让武帝“感激涕零”的自贡�
 
 看了点《中国通史》的纪录片，多少了解了中国的历史……
 
-工作中，开始玩起了容器技术，接触了云平台（Azure），也用到了阿里云的虚拟主机。工作之余，也参加了各种线下的技术沙龙或者面基大会，比如 Gopher China Conf 2017，Apache CarbonData，CNUTCon 全球运维技术大会，QCon上海2017 全球软件开发大会，好像就这么几个吧？
+工作中，开始玩起了容器技术，接触了云平台（Azure），也用到了阿里云的虚拟主机。工作之余，也参加了各种线下的技术沙龙或者面基大会，比如 Gopher China Conf 2017，Apache CarbonData，CNUTCon 全球运维技术大会，QCon上海2017 全球软件开发大会，ECUG Con 十周年盛会，好像就这么几个吧？
 
 Gopher 大会，聆听了各种大咖吹逼微服务的分享，收获了《Linux 系统编程》一书，让我进一步了解了各种系统编程的知识，各种系统调用。当然还有 Gopher 的 T 恤，哈哈。今年的 Gopher 大会还是在原来的地方举办，已经斥资，批了一笔巨款报名了。
 
@@ -142,6 +148,8 @@ QCon 大会，见到了陈浩，网名左耳朵耗子，这位大叔的一句话
 
 说好的《深入理解计算机系统》，一年过去了，还没有看完，……
 
+出品一款牛逼哄哄的开源工具，这个，只是多几个 `Alyio` 系列的类库……
+
 总的来说，相比于 2016 年，算是基本达标吧，就是去年的总结“不要让 2018 的自己，如讨厌 2016 的自己一样，讨厌 2017 的自己”。
 
 - - -
@@ -151,11 +159,11 @@ QCon 大会，见到了陈浩，网名左耳朵耗子，这位大叔的一句话
 - 多读书，节假日要去远方浪
 - 搞定计算机的三座大山：操作系统，计算机网络，微机原理, 当然还有第三座大山（算法）……
 - 扩展技术视野：Cloud, Data
-- 计划赶不上变化，“对枯燥的事情有所坚持”就是最好的计划!
 - 早睡早起身体好
-- 不要让 2019 的自己，如讨厌 2017 的自己一样，讨厌 2016 的自己
+- 计划赶不上变化，“对枯燥的事情有所坚持”就是最好的计划!
+- 不要让 2019 的自己，如讨厌 2017 的自己一样，讨厌 2018 的自己
 
-<audio controls="" autoplay="" loop="">
-  <source src="http://audio.xmcdn.com/group12/M08/1D/B7/wKgDW1V5DJPRIyOlACvjAZAdmlg907.m4a" type="audio/mpeg">
+<audio controls=""> 
+  <source src="/assets/audio/dreams-the-cranberries.mp3" type="audio/mpeg">
 Your browser does not support the audio element.
 </audio>
