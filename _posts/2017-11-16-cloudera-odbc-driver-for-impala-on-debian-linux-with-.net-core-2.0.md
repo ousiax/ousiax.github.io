@@ -293,6 +293,210 @@ $ dotnet run
 2333
 ```
 
+#### 3.3 MIT Kerberos
+
+Kerberos must be installed and configured before you can use this authentication mechanism. For more information, refer to the MIT Kerberos Documentation: [http://web.mit.edu/kerberos/krb5-latest/doc/](http://web.mit.edu/kerberos/krb5-latest/doc/).
+
+
+```sh
+$ # Install the krb5 user utils
+$ apt-cache search krb5-user
+krb5-user - basic programs to authenticate using MIT Kerberos
+$sudo apt-get install krb5-user -y
+```
+
+```sh
+$ # Get Kerberos ticket with `kinit`
+$ kinit username
+Password for username@CLOUDERA.COM:
+$ klist
+Ticket cache: FILE:/tmp/krb5cc_0
+Default username: username@CLOUDERA.COM
+
+Valid starting     Expires            Service username
+02/02/18 10:39:13  02/02/18 20:39:13  krbtgt/CLOUDERA.COM@CLOUDERA.COM
+        renew until 02/09/18 10:37:57
+$ kdestroy
+$ klist
+klist: No credentials cache found (filename: /tmp/krb5cc_0)
+```
+
+```sh
+$ # Create a keytab file
+$ ktutil
+ktutil:  addent -password -p username@ADS.IU.EDU -k 1 -e rc4-hmac
+Password for username@ADS.IU.EDU: [enter your password]
+ktutil:  addent -password -p username@ADS.IU.EDU -k 1 -e aes256-cts
+Password for username@ADS.IU.EDU: [enter your password]
+ktutil:  wkt username.keytab
+ktutil:  quit
+```
+
+```sh
+$ # List the keys in a keytab file
+$ klist -k mykeytab
+version_number username@ADS.IU.EDU
+version_number username@ADS.IU.EDU
+```
+
+```sh
+$ # Merge keytab files
+$ ktutil
+ktutil: read_kt mykeytab-1
+ktutil: read_kt mykeytab-2
+ktutil: read_kt mykeytab-3
+ktutil: write_kt krb5.keytab
+ktutil: quit
+$ # To verify the merge:
+$ klist -k krb5.keytab
+```
+
+> The keytab file is independent of the computer it's created on, its filename, and its location in the file system. Once it's created, you can rename it, move it to another location on the same computer, or move it to another Kerberos computer, and it will still function. The keytab file is a binary file, so be sure to transfer it in a way that does not corrupt it.
+> 
+> If possible, use *SCP* or another secure method to transfer the keytab between computers. 
+
+#### 3.4 Using Advanced Kerberos Authentication
+
+This authentication mechanism allows concurrent connections within the same process to use different Kerberos user principals.
+
+When you use Advanced Kerberos authentication, you do not need to run the `kinit` comamnd to obtain a Kerberos ticket. Instead, you use a JSON file to map your Impala user name to a Kerberos user principal name and a keytab that contains the corresponding keys. The driver obtains Kerberos tickets based on the specified mapping. As a fallback, you can specify a keytab that the driver uses by default if the mapping file is not available or if no matching keytab can be found in the mapping file.
+
+- **AuthMech**
+
+    The authentication mechanism to use.
+
+    Select one of the following settings, or set the key to the corresponding number:
+    - No Authentication (`0`)
+    - Kerberos (`1`)
+    - SASL User Name (`2`)
+    - User Name And Password (`3`)
+
+- **UPNKeytabMappingFile**
+
+    The full path to a JSON file that maps your Impala user name to a Kerberos user principal name and a ketab file.
+    
+    > Note: This option is applicable only when the authentication mechanism is set to Kerberos (`AuthMech=1`) and the Use Keytab option is enabled (`UseKeytab=1`).
+    
+    The mapping in the JSON file must be written using the following schema, where *[UserName]* is the Impala user name, *[KerberosUPN]* is the Kerberos user principal name, and *[KeytabFile]* is the full path to the keytab file:
+    
+    ```json
+    {
+      "[UserName]": {
+        "principal" : "[KerberosUPN]",
+        "keytabfile": "[KeytabFile]"
+      },
+      ...
+    }
+    ```
+    
+    For example, the following file maps the Impala user name **cloudera** to the **cloudera@CLOUDERA** Kerberos user principal name and the `C:\Temp\cloudera.keytab` file:
+    
+    ```json
+    {
+      "cloudera": {
+        "principal" : "cloudera@CLOUDERA",
+        "keytabfile": "C:\Temp\cloudera.keytab"
+      },
+      ...
+    }
+    ```
+    
+    If parts of the mapping are invalid or not defined, then the following occurs:
+    - If the mapping file fails to specify a Kerberos user principal name, then the driver uses the Impala user name as the Kerberos user pricipal name.
+    - If the mapping file fails to specify a keytabl file, then the driver uses the keytab file that is specified in the Default Keytab File setting.
+    - If the entire mapping file is invalid or not defined, then the driver does both of the actions described above.
+
+- **UseKeytab**
+
+    The option specifies whether the driver obtains the ticket for Kerberos authentication by using a keytab:
+    - Enable (`1`): The driver uses a keytab to obtain a ticket before authenticating the connection using Kerberos.
+    - Disable (`0`): The driver does not attempt to obtains the Kerberos ticket, and assumes that a valid ticket is already available in the credentials cache.
+    
+    > Note: This option is applicable only when the authentication mechanism is set to Kerberos (`AuthMech=1`).
+    
+    If you enable this option but do not set the Default Keytab File option (the `DefaultKeytabFile` key), then the MIT Kerberos library will search for a keytab file using the following search order:
+    - The file specified by the `KRB5_KTNAME` environment variable.
+    - The `default_keytabl_name` settings in the `[libdefaults]` section of the Kerberos confirugration file (`krb5.conf`/`krb5.ini`).
+    - The default keytab file specified in the MIT Kerberos library. Typically, the default file is `C:\Windows\krb5kt` for Windows platforms and `/etc/krb5.keytab` for non-Windows platforms.
+
+- **DefaultKeytabFile**
+
+    The full path to the keytab file that the driver uses to obtain the ticket for Keberos authentication.
+    > This option is applicable only when the authentication mechanism is set to Kerberos (`AuthMech=1`) and the Use Keytab option is enabled (`UseKeytab=1`).
+    > If the UPN Keytab Mapping File option (the `UNPNKeytabMappingFile` key) is set to a JSON file with a valid mapping to a keytab, then that keytab takes prcedence.
+
+    If you do not set this option but the Use Keytab option is enabled (`UseKeytab=1`), then the MIT Kerberos library will search for a keytab using the following search order.
+    - The file specified by the `KRB5_KTNAME` environment variable.
+    - The `default_keytabl_name` settings in the `[libdefaults]` section of the Kerberos confirugration file (`krb5.conf`/`krb5.ini`).
+    - The default keytab file specified in the MIT Kerberos library. Typically, the default file is `C:\Windows\krb5kt` for Windows platforms and `/etc/krb5.keytab` for non-Windows platforms.
+
+
+**To configure Advanced Kerberos authentication:**
+
+1. Set the `AuthMech` connection attribute to `1`.
+1. Choose one:
+    - To use the default realm defined in your Kerberos setup (`krb5.conf`/`krb5.ini`), dot not set the `KrbRealm` attribute.
+    - Or, if your Kerberos setup does not define a default realm or if the realm of your Impala server is not the default, then set the appropriate realm using the `KrbRealm` attribute.
+1. Optionally, if you are using MIT Kerberos and a Kerberos realm is specified using the `KrbRealm` connection attribute, the choose one: 
+    - To have the Kerberos layer cannoicalize the server's service principal name, leave the `ServicePrincipalCanonicalization` attribute set to `1`.
+    - Or, to prevent the Kerberos layer from canonicalizing the server's service principal name, set the `ServicePrincipalCanonicalization` attribute to `0`.
+1. Set the `KrbFQDN` attribute to the fully qualified domain name of the Impala server host.
+> Note: To use the Impala server host name as the fully qualified domain name for Kerberos authentication, set `KrbFQDN` to `_HOST`.
+1. Set the `KrbServiceName` attribute to the service name of the Impala server.
+1. Set the `UseKeytab` attribute to `1`.
+1. Set the `UID` attribute to an appropriate user name for accessing the Impala server.
+1. Set the `UPNKeytabMappingFile` attribute to the full path to a JSON file that maps your Impala user name to a Kerberos user principal name and a keytab file.
+1. Set the `DefaultKeytabFile` attribute to the full path to a keytab file that the driver can use if the mapping file is not available or if no matching keytab can be found in the mapping
+file.
+1. If the Impala server is configured to use SSL, then configure SSL for the connection. 
+1. Optionally, set the `TSaslTransportBufSize` attribute to the number of bytes to reserve in memory for buffering unencrypted data from the network.
+> Note: In most circumstances, the default value of 1000 bytes is optimal.
+
+The following is the format of a DSN-less connection string that connects to an Impala server using Advanced Kerberos authentication:
+
+```
+Driver=Cloudera ODBC Driver for Impala;
+Host=[Server];
+Port=[PortNumber];
+AuthMech=1;
+KrbRealm=[Realm];
+KrbFQDN=[DomainName];
+KrbServiceName=[ServiceName];
+UseKeytab=1;
+UID=[YourUserName];
+UPNKeytabMappingFile=[MappingFile];
+```
+
+For example:
+
+```
+Driver=Cloudera ODBC Driver for Impala;
+Host=192.168.222.160;
+Port=21050;
+AuthMech=1;
+KrbRealm=CLOUDERA;
+KrbFQDN=localhost.localdomain;
+KrbServiceName=impala;
+UseKeytab=1;
+UID=cloudera;
+UPNKeytabMappingFile=C:\Temp\cloudera.keytab;
+```
+
+If you are connecting to the server through SSL, then set the `SSL` property to `1`. For example:
+
+```
+Driver=Cloudera ODBC Driver for Impala;
+Host=192.168.222.160;
+Port=21050;
+AuthMech=1;
+KrbRealm=CLOUDERA;
+KrbFQDN=localhost.localdomain;
+KrbServiceName=impala;
+UseKeytab=1;
+UID=cloudera;
+UPNKeytabMappingFile=C:\Temp\cloudera.keytab;
+SSL=1;
+```
 - - -
 
 ### References
