@@ -430,6 +430,17 @@ When you use Advanced Kerberos authentication, you do not need to run the `kinit
     - The `default_keytabl_name` settings in the `[libdefaults]` section of the Kerberos confirugration file (`krb5.conf`/`krb5.ini`).
     - The default keytab file specified in the MIT Kerberos library. Typically, the default file is `C:\Windows\krb5kt` for Windows platforms and `/etc/krb5.keytab` for non-Windows platforms.
 
+**To configure Kerberos authentication**
+
+1. Set the `AuthMech` connection attribute to 1.
+2. Choose one:
+    - To use the default realm defined in your Kerberos setup, do not set the `KrbRealm` attribute.
+    - Or, if your Kerberos setup does not define a default realm or if the realm of your Impala server is not the default, then set the appropriate realm using the `KrbRealm` attribute.
+3. Set the `KrbFQDN` attribute to the fully qualified domain name of the Impala server host.
+    > To use the Impala server host name as the fully qualified domain name for Kerberos authentication, set `KrbFQDN` to `_HOST`.
+4. Set the `KrbServiceName` attribute to the service name of the Impala server.
+5. Optionally, set the `TSaslTransportBufSize` attribute to the number of bytes to reserve in memory for buffering unencrypted data from the network.
+    > In most circumstances, the default value of 1000 bytes is optimal.
 
 **To configure Advanced Kerberos authentication:**
 
