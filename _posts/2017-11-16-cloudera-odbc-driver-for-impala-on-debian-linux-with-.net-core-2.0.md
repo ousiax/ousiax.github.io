@@ -518,3 +518,4 @@ SSL=1;
 1. Unhandled Exception: System.Data.Odbc.OdbcException: ERROR \[H\] \[unixODBC\]\[ |  UNICODE Using encoding ASCII 'ANSI\_X3.4-1968' and UNICODE 'UCS-2LE', [https://github.com/dotnet/corefx/issues/25269](https://github.com/dotnet/corefx/issues/25269)
 1. Successfully configuring an ODBC driver to access Redshift from SAS on Linux, [https://communities.sas.com/t5/SAS-Communities-Library/Successfully-configuring-an-ODBC-driver-to-access-Redshift-from/ta-p/223987](https://communities.sas.com/t5/SAS-Communities-Library/Successfully-configuring-an-ODBC-driver-to-access-Redshift-from/ta-p/223987)
 1. Use a keytab, [https://kb.iu.edu/d/aumh](https://kb.iu.edu/d/aumh)
+1. linux - Kerberos ktutil, what kinds of encryption are available? - Server Fault, [https://serverfault.com/questions/620521/kerberos-ktutil-what-kinds-of-encryption-are-available](https://serverfault.com/questions/620521/kerberos-ktutil-what-kinds-of-encryption-are-available)
