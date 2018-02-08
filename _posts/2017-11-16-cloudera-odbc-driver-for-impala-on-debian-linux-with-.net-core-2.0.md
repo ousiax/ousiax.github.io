@@ -519,3 +519,4 @@ SSL=1;
 1. Successfully configuring an ODBC driver to access Redshift from SAS on Linux, [https://communities.sas.com/t5/SAS-Communities-Library/Successfully-configuring-an-ODBC-driver-to-access-Redshift-from/ta-p/223987](https://communities.sas.com/t5/SAS-Communities-Library/Successfully-configuring-an-ODBC-driver-to-access-Redshift-from/ta-p/223987)
 1. Use a keytab, [https://kb.iu.edu/d/aumh](https://kb.iu.edu/d/aumh)
 1. linux - Kerberos ktutil, what kinds of encryption are available? - Server Fault, [https://serverfault.com/questions/620521/kerberos-ktutil-what-kinds-of-encryption-are-available](https://serverfault.com/questions/620521/kerberos-ktutil-what-kinds-of-encryption-are-available)
+1. Environment variables — MIT Kerberos Documentation, [https://web.mit.edu/kerberos/krb5-devel/doc/admin/env_variables.html](https://web.mit.edu/kerberos/krb5-devel/doc/admin/env_variables.html)
