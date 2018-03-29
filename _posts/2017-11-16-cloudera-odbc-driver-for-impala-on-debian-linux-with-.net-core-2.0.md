@@ -20,11 +20,11 @@ ODBC was created by the SQL Access Group and first released in September, 1992. 
 
 The ODBC API is a library of ODBC functions that let ODBC-enabled applications connect to any database for which an ODBC driver is available, execute SQL statement, and retrieve results.
 
-The goal of ODBC is to make it possible to access any data from any application, regardless of which database management system (DBMS) is handing the data. ODBC achieves this by inserting a middleware layer called a database driver between an application an application and the DBMS. This layer translates the application's data queries into commands that the DBMS understands.
+The goal of ODBC is to make it possible to access any data from any application, regardless of which database management system (DBMS) is handing the data. ODBC achieves this by inserting a middleware layer called a database driver between an application and the DBMS. This layer translates the application's data queries into commands that the DBMS understands.
 
 ### 1.1 Components of ODBC
 
-A basic implementation of ODBC on Linux is comprised fo:
+A basic implementation of ODBC on Linux is comprised of:
 
 - An ODBC compliant application i.e. an application which uses the ODBC API to talk to a DBMS.
 - The ODBC Driver Manager. The ODBC Driver Mangaer is the link between an ODBC application and an ODBC driver.
@@ -105,9 +105,6 @@ attributen = value
 where, ODBC\_datasource\_name is the name you want to assign to this data source, Driver is assigned the path of the driver shared object or the name of the driver (see odbcinst.ini file for installed drivers and "attributen = value" is the name of an attribute and its value that the ODBC driver needs. e.g. for the *MySQL ODBC 5.3 Driver* you might define
 
 ```ini
-[ODBC Data Sources]
-MYSQL=MySQL ODBC 5.3 Driver
-
 [MYSQL]
 Driver      = MySQL ODBC 5.3 Driver
 # Driver    = /usr/local/lib/libmyodbc5w.so
