@@ -113,7 +113,7 @@ libseccomp-2.3.1-3.el7.x86_64.rpm                   setools-libs-3.3.8-1.1.el7.x
 [root@5879a18a8be4 docker-ce]# scp docker-ce.offline.tar username@hostname:/dest_dir
 ```
 
-- Use the command `rpm -Uvh *.rpm` to install docker-ce.
+- Use the command `rpm -ivh --replacepkgs --replacefiles *.rpm` to install docker-ce.
 
 ```txt
 [root@9ddda0cd196d ~]# tar xf docker-ce.offline.tar
@@ -129,7 +129,7 @@ libmnl-1.0.3-7.el7.x86_64.rpm                       selinux-policy-3.13.1-166.el
 libnetfilter_conntrack-1.0.6-1.el7_3.x86_64.rpm     selinux-policy-targeted-3.13.1-166.el7_4.9.noarch.rpm
 libnfnetlink-1.0.1-4.el7.x86_64.rpm                 setools-libs-3.3.8-1.1.el7.x86_64.rpm
 libseccomp-2.3.1-3.el7.x86_64.rpm
-[root@9ddda0cd196d ~]# rpm -Uvh *.rpm
+[root@9ddda0cd196d ~]# rpm -ivh --replacepkgs --replacefiles *.rpm
 warning: docker-ce-17.12.0.ce-1.el7.centos.x86_64.rpm: Header V4 RSA/SHA512 Signature, key ID 621e9f35: NOKEY
 Preparing...                          ################################# [100%]
 Updating / installing...
@@ -145,3 +145,7 @@ Updating / installing...
 setsebool:  SELinux is disabled.
   20:docker-ce-17.12.0.ce-1.el7.centos################################# [100%]
 ```
+
+- - -
+
+1. [https://www.centos.org/docs/5/html/Deployment\_Guide-en-US/s1-rpm-using.html](https://www.centos.org/docs/5/html/Deployment_Guide-en-US/s1-rpm-using.html)
