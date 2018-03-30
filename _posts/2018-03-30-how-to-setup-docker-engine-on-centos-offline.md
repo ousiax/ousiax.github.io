@@ -172,3 +172,4 @@ $ docker run --rm -it centos:7 bash
 - - -
     
 1. [https://www.centos.org/docs/5/html/Deployment\_Guide-en-US/s1-rpm-using.html](https://www.centos.org/docs/5/html/Deployment_Guide-en-US/s1-rpm-using.html)
+1. [https://codefarm.me/docker/centos/2017/07/20/get-docker-ce-for-centos.html](https://codefarm.me/docker/centos/2017/07/20/get-docker-ce-for-centos.html)
