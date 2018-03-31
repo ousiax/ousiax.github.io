@@ -1,7 +1,7 @@
 # A sample Gemfile
 source "https://gems.ruby-china.org"
 
-gem "jekyll", "3.5.1"
+gem "jekyll", "3.7.3"
 
 # If you have any plugins, put them here!
 group :jekyll_plugins do
