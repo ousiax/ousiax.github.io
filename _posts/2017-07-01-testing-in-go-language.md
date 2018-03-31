@@ -214,24 +214,30 @@ We can use the **go list** tool to summarize which Go source files in a package 
 
 **GoFiles** is the list of files that contain the production code; this are the files that **go build** will include in your application:
 
+{% raw %}
 ```sh
 $ go list -f={{.GoFiles}} fmt
 [doc.go format.go print.go scan.go]
 ```
+{% endraw %}
 
 **TestGoFiles** is the list of files that also belong to the **fmt** package, but these files, whose names all end in **\_test.go**, are included only when building tests:
 
+{% raw %}
 ```sh
 $ go list -f={{.TestGoFiles}} fmt
 [export_test.go]
 ```
+{% endraw %}
 
 **XTestGoFiles** is the list of files that constitute the external test package, **fmt_test**, so these files must import the **fmt** package in order to use it. Again, they are included only during testing:
 
+{% raw %}
 ```sh
 $ go list -f={{.XTestGoFiles}} fmt
 [fmt_test.go scan_test.go stringer_test.go]
 ```
+{% endraw %}
 
 Sometimes an external test package may need privileged access to the internals of the package under test, if for example a white-box test must live in a separate package to avoid an import cycle. In such cases, we use a trick: we add declaration to an in-package **\_test.go** file to expose the necessary internals to the external test. This file thus offers the test a "back door" to the package. If the source file exists only for this purpose and contains no tests itself, it is often called **export_test.go**.
 
