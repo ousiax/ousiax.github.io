@@ -2,4 +2,8 @@
 source "https://gems.ruby-china.org"
 
 gem "jekyll", "3.5.1"
-gem "jekyll-paginate", "1.1.0"
+
+# If you have any plugins, put them here!
+group :jekyll_plugins do
+    gem "jekyll-paginate", "1.1.0"
+end
