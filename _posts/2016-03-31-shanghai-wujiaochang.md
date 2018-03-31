@@ -10,4 +10,4 @@ disqus_identifier: 328150845599091191537428770118744507160
 
 和一技术员聊了聊工作，似乎是个Ruby党吧。一直在听由Terry，玎玎, Daniel, Kevin 和滚滚主持Tearhour的Podcast，居然真正遇到了。人生与缘分，真是让人琢磨的事情。虽然问题的回合不多，但了解了工作内容，Rails，Android，iOS（not RubyMotion），也是我期望的全栈形式。而开发方法，类似ThoughtWorks的敏捷开发思想，持续集成，持续交付，balabala……
 
-<img src="{{ site.baseurl }}/assets/notes/images/shanghai-siping-rd.jpg" width="360px"  />
+<img src="/assets/notes/images/shanghai-siping-rd.jpg" width="360px"  />

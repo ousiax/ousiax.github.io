@@ -31,7 +31,7 @@ Programmers casually refer to a *memory address* as the way to access the conten
 
 The CPU control unit transforms a logical address into a linear address by means of a hardware circuit called a *segmentation unit*; successively, a second hardware circuit called a *paging unit* transforms the linear address into a physical address.
 
-![An example of a directory tree]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Logical address translation.png)
+![An example of a directory tree](/assets/images/understanding-the-linux-kernel/Logical address translation.png)
 
 ## 2.2 Segmentation in Hardware
 
@@ -65,7 +65,7 @@ The *cs* register has another important function: it includes a 2-bit field that
 
 Each segment is represented by an 8-byte *Segment Descriptor* that describes the segment characteristics. Segment Descriptors are stored either in the *Global Descriptor Table(GDT)* or in the *Local Descriptor Table(LDT)*.
 
-![Segment Descriptor format]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Segment Descriptor format.png)
+![Segment Descriptor format](/assets/images/understanding-the-linux-kernel/Segment Descriptor format.png)
 
 Usually only one GDT is defined, while each process have its onw LDT. The address of the GDT in main memory is contained in the *gdtr* processor register and the address of the currently used LDT is contained in the *ldtr* processor register.
 

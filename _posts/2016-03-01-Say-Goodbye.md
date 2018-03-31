@@ -13,7 +13,7 @@ tags: ['Work',]
 <!--
     function loadScreenshot() {
         var img = document.getElementById("screenshot");
-        img.src = "{{ site.baseurl }}/assets/images/screenshot_201603011651.jpg";
+        img.src = "/assets/images/screenshot_201603011651.jpg";
         img.onclick = null;
     }
 //--> 

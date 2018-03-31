@@ -65,7 +65,7 @@ Linux distinguishes stable kernels from development kernels through a simple num
 
 If the second number is even, it denotes a stable kernel; otherwise, it denotes a development kernel.
 
-![Numbering Linux versions]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Numbering Linux Versions.png)
+![Numbering Linux versions](/assets/images/understanding-the-linux-kernel/Numbering Linux Versions.png)
 
 ## 1.4 Basic Operating System Concepts
 
@@ -174,7 +174,7 @@ Many programming libraries implement higher-level abstractions, such as records 
 
 From the user's point of view, files are organized in a tree-structured name space.
 
-![An example of a directory tree]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/an example of a directory tree.png)
+![An example of a directory tree](/assets/images/understanding-the-linux-kernel/an example of a directory tree.png)
 
 - All the nodes of the tree, except the leaves, donote directory names.
 - A directory node contians information about the files and directories just beneath it.
@@ -363,7 +363,7 @@ Besides user processes, Unix systems include a few privileged processes called *
 
 Notice how the process/kernel model is somewhat orthogonal to the CPU state: on a uniprocessor system, only one process is running at any time and it may run either in User or in Kernel Mode. If it runs in Kernel Mode, the processor is executing some kernel routine.
 
-![Transitions between User and Kernel Mode]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Transitions between User and Kernel Mode.png)
+![Transitions between User and Kernel Mode](/assets/images/understanding-the-linux-kernel/Transitions between User and Kernel Mode.png)
 
 Unix kernels do much more than handle system calls; in fact, kernel routines can be activated in serveral ways:
 
@@ -415,7 +415,7 @@ In the simplest case , the CPU executes a kernel control path from the first ins
 
 - A hardware interrupt occurs while the CPU is running in kernel control path with the interrupts enabled. The first kernel control path is left unfinished and the CPU starts processing another kernel control path to handle the interrupt. The first kernel control path resumes when the interrupt handler terminates. In this case the two kernel control paths run in the execution context of the same process and the total elapsed system time is accounted to it. However, the interrupt handler doesn't necessarily operate on behalf of the process.
 
-![Interleaving of kernel control paths]({{ site.baseurl }}/assets/images/understanding-the-linux-kernel/Interleaving of kernel control paths.png)
+![Interleaving of kernel control paths](/assets/images/understanding-the-linux-kernel/Interleaving of kernel control paths.png)
 
 ### 1.6.4 Process Address Space
 

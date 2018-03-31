@@ -26,7 +26,7 @@ For the `EAX`, `EBX`, `ECX` and `EDX` registers, subsections may be used. For ex
 
 When referring to registers in assembly languages, the names are not case-sensitive. For example, the names `EAX` and `eax` refer to the same register.
 
-![x86 Registers]({{ site.baseurl }}/assets/images/x86-assembly/x86-registers.png)
+![x86 Registers](/assets/images/x86-assembly/x86-registers.png)
 
 ## Memory and Addressing Modes
 
@@ -485,7 +485,7 @@ The C calling convention is based heavily on the use of the hardware-supported s
 
 The calling convention is broken into two sets of rules. The fist set of rules is employed by the caller of the subroutine, and the second set of rule is observed by the writer of the subroutine (the callee. It should be emphasized that mistakes in the observance of these rules quickly result in fatal program errors since the stack will be left in an incosistent state; thus metriculous care should be used when implementing the call convention in your own subroutines.
 
-![x86 Registers]({{ site.baseurl }}/assets/images/x86-assembly/stack-convention.png)
+![x86 Registers](/assets/images/x86-assembly/stack-convention.png)
 
 A good way to visualize the operation of the calling convention is to draw the contents of the nearby region of the stack during subroutine execution. The image above depicts the contents of the stack during the execution of a subroutine with three paramters and three local variables. The cells depicted in the stack are 32-bit wide memory locations, thus the memory addresses of the cells are 4 bytes apart. The first paramter resides at an offest of 8 bytes from the base pointer. Above the paramters on the stack (and below the base pointer), the `call` instruction place the return address, thus leading to an extra 4 bytes of offset from the base pointer to the first parameter. When the `ret` instruction is used to return from the subroutine, it will jump to the return address stored on the stack.
 

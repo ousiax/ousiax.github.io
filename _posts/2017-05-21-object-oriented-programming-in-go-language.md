@@ -419,7 +419,7 @@ For a statically typed language like Go, types are a compile-time concept, so a 
 	var w io.Writer
 ```
 
-![A nil interface value]({{ site.baseurl }}/assets/gopl/a-nil-interface-value.png "A nil interface value")
+![A nil interface value](/assets/gopl/a-nil-interface-value.png "A nil interface value")
 
 **An interface value is described as nil or non-nil based on its dynamic type**, so this is a nil interface value.
 
@@ -431,7 +431,7 @@ The below statement assigns a value of type **\*os.File** to **w**:
 
 This assignment involves an implicit conversion from a concrete type to an interface type, and is equivalent to the explicit conversion **io.Writer(os.Stdout)**. A conversion of this kind, whether explicit or implicit, captures the type and the value of its operand. The interface values' dynamic type is set to the type descriptor for the pointer type **\*os.File**, and its dynamic value holds a copy of **os.Stdout**, which is a pointer to the **os.File** variable representing the standard output of process.
 
-![An interface value containing an \*os.File pointer]({{ site.baseurl }}/assets/gopl/an-interface-value-containing-an-os-File-pointer.png)
+![An interface value containing an \*os.File pointer](/assets/gopl/an-interface-value-containing-an-os-File-pointer.png)
 
 Calling the **Write** method on an interface value containing an **\*os.File** pointer causes the **(\*os.File).Write** method to be called. The call prints **"hello"**.
 
@@ -474,7 +474,7 @@ func main() {
 }
 ```
 
-![A non-nil interface containing a nil pointer]({{ site.baseurl }}/assets/gopl/a-non-nil-interface-containing-a-nil-pointer.png)
+![A non-nil interface containing a nil pointer](/assets/gopl/a-non-nil-interface-containing-a-nil-pointer.png)
 
 * * *
 

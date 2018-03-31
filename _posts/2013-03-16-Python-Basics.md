@@ -210,7 +210,7 @@ Python 语句中有一些基本规则和特殊字符：
 
         无论这个模块是被别的模块导入还是作为脚本直接执行，都会执行这部分代码。通常这里 不会有太多功能性代码，而是根据执行的模式调用不同的函数。
 
-    ![]({{ site.baseurl }}/assets/core-python-programming/firgure-3-1.png)        
+    ![](/assets/core-python-programming/firgure-3-1.png)        
 
     Figure 3–1 Typical Python file structure
 

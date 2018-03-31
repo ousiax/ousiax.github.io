@@ -200,7 +200,7 @@ The two approaches are complementary. Black-box tests are usually more robust, n
 
 Consider the package **net/url**, which provides a URL parser, and **net/http**, which provides a web server and HTTP client library. As we might expect, the higher-level **net/http** depends on the lover-level **net/url**. However, one of the tests in **net/url** is an example demonstrating the interaction between URLs and the HTTP client library. In other words, a test of the lover-level package imports the higher-level packages.
 
-![A test of net/url dep ends on net/http]({{ site.baseurl }}/assets/gopl/a-test-of-net-url-dep-ends-on-net-http.png)
+![A test of net/url dep ends on net/http](/assets/gopl/a-test-of-net-url-dep-ends-on-net-http.png)
 
 Declaring this test function in the **net/url** package would create a cycle in the package import graph.
 
@@ -208,7 +208,7 @@ We resolve the problem by declaring the test function in an ***external test pac
 
 In terms of the design layers, the external test package is logically higher up than both of the package it depends upon.
 
-![external-test-packages-bre-ak-dep-endency-cycles]({{ site.baseurl }}/assets/gopl/external-test-packages-bre-ak-dep-endency-cycles.png)
+![external-test-packages-bre-ak-dep-endency-cycles](/assets/gopl/external-test-packages-bre-ak-dep-endency-cycles.png)
 
 We can use the **go list** tool to summarize which Go source files in a package directory are production code, in-pcakges tests, and external tests.
 
