@@ -2,8 +2,8 @@
 layout: post
 title: "Love In The Time Of Cholera"
 date: 2018-03-28 22-09-27 +0800
-categories: ['novel']
-tags: ['novel']
+categories: ['Novel']
+tags: ['Novel']
 disqus_identifier: 114186390936856334271693249050611932085
 ---
 

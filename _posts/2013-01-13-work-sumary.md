@@ -3,8 +3,8 @@ disqus_identifier: 235165406094971805784608620976197030460
 layout: post
 title: "诞生与死去-2013年度工作总结"
 date: 2013-01-13 15-26-45 +0800
-categories: ['Work',]
-tags: ['Work',]
+categories: ['Memo',]
+tags: ['Memo',]
 ---
 ###### 诞生的生命 死去的生命 2016-03-26
 

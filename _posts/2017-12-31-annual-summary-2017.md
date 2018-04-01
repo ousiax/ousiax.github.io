@@ -2,12 +2,12 @@
 layout: post
 title: "我的 2017 年"
 date: 2017-12-31 13-43-57 +0800
-categories: ['Annual Summary']
-tags: ['Annual Summary']
+categories: ['Memo']
+tags: ['Memo']
 disqus_identifier: 314492726868437670328850965387411297897
 ---
 
-[给 2017 的我](/annual%20summary/2016/12/31/annual-summary-2016.html)：
+[给 2017 的我](/2016/12/31/annual-summary-2016.html)：
 
 - 多读书，周末要学会出去浪，节假日要学会去更远的地方继续浪……
 - 出品一款牛逼哄哄的开源工具

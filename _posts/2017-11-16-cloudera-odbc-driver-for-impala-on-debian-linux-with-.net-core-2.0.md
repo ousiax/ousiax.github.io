@@ -3,7 +3,7 @@ layout: post
 title: "Cloudera ODBC Driver for Impala on Debian/Linux with .NET Core 2.0"
 date: 2017-11-16 15-30-14 +0800
 categories: ['ODBC']
-tags: ['ODBC', '.NET Core', 'Linux']
+tags: ['ODBC', '.NET', 'Linux', 'Kerberos', 'Impala']
 disqus_identifier: 49461911245416724591536676219870654213
 ---
 

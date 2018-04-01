@@ -2,8 +2,8 @@
 layout: post
 title: "我的 2016 年"
 date: 2016-12-31 19-25-20 +0800
-categories: ['Annual Summary']
-tags: ['Annual Summary']
+categories: ['Memo']
+tags: ['Memo']
 disqus_identifier: 323420764988949745083623973698881591202
 ---
 
