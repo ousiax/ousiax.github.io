@@ -1,8 +1,8 @@
 ---
 layout: post
-title: "How to Deploy MongoDB with Docker"
+title: "Deploy MongoDB with Docker"
 date: 2017-09-08 15-37-56 +0800
-categories: ['Docker']
+categories: ['Mongo']
 tags: ['Docker', 'Mongo']
 disqus_identifier: 32306689283863169736250327311358675453
 ---
