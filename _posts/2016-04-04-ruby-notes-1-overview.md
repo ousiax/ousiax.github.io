@@ -173,15 +173,11 @@ disqus_identifier: 304705226039501129190960351359847979001
         $ gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
         $ \curl -sSL https://get.rvm.io | bash -s stable
 
-    *修改 RVM ，改用本站作为下载源, 提高安装速度。*
+    *修改 RVM 的 Ruby 安装源到 Ruby China 的 [Ruby 镜像服务器](https://cache.ruby-china.org/)，这样能提高安装速度*
 
-    For Mac
-
-        $ sed -i .bak -E 's!https?://cache.ruby-lang.org/pub/ruby!https://ruby.taobao.org/mirrors/ruby!' $rvm_path/config/db
-
-    For Linux
-
-        $ sed -i -E 's!https?://cache.ruby-lang.org/pub/ruby!https://ruby.taobao.org/mirrors/ruby!' $rvm_path/config/db
+    ```
+    $ echo "ruby_url=https://cache.ruby-china.org/pub/ruby" > ~/.rvm/user/db
+    ```
 
     *commands*
 
@@ -217,9 +213,8 @@ disqus_identifier: 304705226039501129190960351359847979001
 
             * https://rubygems.org
             * https://gems.ruby-china.org
-            * https://ruby.taobao.org/
 
-                    $ gem sources --add https://ruby.taobao.org/ --remove https://rubygems.org/
+                    $ gem sources --add https://gems.ruby-china.org/ --remove https://rubygems.org/
                     $ gem sources -l
 
 1. Specifying Program Encoding
