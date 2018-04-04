@@ -276,5 +276,6 @@ disqus_identifier: 304705226039501129190960351359847979001
 
 * [bundler vs RVM vs gems vs RubyGems vs gemsets vs system ruby](http://stackoverflow.com/questions/15586216/bundler-vs-rvm-vs-gems-vs-rubygems-vs-gemsets-vs-system-ruby)
 
-* RVM 实用指南 Ruby China, [https://ruby-china.org/wiki/rvm-guide](https://ruby-china.org/wiki/rvm-guide)
+* RVM 实用指南 - Ruby China, [https://ruby-china.org/wiki/rvm-guide](https://ruby-china.org/wiki/rvm-guide)
+* RubyGems 镜像 - Ruby China, [https://gems.ruby-china.org/](https://gems.ruby-china.org/)
 * [RubyGems 镜像 - 淘宝网](https://ruby.taobao.org/)
