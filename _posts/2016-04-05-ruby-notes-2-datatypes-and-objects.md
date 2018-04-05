@@ -162,7 +162,7 @@ disqus_identifier: 93736917096573817128848063245533052220
         In Ruby, method arguments are passed by value rather than by reference, but that the values passed are object references.
 
             s = "Ruby"      # Create a String object. Store a reference to it in s.
-            t= s            # Copy the reference to t. s and t both refer to the same object. 
+            t = s           # Copy the reference to t. s and t both refer to the same object. 
             t[-1] = ""      # Modify the object through the reference in t.
             print s         # Access the modified object through s. Prints "Rub".
             t = "Java"      # t now refers to a different object.
@@ -194,7 +194,7 @@ disqus_identifier: 93736917096573817128848063245533052220
 
         1. Determine the class of an object
 
-                o="test"                      # This is a value
+                o = "test"                      # This is a value
                 o.class                       # String: o is a String object
                 o.class.superclass            # Object: superclass of String is Object
                 o.class.superclass.superclass # nil: Object has no superclass
