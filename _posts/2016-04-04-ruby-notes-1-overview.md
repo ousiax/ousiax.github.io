@@ -78,7 +78,7 @@ disqus_identifier: 304705226039501129190960351359847979001
     A **Range** represents the values (usually integers) between two endpoints.
 
         /[Rr]buy/       # Matches "Ruby" or "ruby"
-        /\d{5}          # Matches 5 consecutive digits
+        /\d{5}/         # Matches 5 consecutive digits
         1..3            # All x where 1 <= x <= 3
         1...3           # All x where 1 <= x < 3
 
