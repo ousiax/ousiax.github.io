@@ -226,9 +226,9 @@ Alter the sequential execution, or *flow-of-control*, of a program with Ruby's *
 
 1. The for/in Loop
 
-    for var in collection do
-        body
-    end
+        for var in collection do
+            body
+        end
 
 ### Altering Control Flow
 
