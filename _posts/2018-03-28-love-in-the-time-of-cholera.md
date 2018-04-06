@@ -9,6 +9,12 @@ description: '安息吧，上帝在门口等着你。'
 disqus_identifier: 114186390936856334271693249050611932085
 ---
 
+<audio controls="" autoplay="" loop=""> 
+  <source src="/assets/love-in-the-time-of-cholera/audio/my-new-life-antonio-pinto.mp3" type="audio/mpeg">
+Your browser does not support the audio element.
+</audio>
+
+<small>(如果没有背景音乐，可把上面的开始按钮手动点亮)</small>
 \- 《霍乱时期的爱情》 加西亚・马尔克斯
 
 - - -
