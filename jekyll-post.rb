@@ -5,7 +5,7 @@
 # 
 # Copyright (c) 2018 ROY XU <qqbuby@gmail.com>
 #
-# Description: Create a jekyll post file named 'yyyy-MM-dd-title.md'.
+# Description: Create a jekyll post file named 'yyyy-MM-dd-title.md' with front matter.
 
 require 'optparse'
 require 'date'
@@ -44,7 +44,7 @@ disqus_identifier = SecureRandom::uuid.gsub('-','').hex
 
 filename = filename.gsub!(' ', '-').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".md"
-date = date.strftime('%Y-%m-%d %H-%M-%S %z')
+date = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
 front_matter = "---\nlayout: post\ntitle: #{title}\ndate: #{date}\ncategories: #{categories}\ntags: #{tags}\ndisqus_identifier: #{disqus_identifier}\n---"
 
