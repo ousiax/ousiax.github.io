@@ -6,6 +6,18 @@
 # Copyright (c) 2018 ROY XU <qqbuby@gmail.com>
 #
 # Description: Create a jekyll post file named 'yyyy-MM-dd-title.md' with front matter.
+#
+# Usage:
+# $ ./jekyll-post.rb -t 'Hello World' -c "['Hello', 'World']"
+# $ cat 2018-04-06-hello-world.md
+# ---
+# layout: post
+# title: Hello World
+# date: 2018-04-06 14:27:23 +0800
+# categories: ['Hello', 'World']
+# tags: ['Hello', 'World']
+# disqus_identifier: 80366368515793348026083669683423237092
+# ---
 
 require 'optparse'
 require 'date'
