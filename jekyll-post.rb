@@ -40,7 +40,7 @@ unless filename
 end
 
 date = DateTime.now
-disqus_identifier = SecureRandom::uuid
+disqus_identifier = SecureRandom::uuid.gsub('-','').hex
 
 filename = filename.gsub!(' ', '-').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".md"
