@@ -146,4 +146,4 @@ The problem of iteration variable capture is most often encountered when using t
 
 1. Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.
 1. [Blocks, declarations and scope](https://golang.org/ref/spec#Blocks), The Go Programming Language Specification.
-1. [Anonymous functions and closures](/misc/2016/04/03/anonymous-functions-and-closures.html)
+1. [Anonymous functions and closures](/2016/04/03/anonymous-functions-and-closures/)
