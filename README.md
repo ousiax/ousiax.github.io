@@ -1,4 +1,4 @@
-# [LESS IS MORE](http://qqbuby.github.io)
+# [LESS IS MORE](https://codefarm.me)
 
 * * *
 ```c
