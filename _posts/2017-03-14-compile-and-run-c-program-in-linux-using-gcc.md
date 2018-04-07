@@ -280,7 +280,7 @@ $ ldd hello
         /lib64/ld-linux-x86-64.so.2 (0x00007f318d193000)
 ```
 
-For more information about shared library, please refer to [Linux Shared Library Management & Debugging Problem](/linux/2016/05/12/linux-commands-for-shared-library-management-and-debugging-problem.html).
+For more information about shared library, please refer to [Linux Shared Library Management & Debugging Problem](/2016/05/12/linux-commands-for-shared-library-management-and-debugging-problem/).
 
 - - -
 
