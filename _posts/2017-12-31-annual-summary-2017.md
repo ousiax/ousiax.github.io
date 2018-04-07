@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "我的 2017 年"
-date: 2017-12-31 13-43-57 +0800
+date: 2017-12-31 13:43:57 +0800
 categories: ['Memo']
 tags: ['Memo']
 disqus_identifier: 314492726868437670328850965387411297897

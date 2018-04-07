@@ -2,7 +2,7 @@
 disqus_identifier: 235165406094971805784608620976197030460
 layout: post
 title: "诞生与死去-2013年度工作总结"
-date: 2013-01-13 15-26-45 +0800
+date: 2013-01-13 15:26:45 +0800
 categories: ['Memo',]
 tags: ['Memo',]
 ---

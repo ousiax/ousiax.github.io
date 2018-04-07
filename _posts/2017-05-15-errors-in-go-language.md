@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Errors in Go language"
-date: 2017-05-15 13-52-44 +0800
+date: 2017-05-15 13:52:44 +0800
 categories: ['Go',]
 tags: ['Go',]
 disqus_identifier: 152253863621932544857164999968478049190

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Object-oriented Programming in Go Language"
-date: 2017-05-21 17-27-56 +0800
+date: 2017-05-21 17:27:56 +0800
 categories: ['Go']
 tags: ['Go']
 disqus_identifier: 203179644519977345273349616101311842042

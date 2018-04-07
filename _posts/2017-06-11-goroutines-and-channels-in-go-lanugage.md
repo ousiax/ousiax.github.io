@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Goroutines and Channels in Go Lanugage"
-date: 2017-06-11 11-33-43 +0800
+date: 2017-06-11 11:33:43 +0800
 categories: ['Go']
 tags: ['Go', 'Goroutine', 'Channel']
 disqus_identifier: 173717911066083403588181774442153793683

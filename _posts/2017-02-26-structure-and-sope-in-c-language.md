@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Structure and Sope in C Language"
-date: 2017-02-26 12-00-08 +0800
+date: 2017-02-26 12:00:08 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 212712969519156400470368935825558304067

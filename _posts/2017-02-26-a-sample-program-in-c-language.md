@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "A Sample Program in C Language"
-date: 2017-02-26 12-40-33 +0800
+date: 2017-02-26 12:40:33 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 77281049507654241162378343330971305713

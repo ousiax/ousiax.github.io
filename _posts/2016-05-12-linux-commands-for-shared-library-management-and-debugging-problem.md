@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Linux Shared Library Management & Debugging Problem"
-date: 2016-05-12 18-26-42 +0800
+date: 2016-05-12 18:26:42 +0800
 categories: ['Linux']
 tags: ['Linux']
 disqus_identifier: 243398258692857642813586467616780302218

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Enumerations in C Language"
-date: 2017-02-28 18-52-27 +0800
+date: 2017-02-28 18:52:27 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 303038926370320173773895282387259497157

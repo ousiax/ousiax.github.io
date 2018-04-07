@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Pointers in C Language"
-date: 2017-03-02 17-19-51 +0800
+date: 2017-03-02 17:19:51 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 186579721564951921087832385494630209132

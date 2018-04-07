@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Get Docker CE for CentOS"
-date: 2017-07-20 15-37-21 +0800
+date: 2017-07-20 15:37:21 +0800
 categories: ['Docker']
 tags: ['Docker', 'CentOS']
 disqus_identifier: 263672491001721063426242575325651420571

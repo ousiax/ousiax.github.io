@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Renaming Types in C Language"
-date: 2017-03-03 11-20-37 +0800
+date: 2017-03-03 11:20:37 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 215457142518042398664729134666352614883

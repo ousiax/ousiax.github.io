@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Structures in C Language"
-date: 2017-03-01 11-20-55 +0800
+date: 2017-03-01 11:20:55 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 285213004662888038072671205127722289136

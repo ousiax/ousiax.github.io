@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Capturing Iteration Variables in Go Language"
-date: 2017-05-15 19-33-03 +0800
+date: 2017-05-15 19:33:03 +0800
 categories: ['Go']
 tags: ['Go', 'Closure', "Anonymous Functions"]
 disqus_identifier: 141757748613418085833278844065856773717

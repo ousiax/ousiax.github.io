@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "The sizeof Operator in C Language"
-date: 2017-03-03 11-47-55 +0800
+date: 2017-03-03 11:47:55 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 110768578835743024300567903040946918802

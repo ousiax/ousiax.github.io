@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Deffered Function Calls in Go Language"
-date: 2017-05-21 10-30-37 +0800
+date: 2017-05-21 10:30:37 +0800
 categories: ['Go']
 tags: ['Go']
 disqus_identifier: 43398230421857166741638950775453953109

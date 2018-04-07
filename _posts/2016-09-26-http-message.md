@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "HTTP 报文"
-date: 2016-09-26 18-31-14 +0800
+date: 2016-09-26 18:31:14 +0800
 categories: ['HTTP']
 tags: ['HTTP']
 disqus_identifier: 197062961628306391201287473987759321876

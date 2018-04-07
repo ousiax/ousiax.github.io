@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Compile and Run C Program in Linux Using gcc"
-date: 2017-03-14 15-41-52 +0800
+date: 2017-03-14 15:41:52 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 218913577362729603218920453083406134879

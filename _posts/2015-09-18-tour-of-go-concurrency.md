@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Tour of Go - Concurrency"
-date: 2015-09-18 21-12-40 +0800
+date: 2015-09-18 21:12:40 +0800
 categories: ['Go',]
 tags: ['Go', ]
 disqus_identifier: 145857008096721832496050507468847526304

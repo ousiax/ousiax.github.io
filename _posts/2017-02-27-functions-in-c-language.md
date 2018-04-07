@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Functions in C Language"
-date: 2017-02-27 14-43-39 +0800
+date: 2017-02-27 14:43:39 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 110626711474074828223206922383299503229

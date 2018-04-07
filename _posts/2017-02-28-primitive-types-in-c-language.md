@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Primitive Types in C Language"
-date: 2017-02-28 16-24-43 +0800
+date: 2017-02-28 16:24:43 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 144634406855718786306315904227731548500

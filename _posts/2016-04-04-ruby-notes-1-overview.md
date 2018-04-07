@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Ruby Notes 1 Overview"
-date: 2016-04-04 20-27-17 +0800
+date: 2016-04-04 20:27:17 +0800
 categories: ['Ruby']
 tags: ['Ruby', 'The Ruby Programming Language']
 disqus_identifier: 304705226039501129190960351359847979001

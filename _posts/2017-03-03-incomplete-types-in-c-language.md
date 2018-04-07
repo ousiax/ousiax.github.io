@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Incomplete Types in C Language"
-date: 2017-03-03 11-10-30 +0800
+date: 2017-03-03 11:10:30 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 251921865815762789706878812159064652731

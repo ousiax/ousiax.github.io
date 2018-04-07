@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "01 A Tour of Computer Systems"
-date: 2016-07-29 08-20-48 +0800
+date: 2016-07-29 08:20:48 +0800
 categories: ['Computer Systems',]
 tags: ['Computer Systems',]
 disqus_identifier: 252397676093320183531364236369978394903

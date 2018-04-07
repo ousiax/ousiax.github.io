@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "02 Representing and Manipulating Information"
-date: 2016-08-09 09-33-32 +0800
+date: 2016-08-09 09:33:32 +0800
 categories: ['Computer Systems']
 tags: ['Computer Systems']
 disqus_identifier: 200820953271057489688831391671548082137

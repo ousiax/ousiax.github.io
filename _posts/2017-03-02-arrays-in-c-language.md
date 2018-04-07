@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Arrays in C Language"
-date: 2017-03-02 10-45-15 +0800
+date: 2017-03-02 10:45:15 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 328214664511166649524359910736345732450

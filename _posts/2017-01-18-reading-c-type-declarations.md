@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Reading C type declarations"
-date: 2017-01-18 11-31-28 +0800
+date: 2017-01-18 11:31:28 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 65307364381866740415511172598175329721

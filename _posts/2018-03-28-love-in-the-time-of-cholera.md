@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Love In The Time Of Cholera"
-date: 2018-03-28 22-09-27 +0800
+date: 2018-03-28 22:09:27 +0800
 categories: ['Novel']
 tags: ['Novel']
 excerpt: '霍乱时期的爱情'

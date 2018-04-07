@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Introducing .NET Core"
-date: 2016-04-21 18-42-47 +0800
+date: 2016-04-21 18:42:47 +0800
 categories: ['.NET']
 tags: ['.NET']
 disqus_identifier: 35811435433344702174377364430072930216

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Calling Convention in x86 Assembly"
-date: 2017-12-23 18-41-19 +0800
+date: 2017-12-23 18:41:19 +0800
 categories: ['Assembly']
 tags: ['Assembly']
 disqus_identifier: 24791077740614535757766520032384790733

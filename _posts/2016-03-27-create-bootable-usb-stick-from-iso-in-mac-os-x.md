@@ -2,7 +2,7 @@
 disqus_identifier: 43362371170676917162452558258983273616
 layout: post
 title: "Create bootable USB stick from ISO in Mac OS X"
-date: 2016-03-27 11-06-05 +0800
+date: 2016-03-27 11:06:05 +0800
 categories: ['OS X',]
 tags: ['OS X', 'Bootable USB', 'ISO',]
 ---

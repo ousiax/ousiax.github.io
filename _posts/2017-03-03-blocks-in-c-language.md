@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Blocks in C Language"
-date: 2017-03-03 12-01-57 +0800
+date: 2017-03-03 12:01:57 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 269113690989633562647698810160673447942

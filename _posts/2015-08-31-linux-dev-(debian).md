@@ -2,7 +2,7 @@
 disqus_identifier: 137767400007191038414297736775556603941
 layout: post
 title: "Linux Dev (Debian)"
-date: 2015-08-31 09-10-45 +0800
+date: 2015-08-31 09:10:45 +0800
 categories: ['Linux',]
 tags: ['Linux', 'Debian',]
 ---

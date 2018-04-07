@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "POSIX Threads Programming in C Language"
-date: 2017-03-09 16-29-29 +0800
+date: 2017-03-09 16:29:29 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 21493735310366146726844093771521945239

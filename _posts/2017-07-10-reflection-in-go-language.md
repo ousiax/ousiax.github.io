@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Reflection in Go Language"
-date: 2017-07-10 18-11-09 +0800
+date: 2017-07-10 18:11:09 +0800
 categories: ['Go']
 tags: ['Go']
 disqus_identifier: 150037307151081399886760146224917375989

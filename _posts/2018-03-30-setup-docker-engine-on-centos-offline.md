@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Setup Docker Engine on Centos Offline"
-date: 2018-03-30 13-50-26 +0800
+date: 2018-03-30 13:50:26 +0800
 categories: ['Docker']
 tags: ['RPM', 'CentOS', 'Docker']
 disqus_identifier: 129702628909276427804609582586083641564

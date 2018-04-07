@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Anonymous functions and closures"
-date: 2016-04-03 06-36-48 +0800
+date: 2016-04-03 06:36:48 +0800
 categories: ['Misc',]
 tags: ['Programming Language', 'Lambda', 'Closure']
 disqus_identifier: 253207475315520978685533137076644128787

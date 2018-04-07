@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Keywords in C Language"
-date: 2017-02-26 09-32-02 +0800
+date: 2017-02-26 09:32:02 +0800
 categories: ['C']
 tags: ['C']
 disqus_identifier: 202693019303021835597724434992607825735
