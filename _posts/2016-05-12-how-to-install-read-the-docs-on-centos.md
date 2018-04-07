@@ -12,7 +12,7 @@ First, obtain [Python 2.7](http://www.python.org/) and [virtualenv](http://pypi.
 
 ### Python 2.7
 
-To install Python 2.7 from source, please see [How to install Python 2.7 from source on CentOS](/python/2016/05/11/how-to-install-python-2.7-from-source-on-centos.html).
+To install Python 2.7 from source, please see [How to install Python 2.7 from source on CentOS](/2016/05/11/how-to-install-python-2.7-from-source-on-centos/).
 
 Linux users may find they need to install a few additional packages in order to sucessfully execute `pip install -r requirements.txt`. For example, a clean install of CentOS 5.11 (Final) will require the following packages:
 
@@ -109,7 +109,7 @@ Example `local_settings.py`:
 
 ### uWSGI
 
-To install uWSGI with Python support, please refer to [Python & WSGI applications](/python/2016/05/13/python-and-wsgi-applications.html)
+To install uWSGI with Python support, please refer to [Python & WSGI applications](/2016/05/13/python-and-wsgi-applications/)
 
     cd rtd
     source bin/active
@@ -254,10 +254,10 @@ class AuthenticationMiddleware(object):
 
 * [linux - git clone: fatal: Unable to find remote helper for 'https' - Stack Overflow](http://stackoverflow.com/questions/8329485/git-clone-fatal-unable-to-find-remote-helper-for-https)
 
-* [Python & WSGI applications](/python/2016/05/13/python-and-wsgi-applications.html)
+* [Python & WSGI applications](/2016/05/13/python-and-wsgi-applications/)
 
 * [Building nginx from Sources](http://nginx.org/en/docs/configure.html)
 
 * [Module ngx_http_core_module](http://nginx.org/en/docs/http/ngx_http_core_module.html)
 
-* [XSendfile | NGINX](https://www.nginx.com/resources/wiki/start/topics/examples/xsendfile/)
+* [XSendfile \| NGINX](https://www.nginx.com/resources/wiki/start/topics/examples/xsendfile/)
