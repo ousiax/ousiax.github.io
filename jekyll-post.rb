@@ -54,7 +54,7 @@ end
 date = DateTime.now
 disqus_identifier = SecureRandom::uuid.gsub('-','').hex
 
-filename = filename.gsub!(' ', '-').gsub!(/\(|\)|\./, '').downcase
+filename = filename.gsub(' ', '-').gsub(/\(|\)|\./, '').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".md"
 date = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
