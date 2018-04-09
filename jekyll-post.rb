@@ -29,7 +29,7 @@ OptionParser.new do |opts|
     opts.on('-t', '--title title', 'The title of the post') { |t| options[:title] = t }
     opts.on('-c', '--category [\'category1\', \'category2\', .., \'categoryN\']', 'The category of the post') { |c| options[:category] = c }
     opts.on('-f', '--filename filename', 'The file name of the post without date, default is \'--title\'') { |f| options[:filename] = f }
-    opts.on('--tag [\'tag1\', \'tag2\', .., \'tagN\']', 'The tags of the post') { |tag| options[:tag] = o }
+    opts.on('--tag [\'tag1\', \'tag2\', .., \'tagN\']', 'The tags of the post') { |tag| options[:tag] = tag }
     opts.on('-h', '--help', 'Show this help message and exit')  do
         puts opts
         exit
