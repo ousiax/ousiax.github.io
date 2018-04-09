@@ -75,188 +75,6 @@ EIDE devices are identifier as *hda*, *hdb*, *hdc*, and *hdd* in the */dev* dire
 
 SCSI devices are listed as devices *sda*, *sdb*, *sdc*, *sdd*, *sde*, *sdf*, and *sdg* in the */dev* directory. Similarly, partions on these disks can range from 1 to 16 and also in the */dev* directory. For example, */dev/sda3* refers to partions 3 on SCSI disk a (fisrt SCSI hard disk).
 
-The follow example create three primary partions and one extended partion with two logical partions:
-
-```sh
-$ fdisk /dev/sdc
-
-Welcome to fdisk (util-linux 2.29.2).
-Changes will remain in memory only, until you decide to write them.
-Be careful before using the write command.
-
-
-Command (m for help): p
-Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x913e673b
-
-Command (m for help): n
-Partition type
-   p   primary (0 primary, 0 extended, 4 free)
-   e   extended (container for logical partitions)
-Select (default p): p
-Partition number (1-4, default 1): 1
-First sector (2048-41943039, default 2048):
-Last sector, +sectors or +size{K,M,G,T,P} (2048-41943039, default 41943039): +1G
-
-Created a new partition 1 of type 'Linux' and of size 1 GiB.
-
-Command (m for help): p
-Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x913e673b
-
-Device     Boot Start     End Sectors Size Id Type
-/dev/sdc1        2048 2099199 2097152   1G 83 Linux
-
-Command (m for help): n
-Partition type
-   p   primary (1 primary, 0 extended, 3 free)
-   e   extended (container for logical partitions)
-Select (default p):
-
-Using default response p.
-Partition number (2-4, default 2):
-First sector (2099200-41943039, default 2099200):
-Last sector, +sectors or +size{K,M,G,T,P} (2099200-41943039, default 41943039): +1G
-
-Created a new partition 2 of type 'Linux' and of size 1 GiB.
-
-Command (m for help): n
-Partition type
-   p   primary (2 primary, 0 extended, 2 free)
-   e   extended (container for logical partitions)
-Select (default p):
-
-Using default response p.
-Partition number (3,4, default 3):
-First sector (4196352-41943039, default 4196352):
-Last sector, +sectors or +size{K,M,G,T,P} (4196352-41943039, default 41943039): +500M
-
-Created a new partition 3 of type 'Linux' and of size 500 MiB.
-
-Command (m for help): p
-Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x913e673b
-
-Device     Boot   Start     End Sectors  Size Id Type
-/dev/sdc1          2048 2099199 2097152    1G 83 Linux
-/dev/sdc2       2099200 4196351 2097152    1G 83 Linux
-/dev/sdc3       4196352 5220351 1024000  500M 83 Linux
-
-Command (m for help): n
-Partition type
-   p   primary (3 primary, 0 extended, 1 free)
-   e   extended (container for logical partitions)
-Select (default e): e
-
-Selected partition 4
-First sector (5220352-41943039, default 5220352):
-Last sector, +sectors or +size{K,M,G,T,P} (5220352-41943039, default 41943039):
-
-Created a new partition 4 of type 'Extended' and of size 17.5 GiB.
-
-Command (m for help): p
-Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x913e673b
-
-Device     Boot   Start      End  Sectors  Size Id Type
-/dev/sdc1          2048  2099199  2097152    1G 83 Linux
-/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
-/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
-/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
-
-Command (m for help): n
-All primary partitions are in use.
-Adding logical partition 5
-First sector (5222400-41943039, default 5222400):
-Last sector, +sectors or +size{K,M,G,T,P} (5222400-41943039, default 41943039): +500M
-
-Created a new partition 5 of type 'Linux' and of size 500 MiB.
-
-Command (m for help): p
-Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x913e673b
-
-Device     Boot   Start      End  Sectors  Size Id Type
-/dev/sdc1          2048  2099199  2097152    1G 83 Linux
-/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
-/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
-/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
-/dev/sdc5       5222400  6246399  1024000  500M 83 Linux
-
-Command (m for help): n
-All primary partitions are in use.
-Adding logical partition 6
-First sector (6248448-41943039, default 6248448):
-Last sector, +sectors or +size{K,M,G,T,P} (6248448-41943039, default 41943039): +10G
-
-Created a new partition 6 of type 'Linux' and of size 10 GiB.
-
-Command (m for help): p
-Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x913e673b
-
-Device     Boot   Start      End  Sectors  Size Id Type
-/dev/sdc1          2048  2099199  2097152    1G 83 Linux
-/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
-/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
-/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
-/dev/sdc5       5222400  6246399  1024000  500M 83 Linux
-/dev/sdc6       6248448 27219967 20971520   10G 83 Linux
-
-Command (m for help): F
-Unpartitioned space /dev/sdc: 7 GiB, 7537164288 bytes, 14721024 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-
-   Start      End  Sectors Size
-27222016 41943039 14721024   7G
-
-Command (m for help): w
-The partition table has been altered.
-Calling ioctl() to re-read partition table.
-Syncing disks.
-
-$ lsblk
-NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
-sda      8:0    0   20G  0 disk
-├─sda1   8:1    0 19.1G  0 part /
-├─sda2   8:2    0    1K  0 part
-└─sda5   8:5    0  880M  0 part [SWAP]
-sdb      8:16   0   20G  0 disk
-└─sdb1   8:17   0   20G  0 part /data
-sdc      8:32   0   20G  0 disk
-├─sdc1   8:33   0    1G  0 part
-├─sdc2   8:34   0    1G  0 part
-├─sdc3   8:35   0  500M  0 part
-├─sdc4   8:36   0    1K  0 part
-├─sdc5   8:37   0  500M  0 part
-└─sdc6   8:38   0   10G  0 part
-```
-
 ## Disk formatting
 
 **Disk formatting** is the process of preparing a data storage device such as a hard disk driver, solid-state driver, floppy disk or USB flash driver for initial use. In some cases, the formatting operation may also create one or more new file systems. The first part ot formatting process that performs basic medium preparation is often referred to as "low-level formatting". Partioning is the common term for the second part of the process, making the data storage visible to an operating system. The third part of the process, usually termed "high-level formatting" most often refers to the process of generating a new file system. In some operating systems all or parts of these three processes can be combined or repeated at different levels and the term "format" is understood to mean an operation in which a new disk medium is fully prepared to store files.
@@ -439,6 +257,190 @@ df -hT -text4
 Filesystem     Type  Size  Used Avail Use% Mounted on
 /dev/sda1      ext4   19G   13G  5.5G  70% /
 /dev/sdc1      ext4 1008M  1.3M  956M   1% /tmp/a
+```
+
+## An example to partion a new disk
+
+The follow example create three primary partions and one extended partion with two logical partions:
+
+```sh
+$ fdisk /dev/sdc
+
+Welcome to fdisk (util-linux 2.29.2).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+
+Command (m for help): p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x913e673b
+
+Command (m for help): n
+Partition type
+   p   primary (0 primary, 0 extended, 4 free)
+   e   extended (container for logical partitions)
+Select (default p): p
+Partition number (1-4, default 1): 1
+First sector (2048-41943039, default 2048):
+Last sector, +sectors or +size{K,M,G,T,P} (2048-41943039, default 41943039): +1G
+
+Created a new partition 1 of type 'Linux' and of size 1 GiB.
+
+Command (m for help): p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x913e673b
+
+Device     Boot Start     End Sectors Size Id Type
+/dev/sdc1        2048 2099199 2097152   1G 83 Linux
+
+Command (m for help): n
+Partition type
+   p   primary (1 primary, 0 extended, 3 free)
+   e   extended (container for logical partitions)
+Select (default p):
+
+Using default response p.
+Partition number (2-4, default 2):
+First sector (2099200-41943039, default 2099200):
+Last sector, +sectors or +size{K,M,G,T,P} (2099200-41943039, default 41943039): +1G
+
+Created a new partition 2 of type 'Linux' and of size 1 GiB.
+
+Command (m for help): n
+Partition type
+   p   primary (2 primary, 0 extended, 2 free)
+   e   extended (container for logical partitions)
+Select (default p):
+
+Using default response p.
+Partition number (3,4, default 3):
+First sector (4196352-41943039, default 4196352):
+Last sector, +sectors or +size{K,M,G,T,P} (4196352-41943039, default 41943039): +500M
+
+Created a new partition 3 of type 'Linux' and of size 500 MiB.
+
+Command (m for help): p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start     End Sectors  Size Id Type
+/dev/sdc1          2048 2099199 2097152    1G 83 Linux
+/dev/sdc2       2099200 4196351 2097152    1G 83 Linux
+/dev/sdc3       4196352 5220351 1024000  500M 83 Linux
+
+Command (m for help): n
+Partition type
+   p   primary (3 primary, 0 extended, 1 free)
+   e   extended (container for logical partitions)
+Select (default e): e
+
+Selected partition 4
+First sector (5220352-41943039, default 5220352):
+Last sector, +sectors or +size{K,M,G,T,P} (5220352-41943039, default 41943039):
+
+Created a new partition 4 of type 'Extended' and of size 17.5 GiB.
+
+Command (m for help): p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sdc1          2048  2099199  2097152    1G 83 Linux
+/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
+/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
+/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
+
+Command (m for help): n
+All primary partitions are in use.
+Adding logical partition 5
+First sector (5222400-41943039, default 5222400):
+Last sector, +sectors or +size{K,M,G,T,P} (5222400-41943039, default 41943039): +500M
+
+Created a new partition 5 of type 'Linux' and of size 500 MiB.
+
+Command (m for help): p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sdc1          2048  2099199  2097152    1G 83 Linux
+/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
+/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
+/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
+/dev/sdc5       5222400  6246399  1024000  500M 83 Linux
+
+Command (m for help): n
+All primary partitions are in use.
+Adding logical partition 6
+First sector (6248448-41943039, default 6248448):
+Last sector, +sectors or +size{K,M,G,T,P} (6248448-41943039, default 41943039): +10G
+
+Created a new partition 6 of type 'Linux' and of size 10 GiB.
+
+Command (m for help): p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sdc1          2048  2099199  2097152    1G 83 Linux
+/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
+/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
+/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
+/dev/sdc5       5222400  6246399  1024000  500M 83 Linux
+/dev/sdc6       6248448 27219967 20971520   10G 83 Linux
+
+Command (m for help): F
+Unpartitioned space /dev/sdc: 7 GiB, 7537164288 bytes, 14721024 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+
+   Start      End  Sectors Size
+27222016 41943039 14721024   7G
+
+Command (m for help): w
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
+
+$ lsblk
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+├─sda1   8:1    0 19.1G  0 part /
+├─sda2   8:2    0    1K  0 part
+└─sda5   8:5    0  880M  0 part [SWAP]
+sdb      8:16   0   20G  0 disk
+└─sdb1   8:17   0   20G  0 part /data
+sdc      8:32   0   20G  0 disk
+├─sdc1   8:33   0    1G  0 part
+├─sdc2   8:34   0    1G  0 part
+├─sdc3   8:35   0  500M  0 part
+├─sdc4   8:36   0    1K  0 part
+├─sdc5   8:37   0  500M  0 part
+└─sdc6   8:38   0   10G  0 part
 ```
 
 ## References
