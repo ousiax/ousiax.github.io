@@ -85,46 +85,45 @@ Once you've partioned your hard disk using `fdisk` command, use `make2fs` to cre
 
 - Create an ext2 file system:
 
-```sh
-mke2fs /dev/sdc1
-```
+    ```sh
+    mke2fs /dev/sdc1
+    ```
 
 - Create an ext3 file system:
 
-```sh
-mkfs.ext3 /dev/sda1
-```
-
-(or)
-
-```sh
-mke2fs -j /dev/sda1
-```
+    ```sh
+    mkfs.ext3 /dev/sda1
+    ```
+    
+    (or)
+    
+    ```sh
+    mke2fs -j /dev/sda1
+    ```
 
 - Create an ext4 file system:
 
-```sh
-mkfs.ext4 /dev/sda1
-```
-
-(or)
-
-```sh
-mke2fs -t ext4 /dev/sda1
-```
+    ```sh
+    mkfs.ext4 /dev/sda1
+    ```
+    
+    (or)
+    
+    ```sh
+    mke2fs -t ext4 /dev/sda1
+    ```
 
 - Create an xfs file system:
 
-```sh
-mkfs.xfs /dev/sda1
-```
-
-(or)
-
-```sh
-mke2fs -t xfs /dev/sda1
-```
-
+    ```sh
+    mkfs.xfs /dev/sda1
+    ```
+    
+    (or)
+    
+    ```sh
+    mke2fs -t xfs /dev/sda1
+    ```
 
 #### Converting ext2 to ext3
 
