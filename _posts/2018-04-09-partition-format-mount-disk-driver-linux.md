@@ -79,9 +79,9 @@ SCSI devices are listed as devices *sda*, *sdb*, *sdc*, *sdd*, *sde*, *sdf*, and
 
 **Disk formatting** is the process of preparing a data storage device such as a hard disk driver, solid-state driver, floppy disk or USB flash driver for initial use. In some cases, the formatting operation may also create one or more new file systems. The first part ot formatting process that performs basic medium preparation is often referred to as "low-level formatting". Partioning is the common term for the second part of the process, making the data storage visible to an operating system. The third part of the process, usually termed "high-level formatting" most often refers to the process of generating a new file system. In some operating systems all or parts of these three processes can be combined or repeated at different levels and the term "format" is understood to mean an operation in which a new disk medium is fully prepared to store files.
 
-### Creating an ext2, or ext3, or ext4 filesystem
+### Creating an ext2, or ext3, or ext4, or xfs filesystem
 
-Once you've partioned your hard disk using `fdisk` command, use `make2fs` to create *ext2*, *ext3*, or *ext4* file system.
+Once you've partioned your hard disk using `fdisk` command, use `make2fs` to create *ext2*, *ext3*, *ext4* or *xfs* file system.
 
 - Create an ext2 file system:
 
