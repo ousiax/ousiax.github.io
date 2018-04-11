@@ -113,6 +113,19 @@ mkfs.ext4 /dev/sda1
 mke2fs -t ext4 /dev/sda1
 ```
 
+- Create an xfs file system:
+
+```sh
+mkfs.xfs /dev/sda1
+```
+
+(or)
+
+```sh
+mke2fs -t xfs /dev/sda1
+```
+
+
 #### Converting ext2 to ext3
 
 For example, if you are upgrading */dev/sda2* that is mounted as */home*, from ext2 to ext3, do the following.
