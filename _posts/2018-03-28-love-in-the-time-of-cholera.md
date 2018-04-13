@@ -9,12 +9,10 @@ description: '安息吧，上帝在门口等着你。'
 disqus_identifier: 114186390936856334271693249050611932085
 ---
 
-<audio controls="" autoplay="" loop=""> 
-  <source src="/assets/love-in-the-time-of-cholera/audio/my-new-life-antonio-pinto.mp3" type="audio/mpeg">
+<audio controls="">
+  <source src="/assets/love-in-the-time-of-cholera/audio/love-antonio-pinto.mp3" type="audio/mpeg">
 Your browser does not support the audio element.
 </audio>
-
-<small>(如果没有背景音乐，可把上面的开始按钮手动点亮)</small>
 
 \- 《霍乱时期的爱情》 加西亚・马尔克斯
 
@@ -153,3 +151,10 @@ P274
 太阳落山时，炎热消退，船上又恢复了生气。旅客们像刚从冬眠中苏醒一般，洗好澡，换上干净的衣服，纷纷露面。占据了大厅的藤椅，等待开晚饭。五点钟整，一名侍者从甲板的一头跑到另一头，在人们嘲弄的掌声中响起教堂司事的铃铛，宣布晚餐开始。用餐时，乐队奏起方丹歌舞曲，舞会将一直持续到半夜。
 
 P383
+
+- - -
+
+<audio controls="" loop=""> 
+  <source src="/assets/love-in-the-time-of-cholera/audio/my-new-life-antonio-pinto.mp3" type="audio/mpeg">
+Your browser does not support the audio element.
+</audio>
