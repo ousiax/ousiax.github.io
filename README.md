@@ -61,6 +61,25 @@ func main() {
 }
 ```
 
+```go
+package main
+
+/*
+#include <stdio.h>
+
+int _()
+{
+    printf("Hello, 世界!\n");
+    return 0;
+}
+*/
+import "C"
+
+func main() {
+	C._()
+}
+```
+
 * * *
 
 ```ruby
