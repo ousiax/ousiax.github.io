@@ -71,7 +71,7 @@ iptables contains five tables:
 
 In most common use cases you will only use two of these: **filter** and **nat**.
 
-### Chains
+#### Chains
 
 Tables consist of *chains*, which are lists of rules which are followed in order. The default table, `filter`, contains three bultin-chain: `INPUT`, `OUTPUT` and `FORWARD` which are actived at different points of the packet filtering process, as illustrated in the flow chart.
 
@@ -89,7 +89,7 @@ The nat table incudes `PREROUTING`, `POSTROUTING`, and `OUTPUT` chains.
 
 `OUTPUT` - NAT for locally generated packets on the firewall.
 
-### Rules
+#### Rules
 
 Packet fitlering is based on *rules*, which are specified by multiple *matches* (condition the packet must satisfy so that the rule can be applied), and on *target* (action taken when the packet matches all conditions). The typical things a rule might match on are what interface the packet came in on (e.g eth0 or eth1), what type of packet it is (ICMP, TCP, or UDP), or the desitination port of the packet.
 
