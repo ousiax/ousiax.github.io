@@ -381,6 +381,46 @@ DROP       all  --  anywhere             anywhere
     ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
     ```
 
+- Create User Defined Chain / Target
+
+    ```sh
+    $ sudo iptables -N CODE_FARM
+    $ sudo iptables -L | grep 'Chain'
+    Chain INPUT (policy ACCEPT)
+    Chain FORWARD (policy ACCEPT)
+    Chain OUTPUT (policy ACCEPT)
+    Chain CODE_FARM (0 references)
+    
+    $ sudo iptables -A INPUT -p tcp --dport 22 -j CODE_FARM
+    $ sudo iptables -L
+    Chain INPUT (policy ACCEPT)
+    target     prot opt source               destination
+    CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+    
+    Chain CODE_FARM (1 references)
+    target     prot opt source               destination
+    
+    $ sudo iptables -A CODE_FARM -p tcp -j ACCEPT
+    $ sudo iptables -L
+    Chain INPUT (policy ACCEPT)
+    target     prot opt source               destination
+    CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+    
+    Chain CODE_FARM (1 references)
+    target     prot opt source               destination
+    ACCEPT     tcp  --  anywhere             anywhere
+    
+    $ sudo iptables -P INPUT DROP
+    $ sudo iptables -L
+    Chain INPUT (policy DROP)
+    target     prot opt source               destination
+    CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+    
+    Chain CODE_FARM (1 references)
+    target     prot opt source               destination
+    ACCEPT     tcp  --  anywhere             anywhere
+    ```
+
 ## References
 
 1. The netfilter.org project, [https://netfilter.org/index.html](https://netfilter.org/index.html)
