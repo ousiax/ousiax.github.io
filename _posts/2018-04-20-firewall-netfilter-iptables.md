@@ -280,7 +280,7 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
 DROP       all  --  anywhere             anywhere
 ```
 
-#### Others
+#### Allow Incomming Traffic on Specific IP Addresses
 
 - Here `-s 0/0` stand for any incomming source with any IP addresses.
 
@@ -318,108 +318,110 @@ DROP       all  --  anywhere             anywhere
     ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
     ```
 
-- Blocing ICPM
+#### Blocing ICPM
 
-    ```sh
-    $ sudo iptables -A OUTPUT -p icmp --icmp-type 8 -j DROP
-    $ sudo iptables -L
-    Chain OUTPUT (policy ACCEPT)
-    target     prot opt source               destination
-    DROP       icmp --  anywhere             anywhere             icmp echo-request
-    $ ping www.codefarm.me
-    PING www.codefarm.me (104.27.162.235) 56(84) bytes of data.
-    ping: sendmsg: Operation not permitted
-    ```
+```sh
+$ sudo iptables -A OUTPUT -p icmp --icmp-type 8 -j DROP
+$ sudo iptables -L
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+DROP       icmp --  anywhere             anywhere             icmp echo-request
+$ ping www.codefarm.me
+PING www.codefarm.me (104.27.162.235) 56(84) bytes of data.
+ping: sendmsg: Operation not permitted
+```
 
-    ```sh
-    $ sudo iptables -A INPUT -p icmp --icmp-type 8 -j DROP
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    DROP       icmp --  anywhere             anywhere             icmp echo-request
-    ```
-- Blocking MongoDB from outside attach
+```sh
+$ sudo iptables -A INPUT -p icmp --icmp-type 8 -j DROP
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+DROP       icmp --  anywhere             anywhere             icmp echo-request
+```
 
-    ```sh
-    $ sudo iptables -A INPUT -p tcp -s 192.168.66.0/24 --dport 27017 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:27017
-    ```
-    
-- Block DDOS
-    
-    ```sh
-    $ sudo iptables -A INPUT -p tcp --dport 80 -m limit --limit 20/minute --limit-burst 100 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http limit: avg 20/min burst 100
-    ```
-- Insert a New Rule / Replace an Old Rule
+#### Blocking MongoDB from outside attach
 
-    ```sh
-    $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+```sh
+$ sudo iptables -A INPUT -p tcp -s 192.168.66.0/24 --dport 27017 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:27017
+```
     
-    $ sudo iptables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+#### Block DDOS
     
-    $ sudo iptables -R INPUT 1 -p tcp --dport 443 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
-    ```
+```sh
+$ sudo iptables -A INPUT -p tcp --dport 80 -m limit --limit 20/minute --limit-burst 100 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http limit: avg 20/min burst 100
+```
 
-- Create User Defined Chain / Target
+#### Insert a New Rule / Replace an Old Rule
 
-    ```sh
-    $ sudo iptables -N CODE_FARM
-    $ sudo iptables -L | grep 'Chain'
-    Chain INPUT (policy ACCEPT)
-    Chain FORWARD (policy ACCEPT)
-    Chain OUTPUT (policy ACCEPT)
-    Chain CODE_FARM (0 references)
-    
-    $ sudo iptables -A INPUT -p tcp --dport 22 -j CODE_FARM
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
-    
-    Chain CODE_FARM (1 references)
-    target     prot opt source               destination
-    
-    $ sudo iptables -A CODE_FARM -p tcp -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
-    
-    Chain CODE_FARM (1 references)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere
-    
-    $ sudo iptables -P INPUT DROP
-    $ sudo iptables -L
-    Chain INPUT (policy DROP)
-    target     prot opt source               destination
-    CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
-    
-    Chain CODE_FARM (1 references)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere
-    ```
+```sh
+$ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+
+$ sudo iptables -I INPUT 1 -p tcp --dport 22 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+
+$ sudo iptables -R INPUT 1 -p tcp --dport 443 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+```
+
+#### Create User Defined Chain / Target
+
+```sh
+$ sudo iptables -N CODE_FARM
+$ sudo iptables -L | grep 'Chain'
+Chain INPUT (policy ACCEPT)
+Chain FORWARD (policy ACCEPT)
+Chain OUTPUT (policy ACCEPT)
+Chain CODE_FARM (0 references)
+
+$ sudo iptables -A INPUT -p tcp --dport 22 -j CODE_FARM
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+
+Chain CODE_FARM (1 references)
+target     prot opt source               destination
+
+$ sudo iptables -A CODE_FARM -p tcp -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+
+Chain CODE_FARM (1 references)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere
+
+$ sudo iptables -P INPUT DROP
+$ sudo iptables -L
+Chain INPUT (policy DROP)
+target     prot opt source               destination
+CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+
+Chain CODE_FARM (1 references)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere
+```
 
 ## References
 
