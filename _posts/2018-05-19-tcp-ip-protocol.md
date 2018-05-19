@@ -39,3 +39,7 @@ disqus_identifier: 80388571727017400896826908453668197145
 ### IEEE 802.2/802.3 (RFC 1042) 和以太网的封装格式 (RFC 894)
 
 ![IEEE 802.2/802.3 (RFC 1042) 和以太网的封装格式 (RFC 894)](/assets/tcp-ip-protocol/ieee802.2-ethernet-frame-format.svg)
+
+### 环回接口处理 IP 数据报的过程
+
+![环回接口处理 IP 数据报的过程](/assets/tcp-ip-protocol/loopback-interface-ip-packet-handling.svg)
