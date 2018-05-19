@@ -35,3 +35,7 @@ disqus_identifier: 80388571727017400896826908453668197145
 ![数据进入协议栈时的封装过程](/assets/tcp-ip-protocol/data-segment-frame-wrapper.svg)
 
 - - -
+
+### IEEE 802.2/802.3 (RFC 1042) 和以太网的封装格式 (RFC 894)
+
+![IEEE 802.2/802.3 (RFC 1042) 和以太网的封装格式 (RFC 894)](/assets/tcp-ip-protocol/ieee802.2-ethernet-frame-format.svg)
