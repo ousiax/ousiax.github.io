@@ -1,0 +1,37 @@
+---
+layout: post
+title: TCP/IP protocol
+date: 2018-05-19 18:03:47 +0800
+categories: ['TCP/IP']
+tags: ['TCP/IP']
+disqus_identifier: 80388571727017400896826908453668197145
+---
+
+- TOC
+{:toc}
+
+- - -
+
+### 局域网上运行 HTTP 的两台主机
+
+![局域网上运行 HTTP 的两台主机](/assets/tcp-ip-protocol/tcp-ip-http-host-on-lan.svg)
+
+- - -
+
+### TCP/IP 协议族中不同层次的协议 
+
+![TCP/IP 协议族中不同层次的协议](/assets/tcp-ip-protocol/tcp-ip-family-layer.svg)
+
+- - -
+
+### 五类互联网地址
+
+![五类互联网地址](/assets/tcp-ip-protocol/ip-address-class.svg)
+
+- - -
+
+### 数据进入协议栈时的封装过程
+
+![数据进入协议栈时的封装过程](/assets/tcp-ip-protocol/data-segment-frame-wrapper.svg)
+
+- - -
