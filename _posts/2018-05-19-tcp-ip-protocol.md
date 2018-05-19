@@ -45,3 +45,11 @@ disqus_identifier: 80388571727017400896826908453668197145
 ### 环回接口处理 IP 数据报的过程
 
 ![环回接口处理 IP 数据报的过程](/assets/tcp-ip-protocol/loopback-interface-ip-packet-handling.svg)
+
+- - -
+
+### IP 数据报格式及首部各字段
+
+![IP 数据报格式及首部各字段](/assets/tcp-ip-protocol/ip-data-packet-format.svg)
+
+- - -
