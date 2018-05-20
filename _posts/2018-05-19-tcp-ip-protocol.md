@@ -45,6 +45,13 @@ disqus_identifier: 80388571727017400896826908453668197145
 #### SLIP 报文的封装
 
 ![SLIP 报文的封装](/assets/tcp-ip-protocol/slip.svg)
+
+- - -
+
+#### PPP 数据帧的格式
+
+![PPP 数据帧的格式](/assets/tcp-ip-protocol/ppp.svg)
+
 - - -
 
 ### 环回接口处理 IP 数据报的过程
@@ -57,3 +64,8 @@ disqus_identifier: 80388571727017400896826908453668197145
 
 ![IP 数据报格式及首部各字段](/assets/tcp-ip-protocol/ip-data-packet-format.svg)
 
+- - -
+
+### 用于以太网的 ARP/RARP 请求或应答分组格式
+
+![用于以太网的 ARP/RARP 请求或应答分组格式](/assets/tcp-ip-protocol/arp-rarp-packet-format.svg)
