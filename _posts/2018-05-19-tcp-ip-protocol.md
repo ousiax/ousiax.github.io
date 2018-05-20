@@ -42,6 +42,11 @@ disqus_identifier: 80388571727017400896826908453668197145
 
 - - -
 
+#### SLIP 报文的封装
+
+![SLIP 报文的封装](/assets/tcp-ip-protocol/slip.svg)
+- - -
+
 ### 环回接口处理 IP 数据报的过程
 
 ![环回接口处理 IP 数据报的过程](/assets/tcp-ip-protocol/loopback-interface-ip-packet-handling.svg)
@@ -52,4 +57,3 @@ disqus_identifier: 80388571727017400896826908453668197145
 
 ![IP 数据报格式及首部各字段](/assets/tcp-ip-protocol/ip-data-packet-format.svg)
 
-- - -
