@@ -87,3 +87,9 @@ disqus_identifier: 80388571727017400896826908453668197145
 #### ICMP 不可达差错
 
 ![ICMP 不可达差错](/assets/tcp-ip-protocol/icmp-unreachable.svg)
+
+- - -
+
+#### IP 层工作流程
+
+![IP 层工作流程](/assets/tcp-ip-protocol/ip-working.svg)
