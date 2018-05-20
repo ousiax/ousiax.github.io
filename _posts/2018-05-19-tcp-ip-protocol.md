@@ -69,3 +69,10 @@ disqus_identifier: 80388571727017400896826908453668197145
 ### 用于以太网的 ARP/RARP 请求或应答分组格式
 
 ![用于以太网的 ARP/RARP 请求或应答分组格式](/assets/tcp-ip-protocol/arp-rarp-packet-format.svg)
+
+- - -
+
+### ICMP 报文封装在 IP 数据报内部
+
+![ICMP 报文](/assets/tcp-ip-protocol/icmp.svg)
+
