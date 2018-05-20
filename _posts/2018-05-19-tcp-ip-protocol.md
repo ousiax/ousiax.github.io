@@ -81,3 +81,9 @@ disqus_identifier: 80388571727017400896826908453668197145
 #### ICMP 地址掩码请求和应答报文
 
 ![ICMP 地址掩码请求和应答报文](/assets/tcp-ip-protocol/icmp-subnet-mask.svg)
+
+- - -
+
+#### ICMP 不可达差错
+
+![ICMP 不可达差错](/assets/tcp-ip-protocol/icmp-unreachable.svg)
