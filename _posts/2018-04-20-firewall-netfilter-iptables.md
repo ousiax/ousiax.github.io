@@ -318,7 +318,7 @@ DROP       all  --  anywhere             anywhere
     ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
     ```
 
-#### Blocing ICPM
+#### Blocking ICMP
 
 ```sh
 $ sudo iptables -A OUTPUT -p icmp --icmp-type 8 -j DROP
@@ -349,7 +349,7 @@ target     prot opt source               destination
 ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:27017
 ```
     
-#### Block DDOS
+#### Blocking DDOS
     
 ```sh
 $ sudo iptables -A INPUT -p tcp --dport 80 -m limit --limit 20/minute --limit-burst 100 -j ACCEPT
