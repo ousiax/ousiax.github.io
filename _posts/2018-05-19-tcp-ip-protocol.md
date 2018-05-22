@@ -96,6 +96,12 @@ disqus_identifier: 80388571727017400896826908453668197145
 
 - - -
 
+### RIP 路由信息协议
+
+![RIP 路由信息协议](/assets/tcp-ip-protocol/rip.svg)
+
+- - -
+
 ### UDP: 用户数据报协议
 
 ![UDP 报文](/assets/tcp-ip-protocol/udp.svg)
