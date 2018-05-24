@@ -102,7 +102,13 @@ disqus_identifier: 80388571727017400896826908453668197145
 
 - - -
 
-### IGMP, 单播, 多播, 广播
+### 单播, 多播, 广播
+
+![单播, 多播, 广播](/assets/tcp-ip-protocol/uni-group-broad-cast.svg)
+
+- - -
+
+#### IGMP: Internet 组管理协议
 
 ![IGMP Internet 组管理协议](/assets/tcp-ip-protocol/igmp.svg)
 
