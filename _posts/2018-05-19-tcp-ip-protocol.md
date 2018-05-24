@@ -102,6 +102,12 @@ disqus_identifier: 80388571727017400896826908453668197145
 
 - - -
 
+### IGMP, 单播, 多播, 广播
+
+![IGMP Internet 组管理协议](/assets/tcp-ip-protocol/igmp.svg)
+
+- - -
+
 ### UDP: 用户数据报协议
 
 ![UDP 报文](/assets/tcp-ip-protocol/udp.svg)
