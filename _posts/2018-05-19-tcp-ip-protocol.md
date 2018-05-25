@@ -123,3 +123,9 @@ disqus_identifier: 80388571727017400896826908453668197145
 ### TCP: 传输控制协议
 
 ![TCP 报文](/assets/tcp-ip-protocol/tcp.svg)
+
+- - -
+
+#### TCP 的状态变迁图
+
+![TCP 的状态变迁图](/assets/tcp-ip-protocol/tcp-status.svg)
