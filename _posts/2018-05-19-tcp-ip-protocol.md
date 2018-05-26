@@ -129,3 +129,21 @@ disqus_identifier: 80388571727017400896826908453668197145
 #### TCP 的状态变迁图
 
 ![TCP 的状态变迁图](/assets/tcp-ip-protocol/tcp-status.svg)
+
+- - -
+
+#### TCP 正常连接建立和终止所对应的状态
+
+![TCP 正常连接建立和终止所对应的状态](/assets/tcp-ip-protocol/tcp-open-close.svg)
+
+- - -
+
+#### TCP 同时打开期间报文段的交换
+
+![TCP 同时打开期间报文段的交换](/assets/tcp-ip-protocol/tcp-simultaneous-open.svg)
+
+- - -
+
+#### TCP 同时关闭期间报文段的交换
+
+![TCP 同时关闭期间报文段的交换](/assets/tcp-ip-protocol/tcp-simultaneous-close.svg)
