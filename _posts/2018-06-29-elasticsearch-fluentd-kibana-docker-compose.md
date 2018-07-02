@@ -26,7 +26,7 @@ disqus_identifier: 17531140728367429958872257764126983915
 
 ### What is the EFK Stack ?
 
-"E**F**K" is the arconym for Elasticsearch, Fluentd, Logstash.
+"E**F**K" is the arconym for Elasticsearch, Fluentd, Kibana.
 
 ![Fluentd vs. LogStash](https://www.loomsystems.com/hs-fs/hubfs/Loomsystems-July2017-Theme/Images/06c82a_e618ffd13a01435da253239f1f0e2894-mv2.jpg?t=1530217296132&width=554&name=06c82a_e618ffd13a01435da253239f1f0e2894-mv2.jpg)
 
