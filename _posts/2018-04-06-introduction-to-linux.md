@@ -35,9 +35,11 @@ re: [https://en.wikipedia.org/wiki/Dennis_Ritchie#C_and_Unix](https://en.wikiped
 
 - BSD: Berkeley Software Distribution
     - A branch of Unix, Berkeley Unix
-    - Solaris
     - FreeBSD, OpenBSD, NetBSD
     - Darwin, macOS, iOS, watchOS, tvOS
+- SⅤR4: System Ⅴ Release 4
+    - Solaris
+- Mach
 - Berkeley **socket**s
 - Bill Joy & Chuck Haley
     - **vi** text editor
