@@ -31,15 +31,15 @@ re: [https://en.wikipedia.org/wiki/Ken_Thompson](https://en.wikipedia.org/wiki/K
 
 re: [https://en.wikipedia.org/wiki/Dennis_Ritchie#C_and_Unix](https://en.wikipedia.org/wiki/Dennis_Ritchie#C_and_Unix)
 
-### BSD
+### BSD & System Ⅴ & Mach
 
 - BSD: Berkeley Software Distribution
     - A branch of Unix, Berkeley Unix
     - FreeBSD, OpenBSD, NetBSD
     - Darwin, macOS, iOS, watchOS, tvOS
-- SⅤR4: System Ⅴ Release 4
+- System Ⅴ
     - Solaris
-- Mach
+- Mach <small>microkernel</small>
 - Berkeley **socket**s
 - Bill Joy & Chuck Haley
     - **vi** text editor
@@ -48,11 +48,12 @@ re: [https://en.wikipedia.org/wiki/Dennis_Ritchie#C_and_Unix](https://en.wikiped
 
 <small>*Linux: I'm coming …*</small>
 
-re: [https://en.wikipedia.org/wiki/Berkeley_Software_Distribution](https://en.wikipedia.org/wiki/Berkeley_Software_Distribution)
+re: [https://en.wikipedia.org/wiki/Berkeley\_Software\_Distribution](https://en.wikipedia.org/wiki/Berkeley_Software_Distribution)
 
-re: [https://en.wikipedia.org/wiki/History_of_the_Berkeley_Software_Distribution](https://en.wikipedia.org/wiki/History_of_the_Berkeley_Software_Distribution)
+re: [https://en.wikipedia.org/wiki/History\_of\_the\_Berkeley\_Software\_Distribution](https://en.wikipedia.org/wiki/History_of_the_Berkeley_Software_Distribution)
+re: [https://en.wikipedia.org/wiki/UNIX\_System\_V](https://en.wikipedia.org/wiki/UNIX_System_V)
 
-re: [https://en.wikipedia.org/wiki/Berkeley_sockets](https://en.wikipedia.org/wiki/Berkeley_sockets)
+re: [https://en.wikipedia.org/wiki/Berkeley\_sockets](https://en.wikipedia.org/wiki/Berkeley_sockets)
 
 
 ### Unix philosophy
