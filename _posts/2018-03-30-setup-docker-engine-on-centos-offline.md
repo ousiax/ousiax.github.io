@@ -73,38 +73,46 @@ $ docker run --rm -it centos:7 bash
     xz
     ```
 
+    Use the `yum provides [libxxx]` to find what package provides the given value *libxxx*. For example:
+
+    ```none
+    # yum provides libdevmapper.so.1.02
+    Loaded plugins: fastestmirror, ovl
+    Loading mirror speeds from cached hostfile
+     * base: mirrors.tuna.tsinghua.edu.cn
+     * extras: mirrors.tuna.tsinghua.edu.cn
+     * updates: mirrors.tuna.tsinghua.edu.cn
+    7:device-mapper-libs-1.02.146-4.el7.i686 : Device-mapper shared library
+    Repo        : base
+    Matched from:
+    Provides    : libdevmapper.so.1.02
+    ```
+
 1. Let's make a directory named `docker-ce` and use `yumdownloader --resolve docker-ce-17.12.0.ce-1.el7.centos` to download docker-ce and all its dependency packages.
 
     ```txt
     [root@5879a18a8be4 ~]# mkdir docker-ce
     [root@5879a18a8be4 ~]# cd docker-ce
-    [root@5879a18a8be4 docker-ce]# yumdownloader --resolve docker-ce-17.12.0.ce-1.el7.centos -q
+    [root@5879a18a8be4 docker-ce]# yumdownloader --resolve docker-ce device-mapper-libs systemd libseccomp -q
     warning: /root/docker-ce/audit-libs-python-2.7.6-3.el7.x86_64.rpm: Header V3 RSA/SHA256 Signature, key ID f4a80eb5: NOKEY
     Public key for audit-libs-python-2.7.6-3.el7.x86_64.rpm is not installed
     Public key for iptables-1.4.21-18.3.el7_4.x86_64.rpm is not installed
     Public key for container-selinux-2.42-1.gitad8f0f7.el7.noarch.rpm is not installed
     ...
     [root@5879a18a8be4 docker-ce]# ls
-    audit-libs-python-2.7.6-3.el7.x86_64.rpm            libselinux-python-2.5-11.el7.x86_64.rpm
-    checkpolicy-2.5-4.el7.x86_64.rpm                    libselinux-utils-2.5-11.el7.x86_64.rpm
-    container-selinux-2.42-1.gitad8f0f7.el7.noarch.rpm  libsemanage-python-2.5-8.el7.x86_64.rpm
-    docker-ce-17.12.0.ce-1.el7.centos.x86_64.rpm        libtool-ltdl-2.4.2-22.el7_3.x86_64.rpm
-    iptables-1.4.21-18.3.el7_4.x86_64.rpm               policycoreutils-2.5-17.1.el7.x86_64.rpm
-    libcgroup-0.41-13.el7.x86_64.rpm                    policycoreutils-python-2.5-17.1.el7.x86_64.rpm
-    libmnl-1.0.3-7.el7.x86_64.rpm                       python-IPy-0.75-6.el7.noarch.rpm
-    libnetfilter_conntrack-1.0.6-1.el7_3.x86_64.rpm     selinux-policy-3.13.1-166.el7_4.9.noarch.rpm
-    libnfnetlink-1.0.1-4.el7.x86_64.rpm                 selinux-policy-targeted-3.13.1-166.el7_4.9.noarch.rpm
-    libseccomp-2.3.1-3.el7.x86_64.rpm                   setools-libs-3.3.8-1.1.el7.x86_64.rpm
-    [root@5879a18a8be4 docker-ce]# du -h
-    41M     .
+    audit-libs-2.8.1-3.el7_5.1.i686.rpm              libseccomp-2.3.1-3.el7.i686.rpm
+    audit-libs-2.8.1-3.el7_5.1.x86_64.rpm            libseccomp-2.3.1-3.el7.x86_64.rpm
+    audit-libs-python-2.8.1-3.el7_5.1.x86_64.rpm     libselinux-2.5-12.el7.i686.rpm
+    bzip2-libs-1.0.6-13.el7.i686.rpm                 libselinux-2.5-12.el7.x86_64.rpm
+    checkpolicy-2.5-6.el7.x86_64.rpm                 libselinux-python-2.5-12.el7.x86_64.rpm
+    container-selinux-2.68-1.el7.noarch.rpm          libselinux-utils-2.5-12.el7.x86_64.rpm
+    ...
     ```
     
 1. Use the `tar cf docker-ce.offline.tar *.rpm` to pack the rpm packages.
     
     ```txt
     [root@5879a18a8be4 docker-ce]# tar cf docker-ce.offline.tar *.rpm
-    [root@5879a18a8be4 docker-ce]# du -h docker-ce.offline.tar
-    41M     docker-ce.offline.tar
     ```
     
 1. Copy the the *docker-ce.offline.tar* to the destination machine with *scp* or *ftp* etc..
@@ -118,17 +126,13 @@ $ docker run --rm -it centos:7 bash
     ```txt
     [root@9ddda0cd196d ~]# tar xf docker-ce.offline.tar
     [root@9ddda0cd196d ~]# ls
-    audit-libs-python-2.7.6-3.el7.x86_64.rpm            libselinux-python-2.5-11.el7.x86_64.rpm
-    checkpolicy-2.5-4.el7.x86_64.rpm                    libselinux-utils-2.5-11.el7.x86_64.rpm
-    container-selinux-2.42-1.gitad8f0f7.el7.noarch.rpm  libsemanage-python-2.5-8.el7.x86_64.rpm
-    docker-ce-17.12.0.ce-1.el7.centos.x86_64.rpm        libtool-ltdl-2.4.2-22.el7_3.x86_64.rpm
-    docker-ce.offline.tar                               policycoreutils-2.5-17.1.el7.x86_64.rpm
-    iptables-1.4.21-18.3.el7_4.x86_64.rpm               policycoreutils-python-2.5-17.1.el7.x86_64.rpm
-    libcgroup-0.41-13.el7.x86_64.rpm                    python-IPy-0.75-6.el7.noarch.rpm
-    libmnl-1.0.3-7.el7.x86_64.rpm                       selinux-policy-3.13.1-166.el7_4.9.noarch.rpm
-    libnetfilter_conntrack-1.0.6-1.el7_3.x86_64.rpm     selinux-policy-targeted-3.13.1-166.el7_4.9.noarch.rpm
-    libnfnetlink-1.0.1-4.el7.x86_64.rpm                 setools-libs-3.3.8-1.1.el7.x86_64.rpm
-    libseccomp-2.3.1-3.el7.x86_64.rpm
+    audit-libs-2.8.1-3.el7_5.1.i686.rpm              libseccomp-2.3.1-3.el7.i686.rpm
+    audit-libs-2.8.1-3.el7_5.1.x86_64.rpm            libseccomp-2.3.1-3.el7.x86_64.rpm
+    audit-libs-python-2.8.1-3.el7_5.1.x86_64.rpm     libselinux-2.5-12.el7.i686.rpm
+    bzip2-libs-1.0.6-13.el7.i686.rpm                 libselinux-2.5-12.el7.x86_64.rpm
+    checkpolicy-2.5-6.el7.x86_64.rpm                 libselinux-python-2.5-12.el7.x86_64.rpm
+    container-selinux-2.68-1.el7.noarch.rpm          libselinux-utils-2.5-12.el7.x86_64.rpm
+    ...
     [root@9ddda0cd196d ~]# rpm -ivh --replacepkgs --replacefiles *.rpm
     warning: docker-ce-17.12.0.ce-1.el7.centos.x86_64.rpm: Header V4 RSA/SHA512 Signature, key ID 621e9f35: NOKEY
     Preparing...                          ################################# [100%]
