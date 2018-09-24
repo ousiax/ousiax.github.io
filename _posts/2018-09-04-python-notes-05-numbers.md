@@ -1,0 +1,527 @@
+---
+layout: post
+title: Python Notes 04 NUMERICS
+date: 2018-09-04 14:53:15 +0800
+categories: ['Python']
+tags: ['Python', 'Core.Python.Programming']
+disqus_identifier: 175777933757599057595782754491610707478
+---
+
+- 􀁺 数的简介
+- 􀁺 整型
+- 􀁺 布尔型
+- 􀁺 标准的整型
+- 􀁺 长整型
+- 􀁺 浮点型实数
+- 􀁺 复数
+- 􀁺 操作符
+- 􀁺 内建函数
+- 􀁺 其它数字类型
+- 􀁺 相关模块
+
+#### 5.1 数字类型
+
+ 数字提供了标量贮存和直接访问。
+
+它是不可更改类型，也就是说变更数字的值会生成新的对象。    
+
+Python 支持多种数字类型：整型、长整型、布尔型、双精度浮点型、十进制浮点型和复数。
+
+- 如何创建数值对象并用其赋值
+
+    (数字对象) : 创建数值对象和给变量赋值一样同样简单
+
+    ```none
+    anInt = 1
+    aLong = -9999999999999999L
+    aFloat = 3.1415926535897932384626433832795
+    aComplex = 1.23+4.56J
+    ```
+
+- 如何更新数字对象
+
+    通过给数字对象（重新）赋值， 您可以“更新”一个数值对象。
+
+    数值对象是不可改变对象，实际上你并没有更新该对象的原始数值，而是生成了一个新的数值对象，并得到它的引用。
+
+- 如何删除数字对象
+
+    按照Python 的法则， 你无法真正删除一个数值对象， 你仅仅是不再使用它而已。
+
+    如果你实际上想删除一个数值对象的引用， 使用 del 语句。 删除对象的引用之后， 你就不能再使用这个引用(变量名)， 除非你给它赋一个新值。
+
+    如果试图使用一个已经被删除的对象引用， 会引发NameError 异常。
+
+#### 5.2 整型
+
+Python 有几种整数类型。
+
+布尔类型是只有两个值的整型。
+
+常规整型是绝大多数现代系统都能识别的整型。
+
+Python 也有长整数类型。然而，它表示的数值大小远超过C 语言的长整数 。
+
+- 布尔型
+
+    Python 从版本 2.3 开始支持布尔类型。
+
+    该类型的取值范围只有两个值，也就是布尔值True 和布尔值False。
+
+    如果将布尔值放到一个数值上下文环境中（比方将 True 与一个数字相加）， True 会被当成整数值 1， 而False则会被当成整数值 0。
+
+- 标准整数类型
+
+    Python 的标准整数类型是最通用的数字类型。
+
+    在大多数32 位机器上，标准整数类型的取 值范围是-231 到231-1，也就是-2,147,483,648 到 2,147,483,647。
+
+    如果在 64 位机器上使用 64 位编译器编译Python，那么在这个系统上的整数将是64 位。
+
+    Python 标准整数类型等价于C 的（有符号）长整型。
+
+        整数一般以十进制表示，但是Python 也支持八进制或十六进制来表示整数。
+        如果八进制整数以数字“0”开始， 十六进制整数则以“0x” 或“0X” 开始。
+        0101    84    -237    0x80    017    -680    -0X92
+
+- 长整型
+
+    关于Python 长整数类型我们必须要提的是，请不要将它和C 或其它编译型语言的长整数 类型混淆。
+
+    那些语言的长整数典型的取值范围是32 位或64 位。
+
+    Python 的长整数类型能表达的数值仅仅与你的机器支持的(虚拟)内存大小有关，换句话说，Python 能轻松表达很大很大很大的整数。 
+
+    长整数类型是标准整数类型的超集，当你的程序需要使用比标准整数类型更大的整数时，长整数类型就有用武之地了。
+
+    在一个整数值后面加个L（大写或小写都可以），表示这个整数是长整数。
+
+    ```none
+    这个整数可以是十进制，八进制，或十六进制。
+    16384L    -0x4E8L    017L    -2147483648l    052144364L
+    299792458l    0xDECADEDEADBEEFBADFEEDDEAL    -5432101234L
+    ```
+
+    *核心风格：用大写字母 “L”表示长整数*
+
+    尽管 Python 也支持用小写字母 L 标记的长整型，但是我们郑重推荐您仅使用大写的 “L”，这样能有效避免数字1 和小写L 的混淆。
+
+    Python 在显示长整数类型数值的时候总是用大写“L ”。
+
+    目前整型和长整型正在逐渐缓慢的统一，您只有在对长整数调用repr()函数时才有机会看到“L”，如果对长整数对象调用str()函数就看不到 L 。
+    ```none
+    >>> aLong = 999999999l
+    >>> aLong
+    999999999L
+    >>> print aLong
+    999999999
+    ```
+
+- 整型和长整型的统一
+
+    必要时整型会悄悄自动转换为长整型。
+
+    当然，那些要调用C 的人仍然可以继续使用这两种整数类型，因为C 代码必须区分不同的整数类型。
+
+        >>> type(2)
+        <type 'int'>
+        >>> type(2<<32)
+        <type 'long'>
+        >>>
+        >>> 2<<32
+        8589934592L
+
+#### 5.3 双精度浮点数
+
+Python 中的浮点数类似C 语言中的double 类型， 是双精度浮点数，可以用直接的十进制或科学计数法表示。
+
+每个浮点数占8 个字节（64 比特），完全遵守IEEE754 号规范（52M/11E/1S）， 其中52 个比特用于表示底，11 个比特用于表示指数， 1个比特表示符号。
+
+实际精度依赖于机器架构和创建Python 解释器的编译器。 
+
+浮点数值通常都有一个小数点和一个可选的后缀e(大写或小写，表示科学计数法)。
+
+在e和指数之间可以用正（+）或负（-）表示指数的正负（正数的话可以省略符号）。
+
+```none
+0.0    -777.    1.6    -5.555567119    96e3 * 1.0
+4.3e25    9.384e-23    -2.172818    float(12)    1.000000001
+3.1416    4.2E-10    -90.    6.022e23    -1.609E-19
+```
+
+#### 5.4 复数
+
+一个实数和一个虚数的组合构成一个复数。
+
+一个复数是一对 有序浮点数(x, y)。表示为 x + yj， 其中x 是实数部分，y 是虚数部分。
+
+- 􀁺 虚数不能单独存在，它们总是和一个值为 0.0 的实数部分一起来构成一个复数。
+- 􀁺 复数由实数部分和虚数部分构成
+- 􀁺 表示虚数的语法： real+imagj
+- 􀁺 实数部分和虚数部分都是浮点数
+- 􀁺 虚数部分必须有后缀j 或J。
+
+```none
+    64.375+1j    4.23-8.5j    0.23-8.55j    1.23e-045+6.7e+089j
+    6.23+1.5j    -1.23-875J    0+1j    9.80665-8.31441J    -.0224+0j
+```
+
+- 复数的内建属性
+
+    ```none
+    表 5.1 复数属性
+    属性                            描述
+    num.real                   该复数的实部
+    num num.imag        该复数的虚部
+    num.conjugate()      返回该复数的共轭复数
+    ```
+
+#### 5.5 运算符 
+
+数值类型可进行多种运算。从标准运算符到数值运算符，甚至还有专门的整数运算符。
+
+- 混合模式运算符
+
+    Python 使用数字类型强制转换的方法来解决数字类型不一致的问题。
+    
+    ![Numeric coercion](/assets/core-python-programming/figure-5-1-numeric-coercion.png)
+
+                        数值类型转换
+- 标准类型运算符
+
+    标准运算符都可以用于数值类型，不同数据类型之间的运算， 在运算之前，Python 内部会将两个操作数转换为同一数据类型。
+
+- 算术运算符
+
+    单目运算符正号（+）和负号（－）， 
+
+    双目运算符， +，－，*，/，%，还有 **, // ，分别表示加法，减法，乘法，除法，取余，幂运算和整除运算 。
+
+    - 除法
+
+        拥有C 背景的程序员一定熟悉传统除法：
+
+            对整数操作数，会执行“地板除”floor，取比商小的最大整数。
+                例如5 除以2 等于2.5，其中“2”就称为商的“地板”，即“地板除”的结果。
+           对浮点操作数会执行真正的除法。
+
+    - 传统除法
+
+        如果是整数除法，传统除法会舍去小数部分，返回一个整数（地板除）。
+
+        如果操作数之一 是浮点数，则执行真正的除法。
+
+            >>> 1 / 2 # perform integer result (floor) # 地板除
+            0
+            >>> 1.0 / 2.0 # returns actual quotient#真正除法
+            0.5
+
+    - 真正的除法
+
+        除法运算总是返回真实的商，不管操作数是整数还是浮点数。
+
+            >>> 1 / 2 # returns real quotient
+            0.5
+            >>> 1.0 / 2.0 # returns real quotient
+            0.5
+    - 地板除
+
+        从Python 2.2 开始， 一个新的运算符 // 已经被增加进来， 以执行地板除： // 除法不管操作数何种数值类型，总是舍去小数部分，返回数字序列中比真正的商小的最接近的数字。
+
+            >>> 1 // 2 # floors result, returns integer # 地板除， 返回整数
+            0
+            >>> 1.0 // 2.0 # floors result, returns float # 地板除， 返回浮点数
+            0.0
+            >>> -1 // 2 # move left on number line# 返回比 –0.5 小的整数， 也就是 －1
+            -1
+
+    - 取余
+
+        整数取余相当容易理解，浮点数取余就略复杂些。
+
+        商取小于等于精确值的最大整数的乘积之差. 即: x - (math.floor(x/y) * y) 或者 x - abs(x/y)*y
+
+        对于复数,取余的定义类似于浮点数,不同之处在于商仅取其实数部分,即: x - (math.floor((x/y).real) * y)。
+
+    - 幂运算
+
+        幂运算操作符和一元操作符之间的优先级关系比较特别: (??)
+
+            幂运算操作符比其左侧操作数 的一元操作符优先级低,
+            比起右侧操作数的一元操作符的优先级高,由于这个特性你会在算术运算符表中找到两个 ** .
+            注：** 运算符优先级高于单目运算符
+            >>> 3 ** 2
+            9
+            >>> -3 ** 2 # ** 优先级高于左侧的 -
+            -9
+            >>> (-3) ** 2 # 加括号提高 -的优先级
+            9
+            >>> 4.0 ** -1.0 # ** 优先级低于右侧的 -
+            0.25
+
+- \*位运算符（只适用于整数）
+
+    Python 整数支持标准位运算：取反(~)，按位 与(&), 或(|) 及 异或(^) 及左移(<<)和右 移(>>)。
+
+    Python 这样处理位运算：
+
+    - 􀁺 负数会被当成正数的 2 进制补码处理。
+    - 􀁺 左移和右移 N 位等同于无溢出检查的2 的N 次幂运算： 2**N。
+    - 􀁺 对长整数来说, 位运算符使用一种经修改的 2 进制补码形式，使得符号位可以无限的 向左扩展。 
+
+    取反(~)运算的优先级与数字单目运算符相同， 是所有位操作符中优先级最高的一个。
+
+    左移和右移运算的优先级次之，但低于加减法运算。
+
+    与， 或， 异或 运算优先级最低。
+        
+#### 5.6 内建函数与工厂函数
+
+- 标准类型函数内建函数
+
+    cmp()
+        比较两个数的大小
+    str() 
+        将数字转换为字符串
+    type()
+        返回数字对象的类型
+
+- 数字类型函数
+
+    - 转换工厂函数内建函数
+
+        函数 int(), long(), float(),   complex() 和 bool()用来将其它数值类型转换为相应的数值类型。
+
+        从Python 1.6 版开始，int() 和 long() 在转换字符串时，接受一个进制参数。如果是数字类型之间的转换，则这个进制参数不能使用。
+
+        ```none
+        表5.5 数值工厂函数总结
+        类(工厂函数)                    操作
+        bool(obj)               返回obj对象的布尔值，也就是obj.__nonzero__()方法的返回值
+        int(obj, base=10)       返回一个字符串或数值对象的整数表示， 类似string.atoi();从Python 1.6起，引入了可选的进制参数。
+        long(obj, base=10)      返回一个字符或数据对象的长整数表示，类似string.atol(), 从Python1.6起，引入了可选的进制参数
+        float(obj)              返回一个字符串或数据对象的浮点数表示，类似string.atof()
+        complex(str) or complex(real, imag=0.0)     返回一个字符串的复数表示，或者根据给定的实数（及一个可选的虚数部分）生成一个复数对象。
+        ```
+
+    - 功能函数
+
+        Python 有五个运算内建函数用于数值运算： abs(), coerce(), divmod(), pow() 和 round()。
+
+        ```none
+        abs()
+            abs()返回给定参数的绝对值。
+            如果参数是一个复数， 那么就返回math.sqrt(num.real2 + num.imag2)。
+            >>> abs(-1)
+            1 
+            >>> abs(10.)
+            10.0
+            >>> abs(1.2-2.1j)
+            2.41867732449
+            >>> abs(0.23 - 0.78)
+            0.55
+        coerce()
+            函数coerce（）为程序员提供了不依赖Python 解释器， 而是自定义两个数值类型转换的方法。
+            函数coerce()仅回一个包含类型转换完 毕的两个数值元素的元组。
+            >>> coerce(1, 2)
+            (1, 2)
+            >>>
+            >>> coerce(1.3, 134L)
+            (1.3, 134.0) 
+            >>>
+            >>> coerce(1, 134L)
+            (1L, 134L)
+            >>>
+            >>> coerce(1j, 134L)
+            (1j, (134+0j))
+            >>>
+            >>> coerce(1.23-41j, 134L)
+            ((1.23-41j), (134+0j))
+        divmod()
+            divmod()内建函数把除法和取余运算结合起来, 返回一个包含商和余数的元组。
+            对整数来 说， 它的返回值就是地板除和取余操作的结果。
+            对浮点数来说， 返回的商部分是math.floor(num1/num2)。
+            对复数来说， 商部分是math.floor((num1/num2).real)。
+            >>> divmod(10,3)
+            (3, 1)
+            >>> divmod(3,10)
+            (0, 3)
+            >>> divmod(10,2.5)
+            (4.0, 0.0)
+            >>> divmod(2.5,10)
+            (0.0, 2.5)
+            >>> divmod(2+1j, 0.5-1j)
+            (0j, (2+1j))
+        pow()
+            函数 pow() 和双星号 （**） 运算符都可以进行指数运算。
+            内建函数pow()还接受第三个可选的参数，一个 余数参数。
+                如果有这个参数的， pow() 先进行指数运算，然后将运算结果和第三个参数进行取余运算。
+                这个特性主要用于密码运算，并且比 pow(x,y) % z 性能更好， 这是因为这个函数的实现类似于C 函数 pow(x,y,z)。
+        round()
+            内建函数round()用于对浮点数进行四舍五入运算。
+            它有一个可选的小数位数参数。
+                如果 不提供小数位参数， 它返回与第一个参数最接近的整数（但仍然是浮点类型）。
+               小数位数参数 告诉round 函数将结果精确到小数点后指定位数。
+            round() 函数是按四舍五入的规则进行取整。
+                也就是round(0.5)得到1， round(-0.5)得到－1。
+            int(), round(), math.floor()
+                􀁺 函数 int()直接截去小数部分。（返回值为整数）
+                􀁺 函数 floor()得到最接近原数但小于原数的整数。（返回值为浮点数）
+                􀁺 函数 round()得到最接近原数的整数。（返回值为浮点数）
+        ```
+
+    ```none
+    数值运算内建函数
+    函数            功能
+    abs(num)                返回 num 的绝对值
+    coerce(num1, num2)      将num1和num2转换为同一类型，然后以一个元组的形式返回。
+    divmod(num1, num2)      除法－取余运算的结合。返回一个元组(num1/num2,num1 %num2)。对浮点数和复数的商进行下舍入（复数仅取实数部分的商）
+    pow(num1, num2, mod=1)          取 num1 的 num2次方，如果提供 mod参数，则计算结果再对mod进行取余运算
+    round(flt, ndig=0)          接受一个浮点数 flt 并对其四舍五入，保存 ndig位小数。若不提供ndig 参数，则默认小数点后0位。
+    ```
+
+- 仅用于整数的函数
+
+    - 进制转换函数内建函数
+
+        Python 提供了两个内建函数来返回字符串表示的8 进制和16 进制整数。
+
+        它们分别是 oct() 和 hex()。
+
+        它们都接受一个整数（任意进制的）对象，并返回一个对应值的字符串对象。
+
+        **oct()**
+
+            oct ()接受一个整数（任意进制的）对象，并返回一个8 进制对应值的字符串对象。
+
+        **hex()**
+
+            hex()接受一个整数（任意进制的）对象，并返回一个16 进制对应值的字符串对象。
+
+    - ASCII 转换函数内建函数
+
+        Python 也提供了ASCII（美国标准信息交换码）码与其序列值之间的转换函数。
+
+        每个字符对应一个唯一的整数（0－255）。
+
+        对所有使用ASCII 表的计算机来说，这个数值是不变的。
+
+        这保证了不同系统之间程序行为的一致性。
+
+        **chr()**
+
+            函数chr()接受一个单字节整数值，返回一个字符串， 其值为对应的字符。
+
+        **ord()**
+
+            函数ord()则相反，它接受一个字符，返回其对应的整数值。
+
+    ```none
+    Table 5.7 Integer Type Built-in Functions
+    Function            Operation
+    hex(num)        Converts num to hexadecimal and returns as string
+    oct(num)        Converts num to octal and returns as string
+    chr(num)        Takes ASCII value num and returns ASCII character as
+                        string; 0 <= num <= 255 only
+    ord(chr)        Takes ASCII or Unicode chr (string of length 1) and
+                        returns corresponding ordinal ASCII value or
+                        Unicode code point, respectively
+    unichr(num)     Takes a Unicode code point value num and returns its
+                        Unicode character as a Unicode string; 
+                        valid range depends on whether your Python 
+                        was built as UCS-2 or UCS-4
+    ```
+
+#### 5.7 其他数字类型
+
+- 布尔“数”
+
+    布尔值“True” 和“False， 是整型的子类，对应与整数的1 和0。
+
+    布尔类型的主要概念：
+
+    - 􀁺 有两个永不改变的值 True 或False。
+    - 􀁺 布尔型是整型的子类，但是不能再被继承而生成它的子类。
+    - 􀁺 没有__nonzero__()方法的对象的默认值是 True。
+    - 􀁺 对于值为零的任何数字或空集（空列表、空元组和空字典等）在Python 中的布尔值都 是False。 
+    - 􀁺 在数学运算中，Boolean 值的True 和False 分别对应于1 和 0。
+    - 􀁺 以前返回整数的大部分标准库函数和内建布尔型函数现在返回布尔型。
+    - 􀁺 True 和False 现在都不是关键字，但是在Python 将来的版本中会是。
+
+- 十进制浮点数
+
+    十进制数本质上是一种用于数值计算的特 殊类。
+
+    你可以通过字符串或其它十进制数创建十进制数浮点数。
+
+    你必须导入 decimal 模块以便使用 Decimal 类。
+
+        >>> from decimal import Decimal
+
+#### 5.8 相关模块
+
+```    
+Table 5.8 Numeric Type Related Modules
+Module              Contents
+
+decimal         Decimal floating point class Decimal
+                array Efficient arrays of numeric values (characters, ints, floats, etc.)
+
+math/cmath      Standard C library mathematical functions; most 
+                functions available in math are implemented for
+                complex numbers in the cmath module
+
+operator        Numeric operators available as function calls, i.e., operator.
+                sub(m, n) is equivalent to the difference (m - n) for numbers m and n
+
+random          Various pseudo-random number generators (obsoletes rand and whrandom)
+```
+
+*核心模块: random*
+
+```none
+当你的程序需要随机数功能时，random 模块就能派上用场。
+该模块包含多个伪随机数发生器，它们均以当前的时间戳为随机数种子。
+这样只要载入这个模块就能随时开始工作。
+最常用的函数：
+    两个整数参数，返回二者之间的随机整数
+    randrange() 它接受和 range() 函数一样的参数， 随机返回range([start,]stop[,step])结果的一项
+    uniform() 几乎和 randint()一样，不过它返回的是二者之间的一个浮点数(不包括范围上限)。
+    random() 类似 uniform() 只不过下限恒等于0.0，上限恒等于1.0
+    choice() 随机返回给定序列的一个元素
+```
+
+```none
+Table 5.9 Operators and Built-in Functions for All Numeric Types
+Operator/Built-in   Description                     Int     Long    Float   Complex Result
+
+abs()               Absolute value                  •      •      •      •      number
+chr()               Character                       •      •                      str
+coerce()            Numeric coercion                •      •      •      •      tuple
+complex()           Complex factory function        •      •      •      •      complex
+divmod()            Division/modulo                 •      •      •      •      tuple
+float()             Float factory function          •      •      •      •      float
+hex()               Hexadecimal string              •      •                      str
+int()               Int factory function            •      •      •      •      int
+long()              Long factory function           •      •      •      •      long
+oct()               Octal string                    •      •                      str
+ord()               Ordinal                                     (str)               int
+pow()               Exponentiation                  •      •      •      •      number
+round()             Float rounding                                  •              float
+**                  Exponentiation                  •      •      •      •      number
++                   No change                       •      •      •      •      number
+-                   Negation                        •      •      •      •      number
+~                   Bit inversion                   •      •                      int/long
+**                  Exponentiation                  •      •      •      •      number
+*                   Multiplication                  •      •      •      •      number
+/                   Classic or true division        •      •      •      •      number
+//                  Floor division                  •      •      •      •      number
+%                   Modulo/remainder                •      •      •      •      number
++                   Addition                        •      •      •      •      number
+-                   Subtraction                     •      •      •      •      number
+<<                  Bit left shift                  •      •                      int/long
+>>                  Bit right shift                 •      •                      int/long
+&                   Bitwise AND                     •      •                      int/long
+^                   Bitwise XOR                     •      •                      int/long
+|                   Bitwise OR                      •      •                      int/long
+```
