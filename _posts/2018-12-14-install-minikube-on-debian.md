@@ -178,13 +178,6 @@ NAME                         READY     STATUS        RESTARTS   AGE
 nginx-app-84bd9fdcc6-4jhqh   1/1       Running       0          2m
 nginx-app-84bd9fdcc6-d9bsq   1/1       Running       0          7m
 nginx-app-84bd9fdcc6-vxntl   0/1       Terminating   0          2m
-$ kubectl scale --replicas=2 deployment nginx-app
-deployment.extensions/nginx-app scaled
-$ kubectl get pods
-NAME                         READY     STATUS        RESTARTS   AGE
-nginx-app-84bd9fdcc6-4jhqh   1/1       Running       0          2m
-nginx-app-84bd9fdcc6-d9bsq   1/1       Running       0          7m
-nginx-app-84bd9fdcc6-vxntl   0/1       Terminating   0          2m
 $ kubectl get rs
 NAME                   DESIRED   CURRENT   READY     AGE
 nginx-app-84bd9fdcc6   2         2         2         8m
