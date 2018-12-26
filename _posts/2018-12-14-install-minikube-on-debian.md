@@ -7,6 +7,11 @@ tags: ['Docker', 'K8S', 'Kubernetes', 'Minikube']
 disqus_identifier: 236578891763823879063645218115848355420
 ---
 
+- TOC
+{:toc}
+
+- - -
+
 ### 1. Install minikube binary with curl.
 
 ```sh
@@ -26,8 +31,8 @@ curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s htt
 Add Oracle public key for apt-secure:
 
 ```sh
+curl -LO https://www.virtualbox.org/download/oracle_vbox_2016.asc
 sudo apt-key add oracle_vbox_2016.asc
-sudo apt-key add oracle_vbox.asc
 ```
 
 Add the following line to your `/etc/apt/sources.list.d/vmbox.list`.
@@ -274,4 +279,4 @@ No resources found.
 - [https://github.com/kubernetes/minikube/releases/tag/v0.25.2](https://github.com/kubernetes/minikube/releases/tag/v0.25.2)
 - [https://github.com/kubernetes/minikube/blob/v0.25.2/README.md](https://github.com/kubernetes/minikube/blob/v0.25.2/README.md)
 - [https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-binary-using-curl](https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-binary-using-curl)
-- [https://www.virtualbox.org/wiki/Linux\_Downloads](https://www.virtualbox.org/wiki/Linux\_Downloads)
+- [https://www.virtualbox.org/wiki/Linux\_Downloads](https://www.virtualbox.org/wiki/Linux_Downloads)
