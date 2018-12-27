@@ -145,7 +145,7 @@ $ chmod +x ./.minikube/cache/v1.12.4/kubeadm && ./.minikube/cache/v1.12.4/kubead
  k8s.gcr.io/coredns:1.2.2
  ```
 
-> To solve the above problem, you can mannully download pull these images with [Docker behind HTTP proxy](/2018/08/09/http-proxy-docker-minikube/#2-custom-docker-daemon-options-with-http-proxy) and use `docker save` and `docker load` with `minikube ssh` to minikube VM. For example:
+> To solve the above problem, you can mannully pull these images with [Docker behind HTTP proxy](/2018/08/09/http-proxy-docker-minikube/#2-custom-docker-daemon-options-with-http-proxy) and use `docker save` and `docker load` with `minikube ssh` to minikube VM. For example:
 
  ```none
  $ minikube ssh # enter the minikube VM
@@ -185,7 +185,7 @@ $ chmod +x ./.minikube/cache/v1.12.4/kubeadm && ./.minikube/cache/v1.12.4/kubead
 > You can also use [minikube with an HTTP proxy](/2018/08/09/http-proxy-docker-minikube/#3-start-minikube-behind-a-http-proxy) to supply Docker in the minikube VM with the proxy settings. For example:
  
 ```sh
-minikube start --docker-env http_proxy=http://$YOURPROXY:PORT \
+$ minikube start --docker-env http_proxy=http://$YOURPROXY:PORT \
                --docker-env https_proxy=https://$YOURPROXY:PORT
 ```
 
@@ -194,7 +194,7 @@ minikube start --docker-env http_proxy=http://$YOURPROXY:PORT \
 ### 5.1 Error starting cluster:  kubeadm init error 
 
 ```sh
-$minikube start -v 9
+$ minikube start -v 9
 . . .
 E1227 20:41:40.056575   21198 start.go:343] Error starting cluster:  kubeadm init error 
 sudo /usr/bin/kubeadm init --config /var/lib/kubeadm.yaml --ignore-preflight-errors=DirAvailable--etc-kubernetes-manifests --ignore-preflight-errors=DirAvailable--data-minikube --ignore-preflight-errors=Port-10250 --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-scheduler.yaml --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-apiserver.yaml --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-controller-manager.yaml --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-etcd.yaml --ignore-preflight-errors=Swap --ignore-preflight-errors=CRI 
@@ -248,7 +248,7 @@ kube-system   kubernetes-dashboard-5bff5f8fb8-c7dz7   0/1     ImagePullBackOff  
 kube-system   storage-provisioner                     0/1     ImagePullBackOff   0          19m
 ```
 
-Use the `kubectl -n kube-system describe po [POD_NAME]` to show details about the above failed pods.
+Use the `kubectl -n kube-system describe po [POD_NAME]` to show details of the above failed pods.
 
 ```sh
 $ kubectl -n kube-system describe po storage-provisioner
@@ -276,7 +276,7 @@ Events:
 
 ```
 
-We find there are two pods `kubernetes-dashboard-5bff5f8fb8-c7dz7` and `storage-provisioner` with `ImagePullBackOff` status. This is beacuse the minikube enable the addons `dashboard` and `storage-provisioner` default, and minikube could not pull image via your network ( e.g. through GFW).
+We find there are two pods `kubernetes-dashboard-5bff5f8fb8-c7dz7` and `storage-provisioner` with `ImagePullBackOff` status. This is beacuse the minikube enable the addons `dashboard` and `storage-provisioner` as default, and minikube could not pull image via your network ( e.g. through GFW).
 
 ```sh
 $ minikube addons list
@@ -328,113 +328,113 @@ Available Commands:
 
 1. Start minikube
 
-```sh
-$ minikube start 
-Starting local Kubernetes v1.12.4 cluster...
-Starting VM...
-Getting VM IP address...
-Moving files into cluster...
-Setting up certs...
-Connecting to cluster...
-Setting up kubeconfig...
-Stopping extra container runtimes...
-Machine exists, restarting cluster components...
-Verifying kubelet health ...
-Verifying apiserver health .....Kubectl is now configured to use the cluster.
-Loading cached images from config file.
-
-
-Everything looks great. Please enjoy minikube!
-```
-
+    ```sh
+    $ minikube start 
+    Starting local Kubernetes v1.12.4 cluster...
+    Starting VM...
+    Getting VM IP address...
+    Moving files into cluster...
+    Setting up certs...
+    Connecting to cluster...
+    Setting up kubeconfig...
+    Stopping extra container runtimes...
+    Machine exists, restarting cluster components...
+    Verifying kubelet health ...
+    Verifying apiserver health .....Kubectl is now configured to use the cluster.
+    Loading cached images from config file.
+    
+    
+    Everything looks great. Please enjoy minikube!
+    ```
+    
 2. Create a YAML file named nignx.yaml as blow:
-
-```yaml
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx
-spec:
-  selector:
-    app: nginx
-  type: NodePort
-  ports:
-    - port: 80
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx
-  labels:
-    app: nginx
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: nginx
-  template:
+    
+    ```yaml
+    ---
+    apiVersion: v1
+    kind: Service
     metadata:
+      name: nginx
+    spec:
+      selector:
+        app: nginx
+      type: NodePort
+      ports:
+        - port: 80
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: nginx
       labels:
         app: nginx
     spec:
-      containers:
-        - name: nginx
-          image: nginx:1.15
-          ports:
-            - containerPort: 80
-...
-```
-
+      replicas: 3
+      selector:
+        matchLabels:
+          app: nginx
+      template:
+        metadata:
+          labels:
+            app: nginx
+        spec:
+          containers:
+            - name: nginx
+              image: nginx:1.15
+              ports:
+                - containerPort: 80
+    ...
+    ```
+    
 3. Create a Nginx service and deployment based on the above YAML file.
-
-```sh
-$ $ kubectl create -f nginx.yaml 
-service/nginx created
-deployment.apps/nginx created
-```
-
+    
+    ```sh
+    $ $ kubectl create -f nginx.yaml 
+    service/nginx created
+    deployment.apps/nginx created
+    ```
+    
 4. List the pods created by the deployment:
-
-```sh
-$ kubectl get po -w
-NAME                     READY   STATUS              RESTARTS   AGE
-nginx-5d445489fb-gjbs6   0/1     ContainerCreating   0          3s
-nginx-5d445489fb-h7vjl   0/1     ContainerCreating   0          3s
-nginx-5d445489fb-knf9f   0/1     ContainerCreating   0          3s
-nginx-5d445489fb-knf9f   1/1   Running   0     48s
-nginx-5d445489fb-gjbs6   1/1   Running   0     51s
-nginx-5d445489fb-h7vjl   1/1   Running   0     60s
-```
-
+    
+    ```sh
+    $ kubectl get po -w
+    NAME                     READY   STATUS              RESTARTS   AGE
+    nginx-5d445489fb-gjbs6   0/1     ContainerCreating   0          3s
+    nginx-5d445489fb-h7vjl   0/1     ContainerCreating   0          3s
+    nginx-5d445489fb-knf9f   0/1     ContainerCreating   0          3s
+    nginx-5d445489fb-knf9f   1/1   Running   0     48s
+    nginx-5d445489fb-gjbs6   1/1   Running   0     51s
+    nginx-5d445489fb-h7vjl   1/1   Running   0     60s
+    ```
+    
 5. Lists the URLs for the services in your local cluster
-
-```sh
-$ minikube service list 
-|-------------|------------|-----------------------------|
-|  NAMESPACE  |    NAME    |             URL             |
-|-------------|------------|-----------------------------|
-| default     | kubernetes | No node port                |
-| default     | nginx      | http://192.168.99.100:32151 |
-| kube-system | kube-dns   | No node port                |
-|-------------|------------|-----------------------------|
-```
-
+    
+    ```sh
+    $ minikube service list 
+    |-------------|------------|-----------------------------|
+    |  NAMESPACE  |    NAME    |             URL             |
+    |-------------|------------|-----------------------------|
+    | default     | kubernetes | No node port                |
+    | default     | nginx      | http://192.168.99.100:32151 |
+    | kube-system | kube-dns   | No node port                |
+    |-------------|------------|-----------------------------|
+    ```
+    
 6. Access the Nginx service
-
-```sh
-$ curl -iI $(minikube service nginx --url)
-HTTP/1.1 200 OK
-Server: nginx/1.15.8
-Date: Thu, 27 Dec 2018 13:33:25 GMT
-Content-Type: text/html
-Content-Length: 612
-Last-Modified: Tue, 25 Dec 2018 09:56:47 GMT
-Connection: keep-alive
-ETag: "5c21fedf-264"
-Accept-Ranges: bytes
-
-```
+    
+    ```sh
+    $ curl -iI $(minikube service nginx --url)
+    HTTP/1.1 200 OK
+    Server: nginx/1.15.8
+    Date: Thu, 27 Dec 2018 13:33:25 GMT
+    Content-Type: text/html
+    Content-Length: 612
+    Last-Modified: Tue, 25 Dec 2018 09:56:47 GMT
+    Connection: keep-alive
+    ETag: "5c21fedf-264"
+    Accept-Ranges: bytes
+    
+    ```
 
 ## 6. References
 
