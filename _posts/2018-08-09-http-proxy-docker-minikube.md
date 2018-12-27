@@ -242,4 +242,5 @@ If you are behind an HTTP or HTTPS proxy server, for example in corporate settin
 1. Proxy server \- Wikipedia, [https://en.wikipedia.org/wiki/Proxy\_server](https://en.wikipedia.org/wiki/Proxy_server)
 1. How To Use Proxy Server To Access Internet at Shell Prompt With http\_proxy Variable - nixCraft, [https://www.cyberciti.biz/faq/linux-unix-set-proxy-environment-variable/](https://www.cyberciti.biz/faq/linux-unix-set-proxy-environment-variable/)
 1. Control Docker with systemd \| Docker Documentation, [https://docs.docker.com/config/daemon/systemd/#httphttps-proxy](https://docs.docker.com/config/daemon/systemd/#httphttps-proxy)
+1. Using Minikube with an HTTP Proxy, [https://kubernetes.io/docs/setup/minikube/#using-minikube-with-an-http-proxy](https://kubernetes.io/docs/setup/minikube/#using-minikube-with-an-http-proxy)
 1. bash \- Set a network range in the no\_proxy environment variable \- Unix & Linux Stack Exchange, [https://unix.stackexchange.com/questions/23452/set-a-network-range-in-the-no-proxy-environment-variable](https://unix.stackexchange.com/questions/23452/set-a-network-range-in-the-no-proxy-environment-variable)
