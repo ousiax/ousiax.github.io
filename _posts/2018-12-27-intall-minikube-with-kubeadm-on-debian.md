@@ -16,6 +16,14 @@ disqus_identifier: 25609677555699789769540068998527786259
 curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/v0.32.0/minikube-linux-amd64 && chmod +x minikube && sudo cp minikube /usr/local/bin/ && rm minikube
 ```
 
+Use the following command to enable bash completion for kubernetes with kubectl:
+
+```sh
+sudo apt-get install bash-completion && sudo sh -c 'minikube completion bash > /etc/bash_completion.d/minikube.bash' && source /etc/bash_completion.d/minikube.bash
+```
+
+
+
 ## 2. Install kubectl binary with curl
 
 ```sh
