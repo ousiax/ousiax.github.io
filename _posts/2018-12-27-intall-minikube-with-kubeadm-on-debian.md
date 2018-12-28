@@ -35,10 +35,10 @@ curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s htt
 >> To download `kubectl` behind HTTP proxy (e.g. through GFW to access Google, FB etc..), please set up environment as below:
 > 
 > ```sh
-> HTTP_PROXY_HOST=127.0.0.1 # please update with your HTTP proxy host
-> HTTP_PROXY_PORT=1080 # please update with your HTTP proxy port
-> export {HTTP,HTTPS}_PROXY=http://$HTTP_PROXY_HOST:$HTTP_PROXY_PORT/
-> export {http,https}_proxy=http://$HTTP_PROXY_HOST:$HTTP_PROXY_PORT/
+> YOURPROXY=127.0.0.1 # please update with your HTTP proxy host
+> PORT=1080 # please update with your HTTP proxy port
+> export {HTTP,HTTPS}_PROXY=http://$YOURPROXY:$PORT/
+> export {http,https}_proxy=http://$YOURPROXY:$PORT/
 > export {NO_PROXY,no_proxy}=localhost,127.0.0.1,::1,192.168.99.100
 > ```
 
@@ -314,6 +314,7 @@ Usage:
 
 Available Commands:
   addons         Modify minikube's kubernetes addons
+  completion     Outputs minikube shell completion for the given shell (bash or zsh)
   ip             Retrieves the IP address of the running cluster
   logs           Gets the logs of the running instance, used for debugging minikube, not user code
   service        Gets the kubernetes URL(s) for the specified service in your local cluster
@@ -443,5 +444,4 @@ Available Commands:
 - Running Kubernetes Locally via Minikube, [https://kubernetes.io/docs/setup/minikube/](https://kubernetes.io/docs/setup/minikube/)
 
 - [https://kubernetes.io/docs/setup/minikube/#using-minikube-with-an-http-proxy](https://kubernetes.io/docs/setup/minikube/#using-minikube-with-an-http-proxy)
-
-
+- Docker and Minikube behind HTTP Proxy, [https://codefarm.me/2018/08/09/http-proxy-docker-minikube/](/2018/08/09/http-proxy-docker-minikube/)
