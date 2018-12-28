@@ -437,11 +437,55 @@ Available Commands:
     
     ```
 
+### 5.5 Start minikube with custom CPUS and RAM.
+
+You can use the following command to start minikube with custom numbers of CPUs and amount of RAM allocated to the minikube VM and registry mirror.
+
+```sh
+minikube start --cpus=4 --memory=4096 --registry-mirror https://registry.docker-cn.com -v 9
+```
+
+### 5.6 Minikube hangs up during startup at the first time.
+
+If might be fail to download resources (e.g. iso, kubeadm, kubelet) during startup at the first time.
+
+```sh
+$ minikube start -h | grep "iso-url"
+      --iso-url string                    Location of the minikube iso (default "https://storage.googleapis.com/minikube/iso/minikube-v0.32.0.iso")
+$ minikube start -v 9
+. . .
+Starting VM...
+Downloading Minikube ISO
+```
+
+It might be fail to download the minikube iso from the default location via your network (e.g. through the GFW).
+
+You can setup *HTTP* proxy environments at your terminal, then restart with `minikube start -v 9` and minikube will download the iso behind your proxy during startup.
+
+You can also manually download the iso behind HTTP proxy to the location `.minikube/cache/iso/`.
+
+```sh
+$ minikube start -h | grep 'kubernetes-version'
+      --kubernetes-version string         The kubernetes version that the minikube VM will use (ex: v1.2.3) (default "v1.12.4")
+$ minikube start -v 9
+. . .
+Moving files into cluster...
+Downloading kubeadm v1.12.4
+Downloading kubelet v1.12.4
+```
+
+Like the iso downloading, you can manually download the `kubeadm` and `kubelet` to `.minikube/cache/v1.12.4/`.
+
+```sh
+curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${RELEASE}/bin/linux/amd64/{kubeadm,kubelet,kubectl}
+mv {kubeadm,kubelet} .minikube/cache/v1.12.4/ 
+```
+
 ## 6. References
 
 - [https://github.com/kubernetes/minikube/releases/tag/v0.32.0](https://github.com/kubernetes/minikube/releases/tag/v0.32.0)
 - [https://github.com/kubernetes/minikube](https://github.com/kubernetes/minikube)
 - Running Kubernetes Locally via Minikube, [https://kubernetes.io/docs/setup/minikube/](https://kubernetes.io/docs/setup/minikube/)
-
 - [https://kubernetes.io/docs/setup/minikube/#using-minikube-with-an-http-proxy](https://kubernetes.io/docs/setup/minikube/#using-minikube-with-an-http-proxy)
 - Docker and Minikube behind HTTP Proxy, [https://codefarm.me/2018/08/09/http-proxy-docker-minikube/](/2018/08/09/http-proxy-docker-minikube/)
+- [https://kubernetes.io/docs/setup/independent/install-kubeadm/#installing-kubeadm-kubelet-and-kubectl](https://kubernetes.io/docs/setup/independent/install-kubeadm/#installing-kubeadm-kubelet-and-kubectl)
