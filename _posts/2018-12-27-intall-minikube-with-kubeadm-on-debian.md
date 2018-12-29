@@ -500,7 +500,7 @@ sudo kubeadm reset -f && \
     --ignore-preflight-errors=CRI
 ```
 
-### 5.8 Useful command for debuging minikube and kubernetes resources. 
+### 5.8 Useful CLIs for debuging minikube and cluster resources. 
 
 - Gets the status of a local kubernetes cluster.
 
