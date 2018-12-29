@@ -303,7 +303,7 @@ To sovle it, your can pull the images `k8s.gcr.io/kubernetes-dashboard-amd64:v1.
 > You can also use `minikube addons disable [ADDONS_NAME]` to disable addons both `dashboard` and `storage-provisioner`, then reset the kubeadm.
 
 
-### 5.3 Minikube Usefull CLI
+### 5.3 Minikube Useful CLI
 
 ```none
 $ minikube -h
@@ -437,7 +437,7 @@ Available Commands:
     
     ```
 
-### 5.5 Start minikube with custom CPUS and RAM.
+### 5.5 Start minikube with custom CPUs and RAM.
 
 You can use the following command to start minikube with custom numbers of CPUs and amount of RAM allocated to the minikube VM and registry mirror.
 
@@ -480,6 +480,57 @@ Like the iso downloading, you can manually download the `kubeadm` and `kubelet` 
 curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${RELEASE}/bin/linux/amd64/{kubeadm,kubelet,kubectl}
 mv {kubeadm,kubelet} .minikube/cache/v1.12.4/ 
 ```
+
+### 5.7 Try to reset kubernetes cluster to solve some unexpected problem.
+
+When minikube VM started, run `minikube ssh` to enter the minikube VM, and execute the following command to reset and initialize the cluster.
+
+```
+sudo kubeadm reset -f && \
+    sudo /usr/bin/kubeadm init \
+    --config /var/lib/kubeadm.yaml \
+    --ignore-preflight-errors=DirAvailable--etc-kubernetes-manifests \
+    --ignore-preflight-errors=DirAvailable--data-minikube \
+    --ignore-preflight-errors=Port-10250 \
+    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-scheduler.yaml \
+    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-apiserver.yaml \
+    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-controller-manager.yaml \
+    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-etcd.yaml \
+    --ignore-preflight-errors=Swap \
+    --ignore-preflight-errors=CRI
+```
+
+### 5.8 Useful command for debuging minikube and kubernetes resources. 
+
+- Gets the status of a local kubernetes cluster.
+
+    ```sh
+    $ minikube status
+    ```
+
+- Gets the logs of the running instance, used for debugging minikube, not user code.
+
+    ```sh
+    $ minikube logs
+    ```
+
+- List all kubernetes objects across all namespaces.
+
+    ```sh
+    $ kubectl get all --all-namespaces
+    ```
+
+- Show details of a specific resource or group of resources.
+
+    ```sh
+    $ kubectl describe -h
+    ```
+
+- Print the logs for a container in a pod or specified resource.
+
+    ```sh
+    $ kubectl logs -h
+    ```
 
 ## 6. References
 
