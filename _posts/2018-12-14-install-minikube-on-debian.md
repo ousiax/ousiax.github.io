@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Install Minikube (v0.25.2) on Debian 9
+title: Install Minikube with localkube on Debian 9
 date: 2018-12-14 06:47:24 +0800
 categories: ['Docker']
 tags: ['Docker', 'K8S', 'Kubernetes', 'Minikube']
