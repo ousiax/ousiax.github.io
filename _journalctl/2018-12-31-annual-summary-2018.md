@@ -7,7 +7,7 @@ tags: ['Memo']
 disqus_identifier: 198641273799941514841690146553294024821
 ---
 
-[给 2018 年的我](/2017-12-31-annual-summary-2017/)：
+[给 2018 年的我](/journalctl/2017-12-31-annual-summary-2017/)
 
 - 多读书，节假日要去远方浪
 - 搞定计算机的三座大山：操作系统，计算机网络，微机原理, 当然还有第四座大山（算法）……
@@ -43,8 +43,8 @@ Your browser does not support the audio element.
 - - -
 
 ```cs
-"What's past is prologue."  // 凡事过往，皆为序章。
-
+// 凡事过往，皆为序章。
+"What's past is prologue." 
 // ― William Shakespeare, The Tempest
 ```
 
@@ -107,8 +107,8 @@ Your browser does not support the audio element.
 - - -
 
 ```sh
-"I wasted time, and now doth time waste me." # 我荒废了时间，时间便把我荒废了。
-
+# 我荒废了时间，时间便把我荒废了。
+"I wasted time, and now doth time waste me."
 # ― William Shakespeare, Richard II
 ```
 
