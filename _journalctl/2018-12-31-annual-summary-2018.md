@@ -173,7 +173,6 @@ Your browser does not support the audio element.
 
 关于工作，如果是 2018 是 Docker，那么 2019 应将是 Kubernetes。
 
-每天起床的时候，争取变得比从前更聪明一点。
 
 - - -
 
@@ -185,7 +184,7 @@ Your browser does not support the audio element.
 - 世界很大
 - 对枯燥的事情有所坚持
 - 操作系统, 计算机网络, 微机原理, 算法
-- 上善若水, 水善利万物而不争, 处众人之所恶
+- 每天起床的时候, 争取变得比从前的自己更聪明一点
 - 不要让 2020 的自己, 如讨厌 2018 的自己一样, 讨厌 2019 的自己
 
 <audio controls=""> 
