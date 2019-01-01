@@ -16,7 +16,7 @@ disqus_identifier: 198641273799941514841690146553294024821
 - 计划赶不上变化，“对枯燥的事情有所坚持”就是最好的计划!
 - 不要让 2019 的自己，如讨厌 2017 的自己一样，讨厌 2018 的自己
 
-<audio id="start_audio" controls>
+<audio id="start_audio" controls autoplay>
   <source src="/assets/audio/Wayne Gratz - Somewhere In Time.mp3" type="audio/mpeg">
 Your browser does not support the audio element.
 </audio>
