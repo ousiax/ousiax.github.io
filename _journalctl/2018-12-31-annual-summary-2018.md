@@ -43,7 +43,7 @@ Your browser does not support the audio element.
 - - -
 
 ```cs
-// 凡事过往，皆为序章。
+// 凡是过往，皆为序章。
 "What's past is prologue." 
 // ― William Shakespeare, The Tempest
 ```
