@@ -532,6 +532,17 @@ sudo kubeadm reset -f && \
     $ kubectl logs -h
     ```
 
+### 5.9 Start minikube with HTTP proxy
+
+```sh
+minikube start \
+     --docker-env HTTP_PROXY=http://10.11.12.13:1080/ \
+     --docker-env HTTPS_PROXY=http://10.11.12.13:1080/ \
+     --docker-env NO_PROXY=index.docker.io,registry.hub.docker.com,registry-1.docker.io,registry.docker-cn.com,registry-mirror-cache-cn.oss-cn-shanghai.aliyuncs.com,192.168.99.100 \
+     --registry-mirror https://registry.docker-cn.com \
+     -v 9
+```
+
 ## 6. References
 
 - [https://github.com/kubernetes/minikube/releases/tag/v0.32.0](https://github.com/kubernetes/minikube/releases/tag/v0.32.0)
