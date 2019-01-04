@@ -21,7 +21,7 @@ disqus_identifier: 198641273799941514841690146553294024821
 Your browser does not support the audio element.
 </audio>
 
-*<small>音乐需要飘洋过海，点击播放按钮后，还请耐心等待 30-60s</small>*
+> *<small>点击播放后，请耐心等待 30-60s</small>*
 
 <script>
     const loop_limit = 3;
