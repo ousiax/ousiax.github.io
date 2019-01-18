@@ -492,3 +492,4 @@ target     prot opt source               destination
 1. HowTos/Network/IPTables - CentOS Wiki, [https://wiki.centos.org/HowTos/Network/IPTables](https://wiki.centos.org/HowTos/Network/IPTables)
 1. RETURN target, [https://www.frozentux.net/iptables-tutorial/chunkyhtml/x4625.html](https://www.frozentux.net/iptables-tutorial/chunkyhtml/x4625.html)
 1. Linux Firewall Tutorial: IPTables Tables, Chains, Rules Fundamentals, [https://www.thegeekstuff.com/2011/01/iptables-fundamentals/](https://www.thegeekstuff.com/2011/01/iptables-fundamentals/)
+1. Saving Iptables Firewall Rules Permanently, [https://www.thomas-krenn.com/en/wiki/Saving_Iptables_Firewall_Rules_Permanently](https://www.thomas-krenn.com/en/wiki/Saving_Iptables_Firewall_Rules_Permanently)
