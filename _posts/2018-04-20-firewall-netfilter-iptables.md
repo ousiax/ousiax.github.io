@@ -268,6 +268,22 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
 ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
 ```
 
+Allow default port range for Kubernetes NodePort servies.
+
+```sh
+$ sudo iptables -A INPUT -p tcp --dport 30000:32767 -j ACCEPT -m comment --comment "Allow default port range of kubernetes nodeport services"
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpts:30000:32767 /* Allow default port range of kubernetes nodeport services */
+
+Chain FORWARD (policy DROP)
+target     prot opt source               destination         
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination 
+```
+
 We have specifically allowed tcp traffic to the ssh and web ports, but as we have not blocked anything, all traffic can still come in.
 
 #### Block Incomming Traffic
