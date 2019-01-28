@@ -16,7 +16,6 @@
 # date: 2018-04-06 14:27:23 +0800
 # categories: ['Hello', 'World']
 # tags: ['Hello', 'World']
-# disqus_identifier: 80366368515793348026083669683423237092
 # ---
 
 require 'optparse'
@@ -58,7 +57,7 @@ filename = filename.gsub(' ', '-').gsub(/\(|\)|\./, '').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".md"
 date = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
-front_matter = "---\nlayout: post\ntitle: #{title}\ndate: #{date}\ncategories: #{categories}\ntags: #{tags}\ndisqus_identifier: #{disqus_identifier}\n---"
+front_matter = "---\nlayout: post\ntitle: #{title}\ndate: #{date}\ncategories: #{categories}\ntags: #{tags}\n---"
 
 File.open(filename, 'w') { |f| f.write(front_matter) }
 
