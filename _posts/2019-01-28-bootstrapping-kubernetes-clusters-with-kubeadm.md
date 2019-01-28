@@ -344,6 +344,22 @@ ipvsadm -C
 
 If you wish to start over simply run `kubeadm init` or `kubeadm join` with the appropriate arguments.
 
+### Set HTTP proxy for APT/YUM
+
+Set HTTP proxy for APT:
+
+```sh
+cat <<EOF > /etc/apt/apt.conf.d/httproxy 
+> Acquire::http::Proxy "http://PROXY_HOST:PORT";
+> EOF
+```
+
+Set HTTP proxy for YUM:
+
+```sh
+echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
+```
+
 ### References
 
 1. Installing kubeadm - Kubernetes, [https://kubernetes.io/docs/setup/independent/install-kubeadm](https://kubernetes.io/docs/setup/independent/install-kubeadm)
