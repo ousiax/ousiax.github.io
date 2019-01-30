@@ -185,6 +185,41 @@ $ odbcinst -q -d
 [Cloudera ODBC Driver for Impala]
 ```
 
+#### 2.8 ODBC Connection pooling
+
+There are a couple of points that should be considered before using pooled connections. It's possible that if used incorrectly this can produce a security risk, or at least introduce problems. If you web server using PHP (for example) and pooled connections, does things to the connection, that leaves it a different state at the end to how it started, you shouldn't use pooling. Lets take a example of this. Assume you have a page that requests a password from a user, then using this password, alters the default database to one that other users are not allowed access to, if this connection is reused by another user, they will have access to data they should not be allowed to see.
+
+If your scripts do things like this, or change default database, or in any way change the connection to the database, it may be worth avoiding pooling.
+
+Pooling is only effective when used within a process, a good example is a web server using PHP and ODBC, the connections will be pooled within each web server process, and reused, with a hopeful performance increase. A bad example would be a external CGI program, as each time its run, its a different process, there is nothing to be gained from pooling.
+
+Pooling is enabled by editing the *odbcinst.ini* config file, and as such is enabled on a per driver basis. If its required to have some connections to a driver pooled and some not, the create two entries for the driver, and map different DSN's to the drivers. The setup to enable a pooled connection, would look like this...
+
+```ini
+[ODBC]
+Trace           = No
+Trace File      = /tmp/sql.log
+Pooling         = Yes
+
+[INTERBASE-P]
+Description     = Easysoft Driver for Interbase
+Driver          = /usr/local/lib/libib6odbc.so
+Setup           = /usr/local/lib/libib6odbcS.so
+FileUsage       = 1
+DontDLClose     = 1
+CPTimeout       = 120
+
+[INTERBASE]
+Description     = Easysoft Driver for Interbase
+Driver          = /usr/local/lib/libib6odbc.so
+Setup           = /usr/local/lib/libib6odbcS.so
+FileUsage       = 1
+DontDLClose     = 1
+CPTimeout       = 0
+```
+
+Using this file any DSN's that used a driver of **INTERBASE**, would not pool, and those that use **INTERBASE-P** would be eligible. The "**Pooling = Yes**" flag is a global switch to enable pooling in the driver manager if it is set to No there will not be any pooled connections. To pool a individual driver the "**CPTimeout**" value is set to a non zero numeric value. This value indicates the number of seconds a pooled connection will remain open if it is not being used. Note that the connections are only closed when another connection is opened, or checked. 
+
 ### 3 Cloudera ODBC Driver for Impala with .NET Core 2.0
 
 #### 3.1 Installing the Driver on Debian
@@ -517,3 +552,4 @@ SSL=1;
 1. Use a keytab, [https://kb.iu.edu/d/aumh](https://kb.iu.edu/d/aumh)
 1. linux - Kerberos ktutil, what kinds of encryption are available? - Server Fault, [https://serverfault.com/questions/620521/kerberos-ktutil-what-kinds-of-encryption-are-available](https://serverfault.com/questions/620521/kerberos-ktutil-what-kinds-of-encryption-are-available)
 1. Environment variables — MIT Kerberos Documentation, [https://web.mit.edu/kerberos/krb5-devel/doc/admin/env_variables.html](https://web.mit.edu/kerberos/krb5-devel/doc/admin/env_variables.html)
+1. ODBC Connection pooling, [http://www.unixodbc.org/doc/conn_pool.html](http://www.unixodbc.org/doc/conn_pool.html)
