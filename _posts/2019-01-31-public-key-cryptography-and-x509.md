@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Public-key cryptography and X509
+title: Public-key cryptography and X.509
 date: 2019-01-31 14:31:20 +0800
 categories: ['Cryptography']
 tags: ['cryptography', 'x509', 'openssl']
