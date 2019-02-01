@@ -157,7 +157,7 @@ Certificate:
 ```sh
 # Generate a self signed root certificate
 openssl req -x509 -nodes -newkey rsa:2048 -keyout ca.key -out ca.crt -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Global Security/OU=IT Department/CN=example.com"
-# Generate a certificate request
+# Generate a certificate signing request
 openssl req -nodes -newkey rsa:2048 -keyout localhost.key -out localhost.csr  -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Global Security/OU=IT Department/CN=localhost"
 # Display the contents of the certificate request
 openssl req -in localhost.csr -noout -text
