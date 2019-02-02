@@ -27,7 +27,9 @@ Normal users are assumed to be managed by an outside, independent service. An ad
 
 In contrast, service accounts are users managed by the Kubernetes API. They are bound to specific namespaces, and created automatically by the API server or mannually through API calls. Service accounts are tied to a set of credential stored as **Secret**, which are mounted into pods allowing in-cluster processed to talk to the Kubernetes API.
 
-API requests are tied to either a normal user or a service account, or are treated as anonymous requests. This means every process inside or outside the cluster, from a human user typing **kubectl** on a workstation, to **kubelets** on nodes, to members of the control plane, must authenticate when making requests to the API server, or be treated as an anonymous user. For more information, see [Authenticating in Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/authentication/)
+API requests are tied to either a normal user or a service account, or are treated as anonymous requests. This means every process inside or outside the cluster, from a human user typing **kubectl** on a workstation, to **kubelets** on nodes, to members of the control plane, must authenticate when making requests to the API server, or be treated as an anonymous user.
+
+For more information, see [Authenticating in Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/authentication/)
 
 ### Authentication strategies
 
@@ -54,8 +56,37 @@ See [Managing Certificates](https://kubernetes.io/docs/concepts/cluster-administ
 
 ### Determine Whether a Request is Allowed or Denied
 
-Kubernetes authorizes API requests using the API server. It evaluates all of the request attributes against all policies and allows or denies the request. All parts of an API request must be allowed by some policy in order to proceed. This means that permissions are denied by default. For more information, see [Authorization Overview](https://kubernetes.io/docs/reference/access-authn-authz/authorization/)
+Kubernetes authorizes API requests using the API server. It evaluates all of the request attributes against all policies and allows or denies the request. All parts of an API request must be allowed by some policy in order to proceed. This means that permissions are denied by default.
 
+For more information, see [Authorization Overview](https://kubernetes.io/docs/reference/access-authn-authz/authorization/)
+
+### RBAC Authorization
+
+#### Role and ClusterRole
+
+In the RABC API, a role contains rules that represent a set of permissions. Perminssions are purely additive (there are no "deny" rules). A role can be defined within a namespace with a **Role**, or cluster-wide with a **ClusterRole**.
+
+A **Role** can only be used to grant access to resources within a single namespace.
+
+A **ClusterRole** can be used to grant the same permissions as a **Role**, but because they are cluster-scoped, they can also be used to grant access to:
+
+- cluster-scoped resources (like nodes)
+- no-resource endpoints (like "/healthz")
+- namespaced resources (like pods) across all namespaces (need to **kubectl get pods --all-namespaces**, for example)
+
+#### RoleBinding and ClusterRoleBinding
+
+A role binding grants the permissions defined in a role to a user or set of users. It holds a list of subjects (users, groups, or service accounts), and a reference to the role being granted. Permissions can be granted within a namespace with a **RoleBinding**, or cluster-wide with a **ClusterRoleBinding**.
+
+**roleRef** is how you will actually create the binding. The **kind** will be either **Role** or **ClusterRole**, and the **name** will reference the name of the specific **Role** or **ClusterRole** yo want.
+
+A **RoleBinding** may reference a **Role** in the same namespace.
+
+A **RoleBinding** may also reference a **ClusterRole** to grant the permissions to namespaced resources defined in the **ClusterRole** within the **RoleBinding**'s namespace. This allows administrators to define a set of common roles for the entire cluster, then reuse them with multiple namespaces.
+
+Finally, a **ClusterRoleBinding** may be used to grant permissions at the cluster level and in all namespaces.
+
+For more information, see [Using RBAC Authorization](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
 ## Configure Access to Kubernetes Cluster
 
 #### 1. Create a Normal User with X.509 Client Certificate
