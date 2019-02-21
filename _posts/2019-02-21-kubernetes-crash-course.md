@@ -104,7 +104,8 @@ $ echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
      --registry-mirror https://registry.docker-cn.com
 ```
 
-- https://codefarm.me/2018/08/09/http-proxy-docker-minikube/
+- [https://codefarm.me/2018/08/09/http-proxy-docker-minikube/](https://codefarm.me/2018/08/09/http-proxy-docker-minikube/)
+
 
 ### Learn Kubernetes Basics
 
