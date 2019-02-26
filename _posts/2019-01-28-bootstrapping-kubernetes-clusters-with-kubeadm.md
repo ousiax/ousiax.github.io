@@ -16,29 +16,29 @@ tags: ['Kubernetes', 'kubeadm']
 #### Debian
 
 ```sh
-# Install Docker CE on Debian 9+
-# Install packages to allow apt to use a repository over HTTPS
+## Install Docker CE on Debian 9+
+## Install packages to allow apt to use a repository over HTTPS
 apt-get update \
-    && apt-get install \
+    && apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
     gnupg2 \
     software-properties-common
 
-# Add Docker’s official GPG key
+## Add Docker’s official GPG key
 curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
 
-# Add docker apt repository.
+## Add docker apt repository.
 add-apt-repository \
     "deb [arch=amd64] https://download.docker.com/linux/debian \
     $(lsb_release -cs) \
     stable"
 
-## Install docker ce.
-apt-get update && apt-get install docker-ce=18.06.0~ce~3-0~debian
+## Create /etc/docker directory.
+mkdir /etc/docker
 
-# Setup daemon.
+## Setup daemon.
 cat > /etc/docker/daemon.json <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -49,6 +49,11 @@ cat > /etc/docker/daemon.json <<EOF
   "storage-driver": "overlay2"
 }
 EOF
+
+## Install docker ce.
+apt-get update && apt-get install -y docker-ce=18.06.0~ce~3-0~debian
+
+apt-mark hold docker-ce
 ```
 
 #### Centos/RHEL
@@ -63,9 +68,6 @@ yum install yum-utils device-mapper-persistent-data lvm2
 yum-config-manager \
     --add-repo \
     https://download.docker.com/linux/centos/docker-ce.repo
-
-## Install docker ce.
-yum update && yum install docker-ce-18.06.1.ce
 
 ## Create /etc/docker directory.
 mkdir /etc/docker
@@ -84,6 +86,9 @@ cat > /etc/docker/daemon.json <<EOF
   ]
 }
 EOF
+
+## Install docker ce.
+yum update && yum install docker-ce-18.06.1.ce
 ```
 
 ### Installing kubeadm, kubelet, kubectl and kubernetes-cni
