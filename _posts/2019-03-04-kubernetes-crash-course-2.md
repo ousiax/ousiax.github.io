@@ -278,23 +278,23 @@ kubectl explain --api-version=apps/v1 StatefulSet
 
 ### References
 
-https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/
-https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/#pod-templates
-https://kubernetes.io/docs/concepts/workloads/pods/pod/
-https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
-https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
-https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#when-should-you-use-liveness-or-readiness-probes
-https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#example-states
-https://blog.openshift.com/kubernetes-pods-life/
-https://www.ianlewis.org/en/what-are-kubernetes-pods-anyway
-https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
-https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
-https://kubernetes.io/docs/concepts/storage/volumes/
-https://kubernetes.io/docs/concepts/configuration/secret/
-https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
-https://kubernetes.io/docs/concepts/configuration/overview/#general-configuration-tips
-https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/#pod-templates
+- https://kubernetes.io/docs/concepts/workloads/pods/pod/
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+- https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#when-should-you-use-liveness-or-readiness-probes
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#example-states
+- https://blog.openshift.com/kubernetes-pods-life/
+- https://www.ianlewis.org/en/what-are-kubernetes-pods-anyway
+- https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+- https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+- https://kubernetes.io/docs/concepts/storage/volumes/
+- https://kubernetes.io/docs/concepts/configuration/secret/
+- https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+- https://kubernetes.io/docs/concepts/configuration/overview/#general-configuration-tips
+- https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 
 ### Quit or not quit ?
 
