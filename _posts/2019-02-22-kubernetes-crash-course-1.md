@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 0 - Kubernetes Objects
+title: 1 - Kubernetes Objects
 date: 2019-02-22 17:55:05 +0800
 categories: ['Kubernetes']
 tags: ['Kubernetes']
@@ -20,7 +20,7 @@ tags: ['Kubernetes']
 - `string`, `number`, `bool`, `null`
 - `object`/`map`, `array`/`list`
 
-### YAML to JSON
+#### YAML to JSON
 
 ```yaml
 ---
@@ -71,20 +71,20 @@ folded_style: >
     - The policies around how those applications behave, such as restart policies, upgrades, and fault-tolerance
 - A Kubernetes object is a “record of intent”–once you create the object, the Kubernetes system will constantly work to ensure that object exists. By creating an object, you’re effectively telling the Kubernetes system what you want your cluster’s workload to look like; this is your cluster’s desired state.
 
-### Object Spec and Status
+#### Object Spec and Status
 
 - Every Kubernetes object includes two nested object fields that govern the object’s configuration: the object **spec** and the object **status**.
 - The **spec**, which you must provide, describes your **desired state** for the object–the characteristics that you want the object to have.
 - The **status** describes the **actual state** of the object, and is supplied and updated by the Kubernetes system.
 - At any given time, the Kubernetes Control Plane actively manages an object’s actual state to match the desired state you supplied.
 
-### Describing a Kubernetes Object
+#### Describing a Kubernetes Object
 
 - When you create an object in Kubernetes, you must provide the object spec that describes its desired state, as well as some basic information about the object (such as a name).
 - When you use the Kubernetes API to create the object (either directly or via `kubectl`), that API request must include that information as JSON in the request body.
 - Most often, you provide the information to `kubectl` in a `.yaml` file. `kubectl` converts the information to JSON when making the API request.
 
-### Deployment Object
+#### Deployment Object
 
 ```yaml
 # kubectl create deployment nginx --image=nginx:1.15.8 --dry-run -o yaml
@@ -109,7 +109,7 @@ spec:
 status: {}
 ```
 
-### kubectl explain
+#### kubectl explain
 
 ```sh
 $ kubectl explain --help
@@ -132,7 +132,7 @@ $ kubectl explain pod.spec.containers
 - UIDs are Kubernetes systems-generated string to uniquely identify objects.
 - Every object created over the whole lifetime of a Kubernetes cluster has a distinct UID. It is intended to distinguish between historical occurrences of similar entities.
  
-### kubectl get deployment -o yaml
+#### kubectl get deployment -o yaml
 
 ```yaml
 $ kubectl create deployment nginx --image=nginx:1.15.8
@@ -172,7 +172,7 @@ status:
     # Not in a namespace
     $ kubectl api-resources --namespaced=false
     ```
-### kubectl config <small>& context</small>
+#### kubectl config <small>& context</small>
 
 ```sh
 # Show the configuration information associated with the current context
@@ -222,7 +222,7 @@ namespace "foobar" deleted
 - Each object can have a set of key/value labels defined.
 - Each Key must be unique for a given object.
 
-### Labels Syntax and Character Set
+#### Labels Syntax and Character Set
 
 - Valid label keys have two segments: an optional prefix and name, separated by a slash (/).
     - The name segment is required and must be 63 characters or less, beginning and ending with an alphanumeric character ([a-z0-9A-Z]) with dashes (-), underscores (\_), dots (.), and alphanumerics between.
@@ -231,7 +231,7 @@ namespace "foobar" deleted
     - The kubernetes.io/ and k8s.io/ prefixes are reserved for Kubernetes core components.
 - Valid label values must be 63 characters or less and must be empty or begin and end with an alphanumeric character ([a-z0-9A-Z]) with dashes (-), underscores (\_), dots (.), and alphanumerics between.
 
-### kubectl label
+#### kubectl label
 
 ```sh
 $ kubectl create deployment nginx --image=nginx:1.15
@@ -275,7 +275,7 @@ NAME       READY   UP-TO-DATE   AVAILABLE   AGE
 nginx-qa   1/1     1            1           8m46s
 ```
 
-### Label Selectors
+#### Label Selectors
 
 - Unlike names and UIDs, labels do not provide uniqueness. In general, we expect many objects to carry the same label(s).
 - Via a label selector, the client/user can **identify a set of objects**.
@@ -283,7 +283,7 @@ nginx-qa   1/1     1            1           8m46s
 - The API currently supports two types of selectors: **equality-based** and **set-based**.
 - A label selector can be made of multiple requirements which are comma-separated, and the comma separator acts as a logical **AND (&&)** operator.
 
-### Equality-based Requirement
+##### Equality-based Requirement
 
 - Equality- or inequality-based requirements allow filtering by label keys and values.
 - Matching objects must satisfy all of the specified label constraints, though they may have additional labels as well.
@@ -297,7 +297,7 @@ environment = production
 tier != frontend
 ```
 
-### Set-based Requirement
+##### Set-based Requirement
 
 - Set-based label requirements allow filtering keys according to a set of values.
 - Three kinds of operators are supported: `in`, `notin` and `exists` (only the key identifier).
@@ -314,7 +314,7 @@ partition
 !partition
 ```
 
-### matchLabels / matchExpressions
+#### matchLabels / matchExpressions
 
 - **matchLabels** is a map of **{key,value}** pairs.
     - A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "**key**", the operator is "**In**", and the values array contains only "value".
@@ -333,7 +333,7 @@ selector:
     - {key: environment, operator: NotIn, values: [dev]}
 ```
 
-### NodeSelector
+#### NodeSelector
 
 ```yaml
 # kubectl explain pod.spec.nodeSelector
@@ -367,7 +367,7 @@ spec:
 status:
 ```
 
-### Annotations Syntax and Character Set
+#### Annotations Syntax and Character Set
 
 - Annotations are key/value pairs.
 - Valid annotation keys have two segments: an optional prefix and name, separated by a slash (/).
