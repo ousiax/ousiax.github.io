@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 莫尔斯码，比特，国际商品编码
+title: 莫尔斯电码，比特，国际商品编码
 date: 2019-04-01 14:43:32 +0800
 categories: ['Programming']
 tags: ['Programming']
