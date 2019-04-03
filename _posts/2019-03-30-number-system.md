@@ -164,3 +164,7 @@ tags: ['Programming']
 二进制数字系统在算术和电子技术之间架起了一座桥梁。二进制数与计算机之间有着紧密的联系。
 
 大约在 1948 年，美国数学家约翰·威尔德·特克（John Wilder Tukey）就意识到随着计算机的普及，二进制数很可能会在未来发挥更重要的作用。于是他在考虑 **bigit**，**binit**后，并最终决定用一个短小、简单、精巧的单词 **bit** 代替使用起来很不方便的五音节单词 **binary digit**。
+
+### 参考
+
+- Charles Petzold, Code: The Hidden Language of Computer Hardware and Software
