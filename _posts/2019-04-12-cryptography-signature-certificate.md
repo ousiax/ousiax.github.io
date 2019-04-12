@@ -166,7 +166,7 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
         -noout \
         -pubkey \
         > 996.icu.pubkey
-        ```
+    ```
 
   - 查看证书（955.wlb）的数字签名和哈希算法
 
@@ -248,6 +248,20 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
         4:d=2  hl=2 l=   9 prim: OBJECT            :sha256
        15:d=2  hl=2 l=   0 prim: NULL              
        17:d=1  hl=2 l=  32 prim: OCTET STRING      [HEX DUMP]:2536D931BEDD00FA1F586352FF0C6282EA1BF710561A2DE1EA64B64ABA6B0F91
+    ```
+
+    ```sh
+    # print only the digest
+    openssl asn1parse \
+        -inform der \
+        -in 955.wlb.cert-sig-decrypted.bin | \
+        grep 'DUMP' | \
+        cut -d ':' -f4 | \
+        tr A-Z a-z
+    ```
+
+    ```none
+    2536d931bedd00fa1f586352ff0c6282ea1bf710561a2de1ea64b64aba6b0f91
     ```
 
   - 计算原始的证书的摘要信息（和上面的摘要匹配）
