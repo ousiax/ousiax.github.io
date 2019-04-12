@@ -6,6 +6,11 @@ categories: ['Cryptography']
 tags: ['Cryptography']
 ---
 
+- TOC
+{:toc}
+
+- - -
+
 ### 密码系统
 
 在密码学（cryptography）中，密码系统（cryptosystem）是用于特定安全服务（通常是实现保密性，即加密）所需的一套算法。
