@@ -233,7 +233,7 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
         -pubin > 955.wlb.cert-sig-decrypted.bin
     ```
 
-  -  查看解密后签名摘要的信息
+  -  查看解密后签名摘要信息
 
     ```sh
     # view the decrypted signature hash (digest)
@@ -250,10 +250,10 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
        17:d=1  hl=2 l=  32 prim: OCTET STRING      [HEX DUMP]:2536D931BEDD00FA1F586352FF0C6282EA1BF710561A2DE1EA64B64ABA6B0F91
     ```
 
-  - 计算原始的证书的摘要的哈希
+  - 计算原始的证书的摘要信息（和上面的摘要匹配）
 
     ```sh
-    # hasing the orginal signature hash (digest)
+    # extract the certifcate body and compute the hash (digest)
     openssl asn1parse \
         -in 955.wlb.pem \
         -strparse 4 \
