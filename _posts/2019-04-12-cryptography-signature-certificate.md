@@ -15,15 +15,15 @@ tags: ['Cryptography']
 
 在密码学（cryptography）中，密码系统（cryptosystem）是用于特定安全服务（通常是实现保密性，即加密）所需的一套算法。
 
-密码系统通常由三种算法组成：一种用于密钥的生成（key generation），一种用于加密（encryption），一种用于解密（decryption）。单词 cipher 或 cypher 通常指一对加密和解密的算法，所以单词  cryptosystem 通常用于强调密钥生成算法的重要性，表示公钥加密（public key）。但是，cipher 和 cryptosystem 都可以指对称加密（symmetric key）。
+密码系统通常由三种算法组成：一种用于密钥的生成（key generation），一种用于加密（encryption），一种用于解密（decryption）。单词 cipher 或 cypher 通常指一对加密和解密的算法，所以单词 cryptosystem 通常用于强调密钥生成算法的重要性，表示公钥加密（public key）。但 cipher 和 cryptosystem 都可以指对称加密（symmetric key）。
 
-在密码学中，明文（plaintext  or cleartext）是指未加密的消息，密文（cipher text）指通过加密算法（encryption algorithm），将明文进行扰乱并转换为不可读的消息，密文可以通过解密算法（decryption algorithm）转换为明文。而密钥（key）是指用于限定密码算法（cryptographic alogrithm）输出的一段信息，在加密算法中，密钥用于将明文转换为密文，而在解密算法中，密钥用于将密文转换为明文。
+在密码学中，明文（plaintext  or cleartext）是指未加密的消息，密文（cipher text）指通过加密算法（encryption algorithm），将明文进行扰乱并转换为不可读的消息，密文可以通过解密算法（decryption algorithm）转换为明文。密钥（key）是指用于限定密码算法（cryptographic alogrithm）输出的一段信息，在加密算法中，密钥用于将明文转换为密文，而在解密算法中，密钥用于将密文转换为明文。
 
 ### 对称加密算法
 
-对称加密算法（symmetric key algorithm）是指在明文加密和密文解密中使用同一个的密钥的密码算法。实际上，对称加密的密钥由两个或多个参与方共享，并用于在参与方之间维护一条私有的信息链路。对称加密算法的通信的双方都有密码的访问权，相对于公钥加密，对称加密的密钥的共享成为对称加密算法的一个主要缺点。
+对称加密算法（symmetric key algorithm）是指在明文加密和密文解密中使用同一个的密钥的密码算法。实际上，对称加密的密钥由两个或多个参与方共享，并用于在参与方之间维护一条私有的信息链路。对称加密算法的通信双方都有密钥的访问权，相对于公钥加密，对称加密的密钥的共享成为对称加密算法的一个主要缺点。
 
-对称加密算法有 AES, RC4, DES, RC5, and RC6 等，常用的算法是 AES-128 AES-192 AES-256。
+对称加密算法有 AES, RC4, DES, RC5 和 RC6 等，常用的算法是 AES-128，AES-192 和 AES-256。
 
 ### 公钥加密
 
@@ -39,15 +39,15 @@ RSA 是相对比较慢的算法，因此很少直接用于数据的加密，更�
 
 ### 数字签名
 
-数字签名（digital signature）用于检验数字消息或文档的可靠性的一种数学方案（mathematical scheme）。有效的数字签名可以让接收者有非常强的理由相信其接收到的消息是由已知或者认证的发送者创建，并且消息在传输的过程并没有被篡改。
+数字签名（digital signature）用于检验数字消息或电子文档的可靠性的一种数学方案（mathematical scheme）。有效的数字签名可以让接收者有非常强的理由相信其接收到的消息是由已知或者认证的发送者创建，并且消息在传输的过程并没有被篡改。
 
 数字签名利用公钥加密系统，很多情况中，用于在非安全的信息通道中提供一层对消息的校验和安全层，并用于鉴定（authentication）消息的可靠来源，提供消息的完整性（integrity）以及消息的不可抵赖性（non-repudiation）保证。
 
 ### 数字证书
 
-在密码学中，公钥证书（public key certificate）或数字证书（digital certificate）或者身份证书（identity certificate）是用于证明公钥所有权的一种电子文档。证书中包含公钥的信息，所有者或者主体（subject）的信息，以及验证证书内容的实体即证书的签发者（issuer）的数字签名。如果签名有效，并核验了证书的信签发者，则可以使用证书的公钥进行安全的信息通信。数字证书保证了公钥进行安全可靠的发布和传播。
+在密码学中，公钥证书（public key certificate）或数字证书（digital certificate）或者身份证书（identity certificate）是用于证明公钥所有权的一种电子文档。证书中包含公钥的信息，所有者或者主体（subject）的信息，以及验证证书内容的实体即证书的签发者（issuer）的数字签名。如果签名有效，并核验了证书的信任签发者，则可以使用证书的公钥进行安全的信息通信。数字证书保证了公钥发布和传播的安全性和可靠性。
 
-在电子邮件加密、代码签名和电子签名系统中，证书的主体通常是个人或组织。但是，但安全传输协议层 TLS（Transport Layer Security）中，证书的主体通常是指计算机或者其他设备，当然，TSL 证书除了标识设备的核心角色外，还可以标识个人或组织。TLS 有时也用其旧称，即安全套接字层 SSL（Secure Sockets Layer），并因作为 Web 浏览器安全访问的 HTTPS 协议的一部分而闻名。
+在电子邮件加密、代码签名和电子签名系统中，证书的主体通常是个人或组织。但是，在安全传输协议层 TLS（Transport Layer Security）中，证书的主体通常是指计算机或者其他设备。当然，TSL 证书除了标识设备的核心角色外，还可以标识个人或组织。TLS 有时也用其旧称，即安全套接字层 SSL（Secure Sockets Layer），并因作为 Web 浏览器安全访问的HTTPS协议的一部分而闻名。
 
 在一个典型的公钥基础设施 PKI（public key infrastructure）中，证书的签发者是一个证书签发机构 CA（certificate authority），通常是一个向客户收取费用并为其签发证书的公司。
 
@@ -56,7 +56,7 @@ RSA 是相对比较慢的算法，因此很少直接用于数据的加密，更�
 X.509 证书有几种常见的文件扩展名：
 
 - .pem（Privacy-enhanced Electronic Mail）基于 Base64 编码的 DER （Distinguished Encoding Rules）格式的证书，以 `-----BEGIN CERTIFICATE-----` 开始，并以 `-----END CERTIFICATE-----` 结束。
-- .cer, .crt, .der 扩展名通常是指二进制形式的 DER 格式的证书
+- .cer, .crt, .der 扩展名通常是指二进制的 DER 格式的证书
 
 在公钥基础设施 PKI 系统中，证书签名请求 CSR（certificate signing request），或证书请求（certificate request）是由证书申请人发送给证书的签发机构（CA)以便申请数字证书的身份消息。CSR 通常包含被签发者证书的公钥，标识信息（如域名）以及完整性保护（integrity protection，如数字签名）。CSR 最常见的格式是 PKCS #10 规范，以及另一种由某些 Web 浏览器生成的签名公钥和质询 SPKAC（Signed Public Key and Challenge）格式。
 
