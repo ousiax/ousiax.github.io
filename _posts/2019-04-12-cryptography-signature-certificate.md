@@ -55,7 +55,7 @@ X.509 证书有几种常见的文件扩展名：
 
 在公钥基础设施 PKI 系统中，证书签名请求 CSR（certificate signing request），或证书请求（certificate request）是由证书申请人发送给证书的签发机构（CA)以便申请数字证书的身份消息。CSR 通常包含被签发者证书的公钥，标识信息（如域名）以及完整性保护（integrity protection，如数字签名）。CSR 最常见的格式是 PKCS #10 规范，以及另一种由某些 Web 浏览器生成的签名公钥和质询 SPKAC（Signed Public Key and Challenge）格式。
 
-### ## OpenSSL
+### OpenSSL
 
 OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通信，防止窃听或者识别通信另一端的参与方。 OpenSSL 广泛用于互联网服务器，并为大多数网站提供服务。OpenSSL 包含了一个 TLS/SSL 协议的开源实现。大多数 Unix 和 Unix-like 的操作系统(包括 Solaris, Linux, macOS, QNX 和各种开源 BSD 操作系统)，OpenVMS 和 Microsoft Windows 都有可用的版本。
 
