@@ -64,8 +64,11 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
   ```sh
   # Generate a self signed root certificate
   openssl req \
-      -x509 -nodes \
-      -newkey rsa:2048 -keyout 996.icu.key -out 996.icu.pem \
+      -x509 \
+      -nodes \
+      -newkey rsa:2048 \
+      -keyout 996.icu.key \
+      -out 996.icu.pem \
       -subj "/C=CN/ST=Shanghai/L=Shanghai/O=996/CN=996.icu"
   ```
   
@@ -75,14 +78,20 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
   # Generate a certificate signing request
   openssl req \
       -nodes \
-      -newkey rsa:2048 -keyout 955.wlb.key -out 955.wlb.csr \
+      -newkey rsa:2048 \
+      -keyout 955.wlb.key \
+      -out 955.wlb.csr \
       -subj "/C=CN/ST=Shanghai/L=Shanghai/O=955/CN=955.wlb"
   
   # Sign a certificate request using the CA certificate above
   openssl x509 \
-      -req -in 955.wlb.csr \
-      -CA 996.icu.pem -CAkey 996.icu.key -CAcreateserial \
-      -out 955.wlb.pem -days 10000
+      -req \
+      -CA 996.icu.pem \
+      -CAkey 996.icu.key \
+      -CAcreateserial \
+      -days 10000 \
+      -in 955.wlb.csr \
+      -out 955.wlb.pem
   ```
   
 - 查看 955.wlb 证书的内容
@@ -96,65 +105,173 @@ OpenSSL 是一个应用程序软件库，用于保护计算机网络的安全通
       Data:
           Version: 1 (0x0)
           Serial Number:
-              e5:7a:55:ac:d4:b5:94:8f
+              80:58:87:4a:4c:41:0f:25
       Signature Algorithm: sha256WithRSAEncryption
           Issuer: C = CN, ST = Shanghai, L = Shanghai, O = 996, CN = 996.icu
           Validity
-              Not Before: Apr 12 09:02:59 2019 GMT
-              Not After : Aug 28 09:02:59 2046 GMT
+              Not Before: Apr 12 10:04:39 2019 GMT
+              Not After : Aug 28 10:04:39 2046 GMT
           Subject: C = CN, ST = Shanghai, L = Shanghai, O = 955, CN = 955.wlb
           Subject Public Key Info:
               Public Key Algorithm: rsaEncryption
                   Public-Key: (2048 bit)
                   Modulus:
-                      00:c0:bd:6f:05:c1:cd:1b:a4:d5:3b:ed:69:a1:5b:
-                      2e:d6:9a:c9:4d:88:9e:d1:fb:5d:40:f9:96:3c:b1:
-                      2c:73:9b:68:6c:d1:83:6d:c1:5b:79:64:b5:29:af:
-                      3b:30:e2:d7:ef:f4:d0:33:4a:9a:0d:8c:70:5c:21:
-                      11:07:06:5f:41:b0:7f:82:68:27:06:c0:65:d7:48:
-                      00:e4:5a:3a:ef:b2:7c:f9:af:82:c6:ca:75:a5:9e:
-                      25:a1:d4:af:1a:e3:40:c0:ce:24:16:5b:ed:87:3f:
-                      bf:19:92:05:fc:bd:7b:69:71:3a:c4:c9:19:c8:f8:
-                      5d:9c:59:c5:f5:6a:a6:a8:c1:6f:06:2a:06:45:8c:
-                      52:35:3f:4e:94:57:4d:82:af:2e:a7:05:d4:0d:5b:
-                      b5:3d:cc:b7:0b:af:3d:79:7e:53:5b:be:a5:37:bb:
-                      8f:05:a3:92:6f:e4:69:2a:22:7e:a9:4b:5f:0f:12:
-                      e2:16:3e:b6:f3:54:42:4f:e2:01:0c:8b:30:ee:79:
-                      de:30:62:dd:95:e4:8f:aa:06:3c:43:05:a3:0e:46:
-                      e5:cd:24:59:9d:2f:7d:49:1e:0c:c7:74:a6:78:cc:
-                      1b:9a:50:c6:61:ad:c7:37:a0:08:84:36:4c:a2:29:
-                      b0:5b:f5:71:08:8e:f7:8c:9e:be:b3:f8:cb:5e:fc:
-                      27:31
+                      00:b2:20:29:35:5f:fe:42:35:22:74:03:8b:fd:75:
+                      04:66:3d:fd:5f:63:b3:4b:1f:70:29:4f:16:92:0e:
+                      7b:a0:16:31:2e:8c:8f:35:ee:ff:ce:b9:0b:db:15:
+                      65:77:b7:56:01:15:12:86:6e:75:4b:95:bb:9a:31:
+                      be:ef:63:a1:85:54:b6:91:73:a1:5a:bc:07:3d:ac:
+                      9d:f3:50:f5:a3:62:a7:fb:04:da:7d:49:3b:2d:b2:
+                      0f:57:53:d3:a0:ac:5c:01:70:f7:14:4e:a9:9c:1a:
+                      29:6c:1d:ce:10:e2:bd:4b:88:af:ed:38:ce:a4:e0:
+                      4f:b1:cf:61:ba:c9:28:5c:0a:71:2e:99:a4:52:97:
+                      d9:d4:ae:ba:44:0f:78:ac:3e:d5:f9:87:f8:24:0d:
+                      b2:45:46:c4:d1:99:77:a5:6b:cd:60:01:94:fb:e2:
+                      f5:3c:f1:46:31:b6:18:93:c1:d3:45:4b:ce:d4:4d:
+                      ad:98:3a:e7:c3:be:16:90:dc:8e:f4:2c:1e:4b:71:
+                      be:73:c3:97:28:3b:f0:28:63:2a:90:60:d9:b6:c0:
+                      eb:dc:3e:76:fc:62:3b:8c:2a:78:2b:d9:be:41:00:
+                      59:40:43:91:a0:a6:ca:ee:cd:c0:b9:ae:51:c7:07:
+                      4f:c2:a4:00:e9:41:be:1b:b0:e3:56:8d:24:a7:42:
+                      3b:4f
                   Exponent: 65537 (0x10001)
       Signature Algorithm: sha256WithRSAEncryption
-           32:1f:35:96:7d:ef:ab:08:b1:52:dc:36:9c:c1:7d:73:e5:44:
-           0a:c5:76:0f:58:e0:9b:d2:93:37:9a:3c:d7:94:20:37:a8:16:
-           cc:2c:c3:73:49:ae:b2:27:9d:bb:fe:c4:8d:7e:4b:4e:75:5e:
-           7f:e9:6c:e0:0e:13:79:ca:b4:cc:ed:80:61:ec:91:1d:de:51:
-           f1:1f:5a:ae:0b:1b:81:31:7a:5d:79:8b:f4:86:a5:15:73:3f:
-           31:f3:71:bb:dd:1c:78:2d:57:14:f6:f4:02:b0:17:63:fb:a5:
-           aa:2b:68:f7:c2:37:2e:80:03:12:54:f3:d0:33:0e:3a:36:5a:
-           ca:43:4e:95:f0:ed:67:4a:c8:57:2a:6a:08:4b:fb:57:fa:e2:
-           3a:0e:42:8f:41:0f:92:33:73:00:da:0e:b3:77:b9:ff:2b:a8:
-           cf:3d:bd:11:ad:7a:cd:b2:b4:3b:34:6b:6b:f3:c5:9d:9d:e0:
-           97:cb:a7:e8:7a:8d:53:8f:d9:84:cf:ee:78:59:05:a8:85:2a:
-           c6:ec:9a:d5:38:2c:bf:ff:d8:52:d2:fc:55:25:03:81:10:23:
-           8c:56:38:2c:3a:a8:27:f7:a0:4b:16:f5:51:6f:1d:b3:84:ee:
-           08:91:92:5d:93:55:29:14:a9:cd:10:ce:43:e0:2d:ac:1a:45:
-           a2:83:d7:f2
+           4c:20:59:24:c0:49:cc:8a:36:bc:fa:88:7e:74:7e:19:29:ec:
+           67:20:b1:cd:32:31:5d:bc:ec:97:d6:a5:e7:f3:c3:b0:c5:93:
+           f9:61:4c:62:83:63:de:67:3a:1d:07:f1:d4:3e:80:e1:36:66:
+           ec:73:51:cc:19:b2:d5:81:64:ea:4f:9d:6f:c5:ad:e8:f2:3f:
+           53:5c:ce:31:58:21:a3:b1:e7:15:8d:21:ba:61:e3:fc:ce:df:
+           45:96:81:5c:0d:4a:75:cb:5c:4a:66:d0:6e:26:e4:ec:0f:7a:
+           72:47:64:3d:92:01:36:10:5f:b4:59:5d:d8:77:1c:1c:6f:21:
+           1d:95:e2:a2:f8:cb:4d:08:06:be:c2:ee:3e:c8:42:ba:ff:47:
+           85:e7:41:da:a2:ec:8a:80:83:3a:85:d5:4d:e4:93:fe:cf:2d:
+           18:c0:dc:60:1a:6f:ba:56:c4:e3:8b:42:37:61:6d:3c:c5:28:
+           b7:bf:e1:4b:65:e0:73:5e:f9:e6:07:f6:14:60:57:61:cc:06:
+           0f:13:62:1a:17:02:02:9b:5c:aa:6a:12:d3:11:36:eb:0e:a1:
+           04:5e:6e:67:d6:a3:05:0c:29:3b:da:a9:15:91:6b:14:83:31:
+           a0:2f:27:7b:02:8a:ba:55:eb:42:9b:44:21:6d:8f:c3:f8:53:
+           b3:3f:40:db
   ```
   
 - 验证证书 955.wlb.pem 的数字签名有效性
   
   证书签发机构 CA 在签名证书时，实际上是先用哈希算法计算证书内容的摘要信息（digest message），然后再利用公钥加密系统的私钥对摘要信息加密，并将摘要信息的密文嵌入到证书中。所以，要校验由 CA 签发的证书的签名信息，只需要 CA 的公钥，证书的签名信息以及摘要算法。
 
+  - 提取签发机构 CA (995.icu)的公钥
 
+    ```sh
+    # extract the Issuer's Public Key
+    openssl x509 \
+        -in 996.icu.pem\
+        -noout \
+        -pubkey \
+        > 996.icu.pubkey
+        ```
+
+  - 查看证书（955.wlb）的数字签名和哈希算法
+
+    ```sh
+    # show the signature and cryptographic hash algorithm (SHA-256)
+    # and the encryption algorithm (RSA)
+    openssl x509 \
+        -in 955.wlb.pem \
+        -text \
+        -noout \
+        -certopt ca_default \
+        -certopt no_validity \
+        -certopt no_serial \
+        -certopt no_subject \
+        -certopt no_extensions \
+        -certopt no_signame
+    ```
+
+    ```none
+    Signature Algorithm: sha256WithRSAEncryption
+         4c:20:59:24:c0:49:cc:8a:36:bc:fa:88:7e:74:7e:19:29:ec:
+         67:20:b1:cd:32:31:5d:bc:ec:97:d6:a5:e7:f3:c3:b0:c5:93:
+         f9:61:4c:62:83:63:de:67:3a:1d:07:f1:d4:3e:80:e1:36:66:
+         ec:73:51:cc:19:b2:d5:81:64:ea:4f:9d:6f:c5:ad:e8:f2:3f:
+         53:5c:ce:31:58:21:a3:b1:e7:15:8d:21:ba:61:e3:fc:ce:df:
+         45:96:81:5c:0d:4a:75:cb:5c:4a:66:d0:6e:26:e4:ec:0f:7a:
+         72:47:64:3d:92:01:36:10:5f:b4:59:5d:d8:77:1c:1c:6f:21:
+         1d:95:e2:a2:f8:cb:4d:08:06:be:c2:ee:3e:c8:42:ba:ff:47:
+         85:e7:41:da:a2:ec:8a:80:83:3a:85:d5:4d:e4:93:fe:cf:2d:
+         18:c0:dc:60:1a:6f:ba:56:c4:e3:8b:42:37:61:6d:3c:c5:28:
+         b7:bf:e1:4b:65:e0:73:5e:f9:e6:07:f6:14:60:57:61:cc:06:
+         0f:13:62:1a:17:02:02:9b:5c:aa:6a:12:d3:11:36:eb:0e:a1:
+         04:5e:6e:67:d6:a3:05:0c:29:3b:da:a9:15:91:6b:14:83:31:
+         a0:2f:27:7b:02:8a:ba:55:eb:42:9b:44:21:6d:8f:c3:f8:53:
+         b3:3f:40:db
+    ```
+
+  - 提取证书（ 955.wlb）的 16 进制编码的签名并转换为二进制编码格式
+
+    ```sh
+    openssl x509 \
+        -in 955.wlb.pem \
+        -text \
+        -noout \
+        -certopt ca_default \
+        -certopt no_validity \
+        -certopt no_serial \
+        -certopt no_subject \
+        -certopt no_extensions \
+        -certopt no_signame | \
+        grep -v 'Signature Algorithm' | \
+        tr -d '[:space:]:' | \
+        xxd -r -p > 955.wlb.cert-sig.bin
+    ```
+
+  - 解密（RSA）证书（955.wlb）的数字签名
+
+    ```sh
+    # decrypty the Signature (RSA)
+    openssl rsautl \
+        -verify \
+        -inkey 996.icu.pubkey \
+        -in 955.wlb.cert-sig.bin \
+        -pubin > 955.wlb.cert-sig-decrypted.bin
+    ```
+
+  -  查看解密后签名摘要的信息
+
+    ```sh
+    # view the decrypted signature hash (digest)
+    openssl asn1parse \
+        -inform der \
+        -in 955.wlb.cert-sig-decrypted.bin
+    ```
+    
+    ```none
+        0:d=0  hl=2 l=  49 cons: SEQUENCE          
+        2:d=1  hl=2 l=  13 cons: SEQUENCE          
+        4:d=2  hl=2 l=   9 prim: OBJECT            :sha256
+       15:d=2  hl=2 l=   0 prim: NULL              
+       17:d=1  hl=2 l=  32 prim: OCTET STRING      [HEX DUMP]:2536D931BEDD00FA1F586352FF0C6282EA1BF710561A2DE1EA64B64ABA6B0F91
+    ```
+
+  - 计算原始的证书的摘要的哈希
+
+    ```sh
+    # hasing the orginal signature hash (digest)
+    openssl asn1parse \
+        -in 955.wlb.pem \
+        -strparse 4 \
+        -noout \
+        -out - | \
+        openssl dgst \
+        -sha256 -
+    ```
+
+    ```none
+    (stdin)= 2536d931bedd00fa1f586352ff0c6282ea1bf710561a2de1ea64b64aba6b0f91
+    ```
 
 ### References
 
 - https://en.wikipedia.org/wiki/Cryptosystem
-- https://en.wikipedia.org/wiki/Symmetric-key_algorithm
-- https://en.wikipedia.org/wiki/Public-key_cryptography
+- https://en.wikipedia.org/wiki/Symmetric-key\_algorithm
+- https://en.wikipedia.org/wiki/Public-key\_cryptography
 - https://en.wikipedia.org/wiki/RSA_(cryptosystem)
 - https://en.wikipedia.org/wiki/Certificate_signing_request
 - https://en.wikipedia.org/wiki/X.509
