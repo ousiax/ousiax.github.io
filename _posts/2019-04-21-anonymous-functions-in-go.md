@@ -8,7 +8,7 @@ tags: ['programming']
 
 ### 匿名函数
 
-在计算机编程语言中，匿名函数（anonymous function），又称 lambda 表达式（lambda expression），lambda 抽象（lambda abstraction）或字面量函数（function literal），是在声明定义时没有绑定标识符的一种函数。简单点说，匿名函数就是没有名字的函数（不配拥有姓名？）。
+在计算机编程语言中，匿名函数（anonymous function），又称 lambda 表达式（lambda expression），lambda 抽象（lambda abstraction）或函数字面量（function literal），是在声明定义时没有绑定标识符的一种函数。简单点说，匿名函数就是没有名字的函数（不配拥有姓名？）。
 
 匿名函数常见的 3 中使用场景：
 
