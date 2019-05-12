@@ -46,6 +46,16 @@ CPU Cache
       Store Forwarding
     Invalidate Queue
 
+硬件同步原语 Hardware synchronization primitives
+  Compare and swap (CAS)
+    atomic test-and-set operation / atomic read-modify-write sequence
+    On Intel processors, compare-and-swap is implemented by the cmpxchg family of instructions.
+    A CAS operation includes three operands -- a memory location (V),
+      the expected old value (A), and a new value (B).
+    CAS effectively says "I think location V should have the value A; if it does, put B in it,
+      otherwise, don't change it but tell me what value is there now.
+  
+
 无锁编程 lockless programming
   原子操作 atomic operation
     RMW(read-modify-write)
@@ -208,3 +218,5 @@ Double-Check Locking
 
 Condition Variable Pattern
 ```
+
+- https://www.ibm.com/developerworks/java/library/j-jtp11234/
