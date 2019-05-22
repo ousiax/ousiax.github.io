@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Kubernetes Recovery from Master Failure
+title: Kubernetes Recovery from Master Failure with Kubeadm
 date: 2019-05-22 11:21:04 +0800
 categories: ['kubernetes']
 tags: ['kubernetes']
