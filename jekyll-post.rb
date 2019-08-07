@@ -57,7 +57,7 @@ filename = filename.gsub(' ', '-').gsub(/\(|\)|\./, '').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".md"
 date = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
-front_matter = "---\nlayout: post\ntitle: #{title}\ndate: #{date}\ncategories: #{categories}\ntags: #{tags}\n---"
+front_matter = "---\nlayout: post\ntitle: #{title}\ndate: #{date}\ncategories: ['#{categories}']\ntags: ['#{tags}']\n---"
 
 File.open(filename, 'w') { |f| f.write(front_matter) }
 
