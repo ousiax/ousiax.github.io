@@ -359,7 +359,7 @@ If you wish to start over simply run `kubeadm init` or `kubeadm join` with the a
   > EOF
   ```
 
-  For example:
+  Here is a config */etc/apt/apt.conf.d/10httproxy* file:
 
   ```
   Acquire::http::Proxy "http://10.20.30.40:1080";
