@@ -410,3 +410,4 @@ If you wish to start over simply run `kubeadm init` or `kubeadm join` with the a
 1. [AptConfiguration](https://wiki.debian.org/AptConfiguration)
 1. [8.4. Configuring Yum and Yum Repositories](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/deployment_guide/sec-configuring_yum_and_yum_repositories)
 1. [CentOS / RHEL / Fedora Linux: Use Yum Command With A Proxy Server](https://www.cyberciti.biz/faq/centos-redhat-fedora-linux-using-yum-with-a-proxy-server/)
+1. [Can I set a proxy for specific yum repositories?](https://unix.stackexchange.com/questions/230246/can-i-set-a-proxy-for-specific-yum-repositories)
