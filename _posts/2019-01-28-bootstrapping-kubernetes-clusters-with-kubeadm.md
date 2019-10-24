@@ -351,22 +351,62 @@ If you wish to start over simply run `kubeadm init` or `kubeadm join` with the a
 
 ### Set HTTP proxy for APT/YUM
 
-Set HTTP proxy for APT:
+- Set HTTP proxy for APT:
 
-```sh
-cat <<EOF > /etc/apt/apt.conf.d/httproxy 
-> Acquire::http::Proxy "http://PROXY_HOST:PORT";
-> EOF
-```
+  ```sh
+  cat <<EOF > /etc/apt/apt.conf.d/httproxy 
+  > Acquire::http::Proxy "http://PROXY_HOST:PORT";
+  > EOF
+  ```
 
-Set HTTP proxy for YUM:
+  For example:
 
-```sh
-echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
-```
+  ```
+  Acquire::http::Proxy "http://10.20.30.40:1080";
+  Acquire::http::Proxy {
+    # the special keyword DIRECT meaning to use no proxies
+    #security.debian.org DIRECT;
+    #security-cdn.debian.org DIRECT;
+    ftp2.cn.debian.org DIRECT;
+    ftp.cn.debian.org DIRECT;
+    mirror.lzu.edu.cn DIRECT;
+    mirrors.163.com DIRECT;
+    mirrors.huaweicloud.com DIRECT;
+    mirrors.tuna.tsinghua.edu.cn DIRECT;
+    mirrors.ustc.edu.cn DIRECT;
+  
+    download.docker.com DIRECT;
+    packages.microsoft.com DIRECT;                                                  
+  };
+  ```
+
+
+- Set HTTP proxy for YUM:
+
+  ```sh
+  echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
+  ```
+
+  Here is a complete config */etc/yum.repos.d/kubernetes.repo* file:
+
+  ```none
+  [kubernetes]
+  name=Kubernetes
+  baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+  enabled=1
+  gpgcheck=1
+  repo_gpgcheck=1
+  gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+  exclude=kube*
+  proxy=http://10.20.30.40:1080/
+  ```
 
 ### References
 
 1. Installing kubeadm - Kubernetes, [https://kubernetes.io/docs/setup/independent/install-kubeadm](https://kubernetes.io/docs/setup/independent/install-kubeadm)
 1. CRI installation - Kubernetes, [https://kubernetes.io/docs/setup/cri/](https://kubernetes.io/docs/setup/cri/)
 1. Creating a single master cluster with kubeadm - Kubernetes, [https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)
+1. [apt.conf - Configuration file for APT ](https://manpages.debian.org/buster/apt/apt.conf.5.en.html)
+1. [AptConfiguration](https://wiki.debian.org/AptConfiguration)
+1. [8.4. Configuring Yum and Yum Repositories](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/deployment_guide/sec-configuring_yum_and_yum_repositories)
+1. [CentOS / RHEL / Fedora Linux: Use Yum Command With A Proxy Server](https://www.cyberciti.biz/faq/centos-redhat-fedora-linux-using-yum-with-a-proxy-server/)
