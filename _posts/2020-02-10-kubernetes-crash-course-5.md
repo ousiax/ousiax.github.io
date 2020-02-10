@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 5 Kubernetes StatefulSet
+title: 5 - Kubernetes StatefulSet
 date: 2020-02-10 10:46:33 +0800
 categories: ['kubernetes']
 tags: ['kubernetes']
