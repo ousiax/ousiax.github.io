@@ -1186,11 +1186,17 @@ The zero value is:
 
 -  By convention, errors have type `error`, a simple built-in interface.
 
+
     ```go
     type error interface {
         Error() string
     }
     ```
+
+- The simplest way to create an `error` is by calling `errors.New`, which return a new `error` for a given error message.
+
+- Calls to `errors.New` are relatively infrequent because there's a conveninent wrapper function, `fmt.Errorf`, that does string formatting too.
+
 - When feasible, error strings should identify their origin, such as by having a prefix naming the operation or package that generated the error.
 
     - For example, in package image, the string representation for a decoding error due to an unknown format is "image: unknown format". 
@@ -1266,3 +1272,4 @@ The zero value is:
 1. [https://stackoverflow.com/questions/24790175/when-is-the-init-function-run](https://stackoverflow.com/questions/24790175/when-is-the-init-function-run)
 1. [https://golang.google.cn/doc/effective\_go.html](https://golang.google.cn/doc/effective_go.html)
 1. [Capturing Iteration Variables in Go Language](/2017/05/15/capturing-iteration-variables-in-go-language/)
+1. [Errors in Go language](/2017/05/15/errors-in-go-language/)
