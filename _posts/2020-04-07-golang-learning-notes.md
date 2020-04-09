@@ -304,18 +304,59 @@ func (file *File) Write(b []byte) (n int, err error)
 ### Defer
 
 - Go's defer statement schedules a function call (the *deferred* function) to be run immediately before the function executing the defer returns.
+
 - It's an unusual but effective way to deal with situations such as resources that must be released regardless of which path a function takes to return.
+
+    ```go
+    func ReadFile(filename string) ([]byte, error) {
+        f, err := os.Open(filename)
+        if err != nil {
+            return nil, err
+        }
+        defer f.Close()
+        return ReadAll(f)
+    }
+    ```
+
 - The arguments to the deferred function (which include the receiver if the function is a method) are evaluated when the *defer* executes, not when the *call* executes.
+
 - Deferred functions are executed in LIFO order.
 
-```go
-for i := 0; i < 5; i++ {
-	defer fmt.Printf("%d ", i)
-}
+    ```go
+    for i := 0; i < 5; i++ {
+    	defer fmt.Printf("%d ", i)
+    }
 
-// Output:
-// 4 3 2 1 0
-```
+    // Output:
+    // 4 3 2 1 0
+    ```
+
+    ```go
+	// All function values created by this loop "capture"
+	// and share the same variable—an addressable storage location,
+	// not its value at that particular moment.
+	for i := 0; i < 5; i++ {
+		defer func() {
+			fmt.Print(i, " ")
+		}()
+	}
+
+	// Output:
+	// 5 5 5 5 5
+    ```
+
+    ```go
+	for i := 0; i < 5; i++ {
+		// declares inner i, intialized to outer i
+		i := i
+		defer func() {
+			fmt.Print(i, " ")
+		}()
+	}
+
+	// Output:
+	// 4 3 2 1 0
+    ```
 
 ## Data types
 
