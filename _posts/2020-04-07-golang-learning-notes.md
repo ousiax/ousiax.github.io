@@ -18,6 +18,7 @@ With Go we take an unusual approach and let the machine take care of most format
 ```sh
 $ cat formatting.go && gofmt formatting.go 
 ```
+
 ```go
 package formatting
 type T struct {
@@ -629,6 +630,12 @@ a[:]
     func (b *Writer) Write(p []byte) (nn int, err error)
     ```
 
+**Nil is a valid receiver value**
+
+- Just as some functions allow nil pointers as arguments, so do some methods for their receiver, especially if nil is a meaningful zero value of the type, as with maps and slices.
+
+- When you define a type whose methods allow nil as a receiver value, it’s worth pointing this out explicitly in its documentation comment.
+
 #### Interfaces
 
 Interfaces in Go provide a way to specify the behavior of an object: if something can do *this*, then it can be used *here*.
@@ -882,6 +889,8 @@ Interfaces in Go provide a way to specify the behavior of an object: if somethin
         v, ok := <-ch
         ```
     - The loop for `v := range c` receives values from the channel repeatedly until it is closed. 
+
+    - Attempting to close an already-closed channel causes a panic, as does closing a nil channel.
 
     -  **Note**: Only the sender should close a channel, never the receiver. Sending on a closed channel will cause a panic.
 
@@ -1189,6 +1198,8 @@ The zero value is:
 
 - A buffered channel can be used like a semaphore, for instance to limit throughput.
 
+- The assembly line metaphor is useful one for channels and goroutines.
+
 ### Parallelization
 
 - Be sure not to confuse the ideas of concurrency—structuring a program as independently executing components—and parallelism—executing calculations in parallel for efficiency on multiple CPUs.
@@ -1314,3 +1325,5 @@ The zero value is:
 1. [https://golang.google.cn/doc/effective\_go.html](https://golang.google.cn/doc/effective_go.html)
 1. [Capturing Iteration Variables in Go Language](/2017/05/15/capturing-iteration-variables-in-go-language/)
 1. [Errors in Go language](/2017/05/15/errors-in-go-language/)
+1. [Object-oriented Programming in Go Language](/2017/05/21/object-oriented-programming-in-go-language/)
+1. [Goroutines and Channels in Go Lanugage](/2017/06/11/goroutines-and-channels-in-go-lanugage/)
