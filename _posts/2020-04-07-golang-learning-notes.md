@@ -1106,6 +1106,119 @@ The zero value is:
 
 ## Concurrency
 
+### Race Conditions
+
+- A **race condition** is a situation in which the program does not give the correct result for some interleaving of the operations of multiple goroutines.
+
+- A **data race**, that is, a particular kind of race condition, occurs whenever two goroutines access the same variable concurrently and at least one of the accesses is a write. It follows from this definition that there are three ways to avoid a data race.
+
+    - The first way is not to write the variable.
+
+    - The second way (*channels: share memory by communication*) to avoid a data race is to avoid accessing the variable from multiple goroutines.
+
+    - The third way (*mutual exclusion: `sync.Mutex`, `sync.RWMutex`*) to avoid a data race is to allow many goroutines to access the variable, but only one at a time.
+
+- Synchronization is about more than just the order of execution of multiple goroutines; synchronization also affets memory.
+
+### Race Detector
+
+- The race detector (just add the `-race` flag to your `go build`, `go run`, or `go test` command) studies this steam of events, looking for cases in which one goroutine reads or writes a shared variables that was most recently written by a different goroutine without an intervening synchronization operation. 
+
+- The race detector reports all data races that wre actually executed. However, it can only detect race conditions that occur during a run; it cannot prove that none will ever occur.
+
+    ```go
+    func main() {
+    	var wg sync.WaitGroup
+    
+    	var x, y int
+    
+    	wg.Add(1)
+    	go func() {
+    		defer wg.Done()
+    		x = 1
+    		fmt.Printf("y = %d\n", y)
+    	}()
+    
+    	wg.Add(1)
+    	go func() {
+    		defer wg.Done()
+    		y = 1
+    		fmt.Printf("x = %d\n", x)
+    	}()
+    
+    	wg.Wait()
+    }
+    ```
+    
+    ```sh
+    $ go run -race race.go 
+    ```
+    
+    ```none
+    x = 0
+    ==================
+    WARNING: DATA RACE
+    Write at 0x00c0000a6020 by goroutine 7:
+      main.main.func1()
+          /tmp/race.go:16 +0x8a
+    
+    Previous read at 0x00c0000a6020 by goroutine 8:
+      main.main.func2()
+          /tmp/race.go:24 +0xaa
+    
+    Goroutine 7 (running) created at:
+      main.main()
+          /tmp/race.go:14 +0x119
+    
+    Goroutine 8 (finished) created at:
+      main.main()
+          /tmp/race.go:21 +0x166
+    ==================
+    ==================
+    WARNING: DATA RACE
+    Read at 0x00c0000a6028 by goroutine 7:
+      main.main.func1()
+          /tmp/race.go:17 +0xaa
+    
+    Previous write at 0x00c0000a6028 by goroutine 8:
+      main.main.func2()
+          /tmp/race.go:23 +0x8a
+    
+    Goroutine 7 (running) created at:
+      main.main()
+          /tmp/race.go:14 +0x119
+    
+    Goroutine 8 (finished) created at:
+      main.main()
+          /tmp/race.go:21 +0x166
+    ==================
+    y = 1
+    Found 2 data race(s)
+    exit status 66
+    ```
+
+### Happen before
+
+- Within a single goroutine, reads and writes must behave as if they executed in the order specified by the program.
+
+- That is, compilers and processors may reorder the reads and writes executed within a single goroutine only when the reordering does not change the behavior within that goroutine as defined by the language specification.
+
+- Because of this reordering, the execution order observed by one goroutine may differ from the order perceived by another.
+
+    - For example, if one goroutine executes `a = 1; b = 2`;, another might observe the updated value of `b` before the updated value of `a`. 
+
+- To specify the requirements of reads and writes, we define **happens before**, a partial order on the execution of memory operations in a Go program.
+
+    - If event *e1* happens before event *e2*, then we say that *e2* happens after *e1*.
+
+    - Also, if *e1* does not happen before *e2* and does not happen after *e2*, then we say that *e1* and *e2* **happen concurrently**.
+
+- Within a single goroutine, the happens-before order is the order expressed by the program. 
+
+- Programs that modify data being simultaneously accessed by multiple goroutines must serialize such access.
+
+- To serialize access, protect the data with **channel operations** or other **synchronization primitives** such as those in the `sync` and `sync/atomic` packages. 
+
 ### Share by communicating
 
 - *Do not communicate by sharing memory; instead, share memory by communicating.*
@@ -1198,7 +1311,7 @@ The zero value is:
 
 - A buffered channel can be used like a semaphore, for instance to limit throughput.
 
-- The assembly line metaphor is useful one for channels and goroutines.
+- The assembly line metaphor (pipeline) is useful one for channels and goroutines.
 
 ### Parallelization
 
@@ -1323,7 +1436,9 @@ The zero value is:
 1. [https://golang.google.cn/ref/spec#Iota](https://golang.google.cn/ref/spec#Iota)
 1. [https://stackoverflow.com/questions/24790175/when-is-the-init-function-run](https://stackoverflow.com/questions/24790175/when-is-the-init-function-run)
 1. [https://golang.google.cn/doc/effective\_go.html](https://golang.google.cn/doc/effective_go.html)
+1. [https://golang.google.cn/ref/mem](https://golang.google.cn/ref/mem)
 1. [Capturing Iteration Variables in Go Language](/2017/05/15/capturing-iteration-variables-in-go-language/)
 1. [Errors in Go language](/2017/05/15/errors-in-go-language/)
 1. [Object-oriented Programming in Go Language](/2017/05/21/object-oriented-programming-in-go-language/)
 1. [Goroutines and Channels in Go Lanugage](/2017/06/11/goroutines-and-channels-in-go-lanugage/)
+1. [Concurrency with Shared Variables in Go Language](/2017/06/17/concurrency-with-shared-variables-in-go-language/)
