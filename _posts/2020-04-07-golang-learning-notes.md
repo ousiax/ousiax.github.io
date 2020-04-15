@@ -1444,6 +1444,72 @@ The zero value is:
 
     - And an **example function**, whose name starts with **Example**, provides machine-checked documentation.
 
+## Modules
+
+```go
+// In Go, if an old package and a new package have the same import path,
+// the new package must be backwards compatible with the old package.
+```
+
+```go
+// There is certainly a cost to needing to introduce a new name for each backwards-incompatible API change,
+// but as the semver FAQ says, that cost should encourage authors to more clearly consider
+// the impact of such changes and whether they are truly necessary.
+```
+- A *module* is a collection of related Go packages that are versioned together as a single unit.
+
+- Modules record precise dependency requirements and create reproducible builds.
+
+- Most often, a version control repository contains exactly one module defined in the repository root.
+
+- Summarizing the relationship between repositories, modules, and packages:
+
+    - A repository contains one or more Go modules.
+
+    - Each module contains one or more Go packages.
+
+    - Each package consists of one or more Go source files in a single directory.
+
+- Modules must be semantically versioned according to [semver](https://semver.org/), usually in the form `v(major).(minor).(patch)`, such as `v0.1.0`, `v1.2.3`, or `v1.5.0-rc.1`.
+
+    - The leading `v` is required.
+
+    - If using Git, tag released commits with their versions. 
+
+- A module is defined by a tree of Go source files with a `go.mod` file in the tree's root directory.
+
+- A module declares its identity in its `go.mod` via the `module` directive, which provides the *module path*.
+
+    - The import paths for all packages in a module share the module path as a common prefix.
+
+    - The module path and the relative path from the `go.mod` to a package's directory together determine a package's import path.
+
+- In Go source code, packages are imported using the full path including the module path.
+
+```sh
+$ go help modules
+```
+
+```sh
+$ go help goproxy
+```
+
+```sh
+$ go env GOPROXY # https://proxy.golang.org,direct
+```
+
+```sh
+$ go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+```sh
+$ go env GOPROXY # https://goproxy.cn,direct
+```
+
+```sh
+$ go help gopath
+```
+
 ## References
 
 1. [https://github.com/golang/go/wiki/Iota](https://github.com/golang/go/wiki/Iota)
@@ -1457,3 +1523,8 @@ The zero value is:
 1. [Goroutines and Channels in Go Lanugage](/2017/06/11/goroutines-and-channels-in-go-lanugage/)
 1. [Concurrency with Shared Variables in Go Language](/2017/06/17/concurrency-with-shared-variables-in-go-language/)
 1. [Testing in Go Language](/2017/07/01/testing-in-go-language/#benchmark-functions)
+1. [https://research.swtch.com/vgo-import](https://research.swtch.com/vgo-import)
+1. [https://semver.org/](https://semver.org/)
+1. [https://research.swtch.com/vgo-import](https://research.swtch.com/vgo-import)
+1. [https://research.swtch.com/vgo-module](https://research.swtch.com/vgo-module)
+1. [https://github.com/golang/go/wiki/Modules](https://github.com/golang/go/wiki/Modules)
