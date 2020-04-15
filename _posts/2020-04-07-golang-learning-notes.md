@@ -1527,4 +1527,5 @@ $ go help gopath
 1. [https://semver.org/](https://semver.org/)
 1. [https://research.swtch.com/vgo-import](https://research.swtch.com/vgo-import)
 1. [https://research.swtch.com/vgo-module](https://research.swtch.com/vgo-module)
+1. [https://research.swtch.com/vgo-mvs](https://research.swtch.com/vgo-mvs)
 1. [https://github.com/golang/go/wiki/Modules](https://github.com/golang/go/wiki/Modules)
