@@ -1529,3 +1529,4 @@ $ go help gopath
 1. [https://research.swtch.com/vgo-module](https://research.swtch.com/vgo-module)
 1. [https://research.swtch.com/vgo-mvs](https://research.swtch.com/vgo-mvs)
 1. [https://github.com/golang/go/wiki/Modules](https://github.com/golang/go/wiki/Modules)
+1. [Practical Go: Real world advice for writing maintainable Go programs](https://dave.cheney.net/practical-go/presentations/qcon-china.html)
