@@ -152,7 +152,7 @@ steps in a series of possible optimizations that columnar stores are targeting.
 Reading multiple values for the same column in one run significantly
 improves **cache** utilization and **computational** efficiency. On modern CPUs,
 **vectorized instructions** can be used to process multiple data points with a
-single CPU instruction.
+single CPU instruction (**SIMD**).
 
 Storing values that have the same data type together (e.g., numbers with other
 numbers, strings with other strings) offers a better **compression** ratio. We can
@@ -173,4 +173,162 @@ such as `BigTable` or `HBase`, where data is represented as a multidimensional
 map, columns are grouped into **column families** (usually storing data of the
 same type), and inside each column family, data is stored row-wise.
 
+- - -
 
+**Data Files and Index Files**
+
+The primary goal of a database system is to store data and to allow quick
+access to it.
+
+Database systems do use files for storing the data, but instead of relying on
+filesystem hierarchies of directories and files for locating records, they
+compose files using implementation-specific formats. 
+
+Database systems store **data records**, consisting of multiple fields, in tables,
+where each table is usually represented as a separate file. Each record in the
+table can be looked up using a **search key**. To locate a record, database
+systems use **indexes**: auxiliary data structures that allow it to efficiently locate
+data records without scanning an entire table on every access. Indexes are
+built using a subset of fields identifying the record.
+
+A database system usually separates **data files** and **index files**: data files store
+data records, while index files store record metadata and use it to locate
+records in data files. Index files are typically smaller than the data files. Files
+are partitioned into **pages**, which typically have the size of a single or
+multiple disk blocks. Pages can be organized as sequences of records or as a
+**slotted pages**.
+
+New records (insertions) and updates to the existing records are represented
+by key/value pairs. Most modern storage systems do not delete data from
+pages explicitly. Instead, they use **deletion markers** (also called **tombstones**),
+which contain deletion metadata, such as a key and a timestamp. Space
+occupied by the records **shadowed** by their updates or deletion markers is
+reclaimed during garbage collection, which reads the pages, writes the live
+(i.e., nonshadowed) records to the new place, and discards the shadowed
+ones.
+
+**Data Files**
+
+Data files (sometimes called **primary files**) can be implemented as **index-organized
+tables** (IOT), **heap-organized tables** (heap files), or **hash-organized
+tables** (hashed files).
+
+Records in heap files are not required to follow any particular order, and most
+of the time they are placed in a write order. This way, no additional work or
+file reorganization is required when new pages are appended. Heap files
+require additional index structures, pointing to the locations where data
+records are stored, to make them searchable.
+
+In hashed files, records are stored in buckets, and the hash value of the key
+determines which bucket a record belongs to. Records in the bucket can be
+stored in append order or sorted by key to improve lookup speed.
+
+Index-organized tables (IOTs) store data records in the index itself. Since
+records are stored in key order, range scans in IOTs can be implemented by
+sequentially scanning its contents.
+
+Storing data records in the index allows us to reduce the number of disk seeks
+by at least one, since after traversing the index and locating the searched key,
+we do not have to address a separate file to find the associated data record.
+
+When records are stored in a separate file, index files hold data entries,
+uniquely identifying data records and containing enough information to
+locate them in the data file. For example, we can store file **offsets** (sometimes
+called **row locators**), locations of data records in the data file, or bucket IDs
+in the case of hash files. In index-organized tables, data entries hold actual
+data records.
+
+**Index Files**
+
+An index is a structure that organizes data records on disk in a way that
+facilitates efficient retrieval operations. Index files are organized as
+specialized structures that map keys to locations in data files where the
+records identified by these keys (in the case of heap files) or primary keys (in
+the case of index-organized tables) are stored.
+
+An index on a **primary** (data) file is called the **primary index**. However, in
+most cases we can also assume that the primary index is built over a primary
+key or a set of keys identified as primary. All other indexes are called
+**secondary**.
+
+Secondary indexes can point directly to the data record, or simply store its
+primary key. A pointer to a data record can hold an offset to a heap file or an
+index-organized table. Multiple secondary indexes can point to the same
+record, allowing a single data record to be identified by different fields and
+located through different indexes. While primary index files hold a unique
+entry per search key, secondary indexes may hold several entries per search
+key.
+
+If the order of data records follows the search key order, this index is called
+**clustered** (also known as clustering). Data records in the clustered case are
+usually stored in the same file or in a **clustered** file, where the key order is
+preserved. If the data is stored in a separate file, and its order does not follow
+the key order, the index is called **nonclustered** (sometimes called
+unclustered).
+
+![Figure 1-5. Storing data records in an index file versus storing offsets to the data file](/assets/alex-petrov-database-internals/figure 1-5. storing data records in an index file versus storing offsets to the data file.png)
+
+NOTE: Index-organized tables store information in index order and are clustered by definition.
+Primary indexes are most often clustered. Secondary indexes are nonclustered by
+definition, since they’re used to facilitate access by keys other than the primary one.
+Clustered indexes can be both index-organized or have separate index and data files.
+
+**Primary Index as an Indirection**
+
+By referencing data directly, we can
+reduce the number of disk seeks, but have to pay a cost of updating the
+pointers whenever the record is updated or relocated during a maintenance
+process. Using indirection in the form of a primary index allows us to reduce
+the cost of pointer updates, but has a higher cost on a read path.
+
+Updating just a couple of indexes might work if the workload mostly consists
+of reads, but this approach does not work well for write-heavy workloads
+with multiple indexes. To reduce the costs of pointer updates, instead of
+payload offsets, some implementations use primary keys for indirection.
+
+![](/assets/alex-petrov-database-internals/figure 1-6. referencing data tuples directly versus using a primary index as indirection.png)
+
+It is also possible to use a hybrid approach and store both data file offsets and
+primary keys. First, you check if the data offset is still valid and pay the extra
+cost of going through the primary key index if it has changed, updating the
+index file after finding a new offset.
+
+**Buffering, Immutability, and Ordering**
+
+Storage structures have three common variables: they use **buffering** (or avoid
+using it), use **immutable** (or mutable) files, and store values **in order** (or out
+of order). Most of the distinctions and optimizations in storage structures
+discussed are related to one of these three concepts.
+
+**Buffering**
+
+This defines whether or not the storage structure chooses to collect a
+certain amount of data in memory before putting it on disk. Of course,
+every on-disk structure has to use buffering to some degree, since the
+smallest unit of data transfer to and from the disk is a block, and it is
+desirable to write full blocks.
+
+**Mutability (or immutability)**
+
+This defines whether or not the storage structure reads parts of the file,
+updates them, and writes the updated results at the same location in the
+file. Immutable structures are append-only: once written, file contents are
+not modified. Instead, modifications are appended to the end of the file.
+There are other ways to implement immutability. One of them is **copy-on-write**
+, where the modified page, holding the
+updated version of the record, is written to the new location in the file,
+instead of its original location. Often the distinction between LSM and B-Trees
+is drawn as immutable against in-place update storage, but there are
+structures (for example, Bw-Trees) that are inspired by B-Trees but are
+immutable.
+
+**Ordering**
+
+This is defined as whether or not the data records are stored in the key
+order in the pages on disk. In other words, the keys that sort closely are
+stored in contiguous segments on disk. Ordering often defines whether or
+not we can efficiently scan the range of records, not only locate the
+individual data records. Storing data out of order (most often, in insertion
+order) opens up for some write-time optimizations.
+
+- - -
