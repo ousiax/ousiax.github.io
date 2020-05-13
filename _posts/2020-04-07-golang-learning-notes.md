@@ -1154,7 +1154,7 @@ The zero value is:
     $ go run -race race.go 
     ```
     
-    ```none
+    ```console
     x = 0
     ==================
     WARNING: DATA RACE
@@ -1488,6 +1488,10 @@ The zero value is:
 
 ```sh
 $ go help modules
+```
+
+```console
+$ go help go.mod
 ```
 
 ```sh
