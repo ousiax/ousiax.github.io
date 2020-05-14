@@ -1494,6 +1494,10 @@ $ go help modules
 $ go help go.mod
 ```
 
+```console
+$ go help module-private
+```
+
 ```sh
 $ go help goproxy
 ```
@@ -1533,4 +1537,5 @@ $ go help gopath
 1. [https://research.swtch.com/vgo-module](https://research.swtch.com/vgo-module)
 1. [https://research.swtch.com/vgo-mvs](https://research.swtch.com/vgo-mvs)
 1. [https://github.com/golang/go/wiki/Modules](https://github.com/golang/go/wiki/Modules)
+1. [https://medium.com/@adiach3nko/package-management-with-go-modules-the-pragmatic-guide-c831b4eaaf31](https://medium.com/@adiach3nko/package-management-with-go-modules-the-pragmatic-guide-c831b4eaaf31)
 1. [Practical Go: Real world advice for writing maintainable Go programs](https://dave.cheney.net/practical-go/presentations/qcon-china.html)
