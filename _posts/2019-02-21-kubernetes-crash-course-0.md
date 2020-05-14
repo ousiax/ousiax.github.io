@@ -2,8 +2,8 @@
 layout: post
 title: 0 - Kubernetes Overview
 date: 2019-02-21 17:55:05 +0800
-categories: ['Kubernetes']
-tags: ['Kubernetes']
+categories: ['kubernetes']
+tags: ['kubernetes']
 ---
 
 - TOC

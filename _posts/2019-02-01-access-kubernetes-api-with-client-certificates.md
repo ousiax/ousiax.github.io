@@ -2,8 +2,8 @@
 layout: post
 title: Access Kubernetes API with Client Certificates
 date: 2019-02-01 15:05:40 +0800
-categories: ['Kubernetes']
-tags: ['Kubernetes']
+categories: ['kubernetes']
+tags: ['kubernetes']
 ---
 
 - TOC

@@ -2,8 +2,8 @@
 layout: post
 title: Bootstrapping Kubernetes Clusters with kubeadm
 date: 2019-01-28 11:11:46 +0800
-categories: ['Kubernetes'] 
-tags: ['Kubernetes', 'kubeadm'] 
+categories: ['kubernetes'] 
+tags: ['kubernetes', 'kubeadm'] 
 ---
 
 - TOC

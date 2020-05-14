@@ -2,8 +2,8 @@
 layout: post
 title: 3 - Kubernetes Services and Ingress
 date: 2019-03-04 17:55:05 +0800
-categories: ['Kubernetes']
-tags: ['Kubernetes']
+categories: ['kubernetes']
+tags: ['kubernetes']
 ---
 
 - TOC

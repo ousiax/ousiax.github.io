@@ -2,8 +2,8 @@
 layout: post
 title: 4 - Kubernetes Storage
 date: 2019-03-25 17:55:05 +0800
-categories: ['Kubernetes']
-tags: ['Kubernetes']
+categories: ['kubernetes']
+tags: ['kubernetes']
 ---
 
 - TOC

@@ -2,8 +2,8 @@
 layout: post
 title: 1 - Kubernetes Objects
 date: 2019-02-22 17:55:05 +0800
-categories: ['Kubernetes']
-tags: ['Kubernetes']
+categories: ['kubernetes']
+tags: ['kubernetes']
 ---
 
 - TOC
