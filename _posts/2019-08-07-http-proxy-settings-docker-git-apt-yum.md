@@ -112,8 +112,22 @@ If you are behind an HTTP or HTTPS proxy server, for example in corporate settin
 ### 3. apt
 
 ```sh
-cat <<EOF > /etc/apt/apt.conf.d/httproxy 
+cat <<EOF > /etc/apt/apt.conf.d/10httproxy 
 > Acquire::http::Proxy "http://PROXY_HOST:PORT";
+> Acquire::http::Proxy {
+>   #security.debian.org DIRECT;
+>   #security-cdn.debian.org DIRECT;
+>   ftp2.cn.debian.org DIRECT;
+>   ftp.cn.debian.org DIRECT;
+>   mirror.lzu.edu.cn DIRECT;
+>   mirrors.163.com DIRECT;
+>   mirrors.huaweicloud.com DIRECT;
+>   mirrors.tuna.tsinghua.edu.cn DIRECT;
+>   mirrors.ustc.edu.cn DIRECT;
+> 
+>   download.docker.com DIRECT;
+>   packages.microsoft.com DIRECT;
+> };
 > EOF
 ```
 
