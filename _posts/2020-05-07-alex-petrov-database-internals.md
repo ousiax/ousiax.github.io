@@ -496,3 +496,92 @@ In summary, on-disk structures (B-Tree: **high fanout** and **low height**) are 
 specifics in mind and generally optimize for **fewer disk accesses**. We can do
 this by improving locality, optimizing the internal representation of the
 structure, and reducing the number of out-of-page pointers.
+
+- - -
+
+**Ubiquitous B-Trees**
+
+B-Trees can be thought of as a vast catalog room in the library: you first have
+to pick the correct cabinet, then the correct shelf in that cabinet, then the
+correct drawer on the shelf, and then browse through the cards in the drawer
+to find the one you’re searching for. Similarly, a B-Tree builds a hierarchy
+that helps to navigate and locate the searched items quickly.
+
+In most of the literature, binary tree nodes are drawn as circles. Since each
+node is responsible just for one key and splits the range into two parts, this
+level of detail is sufficient and intuitive. At the same time, B-Tree nodes are
+often drawn as rectangles, and pointer blocks are also shown explicitly to
+highlight the relationship between child nodes and separator keys.
+
+![Figure 2-7. Binary tree, 2-3-Tree, and B-Tree nodes side by side](/assets/alex-petrov-database-internals/figure 2-7. binary tree, 2-3-tree, and b-tree nodes side by side.png)
+
+**B-Trees are sorted: keys inside the B-Tree nodes are stored in order**. Because
+of that, to locate a searched key, we can use an algorithm like binary search.
+This also implies that lookups in B-Trees have logarithmic complexity.
+
+Using B-Trees, we can efficiently execute both **point and range queries**. Point
+queries, expressed by the equality (=) predicate in most query languages,
+locate a single item. On the other hand, range queries, expressed by
+comparison (<, >, ≤, and ≥) predicates, are used to query multiple data items
+in order.
+
+**B-Tree Hierarchy**
+
+B-Trees consist of multiple nodes. **Each node holds up to N keys and N + 1
+pointers to the child nodes**. These nodes are logically grouped into three
+groups:
+
+- Root node
+
+    This has no parents and is the top of the tree.
+
+- Leaf nodes
+
+    These are the bottom layer nodes that have no child nodes.
+
+- Internal nodes
+
+    These are all other nodes, connecting root with leaves. There is usually
+more than one level of internal nodes.
+
+![Figure 2-9. B-Tree node hierarchy](/assets/alex-petrov-database-internals/figure 2-9. b-tree node hierarchy.png)
+
+Since B-Trees are a page organization technique (i.e., they are used to
+organize and navigate fixed-size pages), we often use terms **node** and **page**
+interchangeably.
+
+The relation between the node capacity and the number of keys it actually
+holds is called **occupancy**.
+
+B-Trees are characterized by their fanout: the number of keys stored in each
+node. Higher fanout helps to amortize the cost of structural changes required
+to keep the tree balanced and to reduce the number of seeks by storing keys
+and pointers to child nodes in a single block or multiple consecutive blocks.
+Balancing operations (namely, **splits** and **merges**) are triggered when the
+nodes are full or nearly empty.
+
+B-Trees allow storing values on any level: in root, internal, and leaf
+nodes. **B<sup>+</sup>-Trees store values only in leaf nodes**. Internal nodes store only
+**separator keys** used to guide the search algorithm to the associated value
+stored on the leaf level.
+
+**Separator Keys**
+
+Keys stored in B-Tree nodes are called **index entries**, **separator keys**, or
+**divider cells**. They split the tree into subtrees (also called **branches** or
+**subranges**), holding corresponding key ranges. Keys are stored in sorted
+order to allow binary search. A subtree is found by locating a key and
+following a corresponding pointer from the higher to the lower level.
+
+The first pointer in the node points to the subtree holding items **less than** the
+first key, and the last pointer in the node points to the subtree holding items
+**greater than or equal to** the last key. Other pointers are reference subtrees
+between the two keys: K<sub>i-1</sub> ≤ K<sub>s</sub> < K<sub>i</sub> , where K is a set of keys, and K<sub>s</sub> is a
+key that belongs to the subtree.
+
+![Figure 2-10. How separator keys split a tree into subtrees](/assets/alex-petrov-database-internals/figure 2-10. how separator keys split a tree into subtrees.png)
+
+**B-Tree Lookup Complexity**
+
+
+
