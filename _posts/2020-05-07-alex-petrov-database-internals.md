@@ -332,3 +332,167 @@ individual data records. Storing data out of order (most often, in insertion
 order) opens up for some write-time optimizations.
 
 - - -
+
+One of the most popular storage structures is a **B-Tree**. Many open source
+database systems are B-Tree based, and over the years they’ve proven to
+cover the majority of use cases.
+
+- - -
+
+**Binary Search Trees**
+
+A **binary search tree** (BST) is a sorted in-memory data structure, used for
+efficient key-value lookups. BSTs consist of multiple nodes. Each tree node
+is represented by a key, a value associated with this key, and two child
+pointers (hence the name binary). BSTs start from a single node, called a **root
+node**. There can be only one root in the tree.
+
+![Figure 2-1. Binary search tree](/assets/alex-petrov-database-internals/figure 2-1. binary search tree.png)
+
+Each node splits the search space into left and right subtrees, 
+a node key is greater than any key stored in its left subtree and less
+than any key stored in its right subtree
+
+![Figure 2-2. Binary tree node invariants](/assets/alex-petrov-database-internals/figure 2-2. binary tree node invariants.png)
+
+Following left pointers from the root of the tree down to the leaf level (the
+level where nodes have no children) locates the node holding the **smallest key**
+within the tree and a value associated with it. Similarly, following right
+pointers locates the node holding the **largest key** within the tree and a value
+associated with it. Values are allowed to be stored in all nodes in the tree.
+Searches start from the root node, and may terminate before reaching the
+bottom level of the tree if the searched key was found on a higher level.
+
+- - -
+
+**Tree Balancing**
+
+![Figure 2-3. Balanced (a) and unbalanced or pathological (b) tree examples](/assets/alex-petrov-database-internals/figure 2-3. balanced and unbalanced or pathological tree examples.png)
+
+The balanced tree is defined as one that has a height of log2N, where N is
+the total number of items in the tree, and the difference in height between the
+two subtrees is not greater than one.
+
+One of the ways to keep the tree balanced is to perform a rotation step after
+nodes are added or removed. If the insert operation leaves a branch
+unbalanced (two consecutive nodes in the branch have only one child), we
+can rotate nodes around the middle one.
+
+![Figure 2-4. Rotation step example](/assets/alex-petrov-database-internals/figure 2-4. rotation step example.png)
+
+- - -
+
+**Trees for Disk-Based Storage**
+
+BST, due to
+low fanout (fanout is the maximum allowed number of children per node), we
+have to perform balancing, relocate nodes, and update pointers rather
+frequently. Increased maintenance costs make BSTs impractical as on-disk
+data structures.
+
+If we wanted to maintain a BST on disk, we’d face several problems.
+
+- One
+problem is **locality**: since elements are added in random order, there’s no
+guarantee that a newly created node is written close to its parent, which
+means that node child pointers may span across several disk pages.
+
+- Another problem, closely related to the cost of following child pointers, is
+tree height. Since binary trees have a fanout of just two, height is a binary
+logarithm of the number of the elements in the tree, and we have to perform
+O(log2N) seeks to locate the searched element and, subsequently, perform
+the same number of disk transfers. 2-3-Trees and other low-fanout trees have
+a similar limitation: **while they are useful as in-memory data structures, small
+node size makes them impractical for external storage**.
+
+- A naive on-disk BST implementation would require as many disk seeks as
+comparisons, since there’s no built-in concept of locality.
+
+- - -
+
+Fanout and height are inversely correlated: the higher the fanout, the lower the height. If
+fanout is high, each node can hold more children, reducing the number of nodes and,
+subsequently, reducing height.
+
+- - -
+
+On-disk data structures are often used when the amounts of data are so large
+that keeping an entire dataset in memory is impossible or not feasible. Only a
+fraction of the data can be **cached** in memory at any time, and the rest has to
+be stored on disk in a manner that allows efficiently accessing it.
+
+- - -
+
+**Hard Disk Drives**
+
+On spinning disks, **seeks** increase costs of random reads because they require
+disk rotation and mechanical head movements to position the read/write head
+to the desired location. However, once the expensive part is done, reading or
+writing contiguous bytes (i.e., sequential operations) is **relatively** cheap.
+
+The smallest transfer unit of a spinning drive is a **sector**, so when some
+operation is performed, at least an entire sector can be read or written. Sector
+sizes typically range from 512 bytes to 4 Kb.
+
+Head positioning is the most expensive part of an operation on the HDD.
+This is one of the reasons we often hear about the positive effects of
+**sequential I/O**: reading and writing contiguous memory segments from disk.
+
+**Solid State Drives**
+
+Solid state drives (SSDs) do not have moving parts: there’s no disk that spins,
+or head that has to be positioned for the read. A typical SSD is built of
+**memory cells**, connected into **strings** (typically 32 to 64 cells per string),
+strings are combined into **arrays**, arrays are combined into **pages**, and pages
+are combined into **blocks**.
+
+Depending on the exact technology used, a cell can hold one or multiple bits
+of data. Pages vary in size between devices, but typically their sizes range
+from 2 to 16 Kb. Blocks typically contain 64 to 512 pages. Blocks are
+organized into **planes** and, finally, planes are placed on a **die**. SSDs can have
+one or more dies.
+
+![Figure 2-5. SSD organization schematics](/assets/alex-petrov-database-internals/figure 2-5. ssd organization schematics.png)
+
+**The smallest unit that can be written (programmed) or read is a page**.
+However, **we can only make changes to the empty memory cells** (i.e., to ones
+that have been erased before the write). **The smallest erase entity is** not a
+page, but **a block that holds multiple pages**, which is why it is often called an
+**erase block**. Pages in an empty block have to be written sequentially.
+
+The part of a flash memory controller responsible for mapping page IDs to
+their physical locations, tracking empty, written, and discarded pages, is
+called the Flash Translation Layer (**FTL**).
+It is also responsible for **garbage collection**, during which
+FTL finds blocks it can safely erase. Some blocks might still contain live
+pages. In this case, it **relocates** live pages from these blocks to new locations
+and **remaps** page IDs to point there. After this, it erases the now-unused
+blocks, making them available for writes.
+
+Since in both device types (HDDs and SSDs) we are addressing chunks of
+memory rather than individual bytes (i.e., accessing data block-wise), most
+operating systems have a block device abstraction. It hides an
+internal disk structure and buffers I/O operations internally, so **when we’re
+reading a single word from a block device, the whole block containing it is
+read**. This is a constraint we cannot ignore and should always take into
+account when working with disk-resident data structures.
+
+**In SSDs, we don’t have a strong emphasis on random versus sequential I/O,
+as in HDDs, because the difference in latencies between random and
+sequential reads is not as large.**
+
+Writing only full blocks, and combining subsequent writes to the same block,
+can help to reduce the number of required I/O operations.
+
+**On-Disk Structures**
+
+Besides the cost of disk access itself, the main limitation and design condition
+for building efficient on-disk structures is the fact that **the smallest unit of
+disk operation is a block**. To follow a pointer to the specific location within
+the block, we have to fetch an entire block. Since we already have to do that,
+we can change the layout of the data structure to take advantage of it.
+
+In summary, on-disk structures (B-Tree: **high fanout** and **low height**) are designed with their target storage
+specifics in mind and generally optimize for **fewer disk accesses**. We can do
+this by improving locality, optimizing the internal representation of the
+structure, and reducing the number of out-of-page pointers.
