@@ -583,5 +583,104 @@ key that belongs to the subtree.
 
 **B-Tree Lookup Complexity**
 
+To find an
+item in a B-Tree, we have to perform a single traversal from root to leaf. The
+objective of this search is to find a searched key or its predecessor. Finding
+an exact match is used for point queries, updates, and deletions; finding its
+predecessor is useful for range scans and inserts.
 
+The algorithm starts from the root and performs a **binary search**, comparing
+the searched key with the keys stored in the root node until it finds the first
+separator key that is greater than the searched value. This locates a searched
+subtree. As soon as we find the
+subtree, we follow the pointer that corresponds to it and continue the same
+search process (locate the separator key, follow the pointer) until we reach a
+target leaf node, where we either find the searched key or conclude it is not
+present by locating its predecessor.
 
+During the **point query**, the search is done after finding or failing to find the
+searched key. During the **range scan**, iteration starts from the closest found
+key-value pair and continues by following sibling pointers until the end of the
+range is reached or the range predicate is exhausted.
+
+**B-Tree Node Splits**
+
+If the target node to insert or update doesn’t have enough room available, we say that the node
+has **overflowed** and has to be split in two to fit the new data.
+More precisely, the node is split if the following conditions hold:
+
+- For **leaf nodes**: if the node can hold up to N key-value pairs, and
+inserting one more key-value pair brings it over its maximum
+capacity N.
+
+- For **nonleaf nodes**: if the node can hold up to N + 1 pointers, and
+inserting one more pointer brings it over its maximum capacity N +
+1.
+
+**Splits are done by allocating the new node, transferring half the elements
+from the splitting node to it, and adding its first key and pointer to the parent
+node.** In this case, we say that the key is **promoted**. The index at which the
+split is performed is called the **split point** (also called the **midpoint**). All
+elements after the split point (including split point in the case of nonleaf node
+split) are transferred to the newly created sibling node, and the rest of the
+elements remain in the splitting node.
+
+If the parent node is full and does not have space available for the promoted
+key and pointer to the newly created node, it has to be split as well. This
+operation might propagate recursively all the way to the root.
+
+As soon as the tree reaches its capacity (i.e., split propagates all the way up to
+the root), we have to split the root node. When the root node is split, a new
+root, holding a split point key, is allocated. The old root (now holding only
+half the entries) is demoted to the next level along with its newly created
+sibling, increasing the tree height by one. **The tree height changes when the
+root node is split and the new root is allocated, or when two nodes are
+merged to form a new root.** On the leaf and internal node levels, the tree only
+grows horizontally.
+
+![Figure 2-11. Leaf node split during the insertion of 11. New element and promoted key are shown in gray.](/assets/alex-petrov-database-internals/figure 2-11. leaf node split during the insertion of 11. new element and promoted key are shown in gray.png)
+
+![Figure 2-12. Nonleaf node split during the insertion of 11. New element and promoted key are shown in gray.](/assets/alex-petrov-database-internals/figure 2-12. nonleaf node split during the insertion of 11. new element and promoted key are shown in gray.png)
+
+To summarize, node splits are done in four steps:
+
+1. Allocate a new node.
+
+2. Copy half the elements from the splitting node to the new one.
+
+3. Place the new element into the corresponding node.
+
+4. At the parent of the split node, add a separator key and a pointer to the new node.
+
+**B-Tree Node Merges**
+
+Deletions are done by first locating the target leaf. When the leaf is located,
+the key and the value associated with it are removed.
+
+If neighboring nodes have too few values (i.e., their occupancy falls under a
+threshold), the sibling nodes are merged. This situation is called **underflow**:
+if two adjacent nodes have a
+common parent and their contents fit into a single node, their contents should
+be merged (concatenated); if their contents do not fit into a single node, keys
+are redistributed between them to restore balance.
+
+- For leaf nodes: if a node can hold up to N key-value pairs, and a
+combined number of key-value pairs in two neighboring nodes is
+less than or equal to N.
+
+- For nonleaf nodes: if a node can hold up to N + 1 pointers, and a
+combined number of pointers in two neighboring nodes is less than
+or equal to N + 1.
+
+![Figure 2-13. Leaf node merge](/assets/alex-petrov-database-internals/figure 2-13. leaf node merge.png)
+
+![Figure 2-14. Nonleaf node merge](/assets/alex-petrov-database-internals/figure 2-14. nonleaf node merge.png)
+
+To summarize, node merges are done in three steps, assuming the element is
+already removed:
+
+1. Copy all elements from the right node to the left one.
+
+2. Remove the right node pointer from the parent (or demote it in the case of a nonleaf merge).
+
+3. Remove the right node.
