@@ -247,7 +247,7 @@ Continue with Greenplum instance startup Yy|Nn (default=N):
 
 ### 3. 查看 GP 集群的状态
 
-#### 3.1 查看 GP 集群的精简信息
+#### 3.1 查看 GP 集群的摘要信息
 
 ```console
 [gpadmin@mdw ~]$ gpstate -b
