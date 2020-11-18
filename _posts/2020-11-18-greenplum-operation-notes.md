@@ -6,6 +6,10 @@ categories: ['Greenplum']
 tags: ['Greenplum' 'GP']
 ---
 
+- TOC
+{:toc}
+
+---
 
 ### 1. 模拟环境信息
 
