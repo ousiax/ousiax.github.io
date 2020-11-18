@@ -13,9 +13,9 @@ tags: ['Greenplum', 'GP']
 
 ### 1. 模拟环境信息
 
-Master: mdw
-Standby Master: smdw
-Segment Host: [smdw, sdw1]
+- Master: mdw
+- Standby Master: smdw
+- Segment Host: [smdw, sdw1]
 
 ```console
 [gpadmin@mdw ~]$ gpstate -s
@@ -575,7 +575,7 @@ gpadmin    3291  0.0  0.0 112812   968 pts/0    R+   15:34   0:00 grep --color=a
 
 #### 4.2 查看集群的 Mirror 状态
 
-进入 Master 节点 mdw，执行 `gpstate -m` 查看集群的 Mirror 状态，我们发现 Mirror Segment 的角色被激活为 Primary，并并发现名为 sdw1 的 Segment Host 存在两个失败的 Segment
+进入 Master 节点 mdw，执行 `gpstate -m` 查看集群的 Mirror 状态，我们发现 Mirror Segment 的角色被激活为 Primary，并发现名为 sdw1 的 Segment Host 存在两个失败的 Segment
 
 ```console
 [gpadmin@mdw ~]$ gpstate -m
