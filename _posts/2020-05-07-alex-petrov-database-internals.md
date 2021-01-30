@@ -684,3 +684,102 @@ already removed:
 2. Remove the right node pointer from the parent (or demote it in the case of a nonleaf merge).
 
 3. Remove the right node.
+
+- - -
+
+**File Formats**
+
+Disks are accessed using system calls. We usually have to specify the offset inside the target file, and then interpret on-disk representation into a form sutable for main memory. To to that, we have to come up with a file format that's easy to construct, modify, and interpret.
+
+**Binary Encoding**
+
+Keys and values have a type, such as `integer`, `date`, or `string` and can be represented (serialized to and deserialized from) in their raw binary forms.
+
+Most numeric data types are represented as fixed-size values. When working with multibyte numeric values, it is important to use the same *byte-order* (*endianness*) for both encoding and decoding.
+
+**Big-endian**
+
+The order starts from the most-significant byte (MSB), followed by the bytes in *decreasing* significance order. In other words, MSB has the *lowest* address.
+
+**Little-endian**
+
+The order starts form the least-significant byte (LSB), followed by the bytes in *increasing* significance order.
+
+![Figure 3-1. Big- and little-endian byte order. ](/assets/alex-petrov-database-internals/figure 3-1. big- and little-endian byte order.png)
+
+Records consist of primitives like numbers, strings, booleans, and their combinations. However, when transferring data over the network or storing it on disk, we can only use byte sequences. This means that, in order to send or write the record, we have to *serialize* it (convert it to an interpretable sequence of bytes) and, before we can use it after receiving or reading, we have to *deserialize* it (translate the sequence of bytes back to the original record).
+
+In binary data formats, we always start with primitives that serve as building blocks for more complex structures. Different numeric types may vary in size. `byte` value is 8 bits, `short` is 2 bytes (16bits), `int` is 4 bytes (32 bits), and `long` is 8 bytes (64bits).
+
+Floating-point numbers (such as `float` and `double`) are represented by their *sign*, *fraction*, and *exponent*. The IEEE Standard for Binary Floating-Point Arithmetic (IEEE 754) standard describes widely accepted floating-point number representation.
+
+![Figure 3-2. Binary representation of single-precision float number](/assets/alex-petrov-database-internals/figure 3-2. binary representation of single-precision float number.png)
+
+Strings and other variables-size data types (such as arrays of fixed-size data) can be serialized as a number, representing the length of the array or string, followed by **size** bytes: the actual data. For strings, this representation is often called UCSD String or Pascal String, named after the popular implementation of the Pascal programming language. We can express it in pseudocode as follows:
+
+```c
+String
+{
+    size uint_16
+    data byte[size]
+}
+```
+
+An alternative to Pascal strings is null-terminated strings, where the reader consumes the string byte-wise until the end-of-string symbol is reached. The Pascal string approach has several advantages: it allows finding out a length of a string in constant time, instead of iterating through string contents, and a language-specific string can be composed by slicing **size** bytes from memory and passing the byte array to a string constructor.
+
+**Bit-Packed** Data: Booleans, Enums, and Flags
+
+Booleans can be represented either by using a single byte, or encoding **true** and **false** as **1** and **0** values. Since a boolean has only two values, using an entire byte for its representation is wasteful, and developers often batch boolean values together in groups of eight, each boolean occupying just one bit. We say that every 1 bit is *set* and every 0 bit is *unset* or *empty*.
+
+Enums, short for **enumerated types**, can be represented as integers and are often used in binary formats and communication protocols. 
+
+```c
+enum NodeType {
+   ROOT,     // 0x00h
+   INTERNAL, // 0x01h
+   LEAF      // 0x02h
+};
+```
+
+Another closely related concept is *flags*, kind of a combination of packed booleans and enums. Flags can represent nonmutually exclusive named boolean parameters.
+
+Just like packed booleans, flag values can be read and written from the packed value using *bitmasks* and bitwise operators.
+
+**General Principles**
+
+Usually, you start designing a file format by deciding how the addressing is going to be done: whether the file is going to be split into same-sized pages, which are repre‐ sented by a single block or multiple contiguous blocks. Most in-place update storage structures use pages of the same size, since it significantly simplifies read and write access. Append-only storage structures often write data page-wise, too: records are appended one after the other and, as soon as the page fills up in memory, it is flushed on disk.
+
+The file usually starts with a fixed-size header and may end with a fixed-size trailer, which hold auxiliary information that should be accessed quickly or is required for decoding the rest of the file. The rest of the file is split into pages. 
+
+![Figure 3-3. File organization](/assets/alex-petrov-database-internals/figure 3-3. file organization.png)
+
+Many data stores have a fixed schema, specifying the number, order, and type of fields the table can hold. Having a fixed schema helps to reduce the amount of data stored on disk: instead of repeatedly writing field names, we can use their positional identifiers.
+
+```none
+Fixed-size fields:
+| (4 bytes) employee_id                |
+| (4 bytes) tax_number                 |
+| (3 bytes) date                       |
+| (1 byte)  gender                     |
+| (2 bytes) first_name_length          |
+| (2 bytes) last_name_length           |
+
+Variable-size fields:
+| (first_name_length bytes) first_name |
+| (last_name_length bytes) last_name   |
+```
+Database files often consist of multiple parts, with a **lookup table** aiding navigation and pointing to the start offsets of these parts written either in the file header, trailer, or in the separate file.
+
+**Page Structure**
+
+Database systems store data records in data and index files. These files are partitioned into fixed-size units called *pages*, which often have a size of multiple filesystem blocks. Page sizes usually range from 4 to 16 Kb.
+
+Let’s take a look at the example of an on-disk B-Tree node. From a structure perspective, in B-Trees, we distinguish between the *leaf nodes* that hold keys and data records pairs, and *nonleaf nodes* that hold keys and pointers to other nodes. Each B-Tree node occupies one page or multiple pages linked together, so in the context of B-Trees the terms *node* and *page* (and even *block*) are often used interchangeably.
+
+![Figure 3-4. Page organization for fixed-size records](/assets/alex-petrov-database-internals/figure 3-4. page organization for fixed-size records.png)
+
+This approach is easy to follow, but has some downsides:
+
+- Appending a key anywhere but the right side requires relocating elements.
+
+- It doesn’t allow managing or accessing variable-size records efficiently and works only for fixed-size data.
