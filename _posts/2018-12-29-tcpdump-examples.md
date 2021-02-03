@@ -2,7 +2,7 @@
 layout: post
 title: Tcpdump Examples
 date: 2018-12-29 10:22:30 +0800
-categories: ['tcpdump']
+categories: ['TCP/IP']
 tags: ['tcpdump']
 disqus_identifier: 43635066410978541658982950936514353020
 ---
@@ -54,7 +54,7 @@ Hex output is useful when you want to see the content of the packets in question
 tcpdump -nnvXSs0 icmp
 ```
 
-#### 1.6 FILTERING BY SOUURCE AND DESTINATION
+#### 1.6 FILTERING BY SOURCE AND DESTINATION
 
 It's quite easy to isolate traffic based on either source or destination using `src` and `dst`.
 
