@@ -42,7 +42,7 @@ disqus_identifier: 17531140728367429958872257764126983915
 
 - **After Fluentd**
 
-    ![After Fluentd](https://docs.fluentd.org/images/fluentd-architecture.png)
+    ![After Fluentd](https://gblobscdn.gitbook.com/assets%2F-LR7OsqPORtP86IQxs6E%2F-LWNPJuIG9Ym5ELlFCti%2F-LWNPOPNQ1l9hvoJ2FIp%2Ffluentd-architecture.png?alt=media)
 
 ### Collect Docker logs to EFK Stack with Docker Compose.
 
