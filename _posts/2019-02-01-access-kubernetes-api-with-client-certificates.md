@@ -94,9 +94,62 @@ For more information, see [Using RBAC Authorization](https://kubernetes.io/docs/
 ```sh
 # Generate a certificate signing request
 openssl req -newkey rsa:2048 -nodes -keyout kube-ops.key -out kube-ops.csr -subj "/CN=kube-ops"
+```
+
+```
 # Sign the certificate signing request kube-ops.csr with Kubernetes CA certificate.
 sudo openssl x509 -req -in kube-ops.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out kube-ops.crt -days 1000
 ```
+
+You can also use `CertificateSigningRequest`:
+
+1. Create CertificateSigningRequest
+
+    ```sh
+    # Generate a certificate signing request
+    openssl req -newkey rsa:2048 -nodes -keyout kube-ops.key -out kube-ops.csr -subj "/CN=kube-ops"
+    ```
+    
+    ```yml
+    # kube-ops-csr.yaml
+    apiVersion: certificates.k8s.io/v1
+    kind: CertificateSigningRequest
+    metadata:
+      name: kube-ops
+    spec:
+      groups:
+        - system:authenticated
+          # request is the base64 encoded value of the CSR file content.
+          # You can get the content using this command: cat kube-ops.csr | base64 | tr -d '\n'
+      request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1dEQ0NBVUFDQVFBd0V6RVJNQThHQTFVRUF3d0lhM1ZpWlMxdmNITXdnZ0VpTUEwR0NTcUdTSWIzRFFFQgpBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRREJyNEJmZXVIMG5OTTRwT0NYOG9oNTY1bmsyandLS0RDcW9wbGZRT1J4CnhTM29ZbjduU0ZSUXM3b2RldGtlYktIU3ZibWlpMDF1d25vTStXTW5RRGhzTzA3clNOQ09ocHlzZlhiRnhyZW4KTnhmeGtwUjBCRTNvczNwL1pLOUNXU051bEtmd0owRUg0T24xU29sSFY0T21CR2dLNEY5WnBXcXpKWHdPaHY3bApnN2FGeTM0NHVMRzEwM2tud1o0eGQ2eStrTEk4Ny9zbmd6WUh2OGxXU3kvVDBPdVV1Nk1xN0hURXE3SGQrZ09XCk4xbml0aE92ZUErUWNxSGdZNlJZWnI3cmhkVzV0aEx3aGxlSTI3amtDSGNpdXEvS014QnJpbXEyaDcyakFtVC8KQmRqYjM0MWxJOEhzd0UwTlNUUnJuVzk3Qk1VVzhuc2VQM1A0RkhNcnYzNGpBZ01CQUFHZ0FEQU5CZ2txaGtpRwo5dzBCQVFzRkFBT0NBUUVBVjRJd0VweW0wS0ZJVkNrQXRKbkdwT3JVNVpBbXd5bTR2TDZxWTY4a0l5anMxVDRFCmNGdmNwTUFxVXpXNU1BeC9TVXN4R081NEFkZWlpbWRuMTZQaWhZbXFRNmh6UnhJSEdZY0xmNGg3ajZvMjN2S3YKUzNzd3JvVnpsa3liUEhTcVNoc0ZHejVQRE1HdWhNS0dRM2dFZklzUThHZnF0b3NiRVhLSWdQZTI5ZGVRcXRZMgpxTFh4WnJsTjZJSldwdU9hN3BRd1ZvSWFpTlEvc2t1ZGtScHFKSWRTWjBtNFNyYkVYZjdhaStoM0xKVU55MXlTCmJhZEI0dnl0clR0elNxdzE5eTdEQU1xU3VTOE44S0hMOU13djZYOEZ4Zno0L2FRZWsvcVhZZXNQc2xOVlNwS3YKKzhZYUh6MlRaOWtqYkp2WjI5WmNBUVlFbFdaUmtBVG44aWNCNGc9PQotLS0tLUVORCBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0K
+      signerName: kubernetes.io/kube-apiserver-client
+      usages:
+        - client auth
+    ```
+    
+    ```console
+    $ kubectl apply -f kube-ops-csr.yml 
+    certificatesigningrequest.certificates.k8s.io/kube-ops created
+    $ kubectl get csr
+    NAME       AGE   SIGNERNAME                            REQUESTOR          CONDITION
+    kube-ops   4s    kubernetes.io/kube-apiserver-client   kubernetes-admin   Pending
+    ```
+  
+2. Approve certificate signing request
+  
+    ```console
+    $ kubectl certificate approve kube-ops
+    certificatesigningrequest.certificates.k8s.io/kube-ops approved
+    $ kubectl get csr
+    NAME       AGE     SIGNERNAME                            REQUESTOR          CONDITION
+    kube-ops   2m28s   kubernetes.io/kube-apiserver-client   kubernetes-admin   Approved,Issued
+    ```
+
+3. Get the certificate
+  
+      ```console
+      $ kubectl get csr kube-ops -ojsonpath='{.status.certificate}' | base64 -d > kube-ops.crt
+      ```
 
 #### 2. Create a KUBECONFIG file. 
 
