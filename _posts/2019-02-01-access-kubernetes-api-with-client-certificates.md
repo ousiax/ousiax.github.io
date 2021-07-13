@@ -78,7 +78,7 @@ A **ClusterRole** can be used to grant the same permissions as a **Role**, but b
 
 A role binding grants the permissions defined in a role to a user or set of users. It holds a list of subjects (users, groups, or service accounts), and a reference to the role being granted. Permissions can be granted within a namespace with a **RoleBinding**, or cluster-wide with a **ClusterRoleBinding**.
 
-**roleRef** is how you will actually create the binding. The **kind** will be either **Role** or **ClusterRole**, and the **name** will reference the name of the specific **Role** or **ClusterRole** yo want.
+**roleRef** is how you will actually create the binding. The **kind** will be either **Role** or **ClusterRole**, and the **name** will reference the name of the specific **Role** or **ClusterRole** you want.
 
 A **RoleBinding** may reference a **Role** in the same namespace.
 
