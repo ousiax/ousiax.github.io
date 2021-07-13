@@ -162,3 +162,4 @@ kubectl --kubeconfig=./config --context=kube-ops@<CLUSTER-NAME> get clusterroleb
 1. [https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/](
 https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/)
 1. [https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/)
+1. [https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/](https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/)
