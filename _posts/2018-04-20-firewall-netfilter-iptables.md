@@ -34,7 +34,7 @@ The key to understanding how iptables works is the chart above. The lowercase wo
 iptables contains five tables:
 
 1. `raw` is used only for configuring packets so that they are exempt from connection tracking.
-1. `filter` is the default table, and is where all the action typically associated with a firwall take place.
+1. **`filter` is the default table**, and is where all the action typically associated with a firwall take place.
 1. `nat` is used for [network address translation](https://en.wikipedia.org/wiki/Network_address_translation) (e.g. port forwarding).
 1. `mangle` is used for specialized packet alterations.
 1. `security` is used for [Mandatory Access Control](https://wiki.archlinux.org/index.php/Security#Mandatory_access_control) networking rules. (e.g. SELinux -- see [this article](http://lwn.net/Articles/267140/) for more details).
@@ -149,7 +149,7 @@ $ sudo iptables --policy FORWARD DROP
 
 ### Showing the Current Rules
 
-```sh
+```console
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination
@@ -178,7 +178,7 @@ target     prot opt source               destination
 RETURN     all  --  anywhere             anywhere
 ```
 
-```sh
+```console
 $ sudo iptables -S
 -P INPUT ACCEPT
 -P FORWARD ACCEPT
@@ -198,11 +198,11 @@ $ sudo iptables -S
 
 ### Resetting Rules
 
-```sh
+```console
 $ sudo iptables -F  # Flush your iptables all chains rules
 ```
 
-```sh
+```console
 $ sudo iptables -F INPUT    # Flush the INPUT chain only
 $ sudo iptables -F OUTPUT   # Flush the OUTPUT chain only
 $ sudo iptables -F FORWARD  # Flush the FORWARD chain only
