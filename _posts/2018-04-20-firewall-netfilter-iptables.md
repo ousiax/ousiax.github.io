@@ -237,7 +237,7 @@ Referring back to the list above, you can see that this tells iptables:
 
 Lets check the rules: (only the firt few lines shown, you will see more)
 
-```
+```console
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination
