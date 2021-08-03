@@ -117,7 +117,7 @@ Before going in and configuring specific rules on the default table `fitler`, yo
 
 To see what your policy chains are currently configured to do with unmatched traffic, run the `iptables -L` command.
 
-```sh
+```console
 $ sudo iptables -L | grep policy
 Chain INPUT (policy ACCEPT)
 Chain FORWARD (policy ACCEPT)
@@ -129,7 +129,7 @@ As you can see, we also used the `grep` command to give use cleaner output. In t
 More times than not, you'll
 want your system to accept connections by default. Unless you've changed the policy chain rules previously, this setting should already be configured. Either way, here's the command to accept connections by default:
 
-```sh
+```console
 $ sudo iptables -P INPUT ACCEPT
 $ sudo iptables -P OUTPUT ACCEPT
 $ sudo iptables -P FORWARD ACCEPT
@@ -139,7 +139,7 @@ By defaulting to the accept rule, you can then use iptables to deny specific IP 
 
 If you would rather deny all connections manually specify which ones you want to allow to connect, you should change the default policy of yur chains to drop. Doing this probably only be useful for servers that contain sensitive information and only ever have the same IP addresses connect to them.
 
-```sh
+```console
 $ sudo iptables --policy INPUT DROP
 $ sudo iptables --policy OUTPUT DROP
 $ sudo iptables --policy FORWARD DROP
@@ -218,13 +218,13 @@ You could start by blocking traffic, but you might be working over SSH, where yo
 
 To allow incomming traffic on the default SSH port (22), you could tell iptables to allow all TCP traffic on that port to come in.
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp --dport ssh -j ACCEPT
 ```
 
 or
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 ```
 
@@ -247,19 +247,19 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
 
 Now, let's allow all incomming web traffic
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp --dport http -j ACCEPT
 $ sudo iptables -A INPUT -p tcp --dport https -j ACCEPT
 ```
 or
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp -m multiport --dports http,https -j ACCEPT
 ```
 
 Checking our rules, we have
 
-```sh
+```console
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination
@@ -270,7 +270,7 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
 
 Allow default port range for Kubernetes NodePort servies.
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp --dport 30000:32767 -j ACCEPT -m comment --comment "Allow default port range of kubernetes nodeport services"
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
@@ -290,7 +290,7 @@ We have specifically allowed tcp traffic to the ssh and web ports, but as we hav
 
 Once a decision is made to accept a packet, no more rules affect it. As our rules allowing ssh and web traffic come first, as long as our rule to block all traffic comes after them, we can still accept the traffic we want. All we need to do is put the rule to block all traffic at the end.
 
-```sh
+```console
 $ sudo iptables -A INPUT -j DROP
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
@@ -305,7 +305,7 @@ DROP       all  --  anywhere             anywhere
 
 - Here `-s 0/0` stand for any incomming source with any IP addresses.
 
-    ```sh
+    ```console
     $ sudo iptables -A INPUT -p tcp -s 0/0 --dport 22 -j ACCEPT
     $ sudo iptables -L
     Chain INPUT (policy ACCEPT)
@@ -315,7 +315,7 @@ DROP       all  --  anywhere             anywhere
 
 - `-s 192.168.66.128/24` using CIDR values, it stands for IP starting from 192.168.66.1 to 192.168.66.255.
 
-    ```sh
+    ```console
     $ sudo iptables -A INPUT -p tcp -s 192.168.66.128/24 --dport 22 -j ACCEPT
     $ sudo iptables -L
     Chain INPUT (policy ACCEPT)
@@ -323,7 +323,7 @@ DROP       all  --  anywhere             anywhere
     ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:ssh
     ```
 
-    ```sh
+    ```console
     $ sudo iptables -A INPUT -p tcp -s 192.168.66.128/32 --dport 22 -j ACCEPT
     $ sudo iptables -L
     Chain INPUT (policy ACCEPT)
@@ -331,7 +331,7 @@ DROP       all  --  anywhere             anywhere
     ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
     ```
     
-    ```sh
+    ```console
     $ sudo iptables -A INPUT -p tcp -s 192.168.66.128 --dport 22 -j ACCEPT
     $ sudo iptables -L
     Chain INPUT (policy ACCEPT)
@@ -341,7 +341,7 @@ DROP       all  --  anywhere             anywhere
 
 #### Blocking ICMP
 
-```sh
+```console
 $ sudo iptables -A OUTPUT -p icmp --icmp-type 8 -j DROP
 $ sudo iptables -L
 Chain OUTPUT (policy ACCEPT)
@@ -354,7 +354,7 @@ ping: sendmsg: Operation not permitted
 
 #### Blocking MongoDB from outside attach
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp -s 192.168.66.0/24 --dport 27017 -j ACCEPT
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
@@ -364,7 +364,7 @@ ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:27017
     
 #### Blocking DDOS
     
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp --dport 80 -m limit --limit 20/minute --limit-burst 100 -j ACCEPT
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
@@ -374,7 +374,7 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http limit
 
 #### Insert a New Rule / Replace an Old Rule
 
-```sh
+```console
 $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 $ sudo iptables -L
 Chain INPUT (policy ACCEPT)
@@ -398,7 +398,7 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
 
 #### Create User Defined Chain / Target
 
-```sh
+```console
 $ sudo iptables -N CODE_FARM
 $ sudo iptables -L | grep 'Chain'
 Chain INPUT (policy ACCEPT)
@@ -440,7 +440,7 @@ ACCEPT     tcp  --  anywhere             anywhere
 
 Changes to **iptables** are transitory; if the system is rebooted or if the **iptables** service is restarted, the rules are automatically flushed and reset. To save the rules so that they are loaded when the **iptables** service is started, use the following command: 
 
-```sh
+```console
 $ sudo service iptables save
 ```
 
@@ -448,7 +448,7 @@ The rules are stored in the file **/etc/sysconfig/iptables** and are applied whe
 
 You can also save the current iptables into a file and restore it.
 
-```sh
+```console
 $ sudo iptables -L
 Chain INPUT (policy DROP)
 target     prot opt source               destination         
