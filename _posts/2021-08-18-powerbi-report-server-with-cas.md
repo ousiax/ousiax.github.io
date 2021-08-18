@@ -16,6 +16,8 @@ tags: ['Report Server', 'CAS']
 - [SQL Server 2019](https://www.microsoft.com/en-us/evalcenter/evaluate-sql-server-2019?filetype=EXE)
 - [NET 5.0 SDK](https://dotnet.microsoft.com/download/dotnet/5.0)(Optional)
 
+***[https://github.com/qqbuby/PowerBI.ReportingServices.Extensions](https://github.com/qqbuby/PowerBI.ReportingServices.Extensions)***
+
 **How to Build .NET Project with CLI**
 
 \# Open `Developer Command Prompt for VS 2019` and goto the project directory, then type the follow commands:
