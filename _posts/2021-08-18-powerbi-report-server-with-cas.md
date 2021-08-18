@@ -68,7 +68,7 @@ Time Elapsed 00:00:03.51
 
 **To compile the Project using Visual Studio**
 
-- Open `pbirs-auth-ext.sln` in Microsoft Visual Studio.
+- Open `PowerBI.ReportingServices.sln` in Microsoft Visual Studio.
 - In Solution Explorer, select the PowerBI.ReportingServices.Security project.
 - Look at the PowerBI.ReportingServices.Security project's Dependencies-&gt;Assemblies.
 
