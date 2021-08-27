@@ -5,18 +5,18 @@
 # 
 # Copyright (c) 2018 ROY XU <qqbuby@gmail.com>
 #
-# Description: Create a jekyll post file named 'yyyy-MM-dd-title.md' with front matter.
+# Description: Create a jekyll post file named 'yyyy-MM-dd-title.adoc' with front matter.
 #
 # Usage:
-# $ ./jekyll-post.rb -t 'Hello World' -c "['Hello', 'World']"
-# $ cat 2018-04-06-hello-world.md
-# ---
-# layout: post
-# title: Hello World
-# date: 2018-04-06 14:27:23 +0800
-# categories: ['Hello', 'World']
-# tags: ['Hello', 'World']
-# ---
+# $ ./jekyll-post.rb -t 'Hello World' -c "Hello, World"
+#$ cat 2021-08-27-hello-world.adoc 
+# = Hello World
+# :page-layout: post
+# :page-categories: [Hello, World]
+# :page-tags: [Hello, World]
+# :revdate: 2021-08-27 18:11:04 +0800
+#
+#
 
 require 'optparse'
 require 'date'
@@ -54,10 +54,10 @@ date = DateTime.now
 disqus_identifier = SecureRandom::uuid.gsub('-','').hex
 
 filename = filename.gsub(' ', '-').gsub(/\(|\)|\./, '').downcase
-filename = date.strftime('%Y-%m-%d') + '-' + filename + ".md"
-date = date.strftime('%Y-%m-%d %H:%M:%S %z')
+filename = date.strftime('%Y-%m-%d') + '-' + filename + ".adoc"
+revdate = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
-front_matter = "---\nlayout: post\ntitle: #{title}\ndate: #{date}\ncategories: ['#{categories}']\ntags: ['#{tags}']\n---"
+front_matter = "= #{title}\n:page-layout: post\n:page-categories: [#{categories}]\n:page-tags: [#{tags}]\n:revdate: #{revdate}\n\n"
 
 File.open(filename, 'w') { |f| f.write(front_matter) }
 
