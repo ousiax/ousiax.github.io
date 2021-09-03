@@ -1,4 +1,4 @@
-= What is Same-Site and CORS
+= What is CORS and Same-Site
 :page-layout: post
 :page-categories: ['cors', 'same-site']
 :page-tags: ['cors', 'same-site']
@@ -35,6 +35,7 @@
 :http-headers-access-control-request-headers: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Request-Headers
 :http-headers-access-control-allow-methods: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
 :http-headers-access-control-max-age: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
+:http-headers-set-cookie: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
 
 :http-cookies: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
 :http-authentication: https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication
@@ -539,21 +540,18 @@ Domain names are formed by the rules and procedures of the {domain_name_system}[
 
 A {fully_qualified_domain_name}[fully qualified domain name] (*FQDN*) is a domain name that is completely specified with all labels in the hierarchy of the DNS, having no parts omitted. Traditionally a FQDN ends in a *dot* (.) to denote the top of the DNS tree. Labels in the Domain Name System are case-insensitive, and may therefore be written in any desired capitalization method, but most commonly domain names are written in lowercase in technical contexts. In contrast to a domain name that is fully specified, a domain name that does not include the full path of labels up to the DNS root is often called a _partially qualified domain name_.
 
-=== Public Suffix List
+=== Public Suffix List (eTLD)
 
 The *Public Suffix List (PSL)* is a catalog of certain Internet domain names. Entries on the list are also referred to as effective top-level domains (*eTLD*).
 
-.Purpose(s)
-****
-Previously, browsers used an algorithm which basically only denied setting wide-ranging cookies for top-level domains with no dots (e.g. `com` or `org`). However, this did not work for top-level domains where only third-level registrations are allowed (e.g. `co.uk`). In these cases, websites could set a cookie for `co.uk` which will be passed onto every website registered under [.line-through]#co#`.uk`.
+Previously, browsers used an algorithm which basically only denied setting wide-ranging cookies for top-level domains (*TLD*) with no dots (e.g. `com` or `org`). However, this did not work for top-level domains where only third-level registrations are allowed (e.g. `co.uk`). In these cases, websites could set a cookie for `co.uk` which will be passed onto every website registered under [.line-through]#co#`.uk`.
 
 Clearly, this was a security risk as it allowed websites other than the one setting the cookie to read it, and therefore potentially extract sensitive information.
 
 Since there is no algorithmic method of finding the highest level at which a domain may be registered for a particular top-level domain (the policies differ with each registry), the only method is to create a list of all top-level domains and the level at which domains can be registered. This is the aim of the effective TLD list. 
-****
 
-.Site
-****
+== Same-Site
+
 The site of a piece of web content is determined by the *registrable domain* of the host within the origin. This is computed by consulting a *Public Suffix List* to find the portion of the host which is counted as the public suffix (e.g. `com`, `org` or `co.uk`).
 
 The concept of a site is used in `SameSite` cookies, as well as a web application's `Cross-Origin Resource Policy`.
@@ -580,9 +578,8 @@ pass:[https]://#example.com#
 |pass:[https]://#example.co.uk#
 pass:[https]://#example.uk#
 |===
-****
 
-== Same-Site and Cross-Site Requests
+=== Same-Site and Cross-Site Requests
 
 A request is "same-site" if its target's URI's origin's *registrable domain* is an exact match for the request's initiator's "site for cookies", and "cross-site" otherwise.  To be more precise, for a given request ("request"), the following algorithm returns "same-site" or "cross-site":
 
@@ -592,10 +589,85 @@ A request is "same-site" if its target's URI's origin's *registrable domain* is 
 4.  If "site" is an exact match for "target", return "same-site".
 5.  Return "cross-site".
 
+=== Same-Site cookies
+
+The `SameSite` attribute of the {http-headers-set-cookie}[Set-Cookie] HTTP response header allows you to declare if your cookie should be restricted to a link:#third-party-cookies[first-party] or same-site context.
+
+[NOTE]
+====
+Note: Standards related to the Cookie `SameSite` attribute recently changed such that:
+
+The cookie-sending behavior if `SameSite` is not specified is `SameSite=Lax`. Previously the default was that cookies were sent for all requests.
+
+Cookies with `SameSite=None` must now also specify the `Secure` attribute (they require a secure context/HTTPS).
+====
+
+==== Values
+
+The SameSite attribute accepts three values:
+
+.Lax
+****
+Cookies are not sent on _normal cross-site subrequests_ (for example to load images or frames into a third party site), but are sent when a user is navigating to the origin site (i.e., when following a link).
+
+This is the default cookie value if `SameSite` has not been explicitly specified in recent browser versions (Defaults to `Lax`).
+
+[NOTE]
+====
+Note: `Lax` replaced `None` as the default value in order to ensure that users have reasonably robust defense against some classes of cross-site request forgery (*CSRF*) attacks.
+====
+****
+
+.Strict
+****
+Cookies will only be sent in a first-party context and not be sent along with requests initiated by third party websites.
+****
+
+.None
+****
+Cookies will be sent in all contexts, i.e. in responses to both first-party and cross-origin requests. *If `SameSite=None` is set, the cookie `Secure` attribute must also be set (or the cookie will be blocked)*.
+****
+
+=== Third-party cookies
+
+A cookie is associated with a domain. If this domain is the same as the domain of the page you are on, the cookie is called a *first-party cookie*. If the domain is different, it is a *third-party cookie*. While the server hosting a web page sets first-party cookies, the page may contain images or other components stored on servers in other domains (for example, ad banners), which may set third-party cookies. These are mainly used for *advertising and tracking* across the web.
+
+A third-party server can build up a profile of a user's browsing history and habits based on cookies sent to it by the same browser when accessing multiple sites. Firefox, by default, blocks third-party cookies that are known to contain trackers. Third-party cookies (or just tracking cookies) may also be blocked by other browser settings or extensions. Cookie blocking can cause some third-party components (such as social media widgets) to not function as intended.
+
+=== Cross-site request forgery (CSRF)
+
+*CSRF* (sometimes also called *XSRF*) is a related class of attack. The attacker causes the user's browser to perform a request to the website's backend without the user's consent or knowledge. An attacker can use an XSS payload to launch a CSRF attack.
+
+Wikipedia mentions a good example for CSRF. In this situation, someone includes an image that isn’t really an image (for example in an unfiltered chat or forum), instead it really is a request to your bank’s server to withdraw money:
+
+[source,js]
+<img src="https://bank.example.com/withdraw?account=bob&amount=1000000&for=mallory">
+
+Now, if you are logged into your bank account and your cookies are still valid (and there is no other validation), you will transfer money as soon as you load the HTML that contains this image. For endpoints that require a `POST` request, it's possible to programmatically trigger a `<form>` submit (perhaps in an invisible `<iframe>`) when the page is loaded:
+
+[source,html]
+----
+<form action="https://bank.example.com/withdraw" method="POST">
+  <input type="hidden" name="account" value="bob">
+  <input type="hidden" name="amount" value="1000000">
+  <input type="hidden" name="for" value="mallory">
+</form>
+<script>window.addEventListener('DOMContentLoaded', (e) => { document.querySelector('form').submit(); }</script>
+----
+
+There are a few techniques that should be used to prevent this from happening:
+
+* `GET` endpoints should be *idempotent—actions* that enact a change and do not retrieve data should require sending a `POST` (or other HTTP method) request. `POST` endpoints should not interchangeably accept `GET` requests with parameters in the query string.
+* A *CSRF token* should be included in `<form>` elements via a _hidden input field_. This token should be unique per user and stored (for example, in a cookie) such that the server can look up the expected value when the request is sent. For all non-GET requests that have the potential to perform an action, this input field should be compared against the expected value. If there is a mismatch, the request should be aborted.
+* This method of protection relies on an attacker being unable to predict the user's assigned CSRF token. The token should be regenerated on sign-in.
+* Cookies that are used for sensitive actions (such as session cookies) should have a short lifetime with the `SameSite` attribute set to `Strict` or `Lax`. In supporting browsers, this will have the effect of ensuring that the session cookie is not sent along with cross-site requests and so the request is effectively unauthenticated to the application server.
+* Both *CSRF tokens* and *SameSite* cookies should be deployed. This ensures all browsers are protected and provides protection where SameSite cookies cannot help (such as attacks originating from a separate subdomain).
+
 == References
 
 * https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 * https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
 * https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
 * https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-03
 * https://datatracker.ietf.org/doc/html/draft-west-first-party-cookies-07
