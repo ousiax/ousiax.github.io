@@ -1,11 +1,236 @@
-= HTTP caching
+= HTTP Caching
 :page-layout: post
 :page-categories: []
 :page-tags: []
 :revdate: 2021-09-17 23:49:02 +0800
+:toc:
+
+:http_headers_etag: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag
+:http_headers_if-modified-since: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
+:http_headers_last-modified: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified
+:http_headers_date: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Date
+:http_headers_expires: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expires
+:http_headers_if-none-match: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
+:http_headers_pragma: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Pragma
+:http_headers_cache-control: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control
+:http_headers_vary: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary
+:http_methods_get: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET
+:http_status_200: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200
+:http_status_301: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301
+:http_status_304: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304
+:http_status_404: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404
+:http_status_206: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/206
 
 
+The performance of web sites and applications can be significantly improved by reusing previously fetched resources. Web caches reduce latency and network traffic and thus lessen the time needed to display a representation of a resource. By making use of HTTP caching, Web sites become more responsive.
+
+== Different kinds of caches
+
+Caching is a technique that stores a copy of a given resource and serves it back when requested. When a web cache has a requested resource in its store, it intercepts the request and returns its copy instead of re-downloading from the originating server. This achieves several goals: it eases the load of the server that doesn’t need to serve all clients itself, and it improves performance by being closer to the client, i.e., it takes less time to transmit the resource back. For a web site, it is a major component in achieving high performance. On the other side, it has to be configured properly as not all resources stay identical forever: it is important to cache a resource only until it changes, not longer.
+
+There are several kinds of caches: these can be grouped into two main categories: *private or shared caches*. A _shared cache_ is a cache that stores responses for reuse by more than one user. A _private cache_ is dedicated to a single user. This page will mostly talk about _browser and proxy caches_, but there are also _gateway caches_, _CDN_, _reverse proxy caches_ and _load balancers_ that are deployed on web servers for better reliability, performance and scaling of web sites and web applications.
+
+image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_cache_type.png[]
+
+=== Private browser caches
+
+A *private cache* is dedicated to a single user. You might have seen "caching" in your browser's settings already. A browser cache holds all documents downloaded via HTTP by the user. This cache is used to make visited documents available for back/forward navigation, saving, viewing-as-source, etc. without requiring an additional trip to the server. It likewise improves offline browsing of cached content.
+
+=== Shared proxy caches
+
+A *shared cache* is a cache that stores responses to be reused by more than one user. For example, an ISP or your company might have set up a _web proxy_ as part of its local network infrastructure to serve many users so that popular resources are reused a number of times, reducing network traffic and latency.
+
+== Targets of caching operations
+
+HTTP caching is optional but usually desirable. HTTP caches are typically limited to caching responses to {http_ethods_get}[GET]; they may decline other methods. The primary cache key consists of the request method and target URI (often only the URI is used — this is because only GET requests are caching targets).
+
+Common forms of caching entries are:
+
+* Successful results of a retrieval request: a {http_status_200}[200] (OK) response to a {http_methods_get}[GET] request containing a resource like HTML documents, images or files.
+* Permanent redirects: a {http_status_301}[301] (Moved Permanently) response.
+* Error responses: a {http_status_404}[404] (Not Found) result page.
+* Incomplete results: a {http_status_206}[206] (Partial Content) response.
+* Responses other than {http_methods_get}[GET] if something suitable for use as a cache key is defined.
+
+A cache entry might also consist of multiple stored responses differentiated by a secondary key, if the request is target of content negotiation ({http_headers_vary}[Vary]).
+
+== Controlling caching
+
+=== The `Cache-Control` header
+
+The {http_headers_cache-control}[Cache-Control] HTTP/1.1 general-header field is used to specify directives for caching mechanisms in both requests and responses. Use this header to define your caching policies with the variety of directives it provides.
+
+*No caching*
+
+The cache should not store anything about the client request or server response. A request is sent to the server and a full response is downloaded each and every time.
+
+[source,text]
+----
+Cache-Control: no-store
+----
+
+*Cache but revalidate*
+
+A cache will send the request to the origin server for validation before releasing a cached copy.
+
+[source,text]
+----
+Cache-Control: no-cache
+----
+
+*Private and public caches*
+
+The "public" directive indicates that the response may be cached by any cache. This can be useful if pages with HTTP authentication, or response status codes that aren't normally cacheable, should now be cached.
+
+On the other hand, "private" indicates that the response is intended for a single user only and must not be stored by a shared cache. A private browser cache may store the response in this case.
+
+[source,text]
+----
+Cache-Control: private
+Cache-Control: public
+----
+
+*Expiration*
+
+The most important directive here is `max-age=<seconds>`, which is the maximum amount of time in which a resource will be considered fresh. This directive is relative to the time of the request, and overrides the `Expires` header (if set). For the files in the application that will not change, you can normally use aggressive caching. This includes static files such as images, CSS files, and JavaScript files, for example.
+
+
+[source,text]
+----
+Cache-Control: max-age=31536000
+----
+
+*Validation*
+
+When using the "must-revalidate" directive, the cache must verify the status of the stale resources before using it and expired ones should not be used.
+
+[source,text]
+----
+Cache-Control: must-revalidate
+----
+
+=== The `Pragma` header
+
+{http_headers_pragma}[Pragma] is an HTTP/1.0 header. `Pragma: no-cache` is like `Cache-Control: no-cache` in that it forces caches to submit the request to the origin server for validation, before releasing a cached copy. However, `Pragma` is not specified for HTTP responses and is therefore not a reliable replacement for the general HTTP/1.1 `Cache-Control` header.
+
+`Pragma` should only be used for backwards compatibility with HTTP/1.0 caches where the `Cache-Control` HTTP/1.1 header is not yet present.
+
+== Freshness
+
+Once a resource is stored in a cache, it could theoretically be served by the cache forever. Caches have finite storage so items are periodically removed from storage. This process is called _cache eviction_. On the other side, some resources may change on the server so the cache should be updated. As HTTP is a client-server protocol, servers can't contact caches and clients when a resource changes; they have to communicate an expiration time for the resource. Before this expiration time, the resource is fresh; after the expiration time, the resource is stale. Eviction algorithms often privilege fresh resources over stale resources. Note that a stale resource is not evicted or ignored; when the cache receives a request for a stale resource, it forwards this request with a {http_headers_if-none-match}[If-None-Match] to check if it is in fact still fresh. If so, the server returns a {http_status_304}[304] (Not Modified) header without sending the body of the requested resource, saving some bandwidth.
+
+Here is an example of this process with a shared cache proxy:
+
+image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_staleness.png[]
+
+The freshness lifetime is calculated based on several headers. If a "`Cache-Control: max-age=N`" header is specified, then the freshness lifetime is equal to `N`. If this header is not present, which is very often the case, it is checked if an {http_headers_expires}[Expires] header is present. If an Expires header exists, then its value minus the value of the {http_headers_date}[Date] header determines the freshness lifetime.
+
+=== Heuristic freshness checking
+
+If an origin server does not explicitly specify freshness (e.g. using {http_headers_cache-control}[Cache-Control] or {http_headers_expires}[Expires] header) then a heuristic approach may be used.
+
+In this case look for a {http_headers_last-modified}[Last-Modified] header. If this header is present, then the cache's freshness lifetime is equal to the value of the {http_headers_date}[Date] header minus the value of the {http_headers_last-modified}[Last-modified] header divided by `10`. The expiration time is computed as follows:
+
+[source,text]
+expirationTime = responseTime + freshnessLifetime - currentAge
+
+where `responseTime` is the time at which the response was received according to the browser. For more information see https://datatracker.ietf.org/doc/html/rfc7234#section-4.2.2[RFC 7234: Hypertext Transfer Protocol (HTTP/1.1): 4.2.2.  Calculating Heuristic Freshness].
+
+=== Revved resources
+
+The more we use cached resources, the better the responsiveness and the performance of a Web site will be. To optimize this, good practices recommend to set expiration times as far in the future as possible. This is possible on resources that are regularly updated, or often, but is problematic for resources that are rarely and infrequently updated. They are the resources that would benefit the most from caching resources, yet this makes them very difficult to update. This is typical of the technical resources included and linked from each Web pages: JavaScript and CSS files change infrequently, but when they change you want them to be updated quickly.
+
+Web developers invented a technique that Steve Souders called https://www.stevesouders.com/blog/2008/08/23/revving-filenames-dont-use-querystring/[revving]. Infrequently updated files are named in a specific way: in their URL, usually in the filename, a _revision (or version) number_ is added. That way each new revision of this resource is considered as a resource on its own that _never changes_ and that can have an expiration time very far in the future, usually one year or even more. In order to have the new versions, all the links to them must be changed, that is the drawback of this method: additional complexity that is usually taken care of by the tool chain used by Web developers. When the infrequently variable resources change they induce an additional change to often variable resources. When these are read, the new versions of the others are also read.
+
+This technique has an additional benefit: updating two cached resources at the same time will not lead to the situation where the out-dated version of one resource is used in combination with the new version of the other one. This is very important when web sites have CSS stylesheets or JS scripts that have mutual dependencies, i.e., they depend on each other because they refer to the same HTML elements.
+
+image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_revved_fix_typo.png[]
+
+=== Cache validation
+
+When a cached document's expiration time has been reached, it is either validated or fetched again. Validation can only occur if the server provided either a _strong validator_ or a _weak validator_.
+
+Revalidation is triggered when the user presses the reload button. It is also triggered under normal browsing if the cached response includes the "`Cache-Control: must-revalidate`" header. Another factor is the cache validation preferences in the `Advanced->Cache` preferences panel. There is an option to force a validation each time a document is loaded.
+
+**ETags**
+
+The {http_headers_etag}[ETag] response header is an opaque-to-the-useragent value that can be used as a *strong validator*. That means that a HTTP user-agent, such as the browser, does not know what this string represents and can't predict what its value would be. If the {http_headers_etag}[ETag] header was part of the response for a resource, the client can issue an {http_headers_if-none-match}[If-None-Match] in the header of future requests  in order to validate the cached resource.
+
+*Last-Modified*
+
+The {http_headers_last-modified}[Last-Modified] response header can be used as a *weak validator*. It is considered weak because it only has 1-second resolution. If the {http_headers_last-modified}[Last-Modified] header is present in a response, then the client can issue an {http_headers_if-modified-since}[If-Modified-Since] request header to validate the cached document.
+
+When a validation request is made, the server can either ignore the validation request and respond with a normal {http_status_200}[200] OK, or it can return {http_status_304}[304] Not Modified (with an empty body) to instruct the browser to use its cached copy. The latter response can also include headers that update the expiration time of the cached document.
+
+== Varying responses
+
+The {http_headers_vary}[Vary] HTTP response header determines how to match future request headers to decide whether a cached response can be used, or if a fresh one must be requested from the origin server.
+
+When a cache receives a request that has a Vary header field, it must not use a cached response by default unless all header fields specified in the Vary header match in both the original (cached) request and the new request.
+
+image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_vary.png[]
+
+This feature is commonly used to allow a resource to be cached in uncompressed and (various) compressed forms, and served appropriately to user agents based on the encodings that they support. For example, a server can set Vary: `Accept-Encoding` to ensure that a separate version of a resource is cached for all requests that specify support for a particular set of encodings, e.g. `Accept-Encoding: gzip,deflate,sdch`.
+
+[source,text]
+Vary: Accept-Encoding
+
+== Examples
+
+[source,console]
+----
+$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js
+HTTP/2 200 <1>
+cache-control: public, max-age=432000 <2>
+content-length: 5
+content-type: application/x-javascript; charset=utf-8
+content-encoding: br
+content-md5: 5aqSHeuG+BOAJrucJAgg+w==
+last-modified: Wed, 24 Jun 2020 04:27:46 GMT <4>
+etag: 0x8D817F6F26EBE3A <5>
+date: Sun, 19 Sep 2021 14:06:17 GMT
+
+$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js \
+> -H'If-None-Match: 0x8D817F6F26EBE3A' <5>
+HTTP/2 304 <1>
+cache-control: public, max-age=432000 <2>
+content-length: 0
+content-type: application/x-javascript; charset=utf-8
+content-encoding: br
+content-md5: 5aqSHeuG+BOAJrucJAgg+w==
+last-modified: Wed, 24 Jun 2020 04:27:46 GMT <4>
+etag: 0x8D817F6F26EBE3A <5>
+date: Sun, 19 Sep 2021 14:06:31 GMT
+----
+
+[source,console]
+----
+$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js
+HTTP/2 200 <1>
+cache-control: public, max-age=432000 <2>
+content-length: 5
+content-type: application/x-javascript; charset=utf-8
+content-encoding: br
+content-md5: 5aqSHeuG+BOAJrucJAgg+w==
+last-modified: Wed, 24 Jun 2020 04:45:53 GMT <3>
+etag: 0x8D817F979D0642F <4>
+date: Sun, 19 Sep 2021 14:02:57 GMT
+
+$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js \
+> -H'If-Modified-Since: Wed, 24 Jun 2020 04:45:53 GMT' <3>
+HTTP/2 304 <1>
+cache-control: public, max-age=432000 <2>
+content-length: 0
+content-type: application/x-javascript; charset=utf-8
+content-encoding: br
+content-md5: 5aqSHeuG+BOAJrucJAgg+w==
+last-modified: Wed, 24 Jun 2020 04:27:46 GMT <3>
+etag: 0x8D817F6F26EBE3A <4>
+date: Sun, 19 Sep 2021 14:03:30 GMT
+----
 
 == References
 
 * https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching, HTTP caching - HTTP | MDN
+* https://datatracker.ietf.org/doc/html/rfc7234, Hypertext Transfer Protocol (HTTP/1.1): Caching
+* https://datatracker.ietf.org/doc/html/rfc7232, Hypertext Transfer Protocol (HTTP/1.1): Conditional Requests
