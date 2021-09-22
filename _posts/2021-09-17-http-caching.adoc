@@ -1,4 +1,4 @@
-= HTTP Caching
+= HTTP Caching and Conditional Requests
 :page-layout: post
 :page-categories: []
 :page-tags: []
@@ -461,7 +461,89 @@ NOTE: `Pragma` is not specified for HTTP responses and is therefore not a reliab
 The `Last-Modified` response HTTP header contains the date and time at which the origin server believes the resource was last modified. It is used as a validator to determine if a resource received or stored is the same. *Less accurate than an {http_headers_etag}[ETag] header, it is a fallback mechanism.* Conditional requests containing `If-Modified-Since` or `If-Unmodified-Since` headers make use of this field. 
 
 [source,text]
-Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT
+[source,console,linenums,highlight='2,5,25,26,41,42,45,65,66']
+----
+$ curl -iI https://blog.codefarm.me/
+HTTP/2 200 
+server: GitHub.com
+content-type: text/html; charset=utf-8
+last-modified: Wed, 22 Sep 2021 06:10:18 GMT
+access-control-allow-origin: *
+etag: "614ac8ca-1c64"
+expires: Wed, 22 Sep 2021 06:23:12 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: BBC8:13FF:75A61:CAF87:614AC978
+accept-ranges: bytes
+date: Wed, 22 Sep 2021 06:15:58 GMT
+via: 1.1 varnish
+age: 166
+x-served-by: cache-hkg17930-HKG
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1632291359.923473,VS0,VE1
+vary: Accept-Encoding
+x-fastly-request-id: 342a98d6c40c636779bf85f616d08e9b18b312c6
+content-length: 7268
+
+$ curl -iI https://blog.codefarm.me/ \
+> -H'If-Modified-Since: Wed, 22 Sep 2021 06:10:18 GMT'
+HTTP/2 304 
+date: Wed, 22 Sep 2021 06:16:21 GMT
+via: 1.1 varnish
+cache-control: max-age=600
+etag: "614ac8ca-1c64"
+expires: Wed, 22 Sep 2021 06:23:12 GMT
+age: 188
+x-served-by: cache-hkg17930-HKG
+x-cache: HIT
+x-cache-hits: 2
+x-timer: S1632291381.213552,VS0,VE0
+vary: Accept-Encoding
+x-fastly-request-id: 6604678c8e31a6c9ba1330f38f79998a469ad75b
+
+$ curl -iI https://blog.codefarm.me/ \
+> -H'If-Unmodified-Since: Wed, 22 Sep 2021 06:10:18 GMT'
+HTTP/2 200 
+server: GitHub.com
+content-type: text/html; charset=utf-8
+last-modified: Wed, 22 Sep 2021 06:10:18 GMT
+access-control-allow-origin: *
+etag: "614ac8ca-1c64"
+expires: Wed, 22 Sep 2021 06:23:12 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: BBC8:13FF:75A61:CAF87:614AC978
+accept-ranges: bytes
+date: Wed, 22 Sep 2021 06:16:48 GMT
+via: 1.1 varnish
+age: 216
+x-served-by: cache-hkg17928-HKG
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1632291409.582379,VS0,VE0
+vary: Accept-Encoding
+x-fastly-request-id: e4ab3af31cbfa36dc9d8d15e66d14b0eccf44059
+content-length: 7268
+
+$ curl -iI https://blog.codefarm.me/ \
+> -H'If-Unmodified-Since: Wed, 20 Sep 2021 06:10:18 GMT'
+HTTP/2 412 
+server: Varnish
+retry-after: 0
+content-type: text/html; charset=utf-8
+accept-ranges: bytes
+date: Wed, 22 Sep 2021 06:16:56 GMT
+via: 1.1 varnish
+x-served-by: cache-hkg17926-HKG
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1632291416.406798,VS0,VE0
+x-fastly-request-id: ba3bbf134d35ff9f4242e2cc6f5892bc9243732f
+content-length: 452
+
+
+----
 
 ===  ETag
 
@@ -520,7 +602,7 @@ If-None-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"
 
 The server compares the client's `ETag` (sent with `If-None-Match`) with the `ETag` for its current version of the resource, and if both values match (that is, the resource has not changed), the server sends back a {http_status_304}[304] Not Modified status, without a body, which tells the client that the cached version of the response is still good to use (fresh). 
 
-[source,console,highlight='2,27']
+[source,console,linenums,highlight='2,7,27,31']
 ----
 $ curl -iI https://blog.codefarm.me/
 HTTP/2 200 
@@ -594,6 +676,50 @@ Entity tags uniquely representing the requested resources. They are a string of 
 
 The asterisk is a special value representing any resource.
 
+[source,console,linenums,highlight='2,3,8,26,27']
+----
+$ curl -iI https://blog.codefarm.me/ \
+> -H'If-Match: "614ac8ca-1c64"'
+HTTP/2 200 
+server: GitHub.com
+content-type: text/html; charset=utf-8
+last-modified: Wed, 22 Sep 2021 06:10:18 GMT
+access-control-allow-origin: *
+etag: "614ac8ca-1c64"
+expires: Wed, 22 Sep 2021 06:23:12 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: BBC8:13FF:75A61:CAF87:614AC978
+accept-ranges: bytes
+date: Wed, 22 Sep 2021 06:28:38 GMT
+via: 1.1 varnish
+age: 105
+x-served-by: cache-hkg17924-HKG
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1632292118.311608,VS0,VE1
+vary: Accept-Encoding
+x-fastly-request-id: 6d9bb0336b206c24729f619a0d52ac3932df452e
+content-length: 7268
+
+$ curl -iI https://blog.codefarm.me/ \
+> -H'If-Match: "614ac8ca-123"'
+HTTP/2 412 
+server: Varnish
+retry-after: 0
+content-type: text/html; charset=utf-8
+accept-ranges: bytes
+date: Wed, 22 Sep 2021 06:30:10 GMT
+via: 1.1 varnish
+x-served-by: cache-hkg17923-HKG
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1632292210.132090,VS0,VE1
+x-fastly-request-id: b15ce88b2dae2c305777ffa75dca42c68bc3b6f1
+content-length: 452
+
+----
+
 === If-None-Match
 
 The `If-None-Match` HTTP request header makes the request conditional. For `GET` and `HEAD` methods, the server will send back the requested resource, with a `200` status, only if it doesn't have an `ETag` matching the given ones. For other methods, the request will be processed only if the eventually existing resource's `ETag` doesn't match any of the values listed.
@@ -645,61 +771,6 @@ If-Match: "bfc13a64729c4290ef5b2c2730249c88ca92d82d"
 If-Match: "67ab43", "54ed21", "7892dd"
 
 If-Match: *
-----
-
-
-== Examples
-
-[source,console]
-----
-$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js
-HTTP/2 200 <1>
-cache-control: public, max-age=432000 <2>
-content-length: 5
-content-type: application/x-javascript; charset=utf-8
-content-encoding: br
-content-md5: 5aqSHeuG+BOAJrucJAgg+w==
-last-modified: Wed, 24 Jun 2020 04:27:46 GMT <4>
-etag: 0x8D817F6F26EBE3A <5>
-date: Sun, 19 Sep 2021 14:06:17 GMT
-
-$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js \
-> -H'If-None-Match: 0x8D817F6F26EBE3A' <5>
-HTTP/2 304 <1>
-cache-control: public, max-age=432000 <2>
-content-length: 0
-content-type: application/x-javascript; charset=utf-8
-content-encoding: br
-content-md5: 5aqSHeuG+BOAJrucJAgg+w==
-last-modified: Wed, 24 Jun 2020 04:27:46 GMT <4>
-etag: 0x8D817F6F26EBE3A <5>
-date: Sun, 19 Sep 2021 14:06:31 GMT
-----
-
-[source,console]
-----
-$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js
-HTTP/2 200 <1>
-cache-control: public, max-age=432000 <2>
-content-length: 5
-content-type: application/x-javascript; charset=utf-8
-content-encoding: br
-content-md5: 5aqSHeuG+BOAJrucJAgg+w==
-last-modified: Wed, 24 Jun 2020 04:45:53 GMT <3>
-etag: 0x8D817F979D0642F <4>
-date: Sun, 19 Sep 2021 14:02:57 GMT
-
-$ curl -iI https://r.bing.com/rp/lmu8EBCaPRMKtay8LSArGyY3mv4.br.js \
-> -H'If-Modified-Since: Wed, 24 Jun 2020 04:45:53 GMT' <3>
-HTTP/2 304 <1>
-cache-control: public, max-age=432000 <2>
-content-length: 0
-content-type: application/x-javascript; charset=utf-8
-content-encoding: br
-content-md5: 5aqSHeuG+BOAJrucJAgg+w==
-last-modified: Wed, 24 Jun 2020 04:27:46 GMT <3>
-etag: 0x8D817F6F26EBE3A <4>
-date: Sun, 19 Sep 2021 14:03:30 GMT
 ----
 
 == References
