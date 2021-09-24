@@ -1,0 +1,460 @@
+= HTTP 3xx Redirect
+:page-layout: post
+:page-categories: ['http']
+:page-tags: ['http']
+:revdate: 2021-09-24 16:38:38 +0800
+:toc:
+
+:http_headers_location: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location
+:http_headers_content-location: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Location
+
+:http_content_negotiation: https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation
+
+:http_status_201: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201
+:http_status_301: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301
+:http_status_302: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302
+:http_status_303: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303
+:http_status_304: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304
+:http_status_307: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307
+:http_status_308: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308
+
+:http_methods_get: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET
+:http_methods_head: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD
+:http_methods_put: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PUT
+:http_methods_post: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST
+
+== Location
+
+The *Location* response header indicates the URL to redirect a page to. It only provides a meaning when served with a `3xx` (redirection) or {http_status_201}[201] (created) status response.
+
+In cases of redirection, the HTTP method used to make the new request to fetch the page pointed to by `Location` depends of the original method and of the kind of redirection:
+
+* {http_status_303}[303] (See Other) responses *always* lead to the use of a {http_methods_get}[GET] method.
+* {http_status_307}[307] (Temporary Redirect) and {http_status_308}[308] (Permanent Redirect) *don't change the method used in the original request*.
+* {http_status_301}[301] (Moved Permanently) and {http_status_302}[302] (Found) *don't change the method most of the time*, though older user-agents may (so you basically don't know).
+
+All responses with one of these status codes send a `Location` header.
+
+In cases of resource creation, it indicates the URL to the newly created resource.
+
+Location and {http_headers_content-location}[Content-Location] are different: `Location` indicates the target of a redirection (or the URL of a newly created resource), while `Content-Location` indicates the direct URL to use to access the resource when {http_content_negotiation}[content negotiation] happened, without the need of further content negotiation. Location is a header associated with the response, while Content-Location is associated with the entity returned. 
+
+[source,console,highlight='2,8,10,14,17,23']
+----
+$ curl -iIL http://www.example.com
+HTTP/1.1 302 Moved Temporarily
+Server: openresty
+Date: Fri, 24 Sep 2021 09:27:27 GMT
+Content-Type: text/html
+Content-Length: 142
+Connection: keep-alive
+Location: https://www.example.com/
+
+HTTP/2 308 
+date: Fri, 24 Sep 2021 09:27:27 GMT
+content-type: text/html
+content-length: 164
+location: http://example.com
+server: openresty
+
+HTTP/1.1 302 Moved Temporarily
+Server: openresty
+Date: Fri, 24 Sep 2021 09:27:27 GMT
+Content-Type: text/html
+Content-Length: 142
+Connection: keep-alive
+Location: https://example.com/
+
+HTTP/2 200 
+date: Fri, 24 Sep 2021 09:27:27 GMT
+content-type: text/plain
+server: openresty
+x-req-id: d24227ea3c4e43efe84e96153ff2f56e
+cache-control: public,max-age=30
+etag: "29c3c7731ace3b21be2"
+last-modified: Thu, 23 Sep 2021 22:26:11 GMT
+
+----
+
+== 300 Multiple Choices
+
+The HTTP *300 Multiple Choices* redirect status response code indicates that the request has more than one possible responses. The user-agent or the user should choose one of them. As there is no standardized way of choosing one of the responses, this response code is very rarely used.
+
+If the server has a preferred choice, it should generate a {http_headers_location}[Location] header. 
+
+== 301 Moved Permanently
+
+The HyperText Transfer Protocol (HTTP) *301 Moved Permanently* redirect status response code indicates that the resource requested has been definitively moved to the URL given by the `Location` headers. A browser redirects to this page and *search engines update their links to the resource* (in 'SEO-speak', it is said that the 'link-juice' is sent to the new URL).
+
+Even if the specification requires the method (and the body) not to be altered when the redirection is performed, not all user-agents align with it - you can still find this type of bugged software out there. It is therefore recommended to *use the `301` code only as a response for {http_methods_get}[GET] or {http_methods_head}[HEAD] methods* and to use the `308 Permanent Redirect` for {http_methods_post}[POST] methods instead, as the method change is explicitly prohibited with this status.
+
+== 302 Found
+
+The HyperText Transfer Protocol (HTTP) *302 Found* redirect status response code indicates that the resource requested has been temporarily moved to the URL given by the `Location` header. A browser redirects to this page but *search engines don't update their links to the resource* (in 'SEO-speak', it is said that the 'link-juice' is not sent to the new URL).
+
+Even if the specification requires the method (and the body) not to be altered when the redirection is performed, not all user-agents conform here - you can still find this type of bugged software out there. It is therefore recommended to *set the `302` code only as a response for `GET` or `HEAD` methods* and to use `307 Temporary Redirect` instead, as the method change is explicitly prohibited in that case.
+
+In the cases where you want the method used to be changed to `GET`, use {http_status_303}[*303 See Other*] instead. This is useful when you want to give a response to a `PUT` method that is not the uploaded resource but a confirmation message such as: 'you successfully uploaded XYZ'. 
+
+== 303 See Other
+
+The HyperText Transfer Protocol (HTTP) *303 See Other* redirect status response code indicates that the redirects don't link to the newly uploaded resources, but to another page (such as a confirmation page or an upload progress page). This response code is usually sent back as a result of {http_methods_put}[PUT] or {http_methods_post}[POST]. *The method used to display this redirected page is always {http_methods_get}[GET]*. 
+
+== 304 Not Modified
+
+The HTTP *304 Not Modified* client redirection response code indicates that there is no need to retransmit the requested resources. It is an implicit redirection to a cached resource. This happens when the request method is safe, like a `GET` or a `HEAD` request, or when the request is _conditional_ and uses a `If-None-Match` or a `If-Modified-Since` header.
+
+The equivalent `200 OK` response would have included the headers `Cache-Control`, `Content-Location`, `Date`, `ETag`, `Expires`, and `Vary`. 
+
+== 307 Temporary Redirect
+
+HTTP *307 Temporary Redirect* redirect status response code indicates that the resource requested has been temporarily moved to the URL given by the `Location` headers.
+
+*The method and the body of the original request are reused to perform the redirected request.* In the cases where you want the method used to be changed to `GET`, use `303 See Other` instead. This is useful when you want to give an answer to a `PUT` method that is not the uploaded resources, but a confirmation message (like "You successfully uploaded XYZ").
+
+The only difference between `307` and `302` is that `307` guarantees that the method and the body will not be changed when the redirected request is made. With `302`, some old clients were incorrectly changing the method to `GET`: the behavior with non-GET methods and `302` is then unpredictable on the Web, whereas the behavior with `307` is predictable. For `GET` requests, their behavior is identical.
+
+== 308 Permanent Redirect
+
+The HyperText Transfer Protocol (HTTP) *308 Permanent Redirect* redirect status response code indicates that the resource requested has been definitively moved to the URL given by the Location headers. A browser redirects to this page and search engines update their links to the resource (in 'SEO-speak', it is said that the 'link-juice' is sent to the new URL).
+
+The request method and the body will not be altered, whereas `301` may incorrectly sometimes be changed to a `GET` method. 
+
+== NGINX `return`, `rewrite`, and `try_files` Directives
+
+The two directives for general‑purpose NGINX rewrite are *return* and *rewrite*, and the *try_files* directive is a handy way to direct requests to application servers. Let’s review what the directives do and how they differ.
+
+=== The `return` Directive
+
+The *return* directive is the simpler of the two general‑purpose directives and for that reason we recommend using it instead of rewrite when possible (more later about the why and when). You enclose the `return` in a `server` or `location` context that specifies the URLs to be rewritten, and it defines the corrected (rewritten) URL for the client to use in future requests for the resource.
+
+Here’s a very simple example that redirects clients to a new domain name:
+
+[source,conf]
+----
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name www.old-name.com;
+    return 301 $scheme://www.new-name.com$request_uri;
+}
+----
+
+The `listen` directives mean the server block applies to both `HTTP` and `HTTPS` traffic. The `server_name` directive matches request URLs that have domain name `www.old‑name.com`. The `return` directive tells NGINX to stop processing the request and immediately send code `301` (Moved Permanently) and the specified rewritten URL to the client. The rewritten URL uses two https://nginx.org/en/docs/varindex.html[NGINX variables] to capture and replicate values from the original request URL: `$scheme` is the protocol (http or https) and `$request_uri` is the full URI including arguments.
+
+For a code in the *_3xx_* series, the *_url_* parameter defines the new (rewritten) URL.
+
+[source,conf]
+return (301 | 302 | 303 | 307) url;
+
+For other codes, you optionally define a text string which appears in the body of the response (the standard text for the HTTP code, such as `Not Found` for `404`, is still included in the header). The text can contain NGINX variables.
+
+[source,conf]
+return (1xx | 2xx | 4xx | 5xx) ["text"];
+
+For example, this directive might be appropriate when rejecting requests that don’t have a valid authentication token:
+
+[source,conf]
+return 401 "Access denied because token is expired or invalid";
+
+There are also a couple syntactic shortcuts you can use, such as omitting the code if it is `302`; see the reference documentation for the https://nginx.org/r/return[return] directive.
+
+(In some cases, you might want to return a response that is more complex or nuanced than you can achieve in a text string. With the https://nginx.org/r/error_page[error_page] directive, you can return a complete custom HTML page for each HTTP code, as well as change the response code or perform a redirect.)
+
+So the `return` directive is simple to use, and suitable when the redirect meets two conditions: the rewritten URL is appropriate for every request that matches the `server` or `location` block, and you can build the rewritten URL with standard NGINX variables.
+
+=== The `rewrite` Directive
+
+But what if you need to test for more complicated distinctions between URLs, capture elements in the original URL that don’t have corresponding NGINX variables, or change or add elements in the path? You can use the `rewrite` directive in such cases.
+
+Like the `return` directive, you enclose the `rewrite` directive in a `server` or `location` context that defines the URLs to be rewritten. Otherwise, the two directives are rather more different than similar, and the `rewrite` directive can be more complicated to use correctly. Its syntax is simple enough:
+
+[source,conf]
+rewrite regex URL [flag];
+
+But the first argument, `regex`, means that NGINX Plus and NGINX rewrite the URL only if it matches the specified regular expression (in addition to matching the `server` or `location` directive). The additional test means NGINX must do more processing.
+
+A second difference is that the `rewrite` directive can return only code `301` or `302`. To return other codes, you need to include a `return` directive after the `rewrite` directive (see the example below).
+
+And finally the `rewrite` directive does not necessarily halt NGINX's processing of the request as return does, and it doesn’t necessarily send a redirect to the client. Unless you explicitly indicate (with `flags` or the syntax of the URL) that you want NGINX to halt processing or send a redirect, it runs through the entire configuration looking for directives that are defined in the https://nginx.org/en/docs/http/ngx_http_rewrite_module.html[Rewrite] module (`break`, `if`, `return`, `rewrite`, and `set`), and processes them in order. If a rewritten URL matches a subsequent directive from the Rewrite module, NGINX performs the indicated action on the rewritten URL (often rewriting it again).
+
+This is where things can get complicated, and you need to plan carefully how you order the directives to get the desired result. For instance, if the original `location` block and the NGINX rewrite rules in it match the rewritten URL, NGINX can get into a loop, applying the rewrite over and over up to the built‑in limit of 10 times. To learn all the details, see the documentation for the Rewrite module. As previously noted, we recommend that where possible you use the `return` directive instead.
+
+Here’s a sample NGINX rewrite rule that uses the `rewrite` directive. It matches URLs that begin with the string `/download` and then include the `/media/` or `/audio/` directory somewhere later in the path. It replaces those elements with `/mp3/` and adds the appropriate file extension, `.mp3` or `.ra`. The `$1` and `$2` variables capture the path elements that aren't changing. As an example, `/download/cdn-west/media/file1` becomes `/download/cdn-west/mp3/file1.mp3`. If there is an extension on the filename (such as `.flv`), the expression strips it off and replaces it with `.mp3`.
+
+[source,conf]
+----
+server {
+    # ...
+    rewrite ^(/download/.*)/media/(\w+)\.?.*$ $1/mp3/$2.mp3 last;
+    rewrite ^(/download/.*)/audio/(\w+)\.?.*$ $1/mp3/$2.ra  last;
+    return  403;
+    # ...
+}
+----
+
+We mentioned above that you can add flags to a `rewrite` directive to control the flow of processing. The `last` flag in the example is one of them: it tells NGINX to skip any subsequent Rewrite‑module directives in the current `server` or `location` block and start a search for a new location that matches the rewritten URL.
+
+The final `return` directive in this example means that if the URL doesn’t match either `rewrite` directive, code `403` is returned to the client.
+
+=== The `try_files` directive
+
+Like the `return` and `rewrite` directives, the https://nginx.org/r/try_files[try_files] directive is placed in a `server` or `location` block. As parameters, it takes a list of one or more files and directories and a final URI:
+
+[source,conf]
+try_files file ... uri;
+
+NGINX checks for the existence of the files and directories in order (constructing the full path to each file from the settings of the https://nginx.org/r/root[root] and https://nginx.org/r/alias[alias] directives), and serves the first one it finds. To indicate a directory, add a slash at the end of the element name. If none of the files or directories exist, NGINX performs an *_internal redirect_* to the URI defined by the final element (`uri`).
+
+For the `try_files` directive to work, you also need to define a `location` block that captures the internal redirect, as shown in the following example. The final element can be a named location, indicated by an initial at‑sign (`@`).
+
+The `try_files` directive commonly uses the https://nginx.org/en/docs/http/ngx_http_core_module.html#var_uri[$uri] variable, which represents the part of the URL after the domain name.
+
+In the following example, NGINX serves a default GIF file if the file requested by the client doesn't exist. When the client requests (for example) `http://www.domain.com/images/image1.gif`, NGINX first looks for `image1.gif` in the local directory specified by the root or alias directive that applies to the location (not shown in the snippet). If `image1.gif` doesn't exist, NGINX looks for `image1.gif/`, and if that doesn't exist, it redirects to `/images/default.gif`. That value exactly matches the second `location` directive, so processing stops and NGINX serves that file and marks it to be cached for 30 seconds.
+
+[source,conf]
+----
+location /images/ {
+    try_files $uri $uri/ /images/default.gif;
+}
+
+location = /images/default.gif {
+    expires 30s;
+}
+----
+
+=== Examples – Standardizing the Domain Name
+
+One of the most common uses of NGINX rewrite rules is to capture deprecated or nonstandard versions of a website’s domain name and redirect them to the current name. There are several related use cases.
+
+==== Redirecting from a Former Name to the Current Name
+
+[source,conf]
+----
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name www.old-name.com old-name.com;
+    return 301 $scheme://www.new-name.com$request_uri;
+}
+----
+
+[source,conf]
+----
+# NOT RECOMMENDED
+rewrite ^ $scheme://www.new-name.com$request_uri permanent;
+----
+
+==== Adding and Removing the www Prefix
+
+[source,conf]
+----
+# add 'www'
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name domain.com;
+    return 301 $scheme://www.domain.com$request_uri;
+}
+
+# remove 'www'
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name www.domain.com;
+    return 301 $scheme://domain.com$request_uri;
+}
+----
+
+[source,conf]
+----
+# NOT RECOMMENDED
+rewrite ^(.*)$ $scheme://www.domain.com$1 permanent;
+----
+
+==== Redirecting All Traffic to the Correct Domain Name
+
+[source,conf]
+----
+server {
+    listen 80 default_server;
+    listen 443 ssl default_server;
+    server_name _;
+    return 301 $scheme://www.domain.com;
+}
+----
+
+=== Example – Forcing all Requests to Use SSL/TLS
+
+[source,conf]
+----
+server {
+    listen 80;
+    server_name www.domain.com;
+    return 301 https://www.domain.com$request_uri;
+}
+----
+
+[source,conf]
+----
+# NOT RECOMMENDED
+if ($scheme != "https") {
+    rewrite ^ https://www.mydomain.com$uri permanent;
+}
+----
+
+=== Example – Dropping Requests for Unsupported File Extensions
+
+[source,conf]
+----
+location ~ .(aspx|php|jsp|cgi)$ {
+    return 410; # Gone
+}
+----
+
+[source,conf]
+----
+location ~ .(aspx|php|jsp|cgi)$ {
+    deny all; # 403 Forbidden
+}
+----
+
+=== Example – Configuring Custom Rerouting
+
+[source,conf]
+----
+rewrite ^/listings/(.*)$ /listing.html?listing=$1 last;
+----
+
+== Exampine
+
+[source,conf]
+----
+server {
+    listen 8080         ;
+    listen [::]:8080    ;
+    listen 8083         ssl;
+    listen [::]:8083    ssl;
+    ssl_certificate     local.io.crt;
+    ssl_certificate_key local.io.key;
+
+    server_name         www.local.io;
+    return 308 $scheme://local.io:$server_port$request_uri;
+}
+
+server {
+    listen 8080         ;
+    listen [::]:8080    ;
+
+    server_name         local.io; # www.local.io;
+
+    return 308 https://local.io:8083$request_uri;
+}
+
+server {
+    listen 8083         ssl;
+    listen [::]:8083    ssl;
+
+    server_name         local.io; # www.local.io;
+
+    ssl_certificate     local.io.crt;
+    ssl_certificate_key local.io.key;
+
+    # NOT RECOMMENDED
+    location / {
+        rewrite ^/$ /ingress-nginx/; 
+        rewrite ^/ingress-nginx/?$ /ingress-nginx/echoserver last; 
+        deny all;
+    }
+
+    location /ingress-nginx/echoserver {
+        proxy_pass      http://localhost:8090;
+
+        proxy_http_version              1.1;
+        proxy_set_header Connection     "";
+        
+        include "/etc/nginx/proxy-set-headers.conf";
+    }
+}
+----
+
+[source,console,highlight='44']
+----
+$ curl -ikL www.local.io:8080
+HTTP/1.1 308 Permanent Redirect
+Server: nginx/1.14.2
+Date: Fri, 24 Sep 2021 11:18:53 GMT
+Content-Type: text/html
+Content-Length: 187
+Connection: keep-alive
+Location: http://local.io:8080/
+
+HTTP/1.1 308 Permanent Redirect
+Server: nginx/1.14.2
+Date: Fri, 24 Sep 2021 11:18:53 GMT
+Content-Type: text/html
+Content-Length: 187
+Connection: keep-alive
+Location: https://local.io:8083/
+
+HTTP/1.1 200 OK
+Server: nginx/1.14.2
+Date: Fri, 24 Sep 2021 11:18:53 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Cache-Control: public, max-age=3600
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+
+
+Hostname: echoserver-9d94d584f-2pl9j
+
+Pod Information:
+    -no pod information available-
+
+Server values:
+    server_version=nginx: 1.13.3 - lua: 10008
+
+Request Information:
+    client_address=10.244.0.11
+    method=GET
+    real path=/ingress-nginx/echoserver
+    query=
+    request_version=1.1
+    request_scheme=http
+    request_uri=http://local.io:8080/ingress-nginx/echoserver
+
+Request Headers:
+    accept=*/*
+    host=local.io:8083
+    user-agent=curl/7.64.0
+    x-forwarded-for=10.244.0.1
+    x-forwarded-host=local.io:8083
+    x-forwarded-port=80
+    x-forwarded-proto=http
+    x-forwarded-scheme=http
+    x-original-forwarded-for=192.168.91.128, ::1
+    x-real-ip=10.244.0.1
+    x-request-id=9fb4005e14b26900a495964e3d948dba
+    x-scheme=http
+
+Request Body:
+    -no body in request-
+
+----
+
+== References
+
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Location
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308
+* https://www.nginx.com/blog/creating-nginx-rewrite-rules/
+* https://nginx.org/en/docs/http/ngx_http_rewrite_module.html
