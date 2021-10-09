@@ -2,9 +2,8 @@
 layout: post
 title: Tcpdump Examples
 date: 2018-12-29 10:22:30 +0800
-categories: ['TCP/IP']
+categories: ['tcp/ip']
 tags: ['tcpdump']
-disqus_identifier: 43635066410978541658982950936514353020
 ---
 
 - TOC
