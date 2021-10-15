@@ -1,0 +1,335 @@
+= HTTP Strict-Transport-Security
+:page-layout: post
+:page-categories: ['http']
+:page-tags: ['http']
+:revdate: 2021-10-15 16:32:24 +0800
+:toc:
+:sectnums:
+
+The *HTTP `Strict-Transport-Security`* response header (often abbreviated as *HSTS*) lets a web site tell browsers that it should only be accessed using HTTPS, instead of using HTTP. 
+
+== Syntax
+
+[source,console]
+----
+Strict-Transport-Security: max-age=<expire-time>
+Strict-Transport-Security: max-age=<expire-time>; includeSubDomains
+Strict-Transport-Security: max-age=<expire-time>; preload
+----
+
+== Directives
+
+* `max-age=<expire-time>`
++
+The time, in seconds, that the browser should remember that a site is only to be accessed using HTTPS.
+
+* `includeSubDomains` `Optional`
++
+If this optional parameter is specified, this rule applies to all of the site's subdomains as well.
+
+* `preload` `Optional`
++
+See link:#xx[Preloading Strict Transport Security] for details. Not part of the specification.
+
+== Description
+
+If a website accepts a connection through HTTP and redirects to HTTPS, visitors may initially communicate with the non-encrypted version of the site before being redirected, if, for example, the visitor types \http://www.foo.com/ or even just foo.com. This creates an opportunity for a *man-in-the-middle attack*. The redirect could be exploited to direct visitors to a malicious site instead of the secure version of the original site.
+
+The HTTP Strict Transport Security header informs the browser that it should never load a site using HTTP and should automatically convert all attempts to access the site using HTTP to HTTPS requests instead. 
+
+[NOTE]
+====
+The Strict-Transport-Security header is ignored by the browser when your site is accessed using HTTP; this is because an attacker may intercept HTTP connections and inject the header or remove it. When your site is accessed over HTTPS with no certificate errors, the browser knows your site is HTTPS capable and will honor the *Strict-Transport-Security* header. 
+====
+
+=== An example scenario
+
+You log into a free WiFi access point at an airport and start surfing the web, visiting your online banking service to check your balance and pay a couple of bills. Unfortunately, the access point you're using is actually a hacker's laptop, and they're intercepting your original HTTP request and redirecting you to a clone of your bank's site instead of the real thing. Now your private data is exposed to the hacker.
+
+Strict Transport Security resolves this problem; as long as you've accessed your bank's web site once using HTTPS, and the bank's web site uses Strict Transport Security, your browser will know to automatically use only HTTPS, which prevents hackers from performing this sort of man-in-the-middle attack.
+
+=== How the browser handles it
+
+The first time your site is accessed using HTTPS and it returns the Strict-Transport-Security header, the browser records this information, so that future attempts to load the site using HTTP will automatically use HTTPS instead.
+
+When the expiration time specified by the Strict-Transport-Security header elapses, the next attempt to load the site via HTTP will proceed as normal instead of automatically using HTTPS.
+
+_Whenever the *Strict-Transport-Security* header is delivered to the browser, it will update the expiration time for that site, so sites can refresh this information and prevent the timeout from expiring. Should it be necessary to disable Strict Transport Security, setting the *max-age to 0* (over an https connection) will immediately expire the Strict-Transport-Security header, allowing access via http._
+
+== Preloading Strict Transport Security
+
+Google maintains an https://hg.mozilla.org/mozilla-central/raw-file/tip/security/manager/ssl/nsSTSPreloadList.inc[HSTS preload service]. By following the guidelines and successfully submitting your domain, browsers will never connect to your domain using an insecure connection. While the service is hosted by Google, all browsers have stated an intent to use (or actually started using) the preload list. However, it is not part of the HSTS specification and should not be treated as official.
+
+* Information regarding the HSTS preload list in Chrome : https://www.chromium.org/hsts
+* Consultation of the Firefox HSTS preload list : https://hg.mozilla.org/mozilla-central/raw-file/tip/security/manager/ssl/nsSTSPreloadList.inc[nsSTSPreloadList.inc]
+
+== Examples
+
+All present and future subdomains will be HTTPS for a `max-age` of 1 year. This blocks access to pages or subdomains that can only be served over HTTP.
+
+[source,console]
+----
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+----
+
+If a `max-age` of 1 year is acceptable for a domain, however, two years is the recommended value as explained on https://hstspreload.org.
+
+In the following example, `max-age` is set to 2 years, and is suffixed with preload, which is necessary for inclusion in most major web browsers' HSTS preload lists, like Chromium, Edge, and Firefox.
+
+[source,console]
+----
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+----
+
+=== Create a self-signed certificate
+
+[source,console,highlight=8]
+----
+$ openssl req -x509 \
+  -nodes \
+  -newkey rsa:4096 \
+  -days 3650 \
+  -keyout loca.io.ca.key \
+  -out local.io.ca.crt \
+  -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Global Security/OU=IT Department/CN=*.local.io" \
+  -addext "subjectAltName=DNS:local.io,DNS:*.local.io"
+----
+
+[source,console,highlight=45]
+----
+$ openssl x509 -in local.io.crt -noout -text 
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            62:13:50:8d:8f:d9:8e:8a:ff:36:a7:c1:d0:b7:47:cc:6f:c4:b1:66
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Department, CN = *.local.io
+        Validity
+            Not Before: Oct 15 09:24:46 2021 GMT
+            Not After : Oct 13 09:24:46 2031 GMT
+        Subject: C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Department, CN = *.local.io
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                RSA Public-Key: (2048 bit)
+                Modulus:
+                    00:c0:ee:c5:35:60:e2:d7:82:98:2b:ae:22:0c:ec:
+                    01:ae:d1:49:20:4b:c9:b4:fd:e8:1f:7e:32:80:ed:
+                    16:b9:98:73:0a:5f:7f:54:9c:f1:62:09:d2:1a:38:
+                    15:27:ea:d8:2f:2e:7f:9b:ac:ef:08:a5:17:cb:5b:
+                    c4:44:a7:d7:13:bf:8e:d6:e3:d0:ce:fa:dd:08:70:
+                    99:a3:3c:76:1a:6e:21:fa:42:ea:db:3a:6a:35:0e:
+                    2d:ac:8b:89:ec:ad:e6:bd:c3:8c:1a:f0:21:c4:3d:
+                    ac:c2:2e:74:63:ac:71:35:4e:65:30:07:63:6a:1e:
+                    f2:68:7e:bb:58:25:45:e1:95:a4:e0:e6:23:62:48:
+                    a3:0f:4a:a3:1d:b3:aa:94:3a:ea:ca:a6:2a:90:1c:
+                    f9:04:77:d1:26:29:a1:f4:b5:12:4e:46:eb:5f:f3:
+                    46:aa:1c:0a:61:44:04:56:bc:6e:52:6d:b9:d0:fa:
+                    76:4d:ca:3a:b3:80:94:8c:6d:8a:96:f7:27:56:a5:
+                    58:b3:1a:f7:4c:9f:99:06:09:1b:a8:da:a7:82:7d:
+                    3f:1e:5d:24:7c:d8:0f:37:48:42:ea:8e:2b:e7:aa:
+                    22:cf:af:18:4c:8e:29:1f:c2:d3:6b:af:52:5a:67:
+                    57:78:04:58:b7:8c:11:9c:ce:23:c7:a0:b2:d2:53:
+                    e4:f5
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Subject Key Identifier: 
+                4D:38:64:F3:FC:A8:87:AA:81:C2:D9:2F:7B:CD:41:1C:A7:EC:AB:29
+            X509v3 Authority Key Identifier: 
+                keyid:4D:38:64:F3:FC:A8:87:AA:81:C2:D9:2F:7B:CD:41:1C:A7:EC:AB:29
+
+            X509v3 Basic Constraints: critical
+                CA:TRUE
+            X509v3 Subject Alternative Name: 
+                DNS:local.io, DNS:*.local.io
+    Signature Algorithm: sha256WithRSAEncryption
+         86:9e:85:87:5b:b1:64:a6:9f:7b:a3:ca:a0:1d:df:bc:3a:a3:
+         3c:aa:95:df:51:98:27:fd:5b:aa:1a:c1:7d:f0:a5:66:0b:13:
+         74:ba:e8:ab:0e:be:78:73:db:09:ba:f5:19:4a:e8:b4:fd:2e:
+         b3:10:26:5a:c0:98:f7:77:e3:73:92:e2:5a:8d:26:04:be:d3:
+         fc:84:61:9e:f9:f0:4a:8c:27:27:66:ab:77:d3:73:7c:b4:72:
+         82:f5:00:20:46:b2:ec:9a:cb:80:ad:cc:7c:ca:51:5c:a1:33:
+         17:46:28:8b:14:32:90:55:a5:de:a6:90:dd:78:99:8a:48:73:
+         e2:ec:a2:a8:ef:eb:d3:64:e9:65:cc:4c:bc:85:3d:ab:e3:13:
+         f3:72:3b:fa:43:f5:4e:32:68:7d:44:35:d8:17:99:af:79:aa:
+         af:7d:72:4f:b6:0c:41:7d:bd:e8:ee:1f:66:70:7e:c1:d7:cf:
+         3b:07:86:78:70:be:0b:60:91:e3:26:3c:a3:a3:a0:7c:c8:a0:
+         97:9b:2c:45:cd:07:05:d4:f7:ff:78:63:7f:f7:51:8e:71:b0:
+         d7:cc:c3:6a:21:85:4f:3d:5c:22:62:bf:cb:f2:09:73:9e:bc:
+         77:0f:5b:93:24:fa:df:c4:bf:f7:49:16:e0:72:6b:f7:48:be:
+         f9:69:83:64
+----
+
+=== Import CA root certificates
+
+==== Linux (Debian / Ubuntu)
+
+[source,console]
+----
+$ curl -iI https://local.io
+curl: (60) SSL certificate problem: self signed certificate
+More details here: https://curl.haxx.se/docs/sslcerts.html
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the web page mentioned above.
+----
+
+Installing the root certificate on a Linux PC is straight forward:
+
+[source,console]
+----
+$ sudo mkdir /usr/local/share/ca-certificates/extra
+$ sudo cp local.io.crt /usr/local/share/ca-certificates/extra/
+$ sudo update-ca-certificates
+Updating certificates in /etc/ssl/certs...
+1 added, 0 removed; done.
+Running hooks in /etc/ca-certificates/update.d...
+
+Adding debian:local.io.pem
+done.
+done.
+----
+
+After these steps the new CA is known by system utilities like curl and get.
+
+[source,console,highlight=5]
+----
+$ curl -iI https://local.io
+HTTP/2 200 
+date: Fri, 15 Oct 2021 10:39:53 GMT
+content-type: text/plain
+strict-transport-security: max-age=15724800; includeSubDomains
+cache-control: public, max-age=3600
+
+----
+
+==== Windows
+
+Double click the certificate file `local.io.crt` and click the `Install Certificate...`.
+
+=== Test subdomain with `echo.local.io`
+
+. Open `https://echo.local.io` on Windows Chrome Browser
++
+image::/assets/hsts/echo-local-io-hsts.png[75%,75%,title="Open `https://echo.local.io` on Windows Chrome Browser"]
+
+. then open `chrome://net-internals/#hsts` and `Query HSTS/PKP domain` with `echo.local.io`.
++
+[source,console,highlight=10..14]
+----
+Found:
+static_sts_domain:
+static_upgrade_mode: UNKNOWN
+static_sts_include_subdomains:
+static_sts_observed:
+static_pkp_domain:
+static_pkp_include_subdomains:
+static_pkp_observed:
+static_spki_hashes:
+dynamic_sts_domain: echo.local.io
+dynamic_upgrade_mode: FORCE_HTTPS
+dynamic_sts_include_subdomains: true
+dynamic_sts_observed: 1634294710.318108
+dynamic_sts_expiry: 1650019510.318091
+----
+
+. Open `echo.local.io` with HTTPS scheme via `http://echo.local.io`
++
+image::/assets/hsts/echo-local-io-hsts-http-status-307.png[75%,75%,title="Access with http after HSTS"]
+
+=== Test root domain with `local.io`
+
+. Clear Chrome browing data to remove `HSTS`.
+. Open `https://loca.io` with Chrome
+
+. Query HSTS/PKP domain with `loca.io`
++
+[source,console,highlight=10..14]
+----
+Found:
+static_sts_domain:
+static_upgrade_mode: UNKNOWN
+static_sts_include_subdomains:
+static_sts_observed:
+static_pkp_domain:
+static_pkp_include_subdomains:
+static_pkp_observed:
+static_spki_hashes:
+dynamic_sts_domain: local.io
+dynamic_upgrade_mode: FORCE_HTTPS
+dynamic_sts_include_subdomains: true
+dynamic_sts_observed: 1634295941.084076
+dynamic_sts_expiry: 1650020741.084073
+----
+
+. Query HSTS/PKP domain with subdomain `echo.loca.io`
++
+[source,console,linenums,highlight=10..14]
+----
+Found:
+static_sts_domain:
+static_upgrade_mode: UNKNOWN
+static_sts_include_subdomains:
+static_sts_observed:
+static_pkp_domain:
+static_pkp_include_subdomains:
+static_pkp_observed:
+static_spki_hashes:
+dynamic_sts_domain: echo.local.io
+dynamic_upgrade_mode: FORCE_HTTPS
+dynamic_sts_include_subdomains: true
+dynamic_sts_observed: 1634295977.355846
+dynamic_sts_expiry: 1650020777.355843
+----
+
+=== Update or clear HSTS via `max-age=0`
+
+. Open `https://loca.io` with Chrome
++
+[source,console]
+----
+$ curl -iIL https://local.io
+HTTP/2 200 
+date: Fri, 15 Oct 2021 11:13:43 GMT
+content-type: text/plain
+cache-control: public, max-age=3600
+strict-transport-security: max-age=0; includeSubDomain
+
+----
++
+image::/assets/hsts/local-io-hsts-max-age-0.png[75%,75%,title="Server response HSTS with max-age=0"]
+
+. Query HSTS/PKP domain with `loca.io`
++
+[source,console,linenums,highlight=10..14]
+----
+Not found
+----
+
+. Query HSTS/PKP domain with subdomain `echo.loca.io`
++
+[source,console,linenums,highlight=10..14]
+----
+Found:
+static_sts_domain:
+static_upgrade_mode: UNKNOWN
+static_sts_include_subdomains:
+static_sts_observed:
+static_pkp_domain:
+static_pkp_include_subdomains:
+static_pkp_observed:
+static_spki_hashes:
+dynamic_sts_domain: echo.local.io
+dynamic_upgrade_mode: FORCE_HTTPS
+dynamic_sts_include_subdomains: true
+dynamic_sts_observed: 1634295977.355846
+dynamic_sts_expiry: 1650020777.355843
+----
+
+== References
+
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+* https://www.chromium.org/hsts
+* https://docs.microsoft.com/en-us/windows-hardware/drivers/devtest/certmgr
+* https://thomas-leister.de/en/how-to-import-ca-root-certificate/
