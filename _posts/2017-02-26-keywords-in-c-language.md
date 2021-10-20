@@ -66,7 +66,7 @@ void foo(int value)
 
 `register` is nearly identical in purpose to `auto`, except that it also suggests to the compiler that the variable will be heavily used, and, if possible, should be stored in a register. You cannot use the address-of operator to obtain the address of a variable declared with `register`. This means that you cannot refer to the elements of an array declared with storage class `register`. In fact the only thing you can do with such an array is measure its size with `sizeof`. GCC normally makes good choices about which values to hold in regiseters, and so `register` is not often used.
 
-`static` is essentially the opposite of `auto`: when applied to variables within a function or block, these variables will retaiin their value even when the function or block is finised. This is know as `static storage duration`.
+`static` is essentially the opposite of `auto`: when applied to variables within a function or block, these variables will retain their value even when the function or block is finised. This is know as `static storage duration`.
 
 ```c
 int sum(int x)
