@@ -176,7 +176,7 @@ It is possible for you to explicitly state the number of elements in the array, 
 
 ### 6. Arrays of Unions
 
-You can create an array of a union type just as you can an array of a primitive data type.
+You can create an array of a union type just as you can create an array of a primitive data type.
 
 ```c
 union numbers {
@@ -203,7 +203,7 @@ number_array[0].i = 2;
 
 ### 7. Arrays of Structures
 
-You can create an array of a structure type just as you can an array of a primitive data type.
+You can create an array of a structure type just as you can create an array of a primitive data type.
 
 ```c
 struct point {
