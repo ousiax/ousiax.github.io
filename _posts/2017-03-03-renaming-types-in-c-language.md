@@ -4,7 +4,6 @@ title: "Renaming Types in C Language"
 date: 2017-03-03 11:20:37 +0800
 categories: ['C']
 tags: ['C']
-disqus_identifier: 215457142518042398664729134666352614883
 ---
 
 Sometimes it is convenient to give a new name to a type. You can do this using the `typedef` statement. Here is the general form of the `typedef` statement:
@@ -13,7 +12,7 @@ Sometimes it is convenient to give a new name to a type. You can do this using t
 typedef old-type-name new-type-name
 ```
 
-`old-type-name` is the existing name for the type, and may consisit of more than one token (e.g., `unsigned long int`). `new-type-name` is the resulting new name for the type, and must be a single identifier. Creating this new name for the type does not cause the old name to cease to exist. Here are some examples:
+`old-type-name` is the existing name for the type, and may consist of more than one token (e.g., `unsigned long int`). `new-type-name` is the resulting new name for the type, and must be a single identifier. Creating this new name for the type does not cause the old name to cease to exist. Here are some examples:
 
 ```c
 typedef unsigned char byte_type;
