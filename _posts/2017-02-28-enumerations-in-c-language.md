@@ -23,7 +23,7 @@ You define an enumeration using the `enum` keyword, followed by the name of the 
 enum fruit {grape, cherry, lemon, kiwi};
 ```
 
-That example defines an enumeration, `fruit`, which contains four constant integer values, `grape`, `cherry`, `lemon` and `kiwi`, whose values are, by default, 0, 1, 2, and 3, repectively. You can also specify one or more of the values explicitly:
+That example defines an enumeration, `fruit`, which contains four constant integer values, `grape`, `cherry`, `lemon` and `kiwi`, whose values are, by default, 0, 1, 2, and 3, respectively. You can also specify one or more of the values explicitly:
 
 ```c
 enum more_fruit {banana = -17, apple, bluberry, mango};
