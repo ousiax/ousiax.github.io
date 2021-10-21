@@ -23,7 +23,7 @@ You write a function declaration to specify the name of a function, a list of pa
 
 *function-name* can be any valid identifier.
 
-*parameter-list* consists of zeor or more parameters, separated by commas. A typical parameter consists of a data type and an optional name for the parameter. You can also declare a function that has a variable number of parameters, or no parameters using `void`. **Leaving out *prameter-list* entirely aslo indicates no parameters, but it is better to specify it explicitly with `void`**.
+*parameter-list* consists of zero or more parameters, separated by commas. A typical parameter consists of a data type and an optional name for the parameter. You can also declare a function that has a variable number of parameters, or no parameters using `void`. **Leaving out *prameter-list* entirely aslo indicates no parameters, but it is better to specify it explicitly with `void`**.
 
 You should write the function declaration above the first use of the function. You can put it in a header file and use the `#include` directive to include that function declaration in any source code files that use the function.
 
@@ -73,7 +73,7 @@ int a = 15;
 foo(&a);
 ```
 
-The formal parameter for the function is of type pointer-to-`int`, and we call the function by passing it the address of a variable of type `int`. By dereferencing the pointer within the function body, we can both see and change the value stored in the address. The above changes the value of `a` to '57'.
+The formal parameter for the function is of type `pointer-to-int`, and we call the function by passing it the address of a variable of type `int`. By dereferencing the pointer within the function body, we can both see and change the value stored in the address. The above changes the value of `a` to '57'.
 
 Even if you don't want to change the value stored in the address, passing the address of a variable rather than the variable itself can be useful if the variable type is large and you need to conserve memory space or limit the performance impact of parameter copying. For example:
 
@@ -193,7 +193,7 @@ The return type for `main` is always `int`. You do not have to specify the retur
 
 In general, the return value from `main` indicates the program's *exit status*. A value of zero or `EXIT_SUCCESS` indicates success and `EXIT_FAILURE` indicates an error. Otherwise, the significance of the value returned is implementation-defined.
 
-Reaching the `}` at the end of `main` without a return, or executing a `return` statement with no value (that is, `return;`) are both eauivalent. In C89, the efecet of this is undefined, but in C99 the effect is equivalent to `return 0;`.
+Reaching the `}` at the end of `main` without a return, or executing a `return` statement with no value (that is, `return;`) are both eauivalent. In C89, the effect of this is undefined, but in C99 the effect is equivalent to `return 0;`.
 
 You can write your `main` function to have no parameters (that is, as `int main (void)`), or to accept parameters from the command line. Here is a very simple `main` function with no parameters:
 
