@@ -1,0 +1,460 @@
+= Sockets Programming in C using TCP/IP
+:page-layout: post
+:page-categories: ['C']
+:page-tags: ['tcp/ip', 'socket', 'unix']
+:revdate: 2021-10-20 13:13:54 +0800
+:toc:
+:sectnums:
+
+== Berkley Sockets
+
+* Universally known as *Sockets*
+* It is an abstraction through which an application may send and receive data
+* Provide generic accessto _interprocess communication_ services
+** e.g. IPX/SPX, Appletalk, TCP/IP
+* Standard API for networking
+
+=== Sockets
+
+* Uniquely identified by
+** an `internet address`
+** an end-to-end `protocol` (e.g. TCP or UDP)
+** a `port number`
+* Two types of (TCP/IP) sockets
+** *Stream* sockets (e.g. uses TCP)
+*** provide reliable byte-stream service
+** *Datagram* sockets (e.g. uses UDP)
+*** provide best-effort datagram service
+*** messages up to 65.500 bytes
+* Socket extend the convectional UNIX I/O facilities
+** file descriptors for network communication
+** extended the read and write system calls
+
+== Socket Programming
+
+=== Client-Server communication
+
+* Server
+** passively waits for and responds to clients
+** *passive* socket
+* Client
+** initiates the communication
+** must know the address and the port of the server
+** *active* socket
+
+=== Sockets - Procedures
+
+.Sockets - Procedures
+[%header, cols='1,3']
+|===
+|Primitive
+|Meaning
+
+|Socket
+|Create a new commnunication endpoint
+
+|Bind
+|Attach a local address to a socket
+
+|Listen
+|Announce willingness to accept connections
+
+|Accept
+|Block caller until a connection request arrives
+
+|Connect
+|Actively attempt to establish a connection
+
+|Send
+|Send some date over the connection
+
+|Receive
+|Receive some date over the connection
+
+|Close
+|Release the connection
+
+|===
+
+=== Client - Server Communication - Unix
+
+.Client - Server Communication - Unix
+[%header, cols='1,1,1,1,1,1']
+|===
+3+|Stream (e.g. TCP)
+3+|Datagram (e.g. UDP)
+
+|*Server*
+.4+|
+|*Client*
+|*Server*
+.5+|
+|*Client*
+
+|socket()
+|socket()
+|socket()
+|socket()
+
+|bind()
+|<bind()>
+|bind()
+|bind()
+
+|listen()
+|
+.2+|
+.2+|
+
+|accept()
+|_syn point_
+|connect()
+
+|recv()
+.2+|
+|send()
+|recvfrom()
+.2+|
+|sendto()
+
+|send()
+|recv()
+|sendto()
+|recvfrom()
+
+|close()
+|
+|close()
+|close()
+|
+|close()
+
+|===
+
+==== Socket creation in C: `socket()`
+
+* `int sockid = socket(family, type, protocol);`
+** `sockid`: socket descriptor, an integer (like a file-handle)
+** `family`: integer, communication domain, e.g.,
+*** PF_INET, IPv4 protocols, Internet addresses (typically used)
+*** PF_UNIX, Local communication, File addresses
+** `type`: communication type
+*** SOCK_STREAM - reliable, 2-way, connection-based service
+*** SOCK_DGRAM - unreliable, connectionless, messages of maximum length
+** `protocol`: specifies protocol
+*** IPPROTO_TCP IPPROTO_UDP
+*** usually set to 0 (i.e., use default protocol)
+* upon failure returns -1
+
+NOTE: *Note:* socket call does not specify where data will be coming from, nor where it will be going to – it just creates the interface!
+
+==== Socket close in C: `close()`
+
+* When finished using a socket, the socket should be closed
+** `status= close(sockid);`
+*** `sockid`: the file descriptor (socket being closed)
+*** `status`: 0 if successful, -1 if error
+* Closing a socket
+** closes a connection (for stream socket)
+** frees up the port used by the socket
+
+==== Assign address to socket: `bind()`
+
+* associates and reserves a port for use by the socket
+* `int status = bind(sockid, &addrport, size);`
+** `sockid`: integer, socket descriptor
+** `addrport`: struct sockaddr, the (IP) address and port of the machine
+*** for TCP/IP server, internet address is usually set to INADDR_ANY, i.e., chooses any incoming interface
+** `size`: the size (in bytes) of the addrport structure
+** `status`: upon failure -1 is returned
+
+===== Specifying Addresses
+
+* Socket API defines a generic data type for addresses:
++
+[source,c]
+----
+struct sockaddr {
+    unsigned short sa_family; /* Address family (e.g. AF_INET) */
+    char sa_data[14];         /* Family-specific address information */
+}
+----
+* Particular form of the `sockaddr` used for TCP/IP addresses:
++
+[source,c]
+----
+struct in_addr {
+    unsigned long s_addr;      /* Internet address (32 bits) */
+}
+struct sockaddr_in {
+    unsigned short sin_family; /* Internet protocol (AF_INET) */
+    unsigned short sin_port;   /* Address port (16 bits) */
+    struct in_addr sin_addr;   /* Internet address (32 bits) */
+    char sin_zero[8];          /* Not used */
+}
+----
+
+IMPORTANT: *Important:* `sockaddr_in` can be casted to a `sockaddr`
+
+===== `bind()` - Example with TCP
+
+[source,c]
+----
+int sockid;
+struct sockaddr_in addrport;
+sockid = socket(PF_INET, SOCK_STREAM, 0);
+addrport.sin_family = AF_INET;
+addrport.sin_port = htons(5100);
+addrport.sin_addr.s_addr = htonl(INADDR_ANY);
+if(bind(sockid, (struct sockaddr *) &addrport, sizeof(addrport))!= -1) {
+    // …
+}
+----
+
+===== Skipping the `bind()`
+
+* bind can be skipped for both types of sockets
+** Datagram socket:
+*** if only sending, no need to bind. The OS finds a port each timethe socket sends a packet
+*** if receiving, need to bind
+** Stream socket:
+*** destination determined during connection setup
+*** don't need to know port sending from (during connection setup, receiving end is informed of port)
+
+==== Assign address to socket: `bind()`
+
+* Instructs TCP protocol implementation to listen for connections
+* `int status = listen(sockid, queueLimit);`
+** `sockid`: integer, socket descriptor
+** `queueLimit`: integer, # of active participants that can "wait" for a connection
+** `status`: 0 if listening, -1 if error
+* `listen()` is *non-blocking*: returns immediately
+* The listening socket (`sockid`)
+** is never used for sending and receiving
+** is used by the server only as a way to get new sockets
+
+==== Establish Connection: `connect()`
+
+* The client establishes a connection with the server by calling `connect()`
+* `int status = connect(sockid, &foreignAddr, addrlen);`
+** `sockid`: integer, socket to be used in connection
+** `foreignAddr`: struct sockaddr: address of the passive participant
+** `addrlen`: integer, sizeof(foreignAddr)
+** `status`: 0 if successful connect, -1 otherwise
+* `connect()` is *blocking*
+
+==== Incoming Connection: `accept()`
+
+* The server gets a socket for an incoming client connection by calling `accept()`
+* `int s = accept(sockid, &clientAddr, &addrLen);`
+** `s`: integer, the new socket (used for _data-transfer_)
+** `sockid`: integer, the orig. socket (being listened on)
+** `clientAddr`: struct sockaddr, address of the active participant
+*** filled in upon return
+** `addrLen`: sizeof(clientAddr): value/result parameter
+*** must be set appropriately before call
+*** adjusted upon return
+* `accept()`
+** is *blocking*: waits for connection before returning
+** dequeues the next connection on the queue for socket (`sockid`)
+
+==== Exchanging data with stream socket
+
+* `int count = send(sockid, msg, msgLen, flags);`
+** `msg`: const void[], message to be transmitted
+** `msgLen`: integer, length of message (in bytes) to transmit
+** `flags`: integer, special options, usually just 0
+** `count`: # bytes transmitted (-1 if error)
+* `int count = recv(sockid, recvBuf, bufLen, flags);`
+** `recvBuf`: void[], stores received bytes
+** `bufLen`: # bytes received
+** `flags`: integer, special options, usually just 0
+** `count`: # bytes received (-1 if error)
+* Calls are *blocking*
+** returns only after data is sent / received
+
+==== Exchanging data with datagram socket
+* `int count = sendto(sockid, msg, msgLen, flags, &foreignAddr, addrlen);`
+** `msg`, `msgLen`, `flags`, `count`: same with `send()`
+** `foreignAddr`: struct sockaddr, address of the destination
+** `addrLen`: sizeof(foreignAddr)
+* `int count = recvfrom(sockid, recvBuf, bufLen, flags, &clientAddr, addrlen);`
+** `recvBuf`, `bufLen`, `flags`, `count`: same with `recv()`
+** `clientAddr`: struct sockaddr, address of the client
+** `addrLen`: sizeof(clientAddr)
+* Calls are *blocking*
+** returns only after data is sent / received
+
+=== Example - Echo
+
+* A client communicates with an "echo" server
+* The server simply echoes whatever it receives back to the client
+
+==== Example - Echo using stream socket
+
+[source,c]
+----
+/* die_with_error.h */
+
+void die_with_error(char*);
+----
+
+[source,c]
+----
+/* die_with_error.c */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+void die_with_error(char* error) {
+    int errsv = errno;
+    fprintf(stderr, "%s: %s", strerror(errsv), error);
+    exit(EXIT_FAILURE);
+}
+----
+
+[source,c]
+----
+/* server.c */
+
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+#include "die_with_error.h"
+
+#define MAXPENDING 1024
+#define RCVBUFSIZE 4096
+
+int main(void) {
+    /* Create a TCP socket */
+    /* Create socket for incoming connections */
+    int serv_sock;
+    if ((serv_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        die_with_error("socket() failed");
+    }
+
+    /* Assign a port to socket */
+    int serv_port = 5100;
+    struct sockaddr_in serv_addr; 
+    serv_addr.sin_family = AF_INET;                 /* Internet address family */
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  /* Any incoming interface */
+    serv_addr.sin_port = htons(serv_port);           /* Local port */
+    if (bind(serv_sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+        die_with_error("bind() failed");
+    }
+
+    /* Set socket to listen */
+    /* Mark the socket so it will listen for incoming connections */
+    if (listen(serv_sock, MAXPENDING) < 0) {
+        die_with_error("listen() failed");
+    }
+
+    /* Repeatedly: */
+    /* Run forever */
+    for (;;) {
+        /* Accept new connectionb */
+        /* Server is now blocked waiting for connection from a client */
+        int client_sock;
+        struct sockaddr client_addr;
+        int addr_len;
+        addr_len = sizeof(client_addr);
+        if ((client_sock = accept(serv_sock, (struct sockaddr *)&client_addr, &addr_len)) < 0) {
+            die_with_error("accept() failed");
+        }
+
+        /* Receive mesage from client */
+        int recv_msg_size;
+        char echo_buffer[RCVBUFSIZE];
+        if ((recv_msg_size = recv(client_sock, echo_buffer, RCVBUFSIZE, 0)) < 0) {
+            die_with_error("first recv() failed");
+        }
+
+        /* Send received string and receive again until end of transmission */
+        while (recv_msg_size > 0) { /* zero indicates end of transmission */
+            if (send(client_sock, echo_buffer, recv_msg_size, 0) != recv_msg_size) {
+                die_with_error("repeat send() failed");
+            }
+
+            if ((recv_msg_size = recv(client_sock, echo_buffer, RCVBUFSIZE, 0)) < 0) {
+                die_with_error("recv() failed");
+            }
+        }
+
+        /* Close the connection */
+        close(client_sock);
+    }
+}
+----
+
+[source,c]
+----
+/* client.c */
+
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+#include "die_with_error.h"
+
+#define RCVBUFSIZE 4096
+
+
+int main(void) {
+    /* Create a TCP socket */
+    /* Create a reliable, stream socket using TCP */
+    int client_sock;
+    if ((client_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        die_with_error("socket() failed");
+    }
+
+    /* Establish connection */
+    char *serv_ip = "127.0.0.1";
+    int serv_port = 5100;
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;                     /* Internet address family */
+    serv_addr.sin_addr.s_addr = inet_addr(serv_ip);     /* Server IP address*/
+    serv_addr.sin_port = htons(serv_port);              /* Server port */
+    if (connect(client_sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+        die_with_error("connect() failed");
+    }
+
+    /* Communicate */
+    int read_len;
+    char *read_buf = (char*)malloc(RCVBUFSIZE * sizeof(char));
+    int recv_msg_size;
+    char echo_buf[RCVBUFSIZE];
+    for(;;) {
+        read_buf = fgets(read_buf, sizeof(read_buf), stdin);
+        if(read_buf == NULL) {
+            exit(EXIT_SUCCESS);
+        }
+
+        read_len = strlen(read_buf); /* Determine input length *//* Send the string to the server */
+        if (send(client_sock, read_buf, read_len, 0) != read_len) {
+            die_with_error("send() sent a different number of bytes than expected");
+        }
+
+        /* Receive mesage from server */
+        if ((recv_msg_size = recv(client_sock, echo_buf, RCVBUFSIZE, 0)) < 0) {
+            die_with_error("recv() failed");
+        }
+
+        fputs(echo_buf, stdout);
+    }
+
+    /* Close the connection */
+    close(client_sock);
+}
+----
+
+== References
+
+* https://www.csd.uoc.gr/~hy556/material.html
