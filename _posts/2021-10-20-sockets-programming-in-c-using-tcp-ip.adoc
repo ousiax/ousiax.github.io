@@ -186,6 +186,7 @@ struct sockaddr {
 struct in_addr {
     unsigned long s_addr;      /* Internet address (32 bits) */
 }
+
 struct sockaddr_in {
     unsigned short sin_family; /* Internet protocol (AF_INET) */
     unsigned short sin_port;   /* Address port (16 bits) */
@@ -290,8 +291,6 @@ if(bind(sockid, (struct sockaddr *) &addrport, sizeof(addrport))!= -1) {
 * A client communicates with an "echo" server
 * The server simply echoes whatever it receives back to the client
 
-==== Example - Echo using stream socket
-
 [source,c]
 ----
 /* die_with_error.h */
@@ -315,14 +314,17 @@ void die_with_error(char* error) {
 }
 ----
 
+==== Echo using stream socket
+
 [source,c]
 ----
-/* server.c */
-
-#include <unistd.h>
+/* tcp_server.c */
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>
+#include <unistd.h>
 
 #include "die_with_error.h"
 
@@ -366,34 +368,42 @@ int main(void) {
             die_with_error("accept() failed");
         }
 
+        struct sockaddr_in *c_addr = (struct sockaddr_in *)&client_addr;
+        char c_ip_addr[INET6_ADDRSTRLEN];
+        inet_ntop(c_addr -> sin_family, &(c_addr -> sin_addr), c_ip_addr, addr_len);
+        int c_port = ntohs(c_addr -> sin_port);
+        printf("%s:%d =>\n", c_ip_addr, c_port);
+
         /* Receive mesage from client */
         int recv_msg_size;
-        char echo_buffer[RCVBUFSIZE];
-        if ((recv_msg_size = recv(client_sock, echo_buffer, RCVBUFSIZE, 0)) < 0) {
+        char echo_buf[RCVBUFSIZE];
+        if ((recv_msg_size = recv(client_sock, echo_buf, RCVBUFSIZE, 0)) < 0) {
             die_with_error("first recv() failed");
         }
 
         /* Send received string and receive again until end of transmission */
         while (recv_msg_size > 0) { /* zero indicates end of transmission */
-            if (send(client_sock, echo_buffer, recv_msg_size, 0) != recv_msg_size) {
+            if (send(client_sock, echo_buf, recv_msg_size, 0) != recv_msg_size) {
                 die_with_error("repeat send() failed");
             }
+            printf(echo_buf);
+            memset(echo_buf, '\0', RCVBUFSIZE);
 
-            if ((recv_msg_size = recv(client_sock, echo_buffer, RCVBUFSIZE, 0)) < 0) {
+            if ((recv_msg_size = recv(client_sock, echo_buf, RCVBUFSIZE, 0)) < 0) {
                 die_with_error("recv() failed");
             }
         }
 
         /* Close the connection */
         close(client_sock);
+        printf("%s:%d <=\n", c_ip_addr, c_port);
     }
 }
 ----
 
 [source,c]
 ----
-/* client.c */
-
+/* tcp_client.c */
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -448,11 +458,30 @@ int main(void) {
         }
 
         fputs(echo_buf, stdout);
+        memset(read_buf, '\0', RCVBUFSIZE);
+        memset(echo_buf, '\0', RCVBUFSIZE);
     }
 
     /* Close the connection */
     close(client_sock);
 }
+----
+
+[source,console]
+----
+$ gcc die_with_error.h die_with_error.c tcp_server.c -o tcp_server
+$ ./tcp_server 
+127.0.0.1:45934 =>
+Hello world!
+127.0.0.1:45934 <=
+^C
+----
+
+[source,console]
+----
+$ gcc die_with_error.h die_with_error.c tcp_client.c -o tcp_client
+$ echo 'Hello world!' | ./tcp_client 
+Hello world!
 ----
 
 == References
