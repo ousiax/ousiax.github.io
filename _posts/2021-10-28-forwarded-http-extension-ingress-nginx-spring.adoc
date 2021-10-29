@@ -1,13 +1,15 @@
-= forwarded-http-extension-ingress-nginx-spring
+= Forwarded Headers and Kubernetes Ingress Nginx
 :page-layout: post
 :page-categories: ['http']
-:page-tags: ['http', 'spring', 'tomcat']
+:page-tags: ['kubernets', 'ingress','spring', 'tomcat']
 :revdate: 2021-10-28 17:17:01 +0800
 :sectnums:
 :toc:
 
-=== Create a self-signed certificate
+== Create and install a self-signed cert
 
+* Create a self-signed cert with openssl
++
 [source,console,highlight=8]
 ----
 $ openssl req -x509 \
@@ -20,14 +22,37 @@ $ openssl req -x509 \
   -addext "subjectAltName=DNS:local.io,DNS:*.local.io"
 ----
 
+* Import to CA root certificates
++
+[source,console]
+----
+$ sudo mkdir /usr/local/share/ca-certificates/extra
+$ sudo cp local.io.crt /usr/local/share/ca-certificates/extra/
+$ sudo update-ca-certificates
+Updating certificates in /etc/ssl/certs...
+1 added, 0 removed; done.
+Running hooks in /etc/ca-certificates/update.d...
+
+Adding debian:local.io.pem
+done.
+done.
+
+After these steps the new CA is known by system utilities like curl and get.
+----
+
+* Install cert to kubernetes 
++
+[source,console]
 ----
 $ kubectl create -n default secret tls local.io --cert=local.io.crt --key=local.io.key
 secret/local.io created
 ----
 
+== Install a echo server
+
 [source,yaml]
 ----
----
+# echoserver/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -43,7 +68,11 @@ spec:
   selector:
     app: echoserver
   type: ClusterIP
----
+----
+
+[source,yaml]
+----
+# echoserver/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -62,9 +91,13 @@ spec:
         app: echoserver
     spec:
       containers:
-      - image: k8s.gcr.io/echoserver:1.10
-        name: echoserver
----
+        - image: k8s.gcr.io/echoserver:1.10
+          name: echoserver
+----
+
+[source,yaml]
+----
+# echoserver/ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -76,21 +109,21 @@ metadata:
   name: echoserver
   namespace: default
 spec:
-  rules:
-  - host: local.io
-    http:
-      paths:
-      - backend:
-          service:
-            name: echoserver
-            port:
-              number: 80
-        path: /
-        pathType: ImplementationSpecific
   tls:
-  - hosts:
-    - '*.local.io'
+    - hosts:
+      - '*.local.io'
     secretName: local.io
+  rules:
+    - host: local.io
+      http:
+        paths:
+          - backend:
+              service:
+                name: echoserver
+                port:
+                  number: 80
+            path: /
+            pathType: ImplementationSpecific
 ----
 
 ----
