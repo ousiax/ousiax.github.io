@@ -1,0 +1,358 @@
+= forwarded-http-extension-ingress-nginx-spring
+:page-layout: post
+:page-categories: ['http']
+:page-tags: ['http', 'spring', 'tomcat']
+:revdate: 2021-10-28 17:17:01 +0800
+:sectnums:
+:toc:
+
+=== Create a self-signed certificate
+
+[source,console,highlight=8]
+----
+$ openssl req -x509 \
+  -nodes \
+  -newkey rsa:4096 \
+  -days 3650 \
+  -keyout loca.io.ca.key \
+  -out local.io.ca.crt \
+  -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Global Security/OU=IT Department/CN=*.local.io" \
+  -addext "subjectAltName=DNS:local.io,DNS:*.local.io"
+----
+
+----
+$ kubectl create -n default secret tls local.io --cert=local.io.crt --key=local.io.key
+secret/local.io created
+----
+
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: echoserver
+  name: echoserver
+  namespace: default
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: echoserver
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: echoserver
+  name: echoserver
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echoserver
+  template:
+    metadata:
+      labels:
+        app: echoserver
+    spec:
+      containers:
+      - image: k8s.gcr.io/echoserver:1.10
+        name: echoserver
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  labels:
+    app: echoserver
+  name: echoserver
+  namespace: default
+spec:
+  rules:
+  - host: local.io
+    http:
+      paths:
+      - backend:
+          service:
+            name: echoserver
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - '*.local.io'
+    secretName: local.io
+----
+
+----
+# /etc/nginx/sites-enabled/8080.conf
+upstream ingress-nginx {
+    server localhost:80;
+    keepalive 32;
+}
+
+server {
+    listen 8080         ;
+    listen [::]:8080    ;
+
+    server_name         *.local.io;
+
+    return 308 https://$host:8083$request_uri;
+}
+
+server {
+    listen 8083         ssl;
+    listen [::]:8083    ssl;
+
+    server_name         *.local.io;
+
+    ssl_certificate     local.io.crt;
+    ssl_certificate_key local.io.key;
+
+    location / {
+        proxy_pass      http://ingress-nginx;
+
+        proxy_http_version              1.1;
+        proxy_set_header Connection     "";
+        
+        include proxy_params;
+    }
+
+    access_log  /var/log/nginx/access-forwarded.log  forwarded;
+}
+----
+
+----
+# /etc/nginx/conf.d/forwarded.conf
+map $http_x_forwarded_proto $x_forwarded_proto {
+  ''        $scheme;
+  default   $http_x_forwarded_proto;
+}
+
+map $http_x_forwarded_host $x_forwarded_host {
+    ''        $http_host;
+    default   $http_x_forwarded_host; 
+}
+
+map $http_x_forwarded_port $x_forwarded_port {
+  ''        '';
+  default   $http_x_forwarded_port; 
+}
+
+map $http_x_real_ip $x_real_ip {
+  ''        $remote_addr;
+  default   $http_x_real_ip; 
+}
+----
+
+----
+$ curl -i https://local.io:8083 -L
+HTTP/1.1 200 OK
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:16:07 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+
+
+
+Hostname: echoserver-9d94d584f-q855h
+
+Pod Information:
+	-no pod information available-
+
+Server values:
+	server_version=nginx: 1.13.3 - lua: 10008
+
+Request Information:
+	client_address=10.244.0.115
+	method=GET
+	real path=/
+	query=
+	request_version=1.1
+	request_scheme=http
+	request_uri=http://local.io:8080/
+
+Request Headers:
+	accept=*/*
+	host=local.io:8083
+	user-agent=curl/7.64.0
+	x-forwarded-for=127.0.0.1, 10.244.0.1
+	x-forwarded-host=local.io:8083
+	x-forwarded-port=80
+	x-forwarded-proto=https
+	x-forwarded-scheme=https
+	x-original-forwarded-for=127.0.0.1
+	x-real-ip=127.0.0.1
+	x-request-id=8b0d54087c07c53de1adb5f10a7b9398
+	x-scheme=https
+
+Request Body:
+	-no body in request-
+
+----
+
+----
+$ curl -i https://default.local.io:8083/echo
+HTTP/1.1 200 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:17:48 GMT
+Content-Length: 0
+Connection: keep-alive
+x-echo-host: default.local.io:8083
+x-echo-x-request-id: ff430717d3bfc9c4dd13af52c38d0f6c
+x-echo-x-real-ip: 127.0.0.1
+x-echo-x-forwarded-host: default.local.io:8083
+x-echo-x-forwarded-port: 80
+x-echo-x-forwarded-proto: https
+x-echo-x-forwarded-scheme: https
+x-echo-x-scheme: https
+x-echo-x-original-forwarded-for: 127.0.0.1
+x-echo-user-agent: curl/7.64.0
+x-echo-accept: */*
+
+$ curl -iL https://default.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:17:50 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://default.local.io:80/echo
+
+curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number
+----
+
+----
+$ curl -i https://native.local.io:8083/echo
+HTTP/1.1 200 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:18:19 GMT
+Content-Length: 0
+Connection: keep-alive
+x-echo-host: native.local.io:8083
+x-echo-x-request-id: 6cb7ad640e49d8fe1cdf61da56bd835a
+x-echo-x-real-ip: 127.0.0.1
+x-echo-x-forwarded-host: native.local.io:8083
+x-echo-x-forwarded-port: 80
+x-echo-x-forwarded-proto: https
+x-echo-x-forwarded-scheme: https
+x-echo-x-scheme: https
+x-echo-x-original-forwarded-for: 127.0.0.1
+x-echo-user-agent: curl/7.64.0
+x-echo-accept: */*
+
+$ curl -iL https://native.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:18:28 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://native.local.io:80/echo
+
+curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number
+----
+
+----
+$ curl -i https://framework.local.io:8083/echo
+HTTP/1.1 200 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:18:59 GMT
+Content-Length: 0
+Connection: keep-alive
+x-echo-host: framework.local.io:8083
+x-echo-x-request-id: 9671ac40270af9f3dc89cdfcb29ea77d
+x-echo-x-real-ip: 127.0.0.1
+x-echo-x-forwarded-scheme: https
+x-echo-x-scheme: https
+x-echo-x-original-forwarded-for: 127.0.0.1
+x-echo-user-agent: curl/7.64.0
+x-echo-accept: */*
+
+$ curl -iL https://framework.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:19:01 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://framework.local.io:80/echo
+
+curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number
+----
+
+----
+$ curl -i https://relative.local.io:8083/echo
+HTTP/1.1 200 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:19:59 GMT
+Content-Length: 0
+Connection: keep-alive
+x-echo-host: relative.local.io:8083
+x-echo-x-request-id: 42f3771e0a730d6d6b9dc745f17dd807
+x-echo-x-real-ip: 127.0.0.1
+x-echo-x-forwarded-host: relative.local.io:8083
+x-echo-x-forwarded-port: 80
+x-echo-x-forwarded-proto: https
+x-echo-x-forwarded-scheme: https
+x-echo-x-scheme: https
+x-echo-x-original-forwarded-for: 127.0.0.1
+x-echo-user-agent: curl/7.64.0
+x-echo-accept: */*
+
+$ curl -iL https://relative.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:20:02 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: /echo
+
+HTTP/1.1 200 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:20:02 GMT
+Content-Length: 0
+Connection: keep-alive
+x-echo-host: relative.local.io:8083
+x-echo-x-request-id: 925a533fa0e52336f0eb1a216eb0a289
+x-echo-x-real-ip: 127.0.0.1
+x-echo-x-forwarded-host: relative.local.io:8083
+x-echo-x-forwarded-port: 80
+x-echo-x-forwarded-proto: https
+x-echo-x-forwarded-scheme: https
+x-echo-x-scheme: https
+x-echo-x-original-forwarded-for: 127.0.0.1
+x-echo-user-agent: curl/7.64.0
+x-echo-accept: */*
+
+----
+$ curl -iL https://framework.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://framework.local.io:8083/echo
+
+HTTP/1.1 200 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+x-echo-host: framework.local.io:8083
+x-echo-x-request-id: 5de57e7d2740795a0ef481bbd9c5bfd2
+x-echo-x-real-ip: 127.0.0.1
+x-echo-x-forwarded-scheme: https
+x-echo-x-scheme: https
+x-echo-x-original-forwarded-for: 127.0.0.1
+x-echo-user-agent: curl/7.64.0
+x-echo-accept: */*
+
+----
