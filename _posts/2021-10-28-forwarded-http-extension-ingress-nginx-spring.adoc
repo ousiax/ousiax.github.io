@@ -6,9 +6,13 @@
 :sectnums:
 :toc:
 
-== Create and install a self-signed cert
+GitHub: https://github.com/qqbuby/spring-ingress-nginx-xf/ 
 
-* Create a self-signed cert with openssl
+== Setup environment at local VM
+
+=== Setup cert for HTTPS
+
+* *Create a self-signed cert with openssl*
 +
 [source,console,highlight=8]
 ----
@@ -22,173 +26,63 @@ $ openssl req -x509 \
   -addext "subjectAltName=DNS:local.io,DNS:*.local.io"
 ----
 
-* Import to CA root certificates
+* *Import to CA root certificates*
 +
 [source,console]
 ----
 $ sudo mkdir /usr/local/share/ca-certificates/extra
 $ sudo cp local.io.crt /usr/local/share/ca-certificates/extra/
 $ sudo update-ca-certificates
-Updating certificates in /etc/ssl/certs...
-1 added, 0 removed; done.
-Running hooks in /etc/ca-certificates/update.d...
-
-Adding debian:local.io.pem
-done.
-done.
-
-After these steps the new CA is known by system utilities like curl and get.
 ----
 
-* Install cert to kubernetes 
+* *Install cert as `secret` to kubernetes* 
 +
 [source,console]
 ----
 $ kubectl create -n default secret tls local.io --cert=local.io.crt --key=local.io.key
-secret/local.io created
 ----
 
-== Install a echo server
+=== Install a echo server
 
-[source,yaml]
+[source,console]
 ----
-# echoserver/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: echoserver
-  name: echoserver
-  namespace: default
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 8080
-  selector:
-    app: echoserver
-  type: ClusterIP
+$ kubectl apply -f echoserver/service.yaml
+$ kubectl apply -f echoserver/deployment.yaml
+$ kubectl apply -f echoserver/ingress.yaml
 ----
 
-[source,yaml]
+=== Setup Nginx as HTTP Proxy
+
+[source,sh]
 ----
-# echoserver/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app: echoserver
-  name: echoserver
-  namespace: default
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: echoserver
-  template:
-    metadata:
-      labels:
-        app: echoserver
-    spec:
-      containers:
-        - image: k8s.gcr.io/echoserver:1.10
-          name: echoserver
+# install nginx server
+$ sudo apt-get install nginx -y
+# remove the default site (80)
+$ sudo rm /etc/nginx/site-enabled/*
+$ sudo cp etc/nginx/sites-enabled/*.conf /etc/nginx/sites-enabled/
+$ sudo cp etc/nginx/conf.d/forwarded.conf /etc/nginx/conf.d/
+$ sudo cp etc/nginx/proxy_params /etc/nginx/
+$ sudo nginx -s reload
 ----
 
-[source,yaml]
+=== Setup `` for hostname `local.io`
+
+[source,sh]
 ----
-# echoserver/ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  labels:
-    app: echoserver
-  name: echoserver
-  namespace: default
-spec:
-  tls:
-    - hosts:
-      - '*.local.io'
-    secretName: local.io
-  rules:
-    - host: local.io
-      http:
-        paths:
-          - backend:
-              service:
-                name: echoserver
-                port:
-                  number: 80
-            path: /
-            pathType: ImplementationSpecific
+$ cat << EOF >> /etc/
+> 127.0.0.1 local.io
+> 127.0.0.1 default.local.io
+> 127.0.0.1 native.local.io
+> 127.0.0.1 framework.local.io
+> 127.0.0.1 relative.local.io
+> EOF
 ----
 
+=== Test echoserver
+
+[source,console,highlight='30,33-35']
 ----
-# /etc/nginx/sites-enabled/8080.conf
-upstream ingress-nginx {
-    server localhost:80;
-    keepalive 32;
-}
-
-server {
-    listen 8080         ;
-    listen [::]:8080    ;
-
-    server_name         *.local.io;
-
-    return 308 https://$host:8083$request_uri;
-}
-
-server {
-    listen 8083         ssl;
-    listen [::]:8083    ssl;
-
-    server_name         *.local.io;
-
-    ssl_certificate     local.io.crt;
-    ssl_certificate_key local.io.key;
-
-    location / {
-        proxy_pass      http://ingress-nginx;
-
-        proxy_http_version              1.1;
-        proxy_set_header Connection     "";
-        
-        include proxy_params;
-    }
-
-    access_log  /var/log/nginx/access-forwarded.log  forwarded;
-}
-----
-
-----
-# /etc/nginx/conf.d/forwarded.conf
-map $http_x_forwarded_proto $x_forwarded_proto {
-  ''        $scheme;
-  default   $http_x_forwarded_proto;
-}
-
-map $http_x_forwarded_host $x_forwarded_host {
-    ''        $http_host;
-    default   $http_x_forwarded_host; 
-}
-
-map $http_x_forwarded_port $x_forwarded_port {
-  ''        '';
-  default   $http_x_forwarded_port; 
-}
-
-map $http_x_real_ip $x_real_ip {
-  ''        $remote_addr;
-  default   $http_x_real_ip; 
-}
-----
-
-----
-$ curl -i https://local.io:8083 -L
+$ curl -i https://local.io:8083
 HTTP/1.1 200 OK
 Server: nginx/1.14.2
 Date: Fri, 29 Oct 2021 11:16:07 GMT
@@ -201,39 +95,114 @@ Connection: keep-alive
 Hostname: echoserver-9d94d584f-q855h
 
 Pod Information:
-	-no pod information available-
+    -no pod information available-
 
 Server values:
-	server_version=nginx: 1.13.3 - lua: 10008
+    server_version=nginx: 1.13.3 - lua: 10008
 
 Request Information:
-	client_address=10.244.0.115
-	method=GET
-	real path=/
-	query=
-	request_version=1.1
-	request_scheme=http
-	request_uri=http://local.io:8080/
+    client_address=10.244.0.115
+    method=GET
+    real path=/
+    query=
+    request_version=1.1
+    request_scheme=http
+    request_uri=http://local.io:8080/
 
 Request Headers:
-	accept=*/*
-	host=local.io:8083
-	user-agent=curl/7.64.0
-	x-forwarded-for=127.0.0.1, 10.244.0.1
-	x-forwarded-host=local.io:8083
-	x-forwarded-port=80
-	x-forwarded-proto=https
-	x-forwarded-scheme=https
-	x-original-forwarded-for=127.0.0.1
-	x-real-ip=127.0.0.1
-	x-request-id=8b0d54087c07c53de1adb5f10a7b9398
-	x-scheme=https
+    accept=*/*
+    host=local.io:8083 <1>
+    user-agent=curl/7.64.0
+    x-forwarded-for=127.0.0.1, 10.244.0.1
+    x-forwarded-host=local.io:8083 <3>
+    x-forwarded-port=80 <4>
+    x-forwarded-proto=https <5>
+    x-forwarded-scheme=https
+    x-original-forwarded-for=127.0.0.1
+    x-real-ip=127.0.0.1
+    x-request-id=8b0d54087c07c53de1adb5f10a7b9398
+    x-scheme=https
 
 Request Body:
-	-no body in request-
+    -no body in request-
 
 ----
 
+<1> The *Host* request header specifies the ##host## and ##port## number of the server to which the request is being sent. If no port is included, the default port for the service requested is implied (e.g., 443 for an HTTPS URL, and 80 for an HTTP URL).
+
+<2> The *X-Forwarded-Host* (XFH) header is a de-facto standard header for identifying the original host requested by the client in the Host HTTP request header. Host names and ports of _reverse proxies_ (load balancers, CDNs) may differ from the origin server handling the request, in that case the X-Forwarded-Host header is useful to determine which Host was originally used.
+
+<3> The *_X-Forwarded-Port_* header is not a standard header, but also usually used to identify the port that a client used to connect to your proxy or load balancer.
++
+In the above example, the orignal `port` was `8083`, but the `x-forwarded-port` was `80` writed by *Ingress Nginx* Controller in Kubernetes.
+
+<4> The *X-Forwarded-Proto* (XFP) header is a de-facto standard header for identifying the protocol (HTTP or HTTPS) that a client used to connect to your proxy or load balancer.
+
+== Redirect within Spring Boot (Servlet)
+
+=== Spring WebApp Demo Code
+
+[source,java,highlight=23]
+----
+// src/main/java/com/example/springingressnginx/SpringIngressNginxApplication.java
+@RestController
+@SpringBootApplication
+public class SpringIngressNginxApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(SpringIngressNginxApplication.class, args);
+    }
+
+    @GetMapping(value = "/echo")
+    public void echo(HttpServletRequest request, HttpServletResponse response) {
+        Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames != null) {
+            while (headerNames.hasMoreElements()) {
+                String headerName = headerNames.nextElement();
+                response.setHeader(String.format("x-echo-%s", headerName.toLowerCase()), request.getHeader(headerName));
+            }
+        }
+    }
+
+    @GetMapping(value = "/302")
+    public void redirect(HttpServletResponse response) throws IOException {
+        response.sendRedirect("/echo");
+    }
+}
+----
+
+[source,ini]
+----
+#src/main/resources/application.properties
+management.endpoint.health.probes.enabled=true
+management.endpoint.health.group.health.include=readiness,liveness
+management.endpoints.web.exposure.include=health,env
+server.port=8080
+server.servlet.context-path=/
+#---
+spring.config.activate.on-profile=native
+server.forward-headers-strategy=native
+#---
+spring.config.activate.on-profile=framework
+server.forward-headers-strategy=framework
+#---
+spring.config.activate.on-profile=relative
+server.tomcat.use-relative-redirects=true
+----
+
+=== Deploy Spring WebApp into Kubernetes
+
+[source,console]
+----
+$ mvn spring-boot:build-image
+$ kubectl apply -f kubernetes/
+----
+
+=== Test WebApp that runs behind HTTP proxy
+
+* *server.forward-headers-strategy=none*
++
+[source,console,highlight='11,19,25']
 ----
 $ curl -i https://default.local.io:8083/echo
 HTTP/1.1 200 
@@ -264,6 +233,9 @@ Location: https://default.local.io:80/echo
 curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number
 ----
 
+* *server.forward-headers-strategy=native*
++
+[source,console,highlight='11,19,25']
 ----
 $ curl -i https://native.local.io:8083/echo
 HTTP/1.1 200 
@@ -294,6 +266,9 @@ Location: https://native.local.io:80/echo
 curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number
 ----
 
+* *server.forward-headers-strategy=framework*
++
+[source,console,highlight='7,22']
 ----
 $ curl -i https://framework.local.io:8083/echo
 HTTP/1.1 200 
@@ -321,6 +296,9 @@ Location: https://framework.local.io:80/echo
 curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number
 ----
 
+* *server.tomcat.use-relative-redirects=true*
++
+[source,console,highlight='11,19,25,27']
 ----
 $ curl -i https://relative.local.io:8083/echo
 HTTP/1.1 200 
@@ -366,26 +344,64 @@ x-echo-user-agent: curl/7.64.0
 x-echo-accept: */*
 
 ----
-$ curl -iL https://framework.local.io:8083/302
+
+== The `proxy_redirect` directive
+
+[source,yaml,highlight='9-12']
+----
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spring-ingress
+  labels:
+    app: spring-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/proxy-redirect-from: "default"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_redirect https://local.io:80 https://local.io:8083;
+      proxy_redirect http://local.io:443 https://local.io:8083;
+spec:
+----
+
+* Try again with *server.forward-headers-strategy=default*
++
+[source,console]
+----
+$ curl -i https://default.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://default.local.io:8083/echo
+
+----
+
+* Try again with *server.forward-headers-strategy=native*
++
+[source,console]
+----
+$ curl -i https://native.local.io:8083/302
+HTTP/1.1 302 
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://native.local.io:8083/echo
+
+----
+
+* Try again with *server.forward-headers-strategy=framework*
++
+[source,console]
+----
+$ curl -i https://framework.local.io:8083/302
 HTTP/1.1 302 
 Server: nginx/1.14.2
 Date: Fri, 29 Oct 2021 11:34:05 GMT
 Content-Length: 0
 Connection: keep-alive
 Location: https://framework.local.io:8083/echo
-
-HTTP/1.1 200 
-Server: nginx/1.14.2
-Date: Fri, 29 Oct 2021 11:34:05 GMT
-Content-Length: 0
-Connection: keep-alive
-x-echo-host: framework.local.io:8083
-x-echo-x-request-id: 5de57e7d2740795a0ef481bbd9c5bfd2
-x-echo-x-real-ip: 127.0.0.1
-x-echo-x-forwarded-scheme: https
-x-echo-x-scheme: https
-x-echo-x-original-forwarded-for: 127.0.0.1
-x-echo-user-agent: curl/7.64.0
-x-echo-accept: */*
 
 ----
