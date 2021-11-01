@@ -357,6 +357,20 @@ Tracks memory usage only by JVM subsystems, such as Java heap, class, code, and 
 +
 In addition to tracking memory usage by JVM subsystems, track memory usage by individual CallSite, individual virtual memory region and its committed regions. 
 
+* -XX:OnError=_string_
++
+Sets a custom command or a series of semicolon-separated commands to run when an irrecoverable error occurs. If the string contains spaces, then it must be enclosed in quotation marks.
++
+** Linux and macOS: The following example shows how the -XX:OnError option can be used to run the gcore command to create a core image, and start the gdb debugger to attach to the process in case of an irrecoverable error (the %p designates the current process identifier):
++
+[source,console]
+-XX:OnError="gcore %p;gdb -p %p"
++
+** Windows: The following example shows how the -XX:OnError option can be used to run the userdump.exe utility to obtain a crash dump in case of an irrecoverable error (the %p designates the current process identifier). This example assumes that the path to the userdump.exe utility is specified in the PATH environment variable:
++
+[source,console]
+-XX:OnError="userdump.exe %p"
+
 * -XX:OnOutOfMemoryError=_string_
 +
 Sets a custom command or a series of semicolon-separated commands to run when an OutOfMemoryError exception is first thrown. If the string contains spaces, then it must be enclosed in quotation marks. For an example of a command string, see the description of the *-XX:OnError* option. 
@@ -427,7 +441,7 @@ Sets the number of threads used for concurrent GC. Sets _threads_ to approximate
 For example, to set the number of threads for concurrent GC to 2, specify the following option:
 +
 [source,console]
--XX:ConcGCThreads=_2_
+-XX:ConcGCThreads=2
 
 * -XX:+DisableExplicitGC
 +
@@ -452,7 +466,18 @@ The following examples show how to set the size of allocated memory to 6 MB usin
 +
 If you set this option to 0, then the initial size is set as the sum of the sizes allocated for the old generation and the young generation. The size of the heap for the young generation can be set using the *-XX:NewSize* option.
 
-+ -XX:MaxGCPauseMillis=_time_
+* -XX:InitialRAMPercentage=_percent_
++
+Sets the initial amount of memory that the JVM will use for the Java heap before applying ergonomics heuristics as a percentage of the maximum amount determined as described in the -XX:MaxRAM option. The default value is 1.5625 percent.
++
+The following example shows how to set the percentage of the initial amount of memory used for the Java heap:
++
+[source,console]
+----
+-XX:InitialRAMPercentage=5
+----
+
+* -XX:MaxGCPauseMillis=_time_
 +
 Sets a target for the maximum GC pause time (in milliseconds). This is a soft goal, and the JVM will make its best effort to achieve it. The specified value doesn't adapt to your heap size. By default, for G1 the maximum pause time target is 200 milliseconds. The other generational collectors do not use a pause time goal by default.
 +
@@ -489,9 +514,48 @@ The following example shows how to set the maximum class metadata size to 256 MB
 -XX:MaxMetaspaceSize=256m
 ----
 
-* -XX:MaxNewSize=size
+* -XX:MaxNewSize=_size_
 +
 Sets the maximum size (in bytes) of the heap for the young generation (nursery). The default value is set ergonomically. 
+
+* -XX:MaxRAM=_size_
++
+Sets the maximum amount of memory that the JVM may use for the Java heap before applying ergonomics heuristics. The default value is the maximum amount of available memory to the JVM process or 128 GB, whichever is lower.
++
+The maximum amount of available memory to the JVM process is the minimum of the machine's physical memory and any constraints set by the environment (e.g. container).
++
+Specifying this option disables automatic use of compressed oops if the combined result of this and other options influencing the maximum amount of memory is larger than the range of memory addressable by compressed oops.
++
+The following example shows how to set the maximum amount of available memory for sizing the Java heap to 2 GB:
++
+[source,console]
+----
+-XX:MaxRAM=2G
+----
+
+* -XX:MaxRAMPercentage=_percent_
++
+Sets the maximum amount of memory that the JVM may use for the Java heap before applying ergonomics heuristics as a percentage of the maximum amount determined as described in the -XX:MaxRAM option. The default value is 25 percent.
++
+Specifying this option disables automatic use of compressed oops if the combined result of this and other options influencing the maximum amount of memory is larger than the range of memory addressable by compressed oops. See -XX:UseCompressedOops for further information about compressed oops.
++
+The following example shows how to set the percentage of the maximum amount of memory used for the Java heap:
++
+[source,console]
+----
+-XX:MaxRAMPercentage=75
+----
+
+* -XX:MinRAMPercentage=_percent_
++
+Sets the _maximum_ amount of memory that the JVM may use for the Java heap before applying ergonomics heuristics as a percentage of the maximum amount determined as described in the *-XX:MaxRAM* option for small heaps. A small heap is a heap of approximately 125 MB. The default value is 50 percent.
++
+The following example shows how to set the percentage of the maximum amount of memory used for the Java heap for small heaps:
++
+[source,console]
+----
+-XX:MinRAMPercentage=75
+----
 
 * *-XX:MetaspaceSize*=_size_
 +
@@ -532,6 +596,23 @@ The *-XX:NewSize* option is equivalent to *-Xmn*.
 * -XX:+UseG1GC
 +
 Enables the use of the garbage-first (G1) garbage collector. It's a server-style garbage collector, targeted for multiprocessor machines with a large amount of RAM. This option meets GC pause time goals with high probability, while maintaining good throughput. The G1 collector is recommended for applications requiring large heaps (sizes of around 6 GB or larger) with limited GC latency requirements (a stable and predictable pause time below 0.5 seconds). By default, this option is enabled and G1 is used as the default garbage collector. 
+
+=== Removed Java Options
+
+These java options have been removed in JDK 17 and using them results in an error of:
+
+[source,console]
+----
+Unrecognized VM option option-name
+----
+
+* *-XX:MaxPermSize*=_size_
++
+Sets the maximum permanent generation space size (in bytes). This option was deprecated in JDK 8 and superseded by the *-XX:MaxMetaspaceSize* option. 
+
+* *-XX:PermSize*=_size_
++
+Sets the space (in bytes) allocated to the permanent generation that triggers a garbage collection if it's exceeded. This option was deprecated in JDK 8 and superseded by the *-XX:MetaspaceSize* option. 
 
 == Apache Maven
 
@@ -888,5 +969,4 @@ Spring-Boot-Layers-Index: BOOT-INF/layers.idx
 * https://maven.apache.org/settings.html
 * https://maven.apache.org/plugins/maven-help-plugin/usage.html
 * https://maven.apache.org/plugins/maven-dependency-plugin/usage.html
-* https://maven.apache.org/guides/introduction/introduction-to-the-standard-directory-layout.html
 * https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
