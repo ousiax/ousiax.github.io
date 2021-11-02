@@ -5,6 +5,7 @@
 :revdate: 2021-11-01 13:12:53 +0800
 :sectnums:
 :toc:
+:toclevels: 5
 
 == The `javac` Command
 
@@ -1010,7 +1011,7 @@ OpenJDK Runtime Environment (build 11.0.12+7-post-Debian-2deb10u1)
 OpenJDK 64-Bit Server VM (build 11.0.12+7-post-Debian-2deb10u1, mixed mode, sharing)
 ----
 
-==== Java VM container detection support
+=== Java VM container detection support
 
 * -XX:-UseContainerSupport
 +
@@ -1070,7 +1071,7 @@ OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
 
 ** Use `-Xlog:os+container=trace` for maximum logging of container information.
 +
-[source,console,highlight='4']
+[source,console,highlight='4,6,9,11,13']
 ----
 $ docker run --rm -m 512m openjdk:11 java -Xlog:os+container=trace -version
 WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
@@ -1098,16 +1099,268 @@ WARNING: Your kernel does not support swap limit capabilities or the cgroup is n
 [0.041s][trace][os,container] OSContainer::active_processor_count: 2
 [0.063s][trace][os,container] Path to /memory.limit_in_bytes is /sys/fs/cgroup/memory/memory.limit_in_bytes
 [0.064s][trace][os,container] Memory Limit is: 536870912
+[0.064s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
+[0.065s][trace][os,container] Memory Usage is: 10055680
 
 ...
 
 [0.112s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
 [0.112s][trace][os,container] Memory Usage is: 11456512
-[0.112s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
-[0.112s][trace][os,container] Memory Usage is: 11456512
 openjdk version "11.0.13" 2021-10-19
 OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
 OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+----
+
+=== Spring Boot in Kubernetes
+
+. Create Spring MVC project with start.spring.io
++
+[source,console]
+----
+$ curl -sS -o demo.zip "https://start.spring.io/starter.zip?type=maven-project&language=java&bootVersion=2.5.6&baseDir=demo&groupId=com.example&artifactId=demo&name=demo&description=Demo%20project%20for%20Spring%20Boot&packageName=com.example.demo&packaging=jar&javaVersion=11&dependencies=web,devtools,actuator"
+$ unzip demo.zip && cd demo
+----
+
+. Build OCI image with `mvn spring-boot:build-image`
++
+[source,console,highlight=37]
+----
+$ mvn spring-boot:build-image
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] --------------------------< com.example:demo >--------------------------
+[INFO] Building demo 0.0.1-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+
+...
+
+[INFO]     [creator]     Paketo BellSoft Liberica Buildpack 8.9.0
+[INFO]     [creator]       https://github.com/paketo-buildpacks/bellsoft-liberica
+[INFO]     [creator]       Build Configuration:
+[INFO]     [creator]         $BP_JVM_TYPE                 JRE             the JVM type - JDK or JRE
+[INFO]     [creator]         $BP_JVM_VERSION              11.*            the Java version
+[INFO]     [creator]       Launch Configuration:
+[INFO]     [creator]         $BPL_DEBUG_ENABLED           false           enables Java remote debugging support
+[INFO]     [creator]         $BPL_DEBUG_PORT              8000            configure the remote debugging port
+[INFO]     [creator]         $BPL_DEBUG_SUSPEND           false           configure whether to suspend execution until a debugger has attached
+[INFO]     [creator]         $BPL_HEAP_DUMP_PATH                          write heap dumps on error to this path
+[INFO]     [creator]         $BPL_JAVA_NMT_ENABLED        true            enables Java Native Memory Tracking (NMT)
+[INFO]     [creator]         $BPL_JAVA_NMT_LEVEL          summary         configure level of NMT, summary or detail
+[INFO]     [creator]         $BPL_JFR_ARGS                                configure custom Java Flight Recording (JFR) arguments
+[INFO]     [creator]         $BPL_JFR_ENABLED             false           enables Java Flight Recording (JFR)
+[INFO]     [creator]         $BPL_JMX_ENABLED             false           enables Java Management Extensions (JMX)
+[INFO]     [creator]         $BPL_JMX_PORT                5000            configure the JMX port
+[INFO]     [creator]         $BPL_JVM_HEAD_ROOM           0               the headroom in memory calculation
+[INFO]     [creator]         $BPL_JVM_LOADED_CLASS_COUNT  35% of classes  the number of loaded classes in memory calculation
+[INFO]     [creator]         $BPL_JVM_THREAD_COUNT        250             the number of threads in memory calculation
+[INFO]     [creator]         $JAVA_TOOL_OPTIONS                           the JVM launch flags
+
+...
+
+[INFO]     [creator]     Saving docker.io/library/demo:0.0.1-SNAPSHOT...
+[INFO]     [creator]     *** Images (702b824ba18f):
+[INFO]     [creator]           docker.io/library/demo:0.0.1-SNAPSHOT
+[INFO] 
+[INFO] Successfully built image 'docker.io/library/demo:0.0.1-SNAPSHOT'
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  15.435 s
+[INFO] Finished at: 2021-11-02T14:35:32+08:00
+[INFO] ------------------------------------------------------------------------
+----
+
+. Deploy demo.app into Kubernetes
+
+** unable to calculate memory configuration
++
+[source,yaml]
+----
+# demo.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: demo
+  name: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: demo
+          image: demo:0.0.1-SNAPSHOT
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+----
++
+[source,console,highlight=11]
+----
+$ kubectl apply -f demo-0.yaml 
+deployment.apps/demo created
+
+$ kubectl get po demo-f74fb85d9-gh28w 
+NAME                   READY   STATUS   RESTARTS      AGE
+demo-f74fb85d9-gh28w   0/1     Error    3 (34s ago)   52s
+
+$ kubectl logs demo-f74fb85d9-gh28w 
+Setting Active Processor Count to 2
+unable to calculate memory configuration
+fixed memory regions require 597169K which is greater than 256M available for allocation: -XX:MaxDirectMemorySize=10M, -XX:MaxMetaspaceSize=85169K, -XX:ReservedCodeCacheSize=240M, -Xss1M * 250 threads
+ERROR: failed to launch: exec.d: failed to execute exec.d file at path '/layers/paketo-buildpacks_bellsoft-liberica/helper/exec.d/memory-calculator': exit status 1
+----
+
+** Java VM  Garbage Collection Tuning
++
+[source,yml,highlight='23']
+----
+# demo.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: demo
+  name: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: demo
+          image: demo:0.0.1-SNAPSHOT
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxDirectMemorySize=8M -XX:MaxMetaspaceSize=64M -XX:ReservedCodeCacheSize=16M -Xss512K"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+----
++
+[source,console]
+----
+$ kubectl get po -l app=demo
+NAME                    READY   STATUS    RESTARTS   AGE
+demo-7b848bcfd6-82lms   1/1     Running   0          25s
+
+$ kubectl logs -f demo-7b848bcfd6-82lms 
+Setting Active Processor Count to 2
+Calculated JVM Memory Configuration: -Xmx43M (Total Memory: 256M, Thread Count: 250, Loaded Class Count: 12623, Headroom: 0%)
+Enabling Java Native Memory Tracking
+Adding 128 container CA certificates to JVM truststore
+Spring Cloud Bindings Enabled
+Picked up JAVA_TOOL_OPTIONS: -XX:MaxDirectMemorySize=8M -XX:MaxMetaspaceSize=64M -XX:ReservedCodeCacheSize=16M -Xss512K -Djava.security.properties=/layers/paketo-buildpacks_bellsoft-liberica/java-security-properties/java-security.properties -XX:+ExitOnOutOfMemoryError -XX:ActiveProcessorCount=2 -Xmx43M -XX:+UnlockDiagnosticVMOptions -XX:NativeMemoryTracking=summary -XX:+PrintNMTStatistics -Dorg.springframework.cloud.bindings.boot.enable=true
+
+...
+
+2021-11-02 07:34:06.238  INFO 1 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8080 (http) with context path ''
+2021-11-02 07:34:06.432  INFO 1 --- [           main] com.example.demo.DemoApplication         : Started DemoApplication in 28.591 seconds (JVM running for 32.397)
+----
++
+[source,console]
+----
+$ kubectl expose deployment demo --port 8080 --type NodePort
+service/demo exposed
+
+$ kubectl get svc -l app=demo
+NAME   TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+demo   NodePort   10.99.172.195   <none>        8080:30227/TCP   6s
+
+$ curl -i localhost:30227
+HTTP/1.1 404 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Tue, 02 Nov 2021 07:42:29 GMT
+
+{"timestamp":"2021-11-02T07:42:29.133+00:00","status":404,"error":"Not Found","path":"/"}
+----
+
+** Liveness and Readiness Probes with Spring Boot
++
+[source,yaml,highlight='24,27,32']
+----
+# demo.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: demo
+  name: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: demo
+          image: demo:0.0.1-SNAPSHOT
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxDirectMemorySize=8M -XX:MaxMetaspaceSize=64M -XX:ReservedCodeCacheSize=16M -Xss512K"
+          args:
+            - Dmanagement.endpoint.health.group.health.include=readiness,liveness
+            - Dmanagement.endpoints.web.exposure.include=health
+          livenessProbe:
+            initialDelaySeconds: 60
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+          readinessProbe:
+            initialDelaySeconds: 60
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+----
++
+[source,console]
+----
+$ kubectl get po -l app=demo
+NAME                    READY   STATUS    RESTARTS   AGE
+demo-5f9cd9c556-mwkrx   1/1     Running   0          110s
+
+$ curl -i localhost:30227/actuator/health
+HTTP/1.1 200 
+Content-Type: application/vnd.spring-boot.actuator.v3+json
+Transfer-Encoding: chunked
+Date: Tue, 02 Nov 2021 07:48:07 GMT
+
+{"status":"UP","groups":["liveness","readiness"]}
 ----
 
 == References
