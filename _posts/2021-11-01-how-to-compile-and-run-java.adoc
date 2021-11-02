@@ -261,7 +261,7 @@ The *-Xmx* option is equivalent to *-XX:MaxHeapSize*.
 +
 Shows all settings and then continues. 
 
-* XshowSettings:category
+* *-XshowSettings*:__category__
 +
 Shows settings and continues. Possible category arguments for this option include the following:
 +
@@ -319,6 +319,14 @@ Command line options that are enabled with the use of this option are not suppor
 +
 Unlocks the options that provide experimental features in the JVM. By default, this option is disabled and experimental features aren't available. 
 
+* -XX:+PrintFlagsInitial
++
+Print all the default values of all XX flags.
+
+* -XX:+PrintFlagsFinal
++
+Print all the current values to all XX flags.
+
 === Advanced Runtime Options for Java
 
 These java options control the runtime behavior of the Java HotSpot VM.
@@ -375,7 +383,7 @@ Sets a custom command or a series of semicolon-separated commands to run when an
 +
 Sets a custom command or a series of semicolon-separated commands to run when an OutOfMemoryError exception is first thrown. If the string contains spaces, then it must be enclosed in quotation marks. For an example of a command string, see the description of the *-XX:OnError* option. 
 
-* -XX:+PrintCommandLineFlags
+* *-XX:+PrintCommandLineFlags*
 +
 Enables printing of ergonomically selected JVM flags that appeared on the command line. It can be useful to know the ergonomic values set by the JVM, such as the heap space size and the selected garbage collector. By default, this option is disabled and flags aren't printed. 
 
@@ -960,17 +968,154 @@ Spring-Boot-Layers-Index: BOOT-INF/layers.idx
 
 == Java in Container
 
-=== Virtual Memory vs Heap Memory
+The linux `free` command detects memory info from `/proc/meminfo` instead of `/sys/fs/cgroup/memory/memory.stat`, that's the container total memory is always the same with the virtual machine host total memory.
 
-=== Run Java Program in Container
+[source,console]
+----
+$ free 
+              total        used        free      shared  buff/cache   available
+Mem:        4017728      726892     1148152        1212     2142684     3026308
+Swap:             0           0           0
 
-=== Spring MVC in Kubernetes
+$ docker run --rm openjdk:8 free 
+               total        used        free      shared  buff/cache   available
+Mem:         4017728      814556     1408108        1284     1795064     2943488
+Swap:              0           0           0
+
+$ docker run --rm -m 512m openjdk:11 free
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+               total        used        free      shared  buff/cache   available
+Mem:         4017728      816368     1383084        1292     1818276     2941724
+Swap:              0           0           0
+
+$ docker run --rm -m 512m openjdk:11 cat /sys/fs/cgroup/memory/memory.limit_in_bytes
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+536870912
+----
+
+=== Run Java in Container
+
+We will use the https://docs.oracle.com/en/java/javase/17/gctuning/parallel-collector1.html[parallel collector] to demostrate the java VM container support. Unless the initial and maximum heap sizes are specified on the command line, they're calculated based on the amount of memory on the machine. The default maximum heap size is one-fourth of the physical memory while the initial heap size is 1/64th of physical memory. The maximum amount of space allocated to the young generation is one third of the total heap size.
+
+[source,sh,highlight='4']
+----
+# Run Java in virtual machine host
+$ java -XX:+UseParallelGC -XshowSettings:vm -version
+VM settings:
+    Max. Heap Size (Estimated): 873.00M
+    Using VM: OpenJDK 64-Bit Server VM
+
+openjdk version "11.0.12" 2021-07-20
+OpenJDK Runtime Environment (build 11.0.12+7-post-Debian-2deb10u1)
+OpenJDK 64-Bit Server VM (build 11.0.12+7-post-Debian-2deb10u1, mixed mode, sharing)
+----
+
+==== Java VM container detection support
+
+* -XX:-UseContainerSupport
++
+The VM now provides automatic container detection support, which allows the VM to determine the amount of memory and number of processors that are available to a Java process running in docker containers. It uses this information to allocate system resources. This support is only available on Linux x64 platforms. If supported, the default for this flag is true, and container support is enabled by default. It can be disabled with -XX:-UseContainerSupport.
+
+* Use `-XX:-UseContainerSupport` to disable container support
++
+As we can see, the default java VM maximum heap size is always same with the host, and the maximum  heap size _874M_ is about one fourth of the physical memory 4G.
++
+** Run Java in container without memory limit
++
+[source,console,highlight='4']
+----
+$ docker run --rm openjdk:11 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
+VM settings:
+    Max. Heap Size (Estimated): 873.00M
+    Using VM: OpenJDK 64-Bit Server VM
+
+openjdk version "11.0.13" 2021-10-19
+OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
+OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+----
++
+** Run Java in container with memory limit
++
+[source,console,highlight='4']
+----
+$ docker run --rm -m 512m openjdk:11 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+VM settings:
+    Max. Heap Size (Estimated): 873.00M
+    Using VM: OpenJDK 64-Bit Server VM
+
+openjdk version "11.0.13" 2021-10-19
+OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
+OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+----
+
+* Use `-XX:+UseContainerSupport` to enable container support
++
+The default value for this flag `-XX:+UseContainerSupport` is true, so we can run java without it. Now, the default maximum heap size is _114M_, which is about one fourth of the memory limit 512m.
++
+** Run Java in container with memory limit 
++
+[source,console,highlight='4']
+----
+$ docker run --rm -m 512m openjdk:11 java -XX:+UseParallelGC -XshowSettings:vm -version
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+VM settings:
+    Max. Heap Size (Estimated): 114.00M
+    Using VM: OpenJDK 64-Bit Server VM
+
+openjdk version "11.0.13" 2021-10-19
+OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
+OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+----
+
+** Use `-Xlog:os+container=trace` for maximum logging of container information.
++
+[source,console,highlight='4']
+----
+$ docker run --rm -m 512m openjdk:11 java -Xlog:os+container=trace -version
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+[0.000s][trace][os,container] OSContainer::init: Initializing Container Support
+[0.001s][trace][os,container] Path to /memory.use_hierarchy is /sys/fs/cgroup/memory/memory.use_hierarchy
+[0.001s][trace][os,container] Use Hierarchy is: 1
+[0.001s][trace][os,container] Path to /memory.limit_in_bytes is /sys/fs/cgroup/memory/memory.limit_in_bytes
+[0.001s][trace][os,container] Memory Limit is: 536870912
+[0.001s][info ][os,container] Memory Limit is: 536870912
+[0.001s][trace][os,container] Path to /cpu.cfs_quota_us is /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us
+[0.001s][trace][os,container] CPU Quota is: -1
+[0.001s][trace][os,container] Path to /cpu.cfs_period_us is /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us
+[0.001s][trace][os,container] CPU Period is: 100000
+[0.001s][trace][os,container] Path to /cpu.shares is /sys/fs/cgroup/cpu,cpuacct/cpu.shares
+[0.001s][trace][os,container] CPU Shares is: 1024
+[0.001s][trace][os,container] OSContainer::active_processor_count: 2
+[0.001s][trace][os,container] OSContainer::active_processor_count (cached): 2
+[0.003s][trace][os,container] OSContainer::active_processor_count (cached): 2
+[0.039s][trace][os,container] Path to /cpu.cfs_quota_us is /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us
+[0.040s][trace][os,container] CPU Quota is: -1
+[0.040s][trace][os,container] Path to /cpu.cfs_period_us is /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us
+[0.040s][trace][os,container] CPU Period is: 100000
+[0.040s][trace][os,container] Path to /cpu.shares is /sys/fs/cgroup/cpu,cpuacct/cpu.shares
+[0.041s][trace][os,container] CPU Shares is: 1024
+[0.041s][trace][os,container] OSContainer::active_processor_count: 2
+[0.063s][trace][os,container] Path to /memory.limit_in_bytes is /sys/fs/cgroup/memory/memory.limit_in_bytes
+[0.064s][trace][os,container] Memory Limit is: 536870912
+
+...
+
+[0.112s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
+[0.112s][trace][os,container] Memory Usage is: 11456512
+[0.112s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
+[0.112s][trace][os,container] Memory Usage is: 11456512
+openjdk version "11.0.13" 2021-10-19
+OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
+OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+----
 
 == References
 
 * https://docs.oracle.com/en/java/javase/17/docs/specs/man/javac.html
 * https://docs.oracle.com/en/java/javase/17/docs/specs/man/java.html
 * https://docs.oracle.com/en/java/javase/17/docs/specs/man/jar.html
+* https://docs.oracle.com/en/java/javase/17/gctuning/parallel-collector1.html
 * https://maven.apache.org/index.html
 * https://maven.apache.org/plugins/index.html
 * https://maven.apache.org/pom.html
