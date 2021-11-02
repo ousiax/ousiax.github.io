@@ -1075,6 +1075,168 @@ $ curl -sS -o demo.zip "https://start.spring.io/starter.zip?type=maven-project&l
 $ unzip demo.zip && cd demo
 ----
 
+. Build OCI image with `Dockerfile`
++
+[source,dockerfile]
+----
+# Dockerfile
+FROM openjdk:11
+WORKDIR /app
+COPY ./target/*.jar /app/app.jar
+CMD ["java", "-jar", "/app/app.jar"]
+----
++
+[source,console]
+----
+$ mvn package && docker build . -t demo:0.0.1-SNAPSHOT 
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] --------------------------< com.example:demo >--------------------------
+[INFO] Building demo 0.0.1-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+
+. . .
+
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  14.242 s
+[INFO] Finished at: 2021-11-02T17:49:38+08:00
+[INFO] ------------------------------------------------------------------------
+Sending build context to Docker daemon  19.66MB
+Step 1/4 : FROM openjdk:11
+ ---> 40eccaa4f420
+Step 2/4 : WORKDIR /app
+ ---> Running in 69e8c68d3924
+Removing intermediate container 69e8c68d3924
+ ---> c2ce7e058438
+Step 3/4 : COPY ./target/*.jar /app/app.jar
+ ---> 8b4c2e01ea26
+Step 4/4 : CMD ["java", "-jar", "/app/app.jar"]
+ ---> Running in e4cf2f54f7ba
+Removing intermediate container e4cf2f54f7ba
+ ---> d244def82917
+Successfully built d244def82917
+Successfully tagged demo:0.0.1-SNAPSHOT
+----
++
+[source,console]
+----
+$ docker run --rm --name demo -d -p 8088:8080 demo:0.0.1-SNAPSHOT 
+d16f5962bbf5ce64eee87ca37b0e94613dcc22a93069ef95dc678dc82fb4962e
+
+$ curl -i localhost:8088/actuator/health
+HTTP/1.1 200 
+Content-Type: application/vnd.spring-boot.actuator.v3+json
+Transfer-Encoding: chunked
+Date: Tue, 02 Nov 2021 09:51:11 GMT
+
+{"status":"UP"}
+
+$ docker stop  demo0
+demo
+----
+
+. Build OCI image with multiple layers with `java -d Djarmode=layertools`
++
+To make it easier to create optimized Docker images, Spring Boot supports adding a layer index file to the jar. It provides a list of layers and the parts of the jar that should be contained within them. The list of layers in the index is ordered based on the order in which the layers should be added to the Docker/OCI image. Out-of-the-box, the following layers are supported:
++
+** dependencies (for regular released dependencies)
+** spring-boot-loader (for everything under org/springframework/boot/loader)
+** snapshot-dependencies (for snapshot dependencies)
+** application (for application classes and resources)
++
+[source,dockerfile]
+----
+$ jar -xf target/demo-0.0.1-SNAPSHOT.jar BOOT-INF/layers.idx
+
+$ cat BOOT-INF/layers.idx 
+- "dependencies":
+  - "BOOT-INF/lib/"
+- "spring-boot-loader":
+  - "org/"
+- "snapshot-dependencies":
+- "application":
+  - "BOOT-INF/classes/"
+  - "BOOT-INF/classpath.idx"
+  - "BOOT-INF/layers.idx"
+  - "META-INF/"
+----
++
+This layering is designed to separate code based on how likely it is to change between application builds. Library code is less likely to change between builds, so it is placed in its own layers to allow tooling to re-use the layers from cache. Application code is more likely to change between builds so it is isolated in a separate layer.
++
+[source,dockerfile]
+----
+# Dockerfile.layers 
+FROM openjdk:11 as builder
+WORKDIR /app
+COPY target/*.jar app.jar
+RUN java -Djarmode=layertools -jar app.jar extract
+
+FROM openjdk:11
+WORKDIR /app
+COPY --from=builder /app/dependencies/ ./
+COPY --from=builder /app/spring-boot-loader/ ./
+COPY --from=builder /app/snapshot-dependencies/ ./
+COPY --from=builder /app/application/ ./
+
+CMD ["java", "org.springframework.boot.loader.JarLauncher"]
+----
++
+[source,console]
+----
+$ docker build . -t demo:0.0.1-SNAPSHOT -f Dockerfile.layers 
+Sending build context to Docker daemon  19.66MB
+Step 1/11 : FROM openjdk:11 as builder
+ ---> 40eccaa4f420
+Step 2/11 : WORKDIR /app
+ ---> Running in e25debcc04d8
+Removing intermediate container e25debcc04d8
+ ---> 7fbb05a599db
+Step 3/11 : COPY target/*.jar app.jar
+ ---> 2a9ae411237d
+Step 4/11 : RUN java -Djarmode=layertools -jar app.jar extract
+ ---> Running in a47dcec36428
+Removing intermediate container a47dcec36428
+ ---> 5eb010818830
+Step 5/11 : FROM openjdk:11
+ ---> 40eccaa4f420
+Step 6/11 : WORKDIR /app
+ ---> Using cache
+ ---> 7fbb05a599db
+Step 7/11 : COPY --from=builder /app/dependencies/ ./
+ ---> 829945939519
+Step 8/11 : COPY --from=builder /app/spring-boot-loader/ ./
+ ---> cc00e84c914e
+Step 9/11 : COPY --from=builder /app/snapshot-dependencies/ ./
+ ---> d2171d6819c6
+Step 10/11 : COPY --from=builder /app/application/ ./
+ ---> 31ff9f69f026
+Step 11/11 : CMD ["java", "org.springframework.boot.loader.JarLauncher"]
+ ---> Running in 897e8650809c
+Removing intermediate container 897e8650809c
+ ---> 49fa23a24b42
+Successfully built 49fa23a24b42
+Successfully tagged demo:0.0.1-SNAPSHOT
+----
++
+[source,console]
+----
+$ docker run --rm --name demo -d -p 8088:8080 demo:0.0.1-SNAPSHOT
+4c6a0c6e90d0d74632a7a76e028ae1b85d0ab693903b046dfe535615f0908b43
+
+$ curl -i localhost:8088/actuator/health
+HTTP/1.1 200 
+Content-Type: application/vnd.spring-boot.actuator.v3+json
+Transfer-Encoding: chunked
+Date: Tue, 02 Nov 2021 10:03:57 GMT
+
+{"status":"UP"}
+
+$ docker stop demo
+demo
+----
+
 . Build OCI image with `mvn spring-boot:build-image`
 +
 [source,console,highlight=37]
@@ -1333,5 +1495,6 @@ Date: Tue, 02 Nov 2021 07:48:07 GMT
 * https://dzone.com/articles/best-practices-java-memory-arguments-for-container
 * https://paketo.io/docs/reference/java-reference/
 * https://spring.io/blog/2020/03/25/liveness-and-readiness-probes-with-spring-boot
+* https://docs.spring.io/spring-boot/docs/2.5.x/reference/htmlsingle/#features.container-images.layering
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/index
 * https://www.redhat.com/sysadmin/cgroups-part-one
