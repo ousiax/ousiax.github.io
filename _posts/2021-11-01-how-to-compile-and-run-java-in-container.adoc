@@ -651,7 +651,7 @@ For example, the `default lifecycle` comprises of the following phases (for a co
 
 These lifecycle phases (plus the other lifecycle phases not shown here) are executed sequentially to complete the default lifecycle. Given the lifecycle phases above, this means that when the default lifecycle is used, Maven will first validate the project, then will try to compile the sources, run those against the tests, package the binaries (e.g. jar), run integration tests against that package, verify the integration tests, install the verified package to the local repository, then deploy the installed package to a remote repository.
 
-==== Usual Command Line Calls
+=== Usual Command Line Calls
 
 You should select the phase that matches your outcome. If you want your jar, run `package`. If you want to run the unit tests, run test.
 
@@ -902,9 +902,10 @@ Date: Mon, 01 Nov 2021 10:52:48 GMT
 
 * Show `META-INF/MANIFEST.MF` of _demo-0.0.1-SNAPSHOT.jar_
 +
-[source,console,highlight=8]
+[source,console,highlight='9,15']
 ----
 $ jar -xf target/demo-0.0.1-SNAPSHOT.jar META-INF/MANIFEST.MF
+
 $ cat META-INF/MANIFEST.MF 
 Manifest-Version: 1.0
 Created-By: Maven Jar Plugin 3.2.0
@@ -918,7 +919,6 @@ Spring-Boot-Classes: BOOT-INF/classes/
 Spring-Boot-Lib: BOOT-INF/lib/
 Spring-Boot-Classpath-Index: BOOT-INF/classpath.idx
 Spring-Boot-Layers-Index: BOOT-INF/layers.idx
-
 ----
 
 == Java in Container
@@ -965,19 +965,19 @@ OpenJDK Runtime Environment (build 11.0.12+7-post-Debian-2deb10u1)
 OpenJDK 64-Bit Server VM (build 11.0.12+7-post-Debian-2deb10u1, mixed mode, sharing)
 ----
 
-=== Java VM container detection support
+=== Container detection support
 
-* -XX:-UseContainerSupport
+* The runtime advanced _UseContainerSupport_ option
 +
-The VM now provides automatic container detection support, which allows the VM to determine the amount of memory and number of processors that are available to a Java process running in docker containers. It uses this information to allocate system resources. This support is only available on Linux x64 platforms. If supported, the default for this flag is true, and container support is enabled by default. It can be disabled with -XX:-UseContainerSupport.
+The runtime `UseContainerSupport` option now provides automatic container detection support, which allows the VM to determine the amount of memory and number of processors that are available to a Java process running in docker containers. It uses this information to allocate system resources. This support is only available on Linux x64 platforms. If supported, the default for this flag is true, and container support is enabled by default. It can be disabled with _-XX:-UseContainerSupport_.
 
 * Use `-XX:-UseContainerSupport` to disable container support
 +
-As we can see, the default java VM maximum heap size is always same with the host, and the maximum  heap size _874M_ is about one fourth of the physical memory 4G.
+As we can see, the default java VM maximum heap size is always same with the host, and the maximum  heap size _873M_ is about one fourth of the physical memory 4G.
 +
 ** Run Java in container without memory limit
 +
-[source,console,highlight='4']
+[source,console,highlight='3']
 ----
 $ docker run --rm openjdk:11 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
 VM settings:
@@ -1058,8 +1058,6 @@ WARNING: Your kernel does not support swap limit capabilities or the cgroup is n
 
 ...
 
-[0.112s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
-[0.112s][trace][os,container] Memory Usage is: 11456512
 openjdk version "11.0.13" 2021-10-19
 OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
 OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
@@ -1137,30 +1135,39 @@ $ docker stop  demo0
 demo
 ----
 
-. Build OCI image with multiple layers with `java -d Djarmode=layertools`
+. Build OCI image with multiple layers with layertools
 +
+--
 To make it easier to create optimized Docker images, Spring Boot supports adding a layer index file to the jar. It provides a list of layers and the parts of the jar that should be contained within them. The list of layers in the index is ordered based on the order in which the layers should be added to the Docker/OCI image. Out-of-the-box, the following layers are supported:
-+
+
 ** dependencies (for regular released dependencies)
 ** spring-boot-loader (for everything under org/springframework/boot/loader)
 ** snapshot-dependencies (for snapshot dependencies)
 ** application (for application classes and resources)
+--
 +
-[source,dockerfile]
+[source,console]
 ----
-$ jar -xf target/demo-0.0.1-SNAPSHOT.jar BOOT-INF/layers.idx
+$ java -Djarmode=layertools \
+> -jar target/demo-0.0.1-SNAPSHOT.jar extract --destination layers
 
-$ cat BOOT-INF/layers.idx 
-- "dependencies":
-  - "BOOT-INF/lib/"
-- "spring-boot-loader":
-  - "org/"
-- "snapshot-dependencies":
-- "application":
-  - "BOOT-INF/classes/"
-  - "BOOT-INF/classpath.idx"
-  - "BOOT-INF/layers.idx"
-  - "META-INF/"
+$ tree -L 3 layers/
+layers/
+├── application
+│   ├── BOOT-INF
+│   │   ├── classes
+│   │   ├── classpath.idx
+│   │   └── layers.idx
+│   └── META-INF
+│       ├── MANIFEST.MF
+│       └── maven
+├── dependencies
+│   └── BOOT-INF
+│       └── lib
+├── snapshot-dependencies
+└── spring-boot-loader
+    └── org
+        └── springframework
 ----
 +
 This layering is designed to separate code based on how likely it is to change between application builds. Library code is less likely to change between builds, so it is placed in its own layers to allow tooling to re-use the layers from cache. Application code is more likely to change between builds so it is isolated in a separate layer.
@@ -1492,7 +1499,4 @@ Date: Tue, 02 Nov 2021 07:48:07 GMT
 * https://maven.apache.org/plugins/maven-help-plugin/usage.html
 * https://maven.apache.org/plugins/maven-dependency-plugin/usage.html
 * https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
-* https://dzone.com/articles/best-practices-java-memory-arguments-for-container
-* https://paketo.io/docs/reference/java-reference/
 * https://docs.spring.io/spring-boot/docs/2.5.x/reference/htmlsingle/#features.container-images.layering
-* https://spring.io/blog/2020/03/25/liveness-and-readiness-probes-with-spring-boot
