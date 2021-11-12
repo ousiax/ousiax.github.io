@@ -7,6 +7,354 @@
 :sectnums:
 :toc:
 
+== Users in Kubernetes
+
+All Kubernetes clusters have two categories of users: *service accounts* managed by Kubernetes, and *normal users*.
+
+It is assumed that a cluster-independent service manages normal users in the following ways:
+
+* an administrator distributing private keys
+* a user store like Keystone or Google Accounts
+* a file with a list of usernames and passwords
+
+In this regard, Kubernetes does not have objects which represent normal user accounts. Normal users cannot be added to a cluster through an API call.
+
+Even though a normal user cannot be added via an API call, _any user that presents a valid certificate signed by the cluster's certificate authority (CA) is considered authenticated_. In this configuration, Kubernetes determines the username from the common name field in the 'subject' of the cert (e.g., "/CN=bob"). From there, the role based access control (RBAC) sub-system would determine whether the user is authorized to perform a specific operation on a resource. For more details, refer to the normal users topic in https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/#normal-user[certificate request] for more details about this.
+
+In contrast, service accounts are users managed by the Kubernetes API. They are bound to specific namespaces, and created automatically by the API server or manually through API calls. Service accounts are tied to a set of credentials stored as `Secrets`, which are mounted into pods allowing _in-cluster_ processes to talk to the Kubernetes API.
+
+API requests are tied to either a normal user or a service account, or are treated as https://kubernetes.io/docs/reference/access-authn-authz/authentication/#anonymous-requests[anonymous] requests. This means every process inside or outside the cluster, from a human user typing kubectl on a workstation, to kubelets on nodes, to members of the control plane, must authenticate when making requests to the API server, or be treated as an anonymous user.
+
+When a request reaches the https://kubernetes.io/docs/concepts/overview/kubernetes-api/[Kubernetes API], it goes through several stages, illustrated in the following diagram:
+
+image::https://d33wubrfki0l68.cloudfront.net/673dbafd771491a080c02c6de3fdd41b09623c90/50100/images/docs/admin/access-control-overview.svg[75%,75%,title="Diagram of request handling steps for Kubernetes API request"]
+
+== Authentication strategies
+
+Kubernetes uses *client certificates*, *bearer tokens*, an *authenticating proxy*, or *HTTP basic auth* to authenticate API requests through authentication plugins. As HTTP requests are made to the API server, plugins attempt to associate the following attributes with the request:
+
+* `Username`: a string which identifies the end user. Common values might be `kube-admin` or `jane@example.com`.
+* `UID`: a string which identifies the end user and attempts to be more consistent and unique than username.
+* `Groups`: a set of strings, each of which indicates the user's membership in a named logical collection of users. Common values might be `system:masters` or `devops-team`.
+* `Extra fields`: a map of strings to list of strings which holds additional information authorizers may find useful.
+
+All values are opaque to the authentication system and only hold significance when interpreted by an https://kubernetes.io/docs/reference/access-authn-authz/authorization/[authorizer].
+
+You can enable multiple authentication methods at once. You should usually use at least two methods:
+
+* service account tokens for service accounts
+* at least one other method for user authentication.
+
+When multiple authenticator modules are enabled, the first module to successfully authenticate the request *_short-circuits_* evaluation. The API server does not guarantee the order authenticators run in.
+
+The `system:authenticated` group is included in the list of groups for all authenticated users.
+
+=== X509 Client Certs
+
+Client certificate authentication is enabled by passing the `--client-ca-file=SOMEFILE` option to API server. The referenced file must contain one or more certificate authorities to use to validate client certificates presented to the API server. If a client certificate is presented and verified, the *_common name_* of the subject is used as the user name for the request. As of Kubernetes 1.4, client certificates can also indicate a user's group memberships using the certificate's *_organization_* fields. To include multiple group memberships for a user, include multiple organization fields in the certificate.
+
+For example, using the `openssl` command line tool to generate a certificate signing request:
+
+[source,sh]
+openssl req -new -key jbeda.pem -out jbeda-csr.pem -subj "/CN=jbeda/O=app1/O=app2"
+
+This would create a CSR for the username "jbeda", belonging to two groups, "app1" and "app2".
+
+=== Static Token File
+
+The API server reads bearer tokens from a file when given the `--token-auth-file=SOMEFILE` option on the command line. Currently, tokens last indefinitely, and the token list cannot be changed without restarting API server.
+
+The token file is a csv file with a minimum of 3 columns: token, user name, user uid, followed by optional group names.
+
+[NOTE]
+====
+If you have more than one group the column must be double quoted e.g.
+
+[source,csv]
+token,user,uid,"group1,group2,group3"
+====
+
+* *Putting a Bearer Token in a Request*
++
+When using bearer token authentication from an http client, the API server expects an `Authorization` header with a value of `Bearer THETOKEN`. The bearer token must be a character sequence that can be put in an HTTP header value using no more than the encoding and quoting facilities of HTTP. For example: if the bearer token is `31ada4fd-adec-460c-809a-9e56ceb75269` then it would appear in an HTTP header as shown below.
++
+[source,text]
+Authorization: Bearer 31ada4fd-adec-460c-809a-9e56ceb75269
+
+=== Service Account Tokens
+
+A service account is an automatically enabled authenticator that uses signed bearer tokens to verify requests. The plugin takes two optional flags:
+
+* `--service-account-key-file` A file containing a PEM encoded key for signing bearer tokens. If unspecified, the API server's TLS private key will be used.
+* `--service-account-lookup` If enabled, tokens which are deleted from the API will be revoked.
+
+Service accounts are usually created automatically by the API server and associated with pods running in the cluster through the `ServiceAccount` https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/[Admission Controller]. Bearer tokens are mounted into pods at well-known locations, and allow *_in-cluster_* processes to talk to the API server. Accounts may be explicitly associated with pods using the `serviceAccountName` field of a `PodSpec`.
+
+Service account bearer tokens are perfectly valid to use *_outside the cluster_* and can be used to create identities for long standing jobs that wish to talk to the Kubernetes API. To manually create a service account, use the `kubectl create serviceaccount (NAME)` command. This creates a service account in the current namespace and an associated secret.
+
+[source,console]
+----
+$ kubectl create serviceaccount jenkins
+serviceaccount/jenkins created
+----
+
+Check an associated secret:
+
+[source,console]
+----
+$ kubectl get serviceaccounts jenkins -oyaml
+----
+
+[source,yml]
+----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # ...
+secrets:
+- name: jenkins-token-z792q
+----
+
+The created secret holds the public CA of the API server and a signed JSON Web Token (JWT).
+
+[source,console]
+----
+$ kubectl get secrets jenkins-token-z792q -oyaml
+----
+
+[source,yml]
+----
+apiVersion: v1
+data:
+  ca.crt: (APISERVER'S CA BASE64 ENCODED)
+  namespace: ZGVmYXVsdA==
+  token: (BEARER TOKEN BASE64 ENCODED)
+kind: Secret
+metadata:
+  # ...
+type: kubernetes.io/service-account-token
+----
+
+NOTE: Values are base64 encoded because secrets are always base64 encoded. 
+
+The signed JWT can be used as a bearer token to authenticate as the given service account. _Normally these secrets are mounted into pods for in-cluster access to the API server, but can be used from outside the cluster as well._
+
+[source,sh]
+----
+token=$(kubectl get secrets jenkins-token-z792q -ojsonpath='{.data.token}' | base64 -d)
+----
+
+[source,sh]
+----
+echo $token cut -d '.' -f2 \
+    | base64 -d \
+    | jq
+----
+
+[source,console]
+----
+{
+  "iss": "kubernetes/serviceaccount",
+  "kubernetes.io/serviceaccount/namespace": "default",
+  "kubernetes.io/serviceaccount/secret.name": "jenkins-token-z792q",
+  "kubernetes.io/serviceaccount/service-account.name": "jenkins",
+  "kubernetes.io/serviceaccount/service-account.uid": "7053145a-d791-48e1-829c-8d8852d36e4f",
+  "sub": "system:serviceaccount:default:jenkins"
+}
+----
+
+[source,sh]
+----
+curl -k https://localhost:6443/api/v1/namespaces/default \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/yaml"
+----
+
+[source,console,highlight=2]
+----
+apiVersion: v1
+code: 403
+details:
+  kind: namespaces
+  name: default
+kind: Status
+message: 'namespaces "default" is forbidden: User "system:serviceaccount:default:jenkins"
+  cannot get resource "namespaces" in API group "" in the namespace "default"'
+metadata: {}
+reason: Forbidden
+status: Failure
+----
+
+Service accounts authenticate with the username `system:serviceaccount:(NAMESPACE):(SERVICEACCOUNT)`, and are assigned to the groups `system:serviceaccounts and system:serviceaccounts:(NAMESPACE)`.
+
+WARNING: Because service account tokens are stored in secrets, any user with read access to those secrets can authenticate as the service account. Be cautious when granting permissions to service accounts and read capabilities for secrets.
+
+== Authorization Overview
+
+In Kubernetes, you must be authenticated (logged in) before your request can be authorized (granted permission to access).
+
+Kubernetes expects attributes that are common to REST API requests. This means that Kubernetes authorization works with existing organization-wide or cloud-provider-wide access control systems which may handle other APIs besides the Kubernetes API.
+
+=== Determine Whether a Request is Allowed or Denied
+
+Kubernetes authorizes API requests using the API server. It evaluates all of the request attributes against all policies and allows or denies the request. All parts of an API request must be allowed by some policy in order to proceed. This means that permissions are denied by default.
+
+(Although Kubernetes uses the API server, access controls and policies that depend on specific fields of specific kinds of objects are handled by *Admission Controllers*.)
+
+When multiple authorization modules are configured, each is checked in sequence. If any authorizer approves or denies a request, that decision is immediately returned and no other authorizer is consulted. If all modules have no opinion on the request, then the request is denied. A deny returns an HTTP status code 403.
+
+=== Review Your Request Attributes
+
+Kubernetes reviews only the following API request attributes:
+
+* *user* - The `user` string provided during authentication.
+* *group* - The list of group names to which the authenticated user belongs.
+* *extra* - A map of arbitrary string keys to string values, provided by the authentication layer.
+* *API* - Indicates whether the request is for an API resource.
+* *Request path* - Path to miscellaneous non-resource endpoints like `/api` or `/healthz`.
+* *API request verb* - API verbs like `get`, `list`, `create`, `update`, `patch`, `watch`, `delete`, and `deletecollection` are used for resource requests.
+* *HTTP request verb* - Lowercased HTTP methods like `get`, `post`, `put`, and `delete` are used for non-resource requests.
+* *Resource* - The ID or name of the resource that is being accessed (for resource requests only) -- For resource requests using `get`, `update`, `patch`, and `delete` verbs, you must provide the resource name.
+* *Subresource* - The subresource that is being accessed (for resource requests only).
+* *Namespace* - The namespace of the object that is being accessed (for namespaced resource requests only).
+* *API group* - The API Group being accessed (for resource requests only). An empty string designates the core https://kubernetes.io/docs/reference/using-api/#api-groups[API group].
+
+=== Determine the Request Verb 
+
+*Non-resource requests* Requests to endpoints other than `/api/v1/...` or `/apis/<group>/<version>/...` are considered "non-resource requests", and use the lower-cased HTTP method of the request as the verb. For example, a GET request to endpoints like `/api` or `/healthz` would use `get` as the verb.
+
+*Resource requests* To determine the request verb for a resource API endpoint, review the HTTP verb used and whether or not the request acts on an individual resource or a collection of resources:
+
+[%header,cols="1,7"]
+|===
+|HTTP verb
+|request verb
+
+|POST
+|create
+
+|GET, HEAD
+|get (for individual resources), list (for collections, including full object content), watch (for watching an individual resource or collection of resources)
+
+|PUT
+|update
+
+|PATCH
+|patch
+
+|DELETE
+|delete (for individual resources), deletecollection (for collections)
+|===
+
+Kubernetes sometimes checks authorization for additional permissions using specialized verbs. For example:
+
+* RBAC
++
+`bind` and `escalate` verbs on `roles` and `clusterroles` resources in the `rbac.authorization.k8s.io` API group.
+
+* Authentication
++
+`impersonate` verb on `users`, `groups`, and `serviceaccounts` in the `core` API group, and the `userextras` in the `authentication.k8s.io` API group.
+
+=== Authorization Modes
+
+The Kubernetes API server may authorize a request using one of several authorization modes:
+
+* *Node* - A special-purpose authorization mode that grants permissions to kubelets based on the pods they are scheduled to run.
+
+* *ABAC* - Attribute-based access control (ABAC) defines an access control paradigm whereby access rights are granted to users through the use of policies which combine attributes together. The policies can use any type of attributes (user attributes, resource attributes, object, environment attributes, etc).
+
+* *RBAC* - Role-based access control (RBAC) is a method of regulating access to computer or network resources based on the roles of individual users within an enterprise. In this context, access is the ability of an individual user to perform a specific task, such as view, create, or modify a file.
+** When specified RBAC (Role-Based Access Control) uses the `rbac.authorization.k8s.io` API group to drive authorization decisions, allowing admins to dynamically configure permission policies through the Kubernetes API.
+** To enable RBAC, start the apiserver with `--authorization-mode=RBAC`.
+
+* *Webhook* - A WebHook is an HTTP callback: an HTTP POST that occurs when something happens; a simple event-notification via HTTP POST. A web application implementing WebHooks will POST a message to a URL when certain things happen. 
+
+==== Checking API Access
+
+kubectl provides the `auth can-i` subcommand for quickly querying the API authorization layer. The command uses the `SelfSubjectAccessReview` API to determine if the current user can perform a given action, and works regardless of the authorization mode used.
+
+[source,sh]
+kubectl auth can-i create deployments --namespace dev
+
+The output is similar to this:
+
+[source,console]
+yes
+
+[source,sh]
+kubectl auth can-i create deployments --namespace prod
+
+The output is similar to this:
+
+[source,console]
+no
+
+Administrators can combine this with https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation[user impersonation] to determine what action other users can perform.
+
+[source,sh]
+kubectl auth can-i list secrets --namespace dev --as dave
+
+The output is similar to this:
+
+[source,console]
+no
+
+Similarly, to check whether a Service Account named `dev-sa` in Namespace `dev` can list Pods in the Namespace `target`:
+
+[source,sh]
+----
+kubectl auth can-i list pods \
+	--namespace target \
+	--as system:serviceaccount:dev:dev-sa
+----
+
+The output is similar to this:
+
+[source,console]
+yes
+
+`SelfSubjectAccessReview` is part of the `authorization.k8s.io` API group, which exposes the API server authorization to external services. Other resources in this group include:
+
+* `SubjectAccessReview` - Access review for any user, not only the current one. Useful for delegating authorization decisions to the API server. For example, the kubelet and extension API servers use this to determine user access to their own APIs.
+* `LocalSubjectAccessReview` - Like `SubjectAccessReview` but restricted to a specific namespace.
+* `SelfSubjectRulesReview` - A review which returns the set of actions a user can perform within a namespace. Useful for users to quickly summarize their own access, or for UIs to hide/show actions.
+
+These APIs can be queried by creating normal Kubernetes resources, where the response "status" field of the returned object is the result of the query.
+
+[source,sh]
+----
+kubectl create -f - -o yaml << EOF
+apiVersion: authorization.k8s.io/v1
+kind: SelfSubjectAccessReview
+spec:
+  resourceAttributes:
+    group: apps
+    resource: deployments
+    verb: create
+    namespace: dev
+EOF
+----
+
+The generated `SelfSubjectAccessReview` is:
+
+[source,yaml]
+----
+apiVersion: authorization.k8s.io/v1
+kind: SelfSubjectAccessReview
+metadata:
+  creationTimestamp: null
+spec:
+  resourceAttributes:
+    group: apps
+    namespace: dev
+    resource: deployments
+    verb: create
+status:
+  allowed: true
+----
+
+
 == Accessing for the first time with `kubectl`
 
 When accessing the Kubernetes API for the first time, we suggest using the Kubernetes CLI, `kubectl`.
@@ -289,14 +637,11 @@ The supported formats for the name segment of the URL are:
 * To access the Elasticsearch service endpoint `_search?q=user:kimchy`, you would use: `http://104.197.5.247/api/v1/namespaces/kube-system/services/elasticsearch-logging/proxy/_search?q=user:kimchy`
 * To access the Elasticsearch cluster health information `_cluster/health?pretty=true`, you would use: `https://104.197.5.247/api/v1/namespaces/kube-system/services/elasticsearch-logging/proxy/_cluster/health?pretty=true`
 
-== Configure Service Accounts for Pods
-
-A service account provides an identity for processes that run in a Pod.
-
-When you (a human) access the cluster (for example, using `kubectl`), you are authenticated by the apiserver as a particular User Account (currently this is usually _admin_, unless your cluster administrator has customized your cluster). Processes in containers inside pods can also contact the apiserver. When they do, they are authenticated as a particular Service Account (for example, _default_).
-
 == References
 
+* https://kubernetes.io/docs/reference/access-authn-authz/authentication/
+* https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
+* https://kubernetes.io/docs/reference/access-authn-authz/authorization/
 * https://kubernetes.io/docs/reference/kubectl/cheatsheet/
 * https://kubernetes.io/docs/reference/kubectl/overview/
 * https://github.com/ahmetb/kubectx/blob/master/kubens
