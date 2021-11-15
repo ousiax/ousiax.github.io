@@ -56,9 +56,80 @@ Client certificate authentication is enabled by passing the `--client-ca-file=SO
 For example, using the `openssl` command line tool to generate a certificate signing request:
 
 [source,sh]
-openssl req -new -key jbeda.pem -out jbeda-csr.pem -subj "/CN=jbeda/O=app1/O=app2"
+----
+openssl req \
+    -nodes -newkey rsa -keyout jbeda.pem \
+    -out jbeda-csr.pem -subj "/CN=jbeda/O=app1/O=app2"
+----
 
 This would create a CSR for the username "jbeda", belonging to two groups, "app1" and "app2".
+
+[source,bash]
+----
+kubectl apply -f - << EOF
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: jbeda
+spec:
+  username: jbeda
+  groups: ["app1", "app2"]
+  request: $(base64 <(cat jbeda-csr.pem) | tr -d '\n')
+  usages: ["digital signature", "key encipherment", "client auth"]
+  expirationSeconds: 7200
+  signerName: kubernetes.io/kube-apiserver-client
+EOF
+----
+
+[source,sh]
+kubectl certificate approve jbeda
+
+[source,sh]
+kubectl get csr jbeda -ojsonpath='{.status.certificate}' | base64 -d > jbeda.crt
+
+[source,sh]
+----
+kubectl config set-cluster kubernetes \
+    --kubeconfig jbeda.config \
+    --server $(kubectl config view --minify | grep server | awk '{print $NF}') \
+    --certificate-authority /etc/kubernetes/pki/ca.crt \
+    --embed-certs
+
+kubectl config set-credentials jbeda \
+    --kubeconfig jbeda.config \
+    --user jbeda \
+    --client-key jbeda.pem \
+    --client-certificate jbeda.crt \
+    --embed-certs
+
+kubectl config set-context \
+    --kubeconfig jbeda.config \
+    jbeda@kubernetes \
+    --cluster kubernetes \
+    --user jbeda
+
+kubectl config use-context jbeda@kubernetes --kubeconfig jbeda.config
+----
+
+[source,console]
+----
+$ kubectl get ns --kubeconfig jbeda.config 
+Error from server (Forbidden): namespaces is forbidden: User "jbeda" cannot list resource "namespaces" in API group "" at the cluster scope
+
+$ kubectl create clusterrolebinding jbeda-cluster-view --clusterrole=view --user jbeda
+clusterrolebinding.rbac.authorization.k8s.io/jbeda-cluster-view created
+
+$ kubectl get ns --kubeconfig jbeda.config 
+NAME              STATUS   AGE
+default           Active   54d
+ingress-nginx     Active   10d
+kube-node-lease   Active   54d
+kube-public       Active   54d
+kube-system       Active   54d
+
+$ kubectl delete clusterrolebindings jbeda-cluster-view 
+clusterrolebinding.rbac.authorization.k8s.io "jbeda-cluster-view" deleted
+----
 
 === Static Token File
 
