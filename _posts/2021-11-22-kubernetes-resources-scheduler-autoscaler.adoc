@@ -1,4 +1,4 @@
-= Kubernetes Cluster Autoscaler
+= Kubernetes Resources, Scheduler and Autoscaler
 :page-layout: post
 :page-categories: ['kubernetes']
 :page-tags: ['kubernetes', 'resources', 'requests', 'limits']
@@ -429,6 +429,155 @@ As a result, kubelet ranks and evicts pods in the following order:
 
 NOTE: The kubelet does not use the pod's QoS class to determine the eviction order. You can use the QoS class to estimate the most likely pod eviction order when reclaiming resources like memory. QoS does not apply to EphemeralStorage requests, so the above scenario will not apply if the node is, for example, under `DiskPressure`. 
 
+== Kubernetes Autoscaling
+
+:horizontal-pod-autoscale: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+:vertical-pod-autoscaler: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
+:cluster-autoscaler: https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler
+
+The foundation of building cost-optimized applications is spreading the cost-saving culture across teams. Beyond moving cost discussions to the beginning of the development process, this approach forces you to better understand the environment that your applications are running in—in this context, the GKE environment.
+
+image::/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-approach.svg[,75%,75%]
+
+In order to achieve low cost and application stability, you must correctly set or tune some features and configurations (such as autoscaling, machine types, and region selection). Another important consideration is your workload type because, depending on the workload type and your application's requirements, you must apply different configurations in order to further lower your costs. Finally, you must monitor your spending and create guardrails so that you can enforce best practices early in your development cycle.
+
+Kubernetes has three scalability tools. Two of these, the {horizontal-pod-autoscale}[Horizontal pod autoscaler] (*HPA*) and the {vertical-pod-autoscaler}[Vertical pod autoscaler] (*VPA*), function on the application abstraction layer. The {cluster-autoscaler}[cluster autoscaler] (*CA*) works on the infrastructure layer.
+
+image::/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-scenarios.svg[,35%,35%]
+
+=== Horizontal Pod Autoscaler
+
+{horizontal-pod-autoscale}[Horizontal Pod Autoscaler] (HPA) is meant for scaling applications that are running in Pods based on metrics that express load. You can configure either CPU utilization or other custom metrics (for example, requests per second). In short, HPA adds and deletes Pods replicas, and it is best suited for stateless workers that can spin up quickly to react to usage spikes, and shut down gracefully to avoid workload instability.
+
+image::/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-threshold.svg[,75%,75%]
+
+Even if you guarantee that your application can start up in a matter of seconds, this extra time is required when {cluster-autoscaler}[Cluster Autoscaler] adds new nodes to your cluster or when Pods are throttled due to lack of resources.
+
+The following are best practices for enabling HPA in your application:
+
+* Size your application correctly by setting appropriate *resource requests and limits*.
+* Set your target utilization to *reserve a buffer* that can handle requests during a spike.
+* Make sure your application *starts as quickly as possible* and *shuts down according to Kubernetes expectations*.
+* Set meaningful *readiness and liveness probes*.
+* Make sure that your *Metrics Server* is always up and running.
+* Inform clients of your application that they must consider implementing *exponential retries for handling transient issues*.
+
+Make sure your applications are shutting down according to Kubernetes expectations:
+
+* Don't stop accepting new requests right after `SIGTERM`.
++
+Your application must not stop immediately, but instead finish all requests that are in flight and still listen to incoming connections that arrive after the Pod termination begins. It might take a while for Kubernetes to update all **kube-proxie**s and load balancers. If your application terminates before these are updated, some requests might cause errors on the client side.
+
+* If your application doesn't follow the preceding practice, use the `preStop` hook.
++
+Most programs don't stop accepting requests right away. However, if you're using third-party code or are managing a system that you don't have control over, such as nginx, the preStop hook is a good option for triggering a graceful shutdown without modifying the application. One common strategy is to execute, in the preStop hook, a sleep of a few seconds to postpone the SIGTERM. This gives Kubernetes extra time to finish the Pod deletion process, and reduces connection errors on the client side.
+
+* Handle `SIGTERM` for cleanups.
++
+If your application must clean up or has an in-memory state that must be persisted before the process terminates, now is the time to do it. Different programming languages have different ways to catch this signal, so find the right way in your language.
+
+* Configure `terminationGracePeriodSeconds` to fit your application needs.
++
+Some applications need more than the default 30 seconds to finish. In this case, you must specify terminationGracePeriodSeconds. High values might increase time for node upgrades or rollouts, for example. Low values might not allow enough time for Kubernetes to finish the Pod termination process. Either way, we recommend that you set your application's termination period to less than 10 minutes because Cluster Autoscaler honors it for 10 minutes only.
+
+* If your application uses container-native load balancing, start failing your `readiness probe` when you receive a `SIGTERM`.
++
+This action directly signals load balancers to stop forwarding new requests to the backend Pod. Depending on the race between health check configuration and endpoint programming, the backend Pod might be taken out of traffic earlier.
+
+=== Vertical Pod Autoscaler
+
+Unlike HPA, which adds and deletes Pod replicas for rapidly reacting to usage spikes, Vertical Pod Autoscaler (VPA) observes Pods over time and gradually finds the optimal CPU and memory resources required by the Pods. Setting the right resources is important for stability and cost efficiency. If your Pod resources are too small, your application can either be throttled or it can fail due to out-of-memory errors. If your resources are too large, you have waste and, therefore, larger bills. VPA is meant for stateless and stateful workloads not handled by HPA or when you don't know the proper Pod resource requests.
+
+image::/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-vpa.svg[,45%,45%]
+
+VPA can work in three different modes:
+
+* *Off:*.
++
+In this mode, also known as recommendation mode, VPA does not apply any change to your Pod. The recommendations are calculated and can be inspected in the VPA object.
+
+* *Initial*:
++
+VPA assigns resource requests only at Pod creation and never changes them later.
+
+* *Auto*:
++
+VPA updates CPU and memory requests during the life of a Pod. That means, the Pod is deleted, CPU and memory are adjusted, and then a new Pod is started.
+
+If you plan to use VPA, the best practice is to start with the `Off` mode for pulling VPA recommendations. Make sure it's running for 24 hours, ideally one week or more, before pulling recommendations. Then, only when you feel confident, consider switching to either `Initial` or `Auto` mode.
+
+Follow these best practices for enabling VPA, either in `Initial` or `Auto` mode, in your application:
+
+* Don't use VPA either `Initial` or `Auto` mode if you need to handle sudden spikes in traffic. Use HPA instead.
+* Make sure your application can grow vertically.
+Set minimum and maximum container sizes in the VPA objects to avoid the autoscaler making significant changes when your application is not receiving traffic.
+* Don't make abrupt changes, such as dropping the Pod's replicas from 30 to 5 all at once. This kind of change requires a new deployment, new label set, and new VPA object.
+* Make sure your application starts as quickly as possible and shuts down according to Kubernetes expectations.
+* Set meaningful readiness and liveness probes.
+* Make sure that your Metrics Server is always up and running.
+* Inform clients of your application that they must consider implementing exponential retries for handling transient issues.
+* Consider using node auto-provisioning along with VPA so that if a Pod gets large enough to fit into existing machine types, Cluster Autoscaler provisions larger machines to fit the new Pod.
+
+Whether you are considering using `Auto` mode, make sure you also follow these practices:
+
+* Make sure your application can be restarted while receiving traffic.
+* Add Pod Disruption Budget (PDB) to control how many Pods can be taken down at the same time.
+
+=== Cluster Autoscaler
+
+Cluster Autoscaler (CA) automatically resizes the underlying computer infrastructure. CA provides nodes for Pods that don't have a place to run in the cluster and removes under-utilized nodes. CA is optimized for the cost of infrastructure. In other words, if there are two or more node types in the cluster, CA chooses the least expensive one that fits the given demand.
+
+*Unlike HPA and VPA, CA doesn't depend on load metrics. Instead, it's based on scheduling simulation and declared Pod requests.* It's a best practice to enable CA whenever you are using either HPA or VPA. This practice ensures that if your Pod autoscalers determine that you need more capacity, your underlying infrastructure grows accordingly.
+
+image::/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-ca.svg[,75%,75%]
+
+As these diagrams show, CA automatically adds and removes compute capacity to handle traffic spikes and save you money when your customers are sleeping. It is a best practice to define *Pod Disruption Budget* (PDB) for all your applications. It is particularly important at the CA scale-down phase when PDB controls the number of replicas that can be taken down at one time.
+
+https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#what-types-of-pods-can-prevent-ca-from-removing-a-node[Certain Pods cannot be restarted by any autoscaler] when they cause some temporary disruption, so the node they run on can't be deleted. For example, system Pods (such as `metrics-server` and `kube-dns`), and Pods using local storage won't be restarted. However, you can change this behavior by defining **PDB**s for these system Pods and by setting `"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"` annotation for Pods using local storage that are safe for the autoscaler to restart. Moreover, consider running long-lived Pods that can't be restarted on a separate node pool, so they don't block scale-down of other nodes. Finally, learn how to analyze CA events in the logs to understand why a particular scaling activity didn't happen as expected.
+
+The following is a summary of the best practices for enabling Cluster Autoscaler in your cluster:
+
+* Use either HPA or VPA to autoscale your workloads.
+* Make sure you are following the best practices described in the chosen Pod autoscaler.
+* Size your application correctly by setting appropriate resource requests and limits or use VPA.
+* Define a PDB for your applications.
+* Define PDB for system Pods that might block your scale-down. For example, kube-dns. To avoid temporary disruption in your cluster, don't set PDB for system Pods that have only 1 replica (such as metrics-server).
+* Run short-lived Pods and Pods that can be restarted in separate node pools, so that long-lived Pods don't block their scale-down.
+* Avoid over-provisioning by configuring idle nodes in your cluster. For that, you must know your minimum capacity—for many companies it's during the night—and set the minimum number of nodes in your node pools to support that capacity.
+* If you need extra capacity to handle requests during spikes, use pause Pods, which are discussed in [](Autoscaler and over-provisioning).
+
+However, as noted in the Horizontal Pod Autoscaler section, scale-ups might take some time due to infrastructure provisioning. To visualize this difference in time and possible scale-up scenarios, consider the following image.
+
+image::/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-scale-up.svg[,100%,100%]
+
+When your cluster has enough room for deploying new Pods, one of the *Workload scale-up scenarios* is triggered. Meaning, if an existing node never deployed your application, it must download its container images before starting the Pod (scenario 1). However, if the same node must start a new Pod replica of your application, the total scale-up time decreases because no image download is required (scenario 2).
+
+When your cluster doesn't have enough room for deploying new Pods, one of the *Infrastructure and Workload scale-up scenarios* is triggered. This means that Cluster Autoscaler must provision new nodes and start the required software before approaching your application (scenario 1). If you use node auto-provisioning, depending on the workload scheduled, new node pools might be required. In this situation, the total scale-up time increases because Cluster Autoscaler has to provision nodes and node pools (scenario 2).
+
+For scenarios where new infrastructure is required, don't squeeze your cluster too much—meaning, you must over-provision but only for reserving the necessary buffer to handle the expected peak requests during scale-ups.
+
+There are two main strategies for this kind of over-provisioning:
+
+* *Fine-tune the HPA utilization target*. The following equation is a simple and safe way to find a good CPU target:
++
+[source,console]
+(1 - buff)/(1 + perc)
++
+--
+* _buff_ is a safety buffer that you can set to avoid reaching 100% CPU. This variable is useful because reaching 100% CPU means that the latency of request processing is much higher than usual.
+
+* _perc_ is the percentage of traffic growth you expect in two or three minutes.
+--
++
+For example, if you expect a growth of 30% in your requests and you want to avoid reaching 100% of CPU by defining a 10% safety buffer, your formula would look like this:
++
+[source,console]
+(1 - 0.1)/(1 + 0.3) = 0.69
+
+* *Configure pause Pods*. There is no way to configure Cluster Autoscaler to spin up nodes upfront. Instead, you can set an HPA utilization target to provide a buffer to help handle spikes in load. However, if you expect large bursts, setting a small HPA utilization target might not be enough or might become too expensive.
++
+An alternative solution for this problem is to use https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-can-i-configure-overprovisioning-with-cluster-autoscaler[pause Pods]. Pause Pods are low-priority deployments that do nothing but reserve room in your cluster. Whenever a high-priority Pod is scheduled, pause Pods get evicted and the high-priority Pod immediately takes their place. The evicted pause Pods are then rescheduled, and if there is no room in the cluster, Cluster Autoscaler spins up new nodes for fitting them. It's a best practice to have only a single pause Pod per node. For example, if you are using 4 CPU nodes, configure the pause Pods' CPU request with around 3200m.
+
 == References
 
 * https://kubernetes.io/docs/concepts/overview/components/
@@ -439,7 +588,5 @@ NOTE: The kubelet does not use the pod's QoS class to determine the eviction ord
 * https://kubernetes.io/docs/concepts/scheduling-eviction/
 * https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
 * https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler
-* https://www.replex.io/blog/5-ways-to-manage-your-kubernetes-resource-usage
-* https://www.replex.io/blog/kubernetes-in-production-best-practices-for-cluster-autoscaler-hpa-and-vpa
-* https://www.replex.io/blog/7-things-you-can-do-today-to-reduce-aws-kubernetes-costs
 * https://cloud.google.com/architecture/best-practices-for-running-cost-effective-kubernetes-applications-on-gke
+* https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-terminating-with-grace
