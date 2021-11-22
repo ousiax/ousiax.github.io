@@ -1,0 +1,445 @@
+= Kubernetes Cluster Autoscaler
+:page-layout: post
+:page-categories: ['kubernetes']
+:page-tags: ['kubernetes', 'resources', 'requests', 'limits']
+:page-date: 2021-11-22 09:53:27 +0800
+:page-revdate: 2021-11-22 09:53:27 +0800
+:sectnums:
+:toc:
+
+== Kubernetes Components
+
+A Kubernetes cluster consists of a set of worker machines, called *nodes*, that run containerized applications. Every cluster has at least one worker node.
+
+The worker node(s) host the *Pods* that are the components of the application workload. The *control plane* manages the worker nodes and the Pods in the cluster. In production environments, the control plane usually runs across multiple computers and a cluster usually runs multiple nodes, providing fault-tolerance and high availability.
+
+image::https://d33wubrfki0l68.cloudfront.net/2475489eaf20163ec0f54ddc1d92aa8d4c87c96b/e7c81/images/docs/components-of-kubernetes.svg['The components of a Kubernetes cluster', 90%,90%]
+
+== Resources for Containers
+
+When you specify a Pod, you can optionally specify how much of each resource a *Container* needs. The most common resources to specify are *CPU* and *memory* (RAM); there are others.
+
+When you specify the *resource request* for Containers in a Pod, the scheduler uses this information to decide which node to place the Pod on. When you specify a *resource limit* for a Container, the kubelet enforces those limits so that the running container is not allowed to use more of that resource than the limit you set. The kubelet also reserves at least the request amount of that system resource specifically for that container to use.
+
+=== Resource requests and limits
+
+If the node where a Pod is running has enough of a resource available, it's possible (and allowed) for a container to use more resource than its `request` for that resource specifies. However, a container is not allowed to use more than its resource `limit`.
+
+`CPU` and `memory` are each a *resource type*. A resource type has a base unit. CPU represents compute processing and is specified in units of *Kubernetes CPUs*. Memory is specified in units of bytes. `Huge pages` are a Linux-specific feature where the node kernel allocates blocks of memory that are much larger than the default page size.
+
+* *Meaning of CPU*
++
+Limits and requests for CPU resources are measured in cpu units. One cpu, in Kubernetes, is equivalent to *1 vCPU/Core* for cloud providers and *1 hyperthread* on bare-metal Intel processors.
++
+Fractional requests are allowed. When you define a container with `spec.containers[].resources.requests.cpu` set to `0.5`, you are requesting half as much CPU time compared to if you asked for 1.0 CPU. For CPU resource units, the expression `0.1` is equivalent to the expression `100m`, which can be read as "one hundred millicpu". Some people say "one hundred millicores", and this is understood to mean the same thing. A request with a decimal point, like 0.1, is converted to 100m by the API, and precision finer than 1m is not allowed. For this reason, the form 100m might be preferred.
++
+CPU is always requested as an absolute quantity, never as a relative quantity; 0.1 is the same amount of CPU on a single-core, dual-core, or 48-core machine.
+
+* *Meaning of memory*
++
+Limits and requests for memory are measured in bytes. You can express memory as a plain integer or as a fixed-point number using one of these suffixes: E, P, T, G, M, k. You can also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki.
+
+Each Container of a Pod can specify one or more of the following:
+
+[source,yaml]
+----
+spec.containers[].resources.limits.cpu
+spec.containers[].resources.limits.memory
+spec.containers[].resources.limits.hugepages-<size>
+spec.containers[].resources.requests.cpu
+spec.containers[].resources.requests.memory
+spec.containers[].resources.requests.hugepages-<size>
+----
+
+Although requests and limits can only be specified on individual Containers, it is convenient to talk about Pod resource requests and limits. A Pod resource request/limit for a particular resource type is the sum of the resource requests/limits of that type for each Container in the Pod.
+
+=== Local ephemeral storage
+
+*FEATURE STATE*: Kubernetes v1.10 [beta]
+
+Nodes have local ephemeral storage, backed by locally-attached writeable devices or, sometimes, by RAM. "Ephemeral" means that there is no long-term guarantee about durability.
+
+Pods use ephemeral local storage for scratch space, caching, and for logs. The kubelet can provide scratch space to Pods using local ephemeral storage to mount `emptyDir` volumes into containers.
+
+The kubelet also uses this kind of storage to hold node-level container logs, container images, and the writable layers of running containers.
+
+You can use ephemeral-storage for managing local ephemeral storage. Each Container of a Pod can specify one or more of the following:
+
+[source,yaml]
+----
+spec.containers[].resources.limits.ephemeral-storage
+spec.containers[].resources.requests.ephemeral-storage
+----
+
+Limits and requests for ephemeral-storage are measured in bytes. You can express storage as a plain integer or as a fixed-point number using one of these suffixes: E, P, T, G, M, K. You can also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki. 
+
+If the kubelet is managing local ephemeral storage as a resource, then the kubelet measures storage use in:
+
+* `emptyDir` volumes, except `tmpfs` emptyDir volumes
+* directories holding node-level logs
+* writeable container layers
+
+If a Pod is using more ephemeral storage than you allow it to, the kubelet sets an eviction signal that triggers Pod eviction.
+
+== Quality of Service for Pods
+
+When Kubernetes creates a Pod it assigns one of these QoS classes to the Pod: _Guaranteed_, _Burstable_, _BestEffort_.
+
+For a Pod to be given a QoS class of *Guaranteed*:
+
+* Every Container in the Pod must have a memory limit and a memory request.
+* For every Container in the Pod, the memory limit must equal the memory request.
+* Every Container in the Pod must have a CPU limit and a CPU request.
+* For every Container in the Pod, the CPU limit must equal the CPU request.
+
+These restrictions apply to init containers and app containers equally.
+
+NOTE: If a Container specifies its own memory limit, but does not specify a memory request, Kubernetes automatically assigns a memory request that matches the limit. Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, Kubernetes automatically assigns a CPU request that matches the limit. 
+
+A Pod is given a QoS class of *Burstable* if:
+
+* The Pod does not meet the criteria for QoS class Guaranteed.
+* At least one Container in the Pod has a memory or CPU request.
+
+For a Pod to be given a QoS class of *BestEffort*, the Containers in the Pod must not have any memory or CPU limits or requests.
+
+== Pod Disruptions
+
+Pods do not disappear until someone (a person or a controller) destroys them, or there is an unavoidable hardware or system software error.
+
+We call these unavoidable cases *involuntary disruptions* to an application. Examples are:
+
+* a hardware failure of the physical machine backing the node
+* cluster administrator deletes VM (instance) by mistake
+* cloud provider or hypervisor failure makes VM disappear
+* a kernel panic
+* the node disappears from the cluster due to cluster network partition
+* eviction of a pod due to the node being _out-of-resources_.
+
+Except for the out-of-resources condition, all these conditions should be familiar to most users; they are not specific to Kubernetes.
+
+We call other cases *voluntary disruptions*. These include both actions initiated by the application owner and those initiated by a Cluster Administrator. Typical application owner actions include:
+
+* deleting the deployment or other controller that manages the pod
+* updating a deployment's pod template causing a restart
+* directly deleting a pod (e.g. by accident)
+
+Cluster administrator actions include:
+
+* Draining a node for repair or upgrade.
+* Draining a node from a cluster to scale the cluster down
+* Removing a pod from a node to permit something else to fit on that node.
+
+If none voluntary disruptions are enabled for your cluster, you can skip creating Pod Disruption Budgets.
+
+=== Pod disruption budgets
+
+Kubernetes offers features to help you run highly available applications even when you introduce frequent voluntary disruptions.
+
+As an application owner, you can create a `PodDisruptionBudget` (PDB) for each application. A PDB limits the number of Pods of a replicated application that are down simultaneously from voluntary disruptions. 
+
+Cluster managers and hosting providers should use tools which respect PodDisruptionBudgets by calling the Eviction API (e.g. `kubectl drain`) instead of directly deleting pods or deployments.
+
+PDBs cannot prevent involuntary disruptions from occurring, but they do count against the budget.
+
+Pods which are deleted or unavailable due to a *rolling upgrade* to an application do count against the disruption budget, but workload resources (such as `Deployment` and `StatefulSet`) are not limited by PDBs when doing rolling upgrades. Instead, the handling of failures during application updates is configured in the spec for the specific workload resource.
+
+When a pod is evicted using the eviction API, it is gracefully terminated, honoring the `terminationGracePeriodSeconds` setting in its PodSpec.
+
+=== Think about how your application reacts to disruptions
+
+Decide how many instances can be down at the same time for a short period due to a voluntary disruption.
+
+* Stateless frontends:
++
+** Concern: don't reduce serving capacity by more than 10%.
++
+*** Solution: use PDB with minAvailable 90% for example.
+
+* Single-instance Stateful Application:
++
+** Concern: do not terminate this application without talking to me.
++
+*** Possible Solution 1: Do not use a PDB and tolerate occasional downtime.
++
+*** Possible Solution 2: Set PDB with maxUnavailable=0. Have an understanding (outside of Kubernetes) that the cluster operator needs to consult you before termination. When the cluster operator contacts you, prepare for downtime, and then delete the PDB to indicate readiness for disruption. Recreate afterwards.
+
+* Multiple-instance Stateful application such as Consul, ZooKeeper, or etcd:
++
+** Concern: Do not reduce number of instances below quorum, otherwise writes fail.
++
+*** Possible Solution 1: set maxUnavailable to 1 (works with varying scale of application).
++
+*** Possible Solution 2: set minAvailable to quorum-size (e.g. 3 when scale is 5). (Allows more disruptions at once).
+
+* Restartable Batch Job:
++
+** Concern: Job needs to complete in case of voluntary disruption.
++
+*** Possible solution: Do not create a PDB. The Job controller will create a replacement pod.
+
+== Scheduling, Preemption and Eviction
+
+In Kubernetes, scheduling refers to making sure that *Pods* are matched to *Nodes* so that the *kubelet* can run them. Preemption is the process of terminating Pods with lower *Priority* so that Pods with higher Priority can schedule on Nodes. Eviction is the process of terminating one or more Pods on Nodes.
+
+=== Taints and Tolerations
+
+*Node affinity* is a property of Pods that attracts them to a set of nodes (either as a preference or a hard requirement). *Taints* are the opposite -- they allow a node to repel a set of pods.
+
+*Tolerations* are applied to pods, and allow (but do not require) the pods to schedule onto nodes with matching taints.
+
+Taints and tolerations work together to ensure that pods are not scheduled onto inappropriate nodes. One or more taints are applied to a node; this marks that the node should not accept any pods that do not tolerate the taints.
+
+You add a taint to a node using `kubectl taint`. For example,
+
+[source,sh]
+kubectl taint nodes node1 key1=value1:NoSchedule
+
+places a taint on node `node1`. The taint has key `key1`, value `value1`, and taint effect `NoSchedule`. This means that no pod will be able to schedule onto node1 unless it has a matching toleration.
+
+To remove the taint added by the command above, you can run:
+
+[source,sh]
+kubectl taint nodes node1 key1=value1:NoSchedule-
+
+You specify a toleration for a pod in the PodSpec. Both of the following tolerations "match" the taint created by the `kubectl taint` line above, and thus a pod with either toleration would be able to schedule onto node1:
+
+[source,yaml]
+----
+tolerations:
+- key: "key1"
+  operator: "Equal"
+  value: "value1"
+  effect: "NoSchedule"
+----
+
+[source,yaml]
+----
+tolerations:
+- key: "key1"
+  operator: "Exists"
+  effect: "NoSchedule"
+----
+
+The default value for `operator` is `Equal`.
+
+A toleration "matches" a taint if the keys are the same and the effects are the same, and:
+
+* the `operator` is `Exists` (in which case no `value` should be specified), or
+* the `operator` is `Equal` and the `value`s are equal.
+
+[NOTE]
+====
+There are two special cases:
+
+* An empty `key` with operator `Exists` matches all keys, values and effects which means this will tolerate everything.
+
+* An empty `effect` matches all effects with key `key1`.
+====
+
+The `NoExecute` taint effect affects pods that are already running on the node as follows
+
+* pods that do not tolerate the taint are evicted immediately
+* pods that tolerate the taint without specifying `tolerationSeconds` in their toleration specification remain bound forever
+* pods that tolerate the taint with a specified `tolerationSeconds` remain bound for the specified amount of time
+
+The *node controller* automatically taints a Node when certain conditions are true. The following taints are built in:
+
+* `node.kubernetes.io/not-ready`:
++
+Node is not ready. This corresponds to the NodeCondition `Ready` being "False".
+
+* `node.kubernetes.io/unreachable`:
++
+Node is unreachable from the node controller. This corresponds to the NodeCondition `Ready` being "Unknown".
+
+* `node.kubernetes.io/memory-pressure`:
++
+Node has memory pressure.
+
+* `node.kubernetes.io/disk-pressure`:
++
+Node has disk pressure.
+
+* `node.kubernetes.io/pid-pressure`:
++
+Node has PID pressure.
+
+* `node.kubernetes.io/network-unavailable`:
++
+Node's network is unavailable.
+
+* `node.kubernetes.io/unschedulable`:
++
+Node is unschedulable.
+
+* `node.cloudprovider.kubernetes.io/uninitialized`:
++
+When the kubelet is started with "external" cloud provider, this taint is set on a node to mark it as unusable. After a controller from the cloud-controller-manager initializes this node, the kubelet removes this taint.
+
+In case a node is to be evicted, the node controller or the kubelet adds relevant taints with `NoExecute` effect. If the fault condition returns to normal the kubelet or node controller can remove the relevant taint(s).
+
+*DaemonSet* pods are created with `NoExecute` tolerations for the following taints with no `tolerationSeconds`:
+
+* `node.kubernetes.io/unreachable`
+* `node.kubernetes.io/not-ready`
+
+This ensures that DaemonSet pods are never evicted due to these problems.
+
+=== Pod Priority and Preemption
+
+Pods can have priority. *Priority* indicates the importance of a Pod relative to other Pods. If a Pod cannot be scheduled, the scheduler tries to preempt (evict) lower priority Pods to make scheduling of the pending Pod possible.
+
+To use priority and preemption:
+
+* Add one or more *PriorityClasses*.
+
+* Create Pods with `priorityClassName` set to one of the added PriorityClasses. 
+
+A *PriorityClass* is a non-namespaced object that defines a mapping from a priority class name to the integer value of the priority. The `name` is specified in the name field of the PriorityClass object's metadata. The `value` is specified in the required value field. The higher the value, the higher the priority. The name of a PriorityClass object must be a valid DNS subdomain name, and it cannot be prefixed with `system-`.
+
+[source,console]
+----
+$ kubectl get pc
+NAME                      VALUE        GLOBAL-DEFAULT   AGE
+system-cluster-critical   2000000000   false            60d
+system-node-critical      2000001000   false            60d
+
+$ kubectl get pc system-cluster-critical -oyaml
+apiVersion: scheduling.k8s.io/v1
+description: Used for system critical pods that must run in the cluster, but can be
+  moved to another node if necessary.
+kind: PriorityClass
+metadata:
+  creationTimestamp: "2021-09-22T09:29:35Z"
+  generation: 1
+  name: system-cluster-critical
+  resourceVersion: "84"
+  uid: ff8cb5f8-d989-4a68-b902-d3b1ed891f9b
+preemptionPolicy: PreemptLowerPriority
+value: 2000000000
+----
+
+kubelet node-pressure eviction does not evict Pods when their usage does not exceed their requests. If a Pod with lower priority is not exceeding its requests, it won't be evicted. Another Pod with higher priority that exceeds its requests may be evicted.
+
+=== Node-pressure Eviction
+
+Node-pressure eviction is the process by which the *kubelet* proactively terminates pods to reclaim resources on nodes.
+
+The kubelet monitors resources like CPU, memory, disk space, and filesystem inodes on your cluster's nodes. When one or more of these resources reach specific consumption levels, the kubelet can proactively fail one or more pods on the node to reclaim resources and prevent starvation.
+
+During a node-pressure eviction, the kubelet sets the `PodPhase` for the selected pods to `Failed`. This terminates the pods.
+
+Node-pressure eviction is not the same as API-initiated eviction (e.g. `kubectl drain`).
+
+The kubelet does not respect your configured `PodDisruptionBudget` or the pod's `terminationGracePeriodSeconds`. If you use soft eviction thresholds, the kubelet respects your configured `eviction-max-pod-grace-period`. If you use hard eviction thresholds, it uses a `0s` grace period for termination.
+
+If the pods are managed by a workload resource (such as StatefulSet or Deployment) that replaces failed pods, the control plane or `kube-controller-manager` creates new pods in place of the evicted pods.
+
+NOTE: The kubelet attempts to reclaim node-level resources before it terminates end-user pods. For example, it removes unused container images when disk resources are starved. 
+
+* *Eviction signals*
++
+Eviction signals are the current state of a particular resource at a specific point in time. Kubelet uses eviction signals to make eviction decisions by comparing the signals to eviction thresholds, which are the minimum amount of the resource that should be available on the node.
++
+Kubelet uses the following eviction signals:
++
+[%header,cols="1,5"]
+|===
+|Eviction Signal
+|Description
+
+|memory.available 	
+|memory.available := node.status.capacity[memory] - node.stats.memory.workingSet
+
+|nodefs.available
+|nodefs.available := node.stats.fs.available
+
+|nodefs.inodesFree
+|nodefs.inodesFree := node.stats.fs.inodesFree
+
+|imagefs.available
+|imagefs.available := node.stats.runtime.imagefs.available
+
+|imagefs.inodesFree
+|imagefs.inodesFree := node.stats.runtime.imagefs.inodesFree
+
+|pid.available
+|pid.available := node.stats.rlimit.maxpid - node.stats.rlimit.curproc
+|===
+
+* *Eviction thresholds*
++
+You can specify custom eviction thresholds for the kubelet to use when it makes eviction decisions.
++
+Eviction thresholds have the form `[eviction-signal][operator][quantity]`, where:
++
+* `eviction-signal` is the eviction signal to use.
+* `operator` is the relational operator you want, such as `<` (less than).
+* `quantity` is the eviction threshold amount, such as 1Gi. The value of quantity must match the quantity representation used by Kubernetes. You can use either literal values or percentages (%).
++
+For example, if a node has `10Gi` of total memory and you want trigger eviction if the available memory falls below `1Gi`, you can define the eviction threshold as either `memory.available<10%` or `memory.available<1Gi`. You cannot use both.
++
+You can configure soft and hard eviction thresholds.
++
+--
+** *Soft eviction thresholds*
++
+A soft eviction threshold pairs an eviction threshold with a required administrator-specified grace period. The kubelet does not evict pods until the grace period is exceeded. The kubelet returns an error on startup if there is no specified grace period.
++
+You can specify both a soft eviction threshold grace period and a maximum allowed pod termination grace period for kubelet to use during evictions. If you specify a maximum allowed grace period and the soft eviction threshold is met, the kubelet uses the lesser of the two grace periods. If you do not specify a maximum allowed grace period, the kubelet kills evicted pods immediately without graceful termination.
++
+You can use the following flags to configure soft eviction thresholds:
++
+*** `eviction-soft`: A set of eviction thresholds like `memory.available<1.5Gi` that can trigger pod eviction if held over the specified grace period.
+*** eviction-soft-grace-period: A set of eviction grace periods like `memory.available=1m30s` that define how long a soft eviction threshold must hold before triggering a Pod eviction.
+*** `eviction-max-pod-grace-period`: The maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.
+
+** *Hard eviction thresholds*
++
+A hard eviction threshold has no grace period. When a hard eviction threshold is met, the kubelet kills pods immediately without graceful termination to reclaim the starved resource.
++
+You can use the `eviction-hard` flag to configure a set of hard eviction thresholds like `memory.available<1Gi`.
++
+The kubelet has the following default hard eviction thresholds:
++
+[source,console]
+----
+memory.available<100Mi
+nodefs.available<10%
+imagefs.available<15%
+nodefs.inodesFree<5% (Linux nodes)
+----
+--
+
+==== Pod selection for kubelet eviction
+
+If the kubelet's attempts to reclaim node-level resources don't bring the eviction signal below the threshold, the kubelet begins to evict end-user pods.
+
+The kubelet uses the following parameters to determine pod eviction order:
+
+* Whether the pod's *resource usage exceeds requests*
+* Pod *Priority*
+* The pod's *resource usage relative to requests*
+
+As a result, kubelet ranks and evicts pods in the following order:
+
+* `BestEffort` or `Burstable` pods where the usage exceeds requests. These pods are evicted based on their Priority and then by how much their usage level exceeds the request.
+* `Guaranteed` pods and `Burstable` pods where the usage is less than requests are evicted last, based on their Priority.
+
+NOTE: The kubelet does not use the pod's QoS class to determine the eviction order. You can use the QoS class to estimate the most likely pod eviction order when reclaiming resources like memory. QoS does not apply to EphemeralStorage requests, so the above scenario will not apply if the node is, for example, under `DiskPressure`. 
+
+== References
+
+* https://kubernetes.io/docs/concepts/overview/components/
+* https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+* https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+* https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+* https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/
+* https://kubernetes.io/docs/concepts/scheduling-eviction/
+* https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+* https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler
+* https://www.replex.io/blog/5-ways-to-manage-your-kubernetes-resource-usage
+* https://www.replex.io/blog/kubernetes-in-production-best-practices-for-cluster-autoscaler-hpa-and-vpa
+* https://www.replex.io/blog/7-things-you-can-do-today-to-reduce-aws-kubernetes-costs
+* https://cloud.google.com/architecture/best-practices-for-running-cost-effective-kubernetes-applications-on-gke
