@@ -1,0 +1,423 @@
+= Linux CGroups and Namespaces
+:page-layout: post
+:page-categories: ['linux']
+:page-tags: ['linux', 'cgroup', 'namespace']
+:page-date: 2021-11-23 14:48:37 +0800
+:page-revdate: 2021-11-23 14:48:37 +0800
+:sectnums:
+:toc:
+
+== What are Control Groups and Namespaces
+
+Linux Control Groups (*cgroups*) enable limits on the use of system hardware, ensuring that an individual process running inside a cgroup only utilizes as much as has been allowed in the cgroups configuration.
+
+Control Groups restrict the volume of usage on a resource that has been enabled by a *namespace*. For example, the network namespace allows a process to access a particular network card, the cgroup ensures that the process does not exceed 50% usage of that card, ensuring bandwidth is available for other processes.
+
+Control Group Namespaces provide a virtualized view of individual cgroups through the /proc/self/ns/cgroup interface.
+
+The purpose is to prevent leakage of privileged data from the global namespaces to the cgroup and to enable other features, such as container migration.
+
+Because it is now much easier to associate a container with a single cgroup, containers have a much more coherent cgroup view, it also enables tasks inside the container to have a virtualized view of the cgroup it belongs to.
+
+**Namespace**s are a kernel feature that allow a virtual view of isolated system resources. By isolating a process from system resources, you can specify and control what a process is able to interact with. Namespaces are an essential part of Control Groups.
+
+* *Mount*
++
+The mount namespace isolates file system mount points, enabling each process to have a distinct filesystem space within wich to operate. 
+
+* *UTS*
++
+Hostname and NIS domain name 
+
+* *IPC*
++
+System V IPC, POSIX message queues 
+
+* *PID*
++
+Process IDs 
+
+* *Network*
++
+Network devices, stacks, ports, etc. 
+
+* *User*
++
+User and group IDs 
+
+* *Control Groups*
++
+Isolates cgroups 
+
+By default, *systemd* automatically creates a hierarchy of `slice`, `scope` and `service` units to provide a unified structure for the cgroup tree. Also, systemd automatically mounts hierarchies for important kernel **resource controller**s in the `/sys/fs/cgroup/` directory. 
+
+* *Service* — A process or a group of processes, which `systemd` started based on a unit configuration file. Services encapsulate the specified processes so that they can be started and stopped as one set.
+
+* *Scope* — A group of externally created processes. Scopes encapsulate processes that are started and stopped by arbitrary processes through the `fork()` function and then registered by systemd at runtime. For instance, user sessions, containers, and virtual machines are treated as scopes.
+
+* *Slice* — A group of hierarchically organized units. Slices do not contain processes, they organize a hierarchy in which scopes and services are placed. The actual processes are contained in scopes or in services. In this hierarchical tree, every name of a slice unit corresponds to the path to a location in the hierarchy. The dash ("-") character acts as a separator of the path components.
+
+A *resource controller*, also called a *cgroup subsystem*, represents a single resource, such as CPU time or memory. The Linux kernel provides a range of resource controllers, that are mounted automatically by systemd. Find the list of currently mounted resource controllers in `/proc/cgroups`, or use the `lssubsys` monitoring tool. 
+
+* *blkio* — sets limits on input/output access to and from block devices;
+* *cpu* — uses the CPU scheduler to provide cgroup tasks access to the CPU. It is mounted together with the `cpuacct` controller on the same mount;
+* *cpuacct* — creates automatic reports on CPU resources used by tasks in a cgroup. It is mounted together with the `cpu` controller on the same mount;
+* *cpuset* — assigns individual CPUs (on a multicore system) and memory nodes to tasks in a cgroup;
+* *devices* — allows or denies access to devices for tasks in a cgroup;
+* *freezer* — suspends or resumes tasks in a cgroup;
+* *memory* — sets limits on memory use by tasks in a cgroup and generates automatic reports on memory resources used by those tasks;
+* *net_cls* — tags network packets with a class identifier (*classid*) that allows the Linux traffic controller (the `tc` command) to identify packets originating from a particular cgroup task. A subsystem of `net_cls`, the `net_filter` (`iptables`) can also use this tag to perform actions on such packets. The `net_filter` tags network sockets with a firewall identifier (*fwid*) that allows the Linux firewall (the `iptables` command) to identify packets (skb->sk) originating from a particular cgroup task;
+* *perf_event* — enables monitoring cgroups with the *perf* tool;
+* *hugetlb* — allows to use virtual memory pages of large sizes and to enforce resource limits on these pages. 
+
+== How Control Groups Are Organized
+
+Cgroups are organized hierarchically, like processes, and child cgroups inherit some of the attributes of their parents. However, there are differences between the two models.
+
+* The Linux Process Model
++
+All processes on a Linux system are child processes of a common parent: the `init` process, which is executed by the kernel at boot time and starts other processes (which may in turn start child processes of their own). Because all processes descend from a single parent, the Linux process model is a single hierarchy, or tree.
++
+Additionally, every Linux process except init inherits the environment (such as the PATH variable) and certain other attributes (such as open file descriptors) of its parent process.
+
+* The Cgroup Model
++
+Cgroups are similar to processes in that:
++
+--
+** they are hierarchical, and
+** child cgroups inherit certain attributes from their parent cgroup. 
+--
++
+The fundamental difference is that many different hierarchies of cgroups can exist simultaneously on a system. If the Linux process model is a single tree of processes, then the cgroup model is one or more separate, unconnected trees of tasks (i.e. processes).
++
+Multiple separate hierarchies of cgroups are necessary because each hierarchy is attached to one or more subsystems.
+
+== Relationships Between Subsystems, Hierarchies, Control Groups and Tasks
+
+Remember that system *processes* are called *tasks* in *cgroup* terminology.
+
+Here are a few simple rules governing the relationships between subsystems, hierarchies of cgroups, and tasks, along with explanations of the consequences of those rules. 
+
+:rmg-rule1-png: https://access.redhat.com/webassets/avalon/d/Red_Hat_Enterprise_Linux-6-Resource_Management_Guide-en-US/images/fe94409bf79906ecb380e8fbd8063016/RMG-rule1.png
+:rmg-rule2-png: https://access.redhat.com/webassets/avalon/d/Red_Hat_Enterprise_Linux-6-Resource_Management_Guide-en-US/images/c4b0445881422c88d957e352911bccd8/RMG-rule2.png
+:rmg-rule3-png: https://access.redhat.com/webassets/avalon/d/Red_Hat_Enterprise_Linux-6-Resource_Management_Guide-en-US/images/fb48098033d1c4ccdb5a55516c9cb816/RMG-rule3.png
+:rmg-rule4-png: https://access.redhat.com/webassets/avalon/d/Red_Hat_Enterprise_Linux-6-Resource_Management_Guide-en-US/images/67e2c07808671294692acde9baf0b452/RMG-rule4.png
+
+* *Rule 1*
++
+A single hierarchy can have one or more subsystems attached to it.
++
+_As a consequence, the `cpu` and `memory` subsystems (or any number of subsystems) can be attached to a single hierarchy, as long as each one is not attached to any other hierarchy which has any other subsystems attached to it already (see Rule 2)._
++
+image::{rmg-rule1-png}[,55%,55%]
+
+* *Rule 2*
++
+Any single subsystem (such as `cpu`) cannot be attached to more than one hierarchy if one of those hierarchies has a different subsystem attached to it already.
++
+_As a consequence, the `cpu` subsystem can never be attached to two different hierarchies if one of those hierarchies already has the `memory` subsystem attached to it. However, a single subsystem can be attached to two hierarchies if both of those hierarchies have only that subsystem attached._
++
+image::{rmg-rule2-png}[,55%,55%]
+
+* *Rule 3*
++
+Each time a new hierarchy is created on the systems, all tasks on the system are initially members of the default cgroup of that hierarchy, which is known as the *root cgroup*. For any single hierarchy you create, each task on the system can be a member of exactly one cgroup in that hierarchy.
++
+A single task may be in multiple cgroups, as long as each of those cgroups is in a different hierarchy.
++
+As soon as a task becomes a member of a second cgroup in the same hierarchy, it is removed from the first cgroup in that hierarchy. At no time is a task ever in two different cgroups in the same hierarchy.
++
+_As a consequence, if the `cpu` and `memory` subsystems are attached to a hierarchy named `cpu_mem_cg`, and the `net_cls` subsystem is attached to a hierarchy named `net`, then a running `httpd` process could be a member of any one cgroup in `cpu_mem_cg`, and any one cgroup in `net`._
++
+The cgroup in `cpu_mem_cg` that the `httpd` process is a member of might restrict its CPU time to half of that allotted to other processes, and limit its memory usage to a maximum of `1024` MB. Additionally, the cgroup in `net` that the `httpd` process is a member of might limit its transmission rate to `30` MB/s (megabytes per second).
++
+When the first hierarchy is created, every task on the system is a member of at least one cgroup: the root cgroup. When using cgroups, therefore, every system task is always in at least one cgroup. 
++
+image::{rmg-rule3-png}[,55%,55%]
+
+* *Rule 4*
++
+Any process (task) on the system which forks itself creates a child task. A child task automatically inherits the cgroup membership of its parent but can be moved to different cgroups as needed. Once forked, the parent and child processes are completely independent.
++
+_As a consequence, consider the `httpd` task that is a member of the cgroup named `half_cpu_1gb_max` in the `cpu_and_mem` hierarchy, and a member of the cgroup `trans_rate_30` in the `net` hierarchy. When that `httpd` process forks itself, its child process automatically becomes a member of the `half_cpu_1gb_max` cgroup, and the `trans_rate_30` cgroup. It inherits the exact same cgroups its parent task belongs to._
++
+_From that point forward, the parent and child tasks are completely independent of each other: changing the cgroups that one task belongs to does not affect the other. Neither will changing cgroups of a parent task affect any of its grandchildren in any way. To summarize: any child task always initially inherits memberships to the exact same cgroups as their parent task, but those memberships can be changed or removed later._
++
+image::{rmg-rule4-png}[,55%,55%]
+
+== Introduction to systemd
+
+*Systemd* is a system and service manager for Linux operating systems. It is designed to be backwards compatible with SysV init scripts, and provides a number of features such as parallel startup of system services at boot time, on-demand activation of daemons, or dependency-based service control logic. 
+
+[%header,cols="1,1,5",title="Available systemd Unit Types"]
+|===
+|Unit Type
+|File Extension
+|Description
+
+|Service unit
+|.service
+|A system service.
+
+|Target unit
+|.target
+|A group of systemd units.
+
+|Automount unit
+|.automount
+|A file system automount point.
+
+|Device unit
+|.device
+|A device file recognized by the kernel.
+
+|Mount unit
+|.mount
+|A file system mount point.
+
+|Path unit
+|.path
+|A file or directory in a file system.
+
+|Scope unit
+|.scope
+|An externally created process.
+
+|Slice unit
+|.slice
+|A group of hierarchically organized units that manage system processes.
+
+|Snapshot unit
+|.snapshot
+|A saved state of the systemd manager.
+
+|Socket unit
+|.socket
+|An inter-process communication socket.
+
+|Swap unit
+|.swap
+|A swap device or a swap file.
+
+|Timer unit
+|.timer
+|A systemd timer. 
+|===
+
+
+[%header,cols="1,3",title="Systemd Unit Files Locations"]
+|===
+|Directory
+|Description
+
+|/usr/lib/systemd/system/
+|Systemd unit files distributed with _installed_ RPM packages.
+
+|/run/systemd/system/
+|Systemd unit files created at _run time_. This directory takes precedence over the directory with installed service unit files.
+
+|/etc/systemd/system/
+|Systemd unit files created by systemctl _enable_ as well as unit files added for _extending_ a service. This directory takes precedence over the directory with runtime unit files. 
+|===
+
+Use the `systemctl` command to list system units and to view their status. Also, the `systemd-cgls` command is provided to view the hierarchy of control groups and `systemd-cgtop` to monitor their resource consumption in real time. 
+
+Use the following command to list all active units on the system:
+
+[source,sh]
+$ systemctl list-units
+
+The `list-units` option is executed by default, which means that you will receive the same output when you omit this option.
+
+To list all unit files installed on your system and their status, type:
+
+[source,sh]
+$ systemctl list-unit-files
+
+To view a list of all slices used on the system, type:
+
+[source,sh]
+$ systemctl -t slice 
+
+[source,console]
+----
+  UNIT                  LOAD   ACTIVE SUB    DESCRIPTION
+  -.slice               loaded active active Root Slice
+  system-getty.slice    loaded active active system-getty.slice
+  system-modprobe.slice loaded active active system-modprobe.slice
+  system.slice          loaded active active System Slice
+  user-1000.slice       loaded active active User Slice of UID 1000
+  user.slice            loaded active active User and Session Slice
+
+LOAD   = Reflects whether the unit definition was properly loaded.
+ACTIVE = The high-level unit activation state, i.e. generalization of SUB.
+SUB    = The low-level unit activation state, values depend on unit type.
+6 loaded units listed. Pass --all to see loaded but inactive units, too.
+To show all installed unit files use 'systemctl list-unit-files'.
+----
+
+To display detailed information about a service unit that corresponds to a system service, type: 
+
+[source,sh]
+----
+$ systemctl status ssh.service 
+----
+
+[source,console,highlight=11]
+----
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2021-11-23 15:07:53 CST; 49min ago
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+    Process: 350 ExecStartPre=/usr/sbin/sshd -t (code=exited, status=0/SUCCESS)
+   Main PID: 367 (sshd)
+      Tasks: 1 (limit: 4641)
+     Memory: 8.0M
+        CPU: 265ms
+     CGroup: /system.slice/ssh.service
+             └─367 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+----
+
+To display the whole cgroup hierarchy on your system, type:
+
+[source,sh]
+----
+$ systemd-cgls
+----
+
+When `systemd-cgls` is issued without parameters, it returns the entire cgroup hierarchy. 
+
+To view it information is stored in dedicated process files, type as root:
+
+[source,sh]
+$ cat proc/PID/cgroup
+
+Where `PID` stands for the ID of the process you wish to examine.
+
+The *systemd-cgls* command provides a static snapshot of the cgroup hierarchy. To see a dynamic account of currently running cgroups ordered by their resource usage (CPU, Memory, and IO), use:
+
+[source,sh]
+$ systemd-cgtop
+
+== Using libcgroup Tools
+
+In order to use libcgroup tools, first ensure the cgroup-tools packages are installed on your system. 
+
+[source,sh]
+$ sudo apt-get install cgroup-tools -y
+
+[source,console]
+----
+$ dpkg -l | grep cgroup-tools
+ii  cgroup-tools                    0.41-8.1                     amd64        control and monitor control groups (tools)
+----
+
+[NOTE] 
+====
+The `cgroup-tools` with version `0.41-8.1` does not work with *cgroup2*.
+
+[source,console,highlight=8]
+----
+$ uname -r
+5.10.0-9-amd64
+
+$ mount -t cgroup2,cgroup
+cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
+
+$ cgget cpuset /
+cgget: libcgroup initialization failed: Cgroup is not mounted
+----
+====
+
+* Finding a Process
++
+To find the cgroup to which a process belongs, run:
++
+[source,sh]
+$ ps -O cgroup
++
+Or, if you know the PID for the process, run:
++
+[source,sh]
+$ cat /proc/PID/cgroup
++
+where `PID` stands for a ID of the inspected process. 
+
+* Listing Controllers
++
+To find the controllers that are available in your kernel and information on how they are mounted together to hierarchies, execute:
++
+[source,sh]
+$ cat /proc/cgroups
++
+Alternatively, to find the mount points of particular subsystems, execute the following command:
++
+[source,sh]
+$ lssubsys -m controllers
++
+Here `controllers` stands for a list of the subsystems in which you are interested. Note that the `lssubsys -m` command returns only the top-level mount point per each hierarchy. 
+
+* Finding Hierarchies
++
+It is recommended that you mount hierarchies under the `/sys/fs/cgroup/` directory. Assuming this is the case on your system, list or browse the contents of that directory to obtain a list of hierarchies. If the tree utility is installed on your system, run it to obtain an overview of all hierarchies and the cgroups within them:
++
+[source,sh]
+$ tree /sys/fs/cgroup
+
+* Finding Control Groups
++
+To list the cgroups on a system, execute as root:
++
+[source,sh]
+$ lscgroup
++
+To restrict the output to a specific hierarchy, specify a controller and a path in the format `controller:path`. For example:
++
+[source,sh]
+$ lscgroup cpuset:adminusers
++
+The above command lists only subgroups of the `adminusers` cgroup in the hierarchy to which the `cpuset` controller is attached. 
+
+* Displaying Parameters of Control Groups
++
+To display the parameters of specific cgroups, run:
++
+[source,sh]
+$ cgget -r parameter list_of_cgroups
++
+where `parameter` is a pseudofile that contains values for a controller, and `list_of_cgroups` is a list of cgroups separated with spaces. For example:
++
+[source,sh]
+$ cgget -r cpuset.cpus -r memory.limit_in_bytes group1 group2
++
+displays the values of `cpuset.cpus` and `memory.limit_in_bytes` for cgroups `group1` and `group2`.
++
+If you do not know the names of the parameters themselves, use a command like:
++
+[source,sh]
+$ cgget -g cpuset /
+
+[source,console]
+----
+$ docker run -d --name nginx --memory 100Mi --cpu-shares 200 nginx:1.21
+
+$ lscgroup | grep $(docker inspect --format="{{.Id}}" nginx) | cut -d ':' -f2 | uniq 
+/system.slice/docker-9461d93b78b880402db8a78f5ee2b4de1d1f47646dea518389e51496c33361f9.scope
+
+$ cgget -r cpu.shares -r memory.limit_in_bytes /system.slice/docker-9461d93b78b880402db8a78f5ee2b4de1d1f47646dea518389e51496c33361f9.scope
+/system.slice/docker-9461d93b78b880402db8a78f5ee2b4de1d1f47646dea518389e51496c33361f9.scope:
+cpu.shares: 200
+memory.limit_in_bytes: 104857600
+----
+
+
+== References
+
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/kernel_administration_guide/kernel_features
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/resource_management_guide/index
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/chap-managing_services_with_systemd
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/index
+* https://github.com/libcgroup/libcgroup/releases/tag/v2.0
+* https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=959022
