@@ -27,18 +27,6 @@ If the node where a Pod is running has enough of a resource available, it's poss
 
 `CPU` and `memory` are each a *resource type*. A resource type has a base unit. CPU represents compute processing and is specified in units of *Kubernetes CPUs*. Memory is specified in units of bytes. `Huge pages` are a Linux-specific feature where the node kernel allocates blocks of memory that are much larger than the default page size.
 
-* *Meaning of CPU*
-+
-Limits and requests for CPU resources are measured in cpu units. One cpu, in Kubernetes, is equivalent to *1 vCPU/Core* for cloud providers and *1 hyperthread* on bare-metal Intel processors.
-+
-Fractional requests are allowed. When you define a container with `spec.containers[].resources.requests.cpu` set to `0.5`, you are requesting half as much CPU time compared to if you asked for 1.0 CPU. For CPU resource units, the expression `0.1` is equivalent to the expression `100m`, which can be read as "one hundred millicpu". Some people say "one hundred millicores", and this is understood to mean the same thing. A request with a decimal point, like 0.1, is converted to 100m by the API, and precision finer than 1m is not allowed. For this reason, the form 100m might be preferred.
-+
-CPU is always requested as an absolute quantity, never as a relative quantity; 0.1 is the same amount of CPU on a single-core, dual-core, or 48-core machine.
-
-* *Meaning of memory*
-+
-Limits and requests for memory are measured in bytes. You can express memory as a plain integer or as a fixed-point number using one of these suffixes: E, P, T, G, M, k. You can also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki.
-
 Each Container of a Pod can specify one or more of the following:
 
 [source,yaml]
@@ -52,6 +40,22 @@ spec.containers[].resources.requests.hugepages-<size>
 ----
 
 Although requests and limits can only be specified on individual Containers, it is convenient to talk about Pod resource requests and limits. A Pod resource request/limit for a particular resource type is the sum of the resource requests/limits of that type for each Container in the Pod.
+
+* *Meaning of CPU*
++
+Limits and requests for CPU resources are measured in cpu units. One cpu, in Kubernetes, is equivalent to *1 vCPU/Core* for cloud providers and *1 hyperthread* on bare-metal Intel processors.
++
+Fractional requests are allowed. When you define a container with `spec.containers[].resources.requests.cpu` set to `0.5`, you are requesting half as much CPU time compared to if you asked for 1.0 CPU. For CPU resource units, the expression `0.1` is equivalent to the expression `100m`, which can be read as "one hundred **millicpu**". Some people say "one hundred **millicore**s", and this is understood to mean the same thing. A request with a decimal point, like 0.1, is converted to 100m by the API, and precision finer than 1m is not allowed. For this reason, the form 100m might be preferred.
++
+CPU is always requested as an absolute quantity, never as a relative quantity; 0.1 is the same amount of CPU on a single-core, dual-core, or 48-core machine.
++
+CPU is considered a “compressible” resource. If your app starts hitting your CPU limits, Kubernetes starts throttling your container. This means the CPU will be artificially restricted, giving your app potentially worse performance! However, it won’t be terminated or evicted. You can use a _liveness health check_ to make sure performance has not been impacted.
+
+* *Meaning of memory*
++
+Limits and requests for memory are measured in bytes. You can express memory as a plain integer or as a fixed-point number using one of these suffixes: E, P, T, G, M, k. You can also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki.
++
+Unlike CPU resources, memory cannot be compressed. Because there is no way to throttle memory usage, if a container goes past its memory limit it will be terminated. If your pod is managed by a Deployment, StatefulSet, DaemonSet, or another type of controller, then the controller spins up a replacement.
 
 === Local ephemeral storage
 
@@ -81,9 +85,19 @@ If the kubelet is managing local ephemeral storage as a resource, then the kubel
 
 If a Pod is using more ephemeral storage than you allow it to, the kubelet sets an eviction signal that triggers Pod eviction.
 
-== Quality of Service for Pods
+=== The lifecycle of a Kubernetes Pod
 
-When Kubernetes creates a Pod it assigns one of these QoS classes to the Pod: _Guaranteed_, _Burstable_, _BestEffort_.
+Kubernetes then checks to see if the Node has enough resources to fulfill the resources requests on the Pod’s containers. If it doesn’t, it moves on to the next node.
+
+If none of the Nodes in the system have resources left to fill the requests, then Pods go into a *pending state*. By using GKE features such as the *Node Autoscaler*, Kubernetes Engine can automatically detect this state and create more Nodes automatically. If there is excess capacity, the autoscaler can also scale down and remove Nodes to save you money!
+
+But what about limits? As you know, limits can be higher than the requests. What if you have a Node where the sum of all the container Limits is actually higher than the resources available on the machine?
+
+At this point, Kubernetes goes into something called an *overcommitted state*. Here is where things get interesting. Because CPU can be compressed, Kubernetes will make sure your containers get the CPU they requested and will throttle the rest. Memory cannot be compressed, so Kubernetes needs to start making decisions on what containers to terminate if the Node runs out of memory.
+
+=== Quality of Service for Pods
+
+In an overcommitted system (where sum of limits > machine capacity) containers might eventually have to be killed, for example if the system runs out of CPU or memory resources. Ideally, we should kill containers that are less important. For each resource, we divide containers into 3 QoS classes: _Guaranteed_, _Burstable_, and _BestEffort_, in decreasing order of priority.
 
 For a Pod to be given a QoS class of *Guaranteed*:
 
@@ -102,6 +116,48 @@ A Pod is given a QoS class of *Burstable* if:
 * At least one Container in the Pod has a memory or CPU request.
 
 For a Pod to be given a QoS class of *BestEffort*, the Containers in the Pod must not have any memory or CPU limits or requests.
+
+Pods will not be killed if CPU guarantees cannot be met (for example if system tasks or daemons take up lots of CPU), they will be temporarily throttled.
+
+Memory is an incompressible resource and so let's discuss the semantics of memory management a bit.
+
+* BestEffort pods will be treated as lowest priority. Processes in these pods are the first to get killed if the system runs out of memory. These containers can use any amount of free memory in the node though.
+
+* Guaranteed pods are considered top-priority and are guaranteed to not be killed until they exceed their limits, or if the system is under memory pressure and there are no lower priority containers that can be evicted.
+
+* Burstable pods have some form of minimal resource guarantee, but can use more resources when available. Under system memory pressure, these containers are more likely to be killed once they exceed their requests and no BestEffort pods exist.
+
+=== Node Allocatable
+
+Kubernetes nodes can be scheduled to *Capacity*. Pods can consume all the available capacity on a node by default. This is an issue because nodes typically run quite a few system daemons that power the OS and Kubernetes itself. Unless resources are set aside for these system daemons, pods and system daemons compete for resources and lead to resource starvation issues on the node.
+
+The *kubelet* exposes a feature named '**Node Allocatable**' that helps to reserve compute resources for system daemons.
+
+image::/assets/kubernetes/cluster-autoscaler/node-capacity.svg[,55%,55%]
+
+==== Kube Reserved
+
+* Kubelet Flag: `--kube-reserved=[cpu=100m][,][memory=100Mi][,][ephemeral-storage=1Gi][,][pid=1000]`
+* Kubelet Flag: `--kube-reserved-cgroup=`
+
+`kube-reserved` is meant to capture resource reservation for kubernetes system daemons like the `kubelet`, `container runtime`, `node problem detector`, etc. It is not meant to reserve resources for system daemons that are run as pods. kube-reserved is typically a function of `pod density` on the nodes.
+
+In addition to `cpu`, `memory`, and `ephemeral-storage`, `pid` may be specified to reserve the specified number of process IDs for kubernetes system daemons.
+
+==== System Reserved
+
+* Kubelet Flag: `--system-reserved=[cpu=100m][,][memory=100Mi][,][ephemeral-storage=1Gi][,][pid=1000]`
+* Kubelet Flag: `--system-reserved-cgroup=`
+
+`system-reserved` is meant to capture resource reservation for OS system daemons like `sshd`, `udev`, etc. system-reserved should reserve memory for the kernel too since `kernel memory` is not accounted to pods in Kubernetes at this time. Reserving resources for user login sessions is also recommended (`user.slice` in systemd world).
+
+In addition to `cpu`, `memory`, and `ephemeral-storage`, `pid` may be specified to reserve the specified number of process IDs for OS system daemons.
+
+==== Eviction Thresholds
+
+* Kubelet Flag: `--eviction-hard=[memory.available<500Mi]`
+
+Memory pressure at the node level leads to System OOMs which affects the entire node and all pods running on it. Nodes can go offline temporarily until memory has been reclaimed. To avoid (or reduce the probability of) system OOMs kubelet provides *out of resource* management. Evictions are supported for `memory` and `ephemeral-storage` only. 
 
 == Pod Disruptions
 
@@ -582,11 +638,14 @@ An alternative solution for this problem is to use https://github.com/kubernetes
 
 * https://kubernetes.io/docs/concepts/overview/components/
 * https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+* https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/
 * https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
 * https://kubernetes.io/docs/tasks/run-application/configure-pdb/
 * https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/
+* https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md#qos-classes
 * https://kubernetes.io/docs/concepts/scheduling-eviction/
 * https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
 * https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler
+* https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits
 * https://cloud.google.com/architecture/best-practices-for-running-cost-effective-kubernetes-applications-on-gke
 * https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-terminating-with-grace
