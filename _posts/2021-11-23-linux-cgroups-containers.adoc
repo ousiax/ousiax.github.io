@@ -11,11 +11,11 @@
 
 Linux Control Groups (*cgroups*) enable limits on the use of system hardware, ensuring that an individual process running inside a cgroup only utilizes as much as has been allowed in the cgroups configuration.
 
-Control Groups restrict the volume of usage on a resource that has been enabled by a *namespace*. For example, the network namespace allows a process to access a particular network card, the cgroup ensures that the process does not exceed 50% usage of that card, ensuring bandwidth is available for other processes.
+Control Groups restrict the volume of usage on a resource that has been enabled by a *namespace*.
 
 Control Group Namespaces provide a virtualized view of individual cgroups through the `/proc/self/ns/cgroup` interface.
 
-The purpose is to prevent leakage of privileged data from the global namespaces to the cgroup and to enable other features, such as container migration.
+The purpose is to prevent leakage of privileged data from the *global namespaces* to the cgroup and to enable other features, such as container migration.
 
 Because it is now much easier to associate a *container* with a single cgroup, containers have a much more coherent cgroup view, it also enables tasks inside the container to have a virtualized view of the cgroup it belongs to.
 
@@ -322,17 +322,10 @@ $ ps -O cgroup
 +
 [source,console]
 ----
-$ ps -e -O cgroup
-PID CGROUP                      S TTY          TIME COMMAND
-    1 -                           S ?        02:53:47 /usr/lib/systemd/systemd --switched-root --system -
--deserialize 22
-    2 -                           S ?        00:00:09 [kthreadd]
-    4 -                           S ?        00:00:00 [kworker/0:0H]
-    6 -                           S ?        01:13:14 [ksoftirqd/0]
-    7 -                           S ?        00:03:04 [migration/0]
-    8 -                           S ?        00:00:00 [rcu_bh]
-    9 -                           S ?        06:01:14 [rcu_sched]
-...
+$ ps -o pid,cgroup:60,command
+   PID CGROUP                                                       COMMAND
+  5345 10:memory:/user.slice/user-1001.slice/session-21.scope,9:dev -bash
+  5441 10:memory:/user.slice/user-1001.slice/session-21.scope,9:dev ps -o pid,cgroup:60,command
 ----
 +
 Or, if you know the PID for the process, run:
@@ -344,18 +337,19 @@ where `PID` stands for a ID of the inspected process.
 +
 [source,console]
 ----
-$ cat /proc/1/cgroup 
-11:freezer:/
-10:net_prio,net_cls:/
-9:pids:/
-8:devices:/
-7:hugetlb:/
-6:memory:/
-5:blkio:/
-4:cpuset:/
-3:cpuacct,cpu:/
-2:perf_event:/
-1:name=systemd:/
+$ cat /proc/5345/cgroup 
+11:cpuset:/
+10:memory:/user.slice/user-1001.slice/session-21.scope
+9:devices:/user.slice
+8:perf_event:/
+7:blkio:/user.slice
+6:rdma:/
+5:pids:/user.slice/user-1001.slice/session-21.scope
+4:freezer:/
+3:net_cls,net_prio:/
+2:cpu,cpuacct:/user.slice
+1:name=systemd:/user.slice/user-1001.slice/session-21.scope
+0::/user.slice/user-1001.slice/session-21.scope
 ----
 
 * Listing Controllers
@@ -469,6 +463,46 @@ If you do not know the names of the parameters themselves, use a command like:
 [source,sh]
 $ cgget -g cpuset /
 
+== What are Containers?
+
+Containers are lightweight packages of your application code together with dependencies such as specific versions of programming language runtimes and libraries required to run your software services.
+
+Containers make it easy to share CPU, memory, storage, and network resources at the operating systems level and offer a logical packaging mechanism in which applications can be abstracted from the environment in which they actually run. 
+
+=== Containers vs. VMs
+
+You might already be familiar with VMs: a guest operating system such as Linux or Windows runs on top of a host operating system with access to the underlying hardware. Containers are often compared to virtual machines (VMs). Like virtual machines, containers allow you to package your application together with libraries and other dependencies, providing isolated environments for running your software services.
+
+* Containers are much more lightweight than VMs
+* Containers virtualize at the OS level while VMs virtualize at the hardware level
+* Containers share the OS kernel and use a fraction of the memory VMs require
+
+image::https://www.redhat.com/cms/managed-files/virtualization-vs-containers.png[,75%,75%]
+
+=== What is Docker? 
+
+The word "Docker" refers to several things, including an open source community project; tools from the open source project; Docker Inc., the company that primarily supports that project; and the tools that company formally supports. 
+
+With Docker, you can treat containers like extremely lightweight, modular virtual machines.
+
+The Docker technology uses the https://www.redhat.com/en/topics/linux/what-is-the-linux-kernel[Linux kernel] and features of the kernel, like https://www.redhat.com/en/blog/world-domination-cgroups-rhel-8-welcome-cgroups-v2[*Cgroups*] and https://lwn.net/Articles/528078/[*namespaces*], to segregate processes so they can run independently. This independence is the intention of containers—the ability to run multiple processes and apps separately from one another to make better use of your infrastructure while retaining the security you would have with separate systems.
+
+=== What is Kubernetes?
+
+Kubernetes (also known as k8s or “kube”) is an open source container orchestration platform that automates many of the manual processes involved in deploying, managing, and scaling containerized applications.
+
+image::https://www.redhat.com/cms/managed-files/kubernetes_diagram-v3-770x717_0_0_v2.svg?[,55%,55%]
+
+With Kubernetes you can:
+
+* Orchestrate containers across multiple hosts.
+* Make better use of hardware to maximize resources needed to run your enterprise apps.
+* Control and automate application deployments and updates.
+* Mount and add storage to run stateful apps.
+* Scale containerized applications and their resources on the fly.
+* Declaratively manage services, which guarantees the deployed applications are always running the way you intended them to run.
+* Health-check and self-heal your apps with autoplacement, autorestart, autoreplication, and autoscaling.
+
 * *Docker and Kubernetes*
 +
 [source,console]
@@ -484,6 +518,153 @@ cpu.shares: 200
 memory.limit_in_bytes: 104857600
 ----
 
+== Manage containers in namespaces by using nsenter
+
+The kernel allocates and restricts the resources for individual processes running on the Linux operating system. The namespaces within the kernel partition these resources. Namespaces allocate the resources to a process such that the process only sees those specific resources. Namespaces provide isolation among the process, managing what system resources they can see. This technology is widely-used in container runtimes to provide a layer of isolation among containers that run on the same host.
+
+Use Docker to create a container from the `debian:bullseye` image and install `procps` package inside the container, which provides `top` and `ps` commands.
+
+[source,console]
+----
+$ docker run --rm -it --name namespace-demo -it debian:bullseye /bin/bash
+root@5153317a7aa2:/# apt-get update && apt-get install procps  -y
+...
+root@5153317a7aa2:/# ps
+    PID TTY          TIME CMD
+      1 pts/0    00:00:00 bash
+    481 pts/0    00:00:00 ps
+----
+
+In another terminal, use the `docker inspect` command to determine the process id associated with the new container.
+
+[source,console]
+----
+$ docker inspect namespace-demo -f "{{.State.Pid}}"
+415111
+----
+
+The process id is *415111*.
+
+Each process has a */proc/[pid]/ns/* subdirectory containing one entry for each namespace that supports being manipulated by https://man7.org/linux/man-pages/man2/setns.2.html[setns].
+
+Use the `ls` or `lsns` command to list the namespaces associated with a given process.
+
+[source,console]
+----
+$ sudo ls -l /proc/415111/ns/
+total 0
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 cgroup -> 'cgroup:[4026533307]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 ipc -> 'ipc:[4026533238]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 mnt -> 'mnt:[4026533236]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 net -> 'net:[4026533241]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 pid -> 'pid:[4026533239]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 pid_for_children -> 'pid:[4026533239]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 time -> 'time:[4026531834]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 time_for_children -> 'time:[4026531834]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 user -> 'user:[4026531837]'
+lrwxrwxrwx 1 root root 0 Nov 24 12:34 uts -> 'uts:[4026533237]'
+
+$ sudo lsns -p 415111
+        NS TYPE   NPROCS    PID USER COMMAND
+4026531834 time      208      1 root /sbin/init
+4026531837 user      208      1 root /sbin/init
+4026533236 mnt         1 415111 root /bin/bash
+4026533237 uts         1 415111 root /bin/bash
+4026533238 ipc         1 415111 root /bin/bash
+4026533239 pid         1 415111 root /bin/bash
+4026533241 net         1 415111 root /bin/bash
+4026533307 cgroup      1 415111 root /bin/bash
+----
+
+The `nsenter` command expands to namespace enter. It accepts different options to only enter the specified namespace.
+
+Let's enter the network namespace to check the IP address and route table.
+
+[source,console]
+----
+$ nsenter -t 415111 -n ip a s
+nsenter: cannot open /proc/415111/ns/net: Permission denied
+
+$ sudo nsenter -t 415111 -n ip a s
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+19: eth0@if20: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+----
+
+Here, `-t` is the target process id, and `-n` refers to the network namespace.
+
+[source,console]
+----
+$ sudo nsenter -t 415111 -n ip route
+default via 172.17.0.1 dev eth0 
+172.17.0.0/16 dev eth0 proto kernel scope link src 172.17.0.2 
+----
+
+Next, I enter the process namespace to check the process details.
+
+[source,console]
+----
+$ sudo nsenter -t 415111 -p -r ps -ef
+UID          PID    PPID  C STIME TTY          TIME CMD
+root           1       0  0 04:00 pts/0    00:00:00 /bin/bash
+root         489       0  0 04:44 ?        00:00:00 ps -ef
+----
+
+The `-r` option sets the root directory to the top-level directory within the namespace so that the commands run in the context of the namespace.
+
+[source,console]
+----
+$ sudo nsenter -t 415111 -p -r top
+Tasks:   2 total,   1 running,   1 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  7.1 us, 14.3 sy,  0.0 ni, 78.6 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+MiB Mem :   3900.2 total,    129.4 free,   2200.9 used,   1569.8 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   1459.5 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND                                                                                           
+      1 root      20   0    4092   3492   2984 S   0.0   0.1   0:00.06 bash                                                                                              
+    490 root      20   0    6936   3192   2708 R   0.0   0.1   0:00.01 top     
+----
+
+The `bash` command, which executes during `docker run`, is the first process inside the namespace.
+
+Enter the UTC namespace to check the hostname.
+
+[source,console]
+----
+$ sudo nsenter -t 415111 -u hostname
+5153317a7aa2
+----
+
+Modify the hostname within the namespace and verify the new name.
+
+[source,console]
+----
+$ sudo nsenter -t 415111 -u hostname foo.bar.buzz
+
+$ sudo nsenter -t 415111 -u hostname
+foo.bar.buzz
+----
+
+Finally, enter all namespaces by using the `-a` option.
+
+[source,console]
+----
+$ sudo nsenter -t 415111 -a lsns
+        NS TYPE   NPROCS PID USER COMMAND
+4026531834 time        2   1 root /bin/bash
+4026531837 user        2   1 root /bin/bash
+4026533236 mnt         2   1 root /bin/bash
+4026533237 uts         2   1 root /bin/bash
+4026533238 ipc         2   1 root /bin/bash
+4026533239 pid         2   1 root /bin/bash
+4026533241 net         2   1 root /bin/bash
+4026533307 cgroup      2   1 root /bin/bash
+----
 
 == References
 
@@ -493,3 +674,10 @@ memory.limit_in_bytes: 104857600
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/index
 * https://github.com/libcgroup/libcgroup/releases/tag/v2.0
 * https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=959022
+* https://cloud.google.com/learn/what-are-containers
+* https://www.redhat.com/en/topics/containers/whats-a-linux-container
+* https://www.redhat.com/en/topics/containers/what-is-docker
+* https://www.redhat.com/en/topics/containers/what-is-kubernetes
+* https://www.redhat.com/sysadmin/container-namespaces-nsenter
+* https://man7.org/linux/man-pages/man7/namespaces.7.html
+* https://man7.org/linux/man-pages/man7/cgroup_namespaces.7.html
