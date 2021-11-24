@@ -19,7 +19,11 @@ The purpose is to prevent leakage of privileged data from the *global namespaces
 
 Because it is now much easier to associate a *container* with a single cgroup, containers have a much more coherent cgroup view, it also enables tasks inside the container to have a virtualized view of the cgroup it belongs to.
 
-**Namespace**s are a kernel feature that allow a virtual view of isolated system resources. By isolating a process from system resources, you can specify and control what a process is able to interact with. Namespaces are an essential part of Control Groups.
+=== What are Namespaces
+
+**Namespace**s are a kernel feature that allow a virtual view of isolated system resources. By isolating a process from system resources, you can specify and control what a process is able to interact with.
+
+Namespaces are an essential part of Control Groups.
 
 * *Mount*
 +
@@ -48,6 +52,8 @@ User and group IDs
 * *Control Groups*
 +
 Isolates cgroups 
+
+=== What are Resource Controllers
 
 A *resource controller*, also called a *cgroup subsystem*, represents a single resource, such as CPU time or memory. The Linux kernel provides a range of resource controllers, that are mounted automatically by systemd.
 
@@ -136,7 +142,7 @@ _From that point forward, the parent and child tasks are completely independent 
 +
 image::{rmg-rule4-png}[,55%,55%]
 
-=== Introduction to systemd
+=== systemd
 
 *Systemd* is a system and service manager for Linux operating systems. It is designed to be backwards compatible with SysV init scripts, and provides a number of features such as parallel startup of system services at boot time, on-demand activation of daemons, or dependency-based service control logic. 
 
@@ -283,9 +289,9 @@ The *systemd-cgls* command provides a static snapshot of the cgroup hierarchy. T
 [source,sh]
 $ systemd-cgtop
 
-=== Using libcgroup Tools
+=== libcgroup
 
-In order to use libcgroup tools, first ensure the cgroup-tools packages are installed on your system. 
+In order to use https://github.com/libcgroup/libcgroup[libcgroup] tools, first ensure the cgroup-tools packages are installed on your system. 
 
 [source,sh]
 $ sudo apt-get install cgroup-tools -y
@@ -298,7 +304,9 @@ ii  cgroup-tools                    0.41-8.1                     amd64        co
 
 [NOTE] 
 ====
-The `cgroup-tools` with version `0.41-8.1` does not work with *cgroup2*.
+The `cgroup-tools` with version `0.41-8.1` does not work with Cgroup v2.
+
+*Cgroup v2* is the next version of the cgroup Linux API. Differently than cgroup v1, there is a single hierarchy instead of a different one for each controller.
 
 [source,console]
 ----
@@ -463,62 +471,7 @@ If you do not know the names of the parameters themselves, use a command like:
 [source,sh]
 $ cgget -g cpuset /
 
-== What are Containers?
-
-Containers are lightweight packages of your application code together with dependencies such as specific versions of programming language runtimes and libraries required to run your software services.
-
-Containers make it easy to share CPU, memory, storage, and network resources at the operating systems level and offer a logical packaging mechanism in which applications can be abstracted from the environment in which they actually run. 
-
-=== Containers vs. VMs
-
-You might already be familiar with VMs: a guest operating system such as Linux or Windows runs on top of a host operating system with access to the underlying hardware. Containers are often compared to virtual machines (VMs). Like virtual machines, containers allow you to package your application together with libraries and other dependencies, providing isolated environments for running your software services.
-
-* Containers are much more lightweight than VMs
-* Containers virtualize at the OS level while VMs virtualize at the hardware level
-* Containers share the OS kernel and use a fraction of the memory VMs require
-
-image::https://www.redhat.com/cms/managed-files/virtualization-vs-containers.png[,75%,75%]
-
-=== What is Docker? 
-
-The word "Docker" refers to several things, including an open source community project; tools from the open source project; Docker Inc., the company that primarily supports that project; and the tools that company formally supports. 
-
-With Docker, you can treat containers like extremely lightweight, modular virtual machines.
-
-The Docker technology uses the https://www.redhat.com/en/topics/linux/what-is-the-linux-kernel[Linux kernel] and features of the kernel, like https://www.redhat.com/en/blog/world-domination-cgroups-rhel-8-welcome-cgroups-v2[*Cgroups*] and https://lwn.net/Articles/528078/[*namespaces*], to segregate processes so they can run independently. This independence is the intention of containers—the ability to run multiple processes and apps separately from one another to make better use of your infrastructure while retaining the security you would have with separate systems.
-
-=== What is Kubernetes?
-
-Kubernetes (also known as k8s or “kube”) is an open source container orchestration platform that automates many of the manual processes involved in deploying, managing, and scaling containerized applications.
-
-image::https://www.redhat.com/cms/managed-files/kubernetes_diagram-v3-770x717_0_0_v2.svg?[,55%,55%]
-
-With Kubernetes you can:
-
-* Orchestrate containers across multiple hosts.
-* Make better use of hardware to maximize resources needed to run your enterprise apps.
-* Control and automate application deployments and updates.
-* Mount and add storage to run stateful apps.
-* Scale containerized applications and their resources on the fly.
-* Declaratively manage services, which guarantees the deployed applications are always running the way you intended them to run.
-* Health-check and self-heal your apps with autoplacement, autorestart, autoreplication, and autoscaling.
-
-* *Docker and Kubernetes*
-+
-[source,console]
-----
-$ docker run -d --name nginx --memory 100Mi --cpu-shares 200 nginx:1.21
-
-$ lscgroup | grep $(docker inspect --format="{{.Id}}" nginx) | cut -d ':' -f2 | uniq 
-/system.slice/docker-9461d93b78b880402db8a78f5ee2b4de1d1f47646dea518389e51496c33361f9.scope
-
-$ cgget -r cpu.shares -r memory.limit_in_bytes /system.slice/docker-9461d93b78b880402db8a78f5ee2b4de1d1f47646dea518389e51496c33361f9.scope
-/system.slice/docker-9461d93b78b880402db8a78f5ee2b4de1d1f47646dea518389e51496c33361f9.scope:
-cpu.shares: 200
-memory.limit_in_bytes: 104857600
-----
-
-== Manage containers in namespaces by using nsenter
+=== nsenter
 
 The kernel allocates and restricts the resources for individual processes running on the Linux operating system. The namespaces within the kernel partition these resources. Namespaces allocate the resources to a process such that the process only sees those specific resources. Namespaces provide isolation among the process, managing what system resources they can see. This technology is widely-used in container runtimes to provide a layer of isolation among containers that run on the same host.
 
@@ -576,7 +529,7 @@ $ sudo lsns -p 415111
 4026533307 cgroup      1 415111 root /bin/bash
 ----
 
-The `nsenter` command expands to namespace enter. It accepts different options to only enter the specified namespace.
+The `nsenter` command expands to _namespace enter_. It accepts different options to only enter the specified namespace.
 
 Let's enter the network namespace to check the IP address and route table.
 
@@ -666,18 +619,412 @@ $ sudo nsenter -t 415111 -a lsns
 4026533307 cgroup      2   1 root /bin/bash
 ----
 
+=== free
+
+`free` is a popular command used by system administrators on Unix/Linux platforms. It's a powerful tool that gives insight into the memory usage in human-readable format.
+
+The `man` page for this command states that `free` displays the total amount of free and used memory on the system, including physical and swap space, as well as the buffers and caches used by the kernel. The information is gathered by parsing *`/proc/meminfo`*.
+
+[source,console,highlight=3]
+----
+$ docker info | grep Cgroup
+ Cgroup Driver: systemd
+ Cgroup Version: 2
+
+$ docker run --rm -it busybox free
+              total        used        free      shared  buff/cache   available
+Mem:        3993764     2410712      190544        2224     1392508     1344364
+Swap:             0           0           0
+
+$ docker run --rm -it --memory 100Mi busybox free
+              total        used        free      shared  buff/cache   available
+Mem:        3993764     2421988      178952        2180     1392824     1333032
+Swap:             0           0           0
+
+$ docker run --rm -it --memory 100Mi busybox sh -c 'echo $(($(cat /sys/fs/cgroup/memory.max) / 1024 / 1024))'
+100
+----
+
+[source,console,highlight=4]
+----
+$ docker info | grep Cgroup
+WARNING: No swap limit support
+ Cgroup Driver: systemd
+ Cgroup Version: 1
+
+$ docker run --rm -d --memory 100Mi busybox sleep 10m
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3
+
+$ lscgroup | grep 16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3
+cpu,cpuacct:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+net_cls,net_prio:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+freezer:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+pids:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+blkio:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+perf_event:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+devices:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+memory:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+cpuset:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+
+$ cgget -r memory.limit_in_bytes /system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope:
+memory.limit_in_bytes: 104857600
+
+$ docker run --rm -it --memory 100Mi busybox cat /sys/fs/cgroup/memory/memory.limit_in_bytes
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+104857600
+----
+
+[source,console]
+----
+$ sudo crictl ps
+CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
+7fe801499210a       1ec24650902b1       2 hours ago         Running             kube-swagger-ui     0                   bee47f1dec5bc
+
+$ lscgroup | grep 7fe801499210a
+cpu,cpuacct:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+net_cls,net_prio:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+freezer:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+pids:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+blkio:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+perf_event:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+devices:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+memory:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+cpuset:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484_ab3f_4f87_92a4_7842aab7170f.slice/docker-7fe801499210afdc6490ee78bff40f9017a843814f4867b39ba6976c626a80a6.scope
+----
+
+== What are Containers?
+
+Containers are lightweight packages of your application code together with dependencies such as specific versions of programming language runtimes and libraries required to run your software services.
+
+Containers make it easy to share CPU, memory, storage, and network resources at the operating systems level and offer a logical packaging mechanism in which applications can be abstracted from the environment in which they actually run. 
+
+=== Containers vs. VMs
+
+You might already be familiar with VMs: a guest operating system such as Linux or Windows runs on top of a host operating system with access to the underlying hardware. Containers are often compared to virtual machines (VMs). Like virtual machines, containers allow you to package your application together with libraries and other dependencies, providing isolated environments for running your software services.
+
+* Containers are much more lightweight than VMs
+* Containers virtualize at the OS level while VMs virtualize at the hardware level
+* Containers share the OS kernel and use a fraction of the memory VMs require
+
+image::https://www.redhat.com/cms/managed-files/virtualization-vs-containers.png[,75%,75%]
+
+=== Open Container Initiative
+
+The https://opencontainers.org/[*Open Container Initiative*] (*OCI*) is a lightweight, open governance structure (project), formed under the auspices of the Linux Foundation, for the express purpose of creating open industry standards around container formats and runtime. The OCI was launched on June 22nd 2015 by Docker, CoreOS and other leaders in the container industry
+
+The OCI currently contains two specifications: the *Runtime Specification* (runtime-spec) and the *Image Specification* (image-spec). The Runtime Specification outlines how to run a “filesystem bundle” that is unpacked on disk. At a high-level an OCI implementation would download an OCI Image then unpack that image into an OCI Runtime filesystem bundle. At this point the OCI Runtime Bundle would be run by an OCI Runtime.
+
+Docker is donating its container format and runtime, runC, to the OCI to serve as the cornerstone of this new effort.
+
+* runc
++
+https://github.com/opencontainers/runc[*runc*] is a CLI tool for spawning and running containers on Linux according to the OCI specification.
++
+
+* containerd
++
+https://github.com/containerd/containerd[*containerd*] is available as a daemon for Linux and Windows. It manages the complete container lifecycle of its host system, from image transfer and storage to container execution and supervision to low-level storage to network attachments and beyond.
++
+Containerd is built on top of the Open Container Initiative’s *runC* and specification. Containerd is a daemon providing a GRPC API to manage containers on the local system. Containerd leverages runC to provide advanced functionality like checkpoint and restore, seccomp, and user namespace support which will open the door for these features into Docker.
++
+Containerd is designed to be embedded into a larger system, rather than being used directly by developers or end-users.
++
+Containerd was designed to be used by Docker and Kubernetes as well as any other container platform that wants to abstract away syscalls or OS specific functionality to run containers on linux, windows, solaris, or other OSes.  
+
+=== What is Docker? 
+
+The word "Docker" refers to several things, including an open source community project; tools from the open source project; Docker Inc., the company that primarily supports that project; and the tools that company formally supports. 
+
+image::https://www.docker.com/sites/default/files/d8/2018-11/docker-containerized-and-vm-transparent-bg.png[,70%,70%]
+
+With Docker, you can treat containers like extremely lightweight, modular virtual machines.
+
+The Docker technology uses the https://www.redhat.com/en/topics/linux/what-is-the-linux-kernel[Linux kernel] and features of the kernel, like https://www.redhat.com/en/blog/world-domination-cgroups-rhel-8-welcome-cgroups-v2[*Cgroups*] and https://lwn.net/Articles/528078/[*namespaces*], to segregate processes so they can run independently. This independence is the intention of containers—the ability to run multiple processes and apps separately from one another to make better use of your infrastructure while retaining the security you would have with separate systems.
+
+=== What is Kubernetes?
+
+Kubernetes (also known as k8s or “kube”) is an open source container orchestration platform that automates many of the manual processes involved in deploying, managing, and scaling containerized applications.
+
+image::https://www.redhat.com/cms/managed-files/kubernetes_diagram-v3-770x717_0_0_v2.svg?[,55%,55%]
+
+With Kubernetes you can:
+
+* Orchestrate containers across multiple hosts.
+* Make better use of hardware to maximize resources needed to run your enterprise apps.
+* Control and automate application deployments and updates.
+* Mount and add storage to run stateful apps.
+* Scale containerized applications and their resources on the fly.
+* Declaratively manage services, which guarantees the deployed applications are always running the way you intended them to run.
+* Health-check and self-heal your apps with autoplacement, autorestart, autoreplication, and autoscaling.
+
+==== Container Runtime Interface (CRI)
+
+At the lowest layers of a Kubernetes node is the software that, among other things, starts and stops containers. We call this the “Container Runtime”. The most widely known container runtime is Docker, but it is not alone in this space. In fact, the container runtime space has been rapidly evolving. As part of the effort to make Kubernetes more extensible, we've been working on a new plugin API for container runtimes in Kubernetes, called "CRI".
+
+*CRI* (Container Runtime Interface) consists of a specifications/requirements (to-be-added), protobuf API, and libraries for container runtimes to integrate with *kubelet* on a node.
+
+Kubelet communicates with the container runtime (or a CRI shim for the runtime) over Unix sockets using the gRPC framework, where kubelet acts as a client and the CRI shim as the server.
+
+image::https://cl.ly/3I2p0D1V0T26/Image%202016-12-19%20at%2017.13.16.png[,55%,55%]
+
+Kubernetes supports several container runtimes: https://docs.docker.com/engine/[Docker], https://containerd.io/docs/[containerd], https://cri-o.io/#what-is-cri-o[CRI-O], and any implementation of the Kubernetes CRI (Container Runtime Interface).
+
+==== What is dockershim
+
+Just as Kubernetes started out with built-in support for Docker Engine, it also included built-in support for various storage volume solutions, network solutions, and even cloud providers. But maintaining these things on an ongoing basis became too cumbersome, so the community decided to strip all third party solutions out of the core, creating the relevant interfaces, such as:
+
+* Container Runtime Interface (*CRI*)
+* Container Network Interface (*CNI*)
+* Container Storage Interface (*CSI*)
+
+The idea was that any vendor could create a product that automatically interfaces with Kubernetes, as long as it is compliant with these interfaces.
+
+That doesn’t mean that non-compliant components can’t be used with Kubernetes; Kubernetes can do anything with the right components. It just means that non-compliant components need a “shim”, which translates between the component and the relevant Kubernetes interface. For example, *dockershim* takes CRI commands and translates them into something Docker Engine understands, and vice versa. But with the drive to take third-party components like this out of the Kubernetes core, dockershim had to be removed.
+
+image::https://d33wubrfki0l68.cloudfront.net/6b4290afef76cad8a084292cd1b5e468e31c9bb3/c26ce/images/blog/2018-05-24-kubernetes-containerd-integration-goes-ga/cri-containerd.png[,75%,75%]
+
+The Kubernetes project plans to deprecate https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md#deprecation[Docker Engine support] in the kubelet and support for dockershim will be removed in a future release announced as a part of the Kubernetes v1.20 release.
+
+* https://kubernetes.io/docs/tasks/administer-cluster/migrating-from-dockershim/
+* https://kubernetes.io/blog/2021/11/12/are-you-ready-for-dockershim-removal/
+* https://kubernetes.io/blog/2020/12/02/dockershim-faq/
+* https://kubernetes.io/blog/2020/12/02/dont-panic-kubernetes-and-docker/
+* https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md#deprecation
+* https://www.docker.com/blog/what-developers-need-to-know-about-docker-docker-engine-and-kubernetes-v1-20/
+* https://www.mirantis.com/blog/mirantis-to-take-over-support-of-kubernetes-dockershim-2/
+
+==== Debugging Kubernetes nodes with crictl
+
+*crictl* is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node. crictl and its source are hosted in the https://github.com/kubernetes-sigs/cri-tools[cri-tools] repository.
+
+The `crictl` command has several subcommands and runtime flags. Use `crictl help` or `crictl <subcommand> help` for more details.
+
+`crictl` connects to `unix:///var/run/dockershim.sock` by default. For other runtimes, you can set the endpoint in multiple different ways:
+
+* By setting flags `--runtime-endpoint` and `--image-endpoint`
+* By setting environment variables `CONTAINER_RUNTIME_ENDPOINT` and `IMAGE_SERVICE_ENDPOINT`
+* By setting the endpoint in the config file `--config=/etc/crictl.yaml`
+
+You can also specify timeout values when connecting to the server and enable or disable debugging, by specifying `timeout` or `debug` values in the configuration file or using the `--timeout` and `--debug` command-line flags.
+
+To view or edit the current configuration, view or edit the contents of `/etc/crictl.yaml`.
+
+[source,console]
+----
+cat /etc/crictl.yaml
+runtime-endpoint: unix:///var/run/dockershim.sock
+image-endpoint: unix:///var/run/dockershim.sock
+timeout: 10
+debug: true
+----
+
+WARNING: If you use `crictl` to create pod sandboxes or containers on a running Kubernetes cluster, the Kubelet will eventually delete them. `crictl` is not a general purpose workflow tool, but a tool that is useful for debugging.
+
+* List pods
++
+[source,console]
+----
+$ sudo crictl pods 
+POD ID              CREATED             STATE               NAME                                        NAMESPACE           ATTEMPT             RUNTIME
+1ebbed223d8d2       20 hours ago        Ready               echoserver-66dcc9bcc6-5hwd9                 default             2                   (default)
+d6f1ec09d33d0       20 hours ago        Ready               kube-swagger-ui-69b565bcb9-kzv4d            default             3                   (default)
+8b8633b6940b7       20 hours ago        Ready               metrics-server-559f9dc594-mmkch             kube-system         3                   (default)
+b9c3ee6965fb8       20 hours ago        Ready               overprovisioning-5767847cf9-47zh2           default             3                   (default)
+...
+
+$ sudo crictl pods --name echoserver-66dcc9bcc6-5hwd9
+POD ID              CREATED             STATE               NAME                          NAMESPACE           ATTEMPT             RUNTIME
+1ebbed223d8d2       20 hours ago        Ready               echoserver-66dcc9bcc6-5hwd9   default             2                   (default)
+
+$ sudo crictl pods --label app=echoserver
+POD ID              CREATED             STATE               NAME                          NAMESPACE           ATTEMPT             RUNTIME
+1ebbed223d8d2       20 hours ago        Ready               echoserver-66dcc9bcc6-5hwd9   default             2                   (default)
+----
+
+* List images
++
+[source,console]
+----
+$ sudo crictl images 
+IMAGE                                                            TAG                 IMAGE ID            SIZE
+k8s.gcr.io/coredns/coredns                                       v1.8.4              8d147537fb7d1       47.6MB
+k8s.gcr.io/echoserver                                            1.4                 a90209bb39e3d       140MB
+k8s.gcr.io/etcd                                                  3.5.0-0             0048118155842       295MB
+k8s.gcr.io/kube-apiserver                                        v1.22.3             53224b502ea4d       128MB
+...
+
+$ sudo crictl images k8s.gcr.io/kube-apiserver
+IMAGE                       TAG                 IMAGE ID            SIZE
+k8s.gcr.io/kube-apiserver   v1.16.10            d925057c2fa51       170MB
+k8s.gcr.io/kube-apiserver   v1.18.3             7e28efa976bd1       173MB
+k8s.gcr.io/kube-apiserver   v1.22.3             53224b502ea4d       128MB
+----
+
+* List containers
++
+[source,console]
+----
+$ sudo crictl ps 
+CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
+36720d10e6ac8       8522d622299ca       3 hours ago         Running             kube-flannel        0                   e33d2645a22ab
+a93b979cf6c5a       6120bd723dced       3 hours ago         Running             kube-proxy          0                   affa1ca7f0a2b
+----
+
+* Execute a command in a running container
++
+[source,console]
+----
+$ sudo crictl exec -i -t a93b979cf6c5a ls 
+bin   dev  home  lib64	mnt  proc  run	 srv  tmp  var
+boot  etc  lib	 media	opt  root  sbin  sys  usr
+----
+
+* Get a container's logs
++
+[source,console]
+----
+$ sudo crictl logs --tail 10 36720d10e6ac8
+I1124 03:53:12.446713       1 iptables.go:172] Deleting iptables rule: ! -s 10.244.0.0/16 -d 10.244.0.0/16 -j MASQUERADE --random-fully
+I1124 03:53:12.447346       1 iptables.go:160] Adding iptables rule: -s 10.244.0.0/16 -d 10.244.0.0/16 -j RETURN
+I1124 03:53:12.448650       1 iptables.go:160] Adding iptables rule: -s 10.244.0.0/16 ! -d 224.0.0.0/4 -j MASQUERADE --random-fully
+I1124 03:53:12.449900       1 iptables.go:160] Adding iptables rule: ! -s 10.244.0.0/16 -d 10.244.1.0/24 -j RETURN
+I1124 03:53:12.451037       1 iptables.go:160] Adding iptables rule: ! -s 10.244.0.0/16 -d 10.244.0.0/16 -j MASQUERADE --random-fully
+I1124 03:53:12.543281       1 iptables.go:148] Some iptables rules are missing; deleting and recreating rules
+I1124 03:53:12.543375       1 iptables.go:172] Deleting iptables rule: -s 10.244.0.0/16 -j ACCEPT
+I1124 03:53:12.544132       1 iptables.go:172] Deleting iptables rule: -d 10.244.0.0/16 -j ACCEPT
+I1124 03:53:12.544818       1 iptables.go:160] Adding iptables rule: -s 10.244.0.0/16 -j ACCEPT
+I1124 03:53:12.546086       1 iptables.go:160] Adding iptables rule: -d 10.244.0.0/16 -j ACCEPT
+----
+
+* Run a pod sandbox
++
+Using `crictl` to run a pod sandbox is useful for debugging container runtimes. On a running Kubernetes cluster, the sandbox will eventually be stopped and deleted by the Kubelet.
++
+--
+** Create a JSON file like the following:
++
+.pod-config.json
+[source,json]
+----
+{
+  "metadata": {
+    "name": "nginx-sandbox",
+    "namespace": "default",
+    "attempt": 1,
+    "uid": "hdishd83djaidwnduwk28bcsb"
+  },
+  "log_directory": "/tmp",
+  "linux": {
+  }
+}
+----
++
+** Use the `crictl runp` command to apply the JSON and run the sandbox.
++
+[source,console]
+----
+$ sudo crictl runp pod-config.json
+7a42c484476cd008df5730df0cbbd679c72ac57b7d16b82d40917ed5ffe20ada
+----
++
+The ID of the sandbox is returned.
+--
+
+* Create a container 
++
+--
+** Pull a busybox image
++
+[source,console]
+----
+$ sudo crictl pull busybox
+Image is up to date for busybox@sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353
+----
+
+** Create configs for the pod and the container:
++
+.pod-config.json
+[source,json]
+----
+{
+  "metadata": {
+    "name": "nginx-sandbox",
+    "namespace": "default",
+    "attempt": 1,
+    "uid": "hdishd83djaidwnduwk28bcsb"
+  },
+  "log_directory": "/tmp",
+  "linux": {
+  }
+}
+----
++
+.container-config.json
+[source,json]
+----
+{
+  "metadata": {
+    "name": "busybox"
+  },
+  "image":{
+    "image": "busybox"
+  },
+  "command": [
+    "top"
+  ],
+  "log_path":"busybox.log",
+  "linux": {
+  }
+}
+----
+
+** Create the container, passing the ID of the previously-created pod, the container config file, and the pod config file. The ID of the container is returned.
++
+[source,console]
+----
+$ sudo crictl create 7a42c484476cd008df5730df0cbbd679c72ac57b7d16b82d40917ed5ffe20ada container-config.json pod-config.json
+1c0bbf7dce7207af100541032c273f0426b1a0d7f44fb00c263b185ee388dc88
+----
++
+NOTE: You should set the CLI argument `container-config.json` before `pod-config.json`.
+--
+
+* Start a container
++
+To start a container, pass its ID to crictl start:
++
+[source,console]
+----
+$ sudo crictl start 1c0bbf7dce7207af100541032c273f0426b1a0d7f44fb00c263b185ee388dc88
+1c0bbf7dce7207af100541032c273f0426b1a0d7f44fb00c263b185ee388dc88
+----
+
+* Create and start a container within one command
++
+[source,console]
+----
+$ sudo crictl run container-config.json pod-config.json
+7dc686635ed282a71b4b46210fc061847ea19f001e10f5860c335aa4375c713e
+
+$ sudo crictl ps -a
+CONTAINER           IMAGE               CREATED             STATE               NAME                      ATTEMPT             POD ID
+7dc686635ed28       busybox             20 seconds ago      Exited              busybox                   0                   32623026e0ec8
+----
+
 == References
 
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/kernel_administration_guide/kernel_features
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/resource_management_guide/index
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/chap-managing_services_with_systemd
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/index
-* https://github.com/libcgroup/libcgroup/releases/tag/v2.0
-* https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=959022
-* https://cloud.google.com/learn/what-are-containers
+* https://www.redhat.com/sysadmin/container-namespaces-nsenter
 * https://www.redhat.com/en/topics/containers/whats-a-linux-container
 * https://www.redhat.com/en/topics/containers/what-is-docker
 * https://www.redhat.com/en/topics/containers/what-is-kubernetes
-* https://www.redhat.com/sysadmin/container-namespaces-nsenter
-* https://man7.org/linux/man-pages/man7/namespaces.7.html
-* https://man7.org/linux/man-pages/man7/cgroup_namespaces.7.html
+* https://www.docker.com/resources/what-container
+* https://www.docker.com/blog/what-is-containerd-runtime/
+* https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/
+* https://kubernetes.io/blog/2016/12/container-runtime-interface-cri-in-kubernetes/
+* https://www.docker.com/blog/what-developers-need-to-know-about-docker-docker-engine-and-kubernetes-v1-20/
