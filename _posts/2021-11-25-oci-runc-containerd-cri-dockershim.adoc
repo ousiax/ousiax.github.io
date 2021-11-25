@@ -1,0 +1,721 @@
+= RUNC, CONTAINERD, CRI, DOCKER and DOCKERSHIM
+:page-layout: post
+:page-categories: ['container']
+:page-tags: ['container', 'cri', 'runc', 'docker']
+:page-date: 2021-11-25 11:03:28 +0800
+:page-revdate: 2021-11-25 11:03:28 +0800
+:sectnums:
+:toc:
+
+:OCI: https://opencontainers.org/
+:runtime-spec: https://github.com/opencontainers/runtime-spec
+:runc: https://github.com/opencontainers/runc
+:runhcs: https://github.com/Microsoft/hcsshim/tree/master/cmd/runhcs
+:containerd: https://containerd.io/
+
+== Open Container Initiative
+
+The {OCI}[*Open Container Initiative*] (OCI) is an open governance structure for the express purpose of creating open industry standards around *container formats* and *runtimes*.
+
+Docker is donating its container format and runtime, {runc}[*runC*], to the OCI to serve as the cornerstone of this new effort. 
+
+== runC
+
+_unix principles: several simple components are better than a single, complicated one_.
+
+{runc}[*runC*] is a lightweight, portable container runtime for creating and running containers according to the {runtime-spec}[OCI container runtime specification].
+
+* runC only supports Linux.
+
+* runc is a CLI tool for spawning and running containers on Linux according to the OCI specification.
+
+{runhcs}[*runhcs*] is a fork of runc. Like runc, runhcs is a command line client for running applications packaged on Windows according to the OCI format and is a compliant implementation of the OCI specification.
+
+[source,console]
+----
+$ runc help
+NAME:
+   runc - Open Container Initiative runtime
+
+runc is a command line client for running applications packaged according to
+the Open Container Initiative (OCI) format and is a compliant implementation of the
+Open Container Initiative specification.
+
+runc integrates well with existing process supervisors to provide a production
+container runtime environment for applications. It can be used with your
+existing process monitoring tools and the container will be spawned as a
+direct child of the process supervisor.
+
+Containers are configured using bundles. A bundle for a container is a directory
+that includes a specification file named "config.json" and a root filesystem.
+The root filesystem contains the contents of the container.
+
+To start a new instance of a container:
+
+    # runc run [ -b bundle ] <container-id>
+
+Where "<container-id>" is your name for the instance of the container that you
+are starting. The name you provide for the container instance must be unique on
+your host. Providing the bundle directory using "-b" is optional. The default
+value for "bundle" is the current directory.
+
+USAGE:
+   runc [global options] command [command options] [arguments...]
+
+VERSION:
+   1.0.2
+commit: v1.0.2-0-g52b36a2
+spec: 1.0.2-dev
+go: go1.16.8
+libseccomp: 2.5.1
+
+COMMANDS:
+   checkpoint  checkpoint a running container
+   create      create a container
+   delete      delete any resources held by the container often used with detached container
+   events      display container events such as OOM notifications, cpu, memory, and IO usage statistics
+   exec        execute new process inside the container
+   init        initialize the namespaces and launch the process (do not call it outside of runc)
+   kill        kill sends the specified signal (default: SIGTERM) to the container's init process
+   list        lists containers started by runc with the given root
+   pause       pause suspends all processes inside the container
+   ps          ps displays the processes running inside a container
+   restore     restore a container from a previous checkpoint
+   resume      resumes all processes that have been previously paused
+   run         create and run a container
+   spec        create a new specification file
+   start       executes the user defined process in a created container
+   state       output the state of a container
+   update      update container resource constraints
+   help, h     Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --debug             enable debug output for logging
+   --log value         set the log file path where internal debug information is written
+   --log-format value  set the format used by logs ('text' (default), or 'json') (default: "text")
+   --root value        root directory for storage of container state (this should be located in tmpfs) (default: "/run/user/1000/runc")
+   --criu value        path to the criu binary used for checkpoint and restore (default: "criu")
+   --systemd-cgroup    enable systemd cgroup support, expects cgroupsPath to be of form "slice:prefix:name" for e.g. "system.slice:runc:434234"
+   --rootless value    ignore cgroup permission errors ('true', 'false', or 'auto') (default: "auto")
+   --help, -h          show help
+   --version, -v       print the version
+----
+
+[source,console,highlight="3,6"]
+----
+$ dockerd --help | grep root
+      --data-root string                        Root directory of persistent Docker state (default "/var/lib/docker")
+      --exec-root string                        Root directory for execution state files (default "/var/run/docker")
+      --rootless                                Enable rootless mode; typically used with RootlessKit
+
+$ sudo runc --root /var/run/docker/runtime-runc/moby list
+ID                                                                 PID         STATUS      BUNDLE                                                                                                                CREATED                          OWNER
+011d6fd316e09fc8a5ff3b226d35b9394cd93c57604c91aa52573559368a822c   940971      running     /run/containerd/io.containerd.runtime.v2.task/moby/011d6fd316e09fc8a5ff3b226d35b9394cd93c57604c91aa52573559368a822c   2021-11-25T04:10:25.216394136Z   root
+...
+----
+
+== containerd 
+
+{containerd}[*containerd*] is available as a daemon for Linux and Windows. It manages the complete container lifecycle of its host system, from image transfer and storage to container execution and supervision to low-level storage to network attachments and beyond.
+
+image:https://containerd.io/img/architecture.png[,45%,45%]
+image:https://docs.microsoft.com/en-us/virtualization/windowscontainers/deploy-containers/media/containerd-platform.png[,45%,45%]
+
+*containerd* is designed to be embedded into a larger system, rather than being used directly by developers or end-users.
+
+There are many different ways to use containerd:
+
+* If you are a developer working on containerd you can use the *ctr* tool to quickly test features and functionality without writing extra code
+
+* If you want to integrate containerd into your project, you can use a simple client package. 
+
+[source,console]
+----
+$ ctr help 
+NAME:
+   ctr - 
+        __
+  _____/ /______
+ / ___/ __/ ___/
+/ /__/ /_/ /
+\___/\__/_/
+
+containerd CLI
+
+
+USAGE:
+   ctr [global options] command [command options] [arguments...]
+
+VERSION:
+   1.4.11
+
+DESCRIPTION:
+   
+ctr is an unsupported debug and administrative client for interacting
+with the containerd daemon. Because it is unsupported, the commands,
+options, and operations are not guaranteed to be backward compatible or
+stable from release to release of the containerd project.
+
+COMMANDS:
+   plugins, plugin            provides information about containerd plugins
+   version                    print the client and server versions
+   containers, c, container   manage containers
+   content                    manage content
+   events, event              display containerd events
+   images, image, i           manage images
+   leases                     manage leases
+   namespaces, namespace, ns  manage namespaces
+   pprof                      provide golang pprof outputs for containerd
+   run                        run a container
+   snapshots, snapshot        manage snapshots
+   tasks, t, task             manage tasks
+   install                    install a new package
+   oci                        OCI tools
+   shim                       interact with a shim directly
+   help, h                    Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --debug                      enable debug output in logs
+   --address value, -a value    address for containerd's GRPC server (default: "/run/containerd/containerd.sock") [$CONTAINERD_ADDRESS]
+   --timeout value              total timeout for ctr commands (default: 0s)
+   --connect-timeout value      timeout for connecting to containerd (default: 0s)
+   --namespace value, -n value  namespace to use with commands (default: "default") [$CONTAINERD_NAMESPACE]
+   --help, -h                   show help
+   --version, -v                print the version
+----
+
+=== containerd config
+
+:containerd-ops: https://github.com/containerd/containerd/blob/main/docs/ops.md
+:containerd-plugins: https://github.com/containerd/containerd/blob/main/docs/PLUGINS.md
+
+*containerd* is meant to be a simple daemon to run on any system. It provides a minimal {containerd-ops}[config] with knobs to configure the daemon and what {containerd-plugins}[*plugins*] are used when necessary.
+
+[source,console,highlight="42-43"]
+----
+$ containerd help
+NAME:
+   containerd - 
+                    __        _                     __
+  _________  ____  / /_____ _(_)___  ___  _________/ /
+ / ___/ __ \/ __ \/ __/ __ `/ / __ \/ _ \/ ___/ __  /
+/ /__/ /_/ / / / / /_/ /_/ / / / / /  __/ /  / /_/ /
+\___/\____/_/ /_/\__/\__,_/_/_/ /_/\___/_/   \__,_/
+
+high performance container runtime
+
+
+USAGE:
+   containerd [global options] command [command options] [arguments...]
+
+VERSION:
+   1.4.11
+
+DESCRIPTION:
+   
+containerd is a high performance container runtime whose daemon can be started
+by using this command. If none of the *config*, *publish*, or *help* commands
+are specified, the default action of the **containerd** command is to start the
+containerd daemon in the foreground.
+
+
+A default configuration is used if no TOML configuration is specified or located
+at the default file location. The *containerd config* command can be used to
+generate the default configuration for containerd. The output of that command
+can be used and modified as necessary as a custom configuration.
+
+COMMANDS:
+   config    information on the containerd config
+   publish   binary to publish events to containerd
+   oci-hook  provides a base for OCI runtime hooks to allow arguments to be injected.
+   help, h   Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --config value, -c value     path to the configuration file (default: "/etc/containerd/config.toml")
+   --log-level value, -l value  set the logging level [trace, debug, info, warn, error, fatal, panic]
+   --address value, -a value    address for containerd's GRPC server
+   --root value                 containerd root directory
+   --state value                containerd state directory
+   --help, -h                   show help
+   --version, -v                print the version
+----
+
+While a few daemon level options can be set from CLI flags the majority of containerd's configuration is kept in the configuration file. The default path for the config file is located at `/etc/containerd/config.toml`. You can change this path via the `--config,-c` flags when booting the daemon.
+
+In the containerd config file you will find settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.
+
+* *persistent data*
++
+`root` will be used to store any type of persistent data for containerd. Snapshots, content, metadata for containers and image, as well as any plugin data will be kept in this location.
++
+The root is also `namespaced for plugins` that containerd loads. Each plugin will have its own directory where it stores data. containerd itself does not actually have any persistent data that it needs to store, its functionality comes from the plugins that are loaded.
++
+[source,console]
+----
+/var/lib/containerd/
+├── io.containerd.content.v1.content
+│   └── ingest
+├── io.containerd.metadata.v1.bolt
+│   └── meta.db
+├── io.containerd.runtime.v1.linux
+├── io.containerd.runtime.v2.task
+├── io.containerd.snapshotter.v1.btrfs
+├── io.containerd.snapshotter.v1.native
+│   └── snapshots
+├── io.containerd.snapshotter.v1.overlayfs
+│   └── snapshots
+└── tmpmounts
+----
+
+* *runtime state*
++
+`state` will be used to store any type of ephemeral data. Sockets, pids, runtime state, mount points, and other plugin data that must not persist between reboots are stored in this location.
++
+[source,console]
+----
+run/containerd/
+├── containerd.sock
+├── containerd.sock.ttrpc
+├── io.containerd.runtime.v1.linux
+└── io.containerd.runtime.v2.task
+----
+
+Both the `root` and `state` directories are namespaced for plugins. 
+
+By the way, you can also type the command: `containerd config default` to print the output of the default config. The follow sample is used by Docker CE as default.
+
+[source,toml,highlight=1]
+----
+disabled_plugins = ["cri"]
+
+#root = "/var/lib/containerd"
+#state = "/run/containerd"
+#subreaper = true
+#oom_score = 0
+
+#[grpc]
+#  address = "/run/containerd/containerd.sock"
+#  uid = 0
+#  gid = 0
+
+#[debug]
+#  address = "/run/containerd/debug.sock"
+#  uid = 0
+#  gid = 0
+#  level = "info"
+----
+
+
+=== containerd plugins
+
+At the end of the day, containerd's core is very small. The real functionality comes from {containerd-plugins}[plugins]. Everything from snapshotters, runtimes, and content are all plugins that are registered at runtime. Because these various plugins are so different we need a way to provide type safe configuration to the plugins. The only way we can do this is via the config file and not CLI flags.
+
+==== Built-in Plugins
+
+containerd uses plugins internally to ensure that internal implementations are decoupled, stable, and treated equally with external plugins. To see all the plugins containerd has, use `ctr plugins ls`.
+
+[source,console]
+----
+$ sudo ctr plugin ls
+TYPE                            ID                       PLATFORMS      STATUS    
+io.containerd.content.v1        content                  -              ok        
+io.containerd.snapshotter.v1    aufs                     linux/amd64    error     
+io.containerd.snapshotter.v1    btrfs                    linux/amd64    error     
+io.containerd.snapshotter.v1    devmapper                linux/amd64    error     
+io.containerd.snapshotter.v1    native                   linux/amd64    ok        
+io.containerd.snapshotter.v1    overlayfs                linux/amd64    ok        
+io.containerd.snapshotter.v1    zfs                      linux/amd64    error     
+io.containerd.metadata.v1       bolt                     -              ok        
+io.containerd.differ.v1         walking                  linux/amd64    ok        
+io.containerd.gc.v1             scheduler                -              ok        
+...
+----
+
+From the output all the plugins can be seen as well those which did not successfully load. In this case `aufs` and `zfs` are expected not to load since they are not support on the machine. The logs will show why it failed, but you can also get more details using the `-d` option.
+
+[source,console]
+----
+$ sudo ctr plugin ls -d id==aufs id==zfs
+Type:          io.containerd.snapshotter.v1
+ID:            aufs
+Platforms:     linux/amd64
+Exports:      
+               root      /var/lib/containerd/io.containerd.snapshotter.v1.aufs
+Error:        
+               Code:        Unknown
+               Message:     aufs is not supported (modprobe aufs failed: exit status 1 "modprobe: FATAL: Module aufs not found in directory /lib/modules/5.10.0-9-amd64\n"): skip plugin
+                               
+Type:          io.containerd.snapshotter.v1
+ID:            zfs
+Platforms:     linux/amd64
+Exports:      
+               root      /var/lib/containerd/io.containerd.snapshotter.v1.zfs
+Error:        
+               Code:        Unknown
+               Message:     path /var/lib/containerd/io.containerd.snapshotter.v1.zfs must be a zfs filesystem to be used with the zfs snapshotter: skip plugin
+----
+
+==== Configuration
+
+Plugins are configured using the `[plugins]` section of containerd's config. Every plugin can have its own section using the pattern `[plugins.<plugin id>]`.
+
+[source,toml]
+----
+[plugins]
+  [plugins."io.containerd.gc.v1.scheduler"]
+    pause_threshold = 0.02
+    deletion_threshold = 0
+    mutation_threshold = 100
+    schedule_delay = "0s"
+    startup_delay = "100ms"
+  [plugins."io.containerd.grpc.v1.cri"]
+    disable_tcp_service = true
+    stream_server_address = "127.0.0.1"
+    stream_server_port = "0"
+    stream_idle_timeout = "4h0m0s"
+    enable_selinux = false
+    # <other paramters>
+----
+
+=== containerd/cri
+
+:cri-api: https://github.com/kubernetes/cri-api
+:containerd-cri: https://github.com/containerd/containerd/tree/main/pkg/cri
+
+{containerd-cri}[*cri*] is a containerd built-in plugin implementation of {cri-api}[Kubernetes container runtime interface (CRI)].
+
+While OCI specs defines a single container, CRI (container runtime interface) describes containers as workload(s) in a shared sandbox environment called a pod. Pods can contain one or more container workloads.
+
+With it, you could run Kubernetes using containerd as the container runtime. 
+
+image::/assets/kubernetes/containerd/cri.png[,55%,55%]
+
+=== containerd/namespaces
+
+:containerd-namespaces: https://github.com/containerd/containerd/blob/main/docs/namespaces.md
+
+containerd offers a fully {containerd-namespaces}[namespaced API] so multiple consumers can all use a single containerd instance without conflicting with one another. Namespaces allow *multi-tenancy* within a single daemon.
+
+Consumers are able to have containers with the same names but with settings and/or configurations that vary drastically. For example, system or infrastructure level containers can be hidden in one namespace while user level containers are kept in another. Underlying image content is still shared via content addresses but image names and metadata are separate per namespace.
+
+Namespaces allow various features, most notably, the ability for one client to create, edit, and delete resources without affecting another client. A resource can be anything from an: image, container, task, or snapshot.
+
+When a client queries for a resource, they only see the resources that are part of their namespace. 
+
+.`ctr -n alice image`
+[source,console,highlight=12]
+----
+$ sudo ctr -n alice image pull docker.io/library/nginx:latest
+docker.io/library/nginx:latest:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
+index-sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e:    done           |++++++++++++++++++++++++++++++++++++++| 
+manifest-sha256:2f14a471f2c2819a3faf88b72f56a0372ff5af4cb42ec45aab00c03ca5c9989f: done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:266f639b35ad602ee76c3b4d4cf88285a50adf8f561d8d96d331db732fe16982:    done           |++++++++++++++++++++++++++++++++++++++| 
+config-sha256:ea335eea17ab984571cd4a3bcf90a0413773b559c75ef4cda07d0ce952b00291:   done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:eff15d958d664f0874d16aee393cc44387031ee0a68ef8542d0056c747f378e8:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:1e5351450a593c3a3d7a5104f93c8b80d8dc00c827158cb3a5bf985916ea3f75:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:2df63e6ce2be0b3cefd3e659558e92b8085f032db96828343ec9cf0b7d4409fe:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:9171c7ae368c6ca24dae913fce356801f624f656360c78ca956a92c3f0fe0ec7:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:020f975acd28936c7ff43827238aed4771d14235dc983389ec149811f7e0b7cf:    done           |++++++++++++++++++++++++++++++++++++++| 
+elapsed: 55.1s                                                                    total:  53.2 M (988.4 KiB/s)                                     
+unpacking linux/amd64 sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e...
+done
+
+$ sudo ctr -n alice image ls
+REF                            TYPE                                                      DIGEST                                                                  SIZE     PLATFORMS                                                                                               LABELS 
+docker.io/library/nginx:latest application/vnd.docker.distribution.manifest.list.v2+json sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e 54.1 MiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/s390x -  
+----
+
+.`ctr -n bob image`
+[source,console,highlight=15]
+----
+$ sudo ctr -n bob image ls
+REF TYPE DIGEST SIZE PLATFORMS LABELS 
+
+$ sudo ctr -n bob image pull docker.io/library/nginx:latest
+docker.io/library/nginx:latest:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
+index-sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e:    done           |++++++++++++++++++++++++++++++++++++++| 
+manifest-sha256:2f14a471f2c2819a3faf88b72f56a0372ff5af4cb42ec45aab00c03ca5c9989f: done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:266f639b35ad602ee76c3b4d4cf88285a50adf8f561d8d96d331db732fe16982:    done           |++++++++++++++++++++++++++++++++++++++| 
+config-sha256:ea335eea17ab984571cd4a3bcf90a0413773b559c75ef4cda07d0ce952b00291:   done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:eff15d958d664f0874d16aee393cc44387031ee0a68ef8542d0056c747f378e8:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:1e5351450a593c3a3d7a5104f93c8b80d8dc00c827158cb3a5bf985916ea3f75:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:2df63e6ce2be0b3cefd3e659558e92b8085f032db96828343ec9cf0b7d4409fe:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:9171c7ae368c6ca24dae913fce356801f624f656360c78ca956a92c3f0fe0ec7:    done           |++++++++++++++++++++++++++++++++++++++| 
+layer-sha256:020f975acd28936c7ff43827238aed4771d14235dc983389ec149811f7e0b7cf:    done           |++++++++++++++++++++++++++++++++++++++| 
+elapsed: 2.5 s                                                                    total:   0.0 B (0.0 B/s)                                         
+unpacking linux/amd64 sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e...
+done
+----
+
+.list namepscaes
+[source,console]
+----
+$ sudo ctr ns ls
+NAME   LABELS 
+alice         
+bob           
+k8s.io        
+moby          
+----
+
+As we see, there are namespaces `alice` and `bob`, but what are `moby` and `k8s.io` ?
+
+:kubelet: https://kubernetes.io/docs/concepts/overview/components/#kubelet
+:dockerd: https://docs.docker.com/engine/reference/commandline/dockerd/
+
+* `moby` is default namespace for {dockerd}[dockerd] and `k8s.io` is default namespace for {kubelet}[kubelet], i.e. kubernetes.
++
+[source,console]
+----
+$ dockerd --help | grep containerd-namespace
+      --containerd-namespace string             Containerd namespace to use (default "moby")
+
+$ kubelet --help | grep containerd-namespace
+      --containerd-namespace string                              containerd namespace (default "k8s.io") (DEPRECATED: This is a cadvisor flag that was mistakenly registered with the Kubelet. Due to legacy concerns, it will follow the standard CLI deprecation timeline before being removed.)
+----
+
+.`ctr -n alice run`
+[source,console]
+----
+$ sudo ctr -n alice run --null-io -d docker.io/library/nginx:latest nginx-a
+
+$ sudo ctr -n alice container ls
+CONTAINER    IMAGE                             RUNTIME                  
+nginx-a      docker.io/library/nginx:latest    io.containerd.runc.v2    
+
+$ sudo ctr -n alice t ls
+TASK       PID       STATUS    
+nginx-a    967104    RUNNING
+----
+
+.`ctr -n bob run`
+[source,console]
+----
+$ sudo ctr -n bob container ls
+CONTAINER    IMAGE    RUNTIME    
+
+$ sudo ctr -n bob task ls
+TASK    PID    STATUS    
+
+$ sudo ctr -n bob run --null-io -d docker.io/library/nginx:latest nginx-b
+
+$ sudo ctr -n bob t ls
+TASK       PID       STATUS    
+nginx-b    967330    RUNNING
+----
+
+.`nsenter`
+[source,console]
+----
+$ sudo ctr -n alice t ls
+TASK       PID       STATUS    
+nginx-a    967104    RUNNING
+
+$ sudo ctr -n bob t ls
+TASK       PID       STATUS    
+nginx-b    967330    RUNNING
+
+$ sudo nsenter -t 967104 -a lsns
+        NS TYPE   NPROCS PID USER COMMAND
+4026531834 time        4   1 root nginx: master process nginx -g daemon off;
+4026531835 cgroup      4   1 root nginx: master process nginx -g daemon off;
+4026531837 user        4   1 root nginx: master process nginx -g daemon off;
+4026532553 mnt         4   1 root nginx: master process nginx -g daemon off;
+4026532554 uts         4   1 root nginx: master process nginx -g daemon off;
+4026532555 ipc         4   1 root nginx: master process nginx -g daemon off;
+4026532556 pid         4   1 root nginx: master process nginx -g daemon off;
+4026532558 net         4   1 root nginx: master process nginx -g daemon off;
+
+$ sudo nsenter -t 967330 -a lsns
+        NS TYPE   NPROCS PID USER COMMAND
+4026531834 time        4   1 root nginx: master process nginx -g daemon off;
+4026531835 cgroup      4   1 root nginx: master process nginx -g daemon off;
+4026531837 user        4   1 root nginx: master process nginx -g daemon off;
+4026532632 mnt         4   1 root nginx: master process nginx -g daemon off;
+4026532633 uts         4   1 root nginx: master process nginx -g daemon off;
+4026532634 ipc         4   1 root nginx: master process nginx -g daemon off;
+4026532635 pid         4   1 root nginx: master process nginx -g daemon off;
+4026532637 net         4   1 root nginx: master process nginx -g daemon off;
+
+$ sudo nsenter -t 967330 -a curl -iI 127.0.0.1
+HTTP/1.1 200 OK
+Server: nginx/1.21.4
+Date: Thu, 25 Nov 2021 07:52:48 GMT
+Content-Type: text/html
+Content-Length: 615
+Last-Modified: Tue, 02 Nov 2021 14:49:22 GMT
+Connection: keep-alive
+ETag: "61814ff2-267"
+Accept-Ranges: bytes
+
+----
+
+
+== crictl
+
+:kube-crictl: https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/
+:cri-tools: https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md
+
+{kube-crictl}[*crictl*] is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node. crictl and its source are hosted in the {cri-tools}[cri-tools] repository.
+
+.`crictl image list = ctr -n=k8s.io image list`
+[source,console]
+----
+$ sudo ctr -n k8s.io i ls
+REF                                                                                               TYPE                                                      DIGEST                                                                  SIZE      PLATFORMS                                                                                                                          LABELS                          
+docker.io/library/busybox:latest                                                                  application/vnd.docker.distribution.manifest.list.v2+json sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 758.9 KiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/riscv64,linux/s390x io.cri-containerd.image=managed 
+docker.io/library/busybox@sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 application/vnd.docker.distribution.manifest.list.v2+json sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 758.9 KiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/riscv64,linux/s390x io.cri-containerd.image=managed 
+k8s.gcr.io/pause:3.2                                                                              application/vnd.docker.distribution.manifest.v2+json      sha256:2a7b365f500c323286ac47e9e32af9bd50ee65de7fe2a27355eb5987c8df9ad8 669.7 KiB linux/amd64                                                                                                                        io.cri-containerd.image=managed 
+sha256:7138284460ffa3bb6ee087344f5b051468b3f8697e2d1427bac1a20c8d168b14                           application/vnd.docker.distribution.manifest.list.v2+json sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 758.9 KiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/riscv64,linux/s390x io.cri-containerd.image=managed 
+sha256:80d28bedfe5dec59da9ebf8e6260224ac9008ab5c11dbbe16ee3ba3e4439ac2c                           application/vnd.docker.distribution.manifest.v2+json      sha256:61e45779fc594fcc1062bb9ed2cf5745b19c7ba70f0c93eceae04ffb5e402269 669.7 KiB linux/amd64                                                                                                                        io.cri-containerd.image=managed 
+
+$ sudo crictl image ls
+IMAGE                       TAG                 IMAGE ID            SIZE
+docker.io/library/busybox   latest              7138284460ffa       1.46MB
+k8s.gcr.io/pause            3.2                 80d28bedfe5de       686kB
+----
+
+.container-config.json
+[source,json]
+----
+{
+  "metadata": {
+    "name": "busybox"
+  },
+  "image":{
+    "image": "busybox"
+  },
+  "command": [
+    "top"
+  ],
+  "log_path":"busybox.0.log",
+  "linux": {
+  }
+}
+----
+
+.pod-config.json
+[source,json]
+----
+{
+  "metadata": {
+    "name": "nginx-sandbox",
+    "namespace": "default",
+    "attempt": 1,
+    "uid": "hdishd83djaidwnduwk28bcsb"
+  },
+  "log_directory": "/tmp",
+  "linux": {
+  }
+}
+----
+
+.create a pod sandbox and run a container
+[source,console]
+----
+$ sudo crictl run container-config.json pod-config.json
+b08ad7b8517d0e37853f3a7211fbc7ba283a7b34cff5bd0ae108e9d956034a24
+
+$ sudo crictl pods
+POD ID              CREATED             STATE               NAME                NAMESPACE           ATTEMPT             RUNTIME
+91ff0a7d5e81a       15 seconds ago      Ready               nginx-sandbox       default             1                   (default)
+
+$ sudo crictl ps
+CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
+b08ad7b8517d0       busybox             15 seconds ago      Running             busybox             0                   91ff0a7d5e81a
+
+$ sudo crictl stopp 91ff0a7d5e81a
+Stopped sandbox 91ff0a7d5e81a
+
+$ sudo crictl rmp 91ff0a7d5e81a
+Removed sandbox 91ff0a7d5e81a
+----
+
+== docker and dockershim
+
+:cri-containerd-png: https://d33wubrfki0l68.cloudfront.net/6b4290afef76cad8a084292cd1b5e468e31c9bb3/c26ce/images/blog/2018-05-24-kubernetes-containerd-integration-goes-ga/cri-containerd.png
+:dockershim-faq: https://kubernetes.io/blog/2020/12/02/dockershim-faq/
+
+*dockershim* is a Docker CRI implementation for {kubelet}[kubelet] to interact with {dockerd}[dockerd] to manage containers. 
+
+image::{cri-containerd-png}[,75%,75%]
+
+dockershim deprecation was announced as a part of the {dockershim-faq}[Kubernetes v1.20 release].
+
+> Docker support in the kubelet is now deprecated and will be removed in a future release. The kubelet uses a module called "dockershim" which implements CRI support for Docker and it has seen maintenance issues in the Kubernetes community.
+
+Developers can still use the Docker platform to build, share, and run containers on Kubernetes! The images Docker builds are compliant with OCI (Open Container Initiative), are fully supported on containerd, and will continue to run great on Kubernetes.
+
+*If you’re using Docker, you’re already using containerd.*
+
+[source,console]
+----
+$ dockerd --help | grep containerd
+      --containerd string                       containerd grpc address
+      --containerd-namespace string             Containerd namespace to use (default "moby")
+      --containerd-plugins-namespace string     Containerd namespace to use for plugins (default "plugins.moby")
+      --cri-containerd                          start containerd with cri
+----
+
+Docker's runtime is built upon containerd while providing a great developer experience around it. For production environments that benefit from a minimal container runtime, such as Kubernetes, and may have no need for Docker's great developer experience, it's reasonable to directly use lightweight runtimes like containerd.
+
+However, the `cri` plugin was disabled by default at `/etc/containerd/config.toml`.
+
+[source,console]
+----
+$ grep cri /etc/containerd/config.toml 
+disabled_plugins = ["cri"]
+
+$ sudo ctr plugin ls | grep cri
+----
+
+:kube-rt-containerd: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd
+
+To migrate runtime from Docker to {kube-rt-containerd}[containerd], please enable the `cri` plugin, and specified the cri parameters `--container-runtime=remote` and  `--container-runtime-endpoint=/run/containerd/containerd.sock` for kubelet.
+
+.Use `kubeadm` to init a single node cluster with `containerd`
+[source,console]
+----
+$ sudo ctr plugin ls | grep cri
+io.containerd.grpc.v1           cri                      linux/amd64    ok 
+
+$ sudo kubeadm init --cri-socket /run/containerd/containerd.sock --ignore-preflight-errors NumCPU --kubernetes-version v1.22.3
+[init] Using Kubernetes version: v1.22.3
+[preflight] Running pre-flight checks
+
+<other outputs>
+
+Your Kubernetes control-plane has initialized successfully!
+
+$ sudo kubectl get node -owide --kubeconfig /etc/kubernetes/admin.conf
+NAME     STATUS   ROLES                  AGE     VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION    CONTAINER-RUNTIME
+node-1   Ready    control-plane,master   6m55s   v1.22.4   192.168.91.137   <none>        Debian GNU/Linux 10 (buster)   4.19.0-17-amd64   containerd://1.4.8
+
+$ sudo kubectl get no node-1 -ogo-template='{{.status.nodeInfo.containerRuntimeVersion}}' --kubeconfig /etc/kubernetes/admin.conf 
+containerd://1.4.8
+
+$ systemctl status kubelet.service --no-page --full
+● kubelet.service - kubelet: The Kubernetes Node Agent
+   Loaded: loaded (/lib/systemd/system/kubelet.service; disabled; vendor preset: enabled)
+  Drop-In: /etc/systemd/system/kubelet.service.d
+           └─10-kubeadm.conf
+   Active: active (running) since Thu 2021-11-25 17:29:02 CST; 21min ago
+     Docs: https://kubernetes.io/docs/home/
+ Main PID: 38090 (kubelet)
+    Tasks: 13 (limit: 2330)
+   Memory: 54.7M
+   CGroup: /system.slice/kubelet.service
+           └─38090 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --pod-infra-container-image=k8s.gcr.io/pause:3.5
+----
+
+== References
+
+* https://www.docker.com/blog/runc/
+* https://docs.microsoft.com/en-us/virtualization/windowscontainers/deploy-containers/containerd
+* https://www.docker.com/blog/what-is-containerd-runtime/
+* https://stackoverflow.com/questions/57009928/runc-and-ctr-commands-do-not-show-docker-images-and-containers
+* https://stackoverflow.com/questions/61738905/how-to-list-docker-containers-using-runc
+* https://github.com/containerd/containerd/blob/main/docs/ops.md
+* https://github.com/containerd/containerd/blob/main/docs/PLUGINS.md
+* https://github.com/containerd/cri/blob/release/1.4/docs/config.md
+* https://kubernetes.io/blog/2018/05/24/kubernetes-containerd-integration-goes-ga/
