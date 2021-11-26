@@ -305,7 +305,6 @@ disabled_plugins = ["cri"]
 #  level = "info"
 ----
 
-
 === containerd plugins
 
 At the end of the day, containerd's core is very small. The real functionality comes from {containerd-plugins}[plugins]. Everything from snapshotters, runtimes, and content are all plugins that are registered at runtime. Because these various plugins are so different we need a way to provide type safe configuration to the plugins. The only way we can do this is via the config file and not CLI flags.
@@ -550,6 +549,81 @@ Accept-Ranges: bytes
 
 ----
 
+=== contianerd/proxy
+
+The *contianerd* daemon uses the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environmental variables in its start-up environment to configure HTTP or HTTPS proxy behavior.
+
+* Create a systemd drop-in directory for the containerd service:
++
+[source,console]
+----
+$ sudo mkdir -p /etc/systemd/system/containerd.service.d
+----
+
+* Create a file called `http-proxy.conf` at the above directory that adds the `HTTP_PROXY` environment variable:
++
+[source,systemd]
+----
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:80/"
+----
++
+Or, if you are behind an HTTPS proxy server, adds the `HTTPS_PROXY` environment variable:
++
+[source,systemd]
+----
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:80/"
+Environment="HTTPS_PROXY=https://proxy.example.com:443/"
+----
++
+If you have internal Docker registries that you need to contact without proxying you can specify them via the `NO_PROXY` environment variable:
++
+[source,systemd]
+----
+[Service]    
+Environment="HTTP_PROXY=http://proxy.example.com:80/"
+Environment="HTTPS_PROXY=https://proxy.example.com:443/"
+Environment="NO_PROXY=localhost,127.0.0.1,docker-registry.somecorporation.com"
+----
++
+[TIP]
+====
+The `NO_PROXY` environment variable specifies URLs that should be excluded from proxying (on servers that should be contacted directly). This should be a comma-separated list of hostnames, domain names, or a mixture of both. Asterisks can be used as wildcards, but other clients may not support that. Domain names may be indicated by a leading dot. For example:
+
+[source,console]
+----
+NO_PROXY="*.aventail.com,home.com,.seanet.com"
+----
+
+says to contact all machines in the ‘aventail.com’ and ‘seanet.com’ domains directly, as well as the machine named ‘home.com’. If `NO_PROXY` isn’t defined, `no_PROXY` and `no_proxy` are also tried, in that order. 
+
+ref: https://www.gnu.org/software/emacs/manual/html_node/url/Proxies.html
+====
++
+NOTE: You can also use the `systemctl edit containerd` to edit `override.conf` at `/etc/systemd/system/containrd.service.d` for the containerd service.
+
+* Flush changes:
++
+[source,sh]
+----
+$ sudo systemctl daemon-reload
+----
+
+* Restart Docker:
++
+[source,console]
+----
+$ sudo systemctl restart containerd
+----
+
+* Verify that the configuration has been loaded:
++
+[source,console]
+----
+$ systemctl show --property=Environment containerd --full --no-pager 
+Environment=HTTP_PROXY=http://127.0.0.1:8118 HTTPS_PROXY=http://127.0.0.1:8118 NO_PROXY=localhost,127.0.0.1,docker.io,docker.com,docker-cn.com,aliyuncs.com,mcr.microsoft.com,mcrea0.blob.core.windows.net,.azurecr.io,.elastic.co,.cloudfront.net,quay.io,.amazonaws.com,.amazonaws.com.cn,mscr.io
+----
 
 == crictl
 
