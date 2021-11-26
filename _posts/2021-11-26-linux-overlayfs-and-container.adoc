@@ -1,0 +1,250 @@
+= Linux OverlayFS and Container
+:page-layout: post
+:page-categories: ['container']
+:page-tags: ['container', 'oci', 'overlayfs']
+:page-date: 2021-11-26 16:44:57 +0800
+:page-revdate: 2021-11-26 16:44:57 +0800
+:sectnums:
+:toc:
+
+== Linux OverlayFS
+
+:wiki_overlayfs: https://en.wikipedia.org/wiki/OverlayFS
+:union_mount: https://en.wikipedia.org/wiki/Union_mount
+
+In computing, {wiki_overlayfs}[*OverlayFS*] is a {union_mount}[union mount] filesystem implementation for Linux. It combines multiple different underlying mount points into one, resulting in single directory structure that contains underlying files and sub-directories from all sources. Common applications overlay a read/write partition over a read-only partition, such as with LiveCDs and IoT devices with limited flash memory write cycles. 
+
+The main mechanics of OverlayFS relate to the merging of directory access when both filesystems present a directory for the same name. Otherwise, OverlayFS presents the object, if any, yielded by one or the other, with the "upper" filesystem taking precedence. Unlike some other overlay filesystems, the directory subtrees being merged by OverlayFS do not necessarily have to be from distinct filesystems.
+
+* OverlayFS supports whiteouts and opaque directories in the upper filesystem to allow file and directory deletion.
+
+* OverlayFS does not support renaming files without performing a full *copy-up* of the file; however, renaming directories in an upper filesystem has limited support.
+
+* OverlayFS does not support merging changes from an *upper* filesystem to a *lower* filesystem. 
+
+=== Upper and Lower
+
+An overlay filesystem combines two filesystems - an ‘upper’ filesystem and a ‘lower’ filesystem. When a name exists in both filesystems, the object in the ‘upper’ filesystem is visible while the object in the ‘lower’ filesystem is either hidden or, in the case of directories, merged with the ‘upper’ object.
+
+It would be more correct to refer to an upper and lower ‘directory tree’ rather than ‘filesystem’ as it is quite possible for both directory trees to be in the same filesystem and there is no requirement that the root of a filesystem be given for either upper or lower.
+
+A wide range of filesystems supported by Linux can be the lower filesystem, but not all filesystems that are mountable by Linux have the features needed for OverlayFS to work. The lower filesystem does not need to be writable. The lower filesystem can even be another overlayfs. 
+
+=== Directories
+
+Overlaying mainly involves directories. If a given name appears in both upper and lower filesystems and refers to a non-directory in either, then the lower object is hidden - the name refers only to the upper object.
+
+Where both upper and lower objects are directories, a merged directory is formed.
+
+At mount time, the two directories given as mount options “lowerdir” and “upperdir” are combined into a merged directory:
+
+[source,sh]
+mount -t overlay overlay -olowerdir=/lower,upperdir=/upper,workdir=/work /merged
+
+The “workdir” needs to be an empty directory on the same filesystem as upperdir.
+
+Then whenever a lookup is requested in such a merged directory, the lookup is performed in each actual directory and the combined result is cached in the dentry belonging to the overlay filesystem. If both actual lookups find directories, both are stored and a merged directory is created, otherwise only one is stored: the upper if it exists, else the lower.
+
+=== Non-directories
+
+Objects that are not directories (files, symlinks, device-special files etc.) are presented either from the upper or lower filesystem as appropriate. When a file in the lower filesystem is accessed in a way the requires write-access, such as opening for write access, changing some metadata etc., the file is first copied from the lower filesystem to the upper filesystem (*copy_up*). Note that creating a hard-link also requires copy_up, though of course creation of a symlink does not.
+
+The copy_up may turn out to be unnecessary, for example if the file is opened for read-write but the data is not modified.
+
+The copy_up process first makes sure that the containing directory exists in the upper filesystem - creating it and any parents as necessary. It then creates the object with the same metadata (owner, mode, mtime, symlink-target etc.) and then if the object is a file, the data is copied from the lower to the upper filesystem. Finally any extended attributes are copied up.
+
+Once the copy_up is complete, the overlay filesystem simply provides direct access to the newly created file in the upper filesystem - future operations on the file are barely noticed by the overlay filesystem (though an operation on the name of the file such as rename or unlink will of course be noticed and handled).
+
+=== Multiple lower layers
+
+Multiple lower layers can now be given using the colon (“:”) as a separator character between the directory names. For example:
+
+[source,sh]
+mount -t overlay overlay -olowerdir=/lower1:/lower2:/lower3 /merged
+
+As the example shows, “upperdir=” and “workdir=” may be omitted. In that case the overlay will be read-only.
+
+The specified lower directories will be stacked beginning from the rightmost one and going left. In the above example lower1 will be the top, lower2 the middle and lower3 the bottom layer.
+
+=== Talk is cheep
+
+[source,console]
+----
+$ tree /tmp/
+/tmp/
+├── lower1
+│   ├── foo
+│   └── hello
+├── lower2
+│   ├── bar
+│   └── hello
+├── merged
+├── upper
+└── work
+
+5 directories, 4 files
+
+$ sudo mount -t overlay overlay -olowerdir=/tmp/lower2:/tmp/lower1,upperdir=/tmp/upper,workdir=/tmp/work /tmp/merged
+
+$ cat /proc/mounts | grep '/tmp/merged'
+overlay /tmp/merged overlay rw,relatime,lowerdir=/tmp/lower2:/tmp/lower1,upperdir=/tmp/upper,workdir=/tmp/work 0 0
+
+$ tree /tmp/
+/tmp/
+├── lower1
+│   ├── foo
+│   └── hello
+├── lower2
+│   ├── bar
+│   └── hello
+├── merged
+│   ├── bar
+│   ├── foo
+│   └── hello
+├── upper
+└── work
+    └── work [error opening dir]
+
+6 directories, 7 files
+
+$ touch /tmp/merged/newfile
+
+$ tree /tmp/
+/tmp/
+├── lower1
+│   ├── foo
+│   └── hello
+├── lower2
+│   ├── bar
+│   └── hello
+├── merged
+│   ├── bar
+│   ├── foo
+│   ├── hello
+│   └── newfile
+├── upper
+│   └── newfile
+└── work
+    └── work [error opening dir]
+
+6 directories, 9 files
+
+$ cat /tmp/lower1/hello /tmp/lower2/hello /tmp/merged/hello 
+hello
+world
+world
+
+$ sudo umount /tmp/merged 
+----
+
+==  Open Container Initiative (OCI) 
+
+:image-spec-manifest: https://github.com/opencontainers/image-spec/blob/master/manifest.md
+:image-spec-layer: https://github.com/opencontainers/image-spec/blob/master/layer.md
+:image-spec-config: https://github.com/opencontainers/image-spec/blob/master/config.md
+
+The Open Container Initiative (*OCI*) is a lightweight, open governance structure (project), formed under the auspices of the Linux Foundation, for the express purpose of creating open industry standards around container formats and runtime.
+
+The OCI currently contains two specifications: the *Runtime Specification* (runtime-spec) and the *Image Specification* (image-spec). The Runtime Specification outlines how to run a “filesystem bundle” that is unpacked on disk. At a high-level an OCI implementation would download an OCI Image then unpack that image into an OCI Runtime filesystem bundle. At this point the OCI Runtime Bundle would be run by an OCI Runtime.
+
+To support this UX the OCI Image Format contains sufficient information to launch the application on the target platform (e.g. command, arguments, environment variables, etc). This specification defines how to create an OCI Image, which will generally be done by a build system, and output an {image-spec-manifest}[image manifest], a {image-spec-layer}[filesystem (layer) serialization], and an {image-spec-config}[image configuration]. At a high level the image manifest contains metadata about the contents and dependencies of the image including the content-addressable identity of one or more filesystem serialization archives that will be unpacked to make up the final runnable filesystem. The image configuration includes information such as application arguments, environments, etc. The combination of the image manifest, image configuration, and one or more filesystem serializations is called the OCI Image.
+
+== Docker storage drivers 
+
+:container-layers: https://docs.docker.com/storage/storagedriver/images/container-layers.jpg
+:sharing-layers: https://docs.docker.com/storage/storagedriver/images/sharing-layers.jpg
+
+Docker uses *storage drivers* to store image layers, and to store data in the *writable layer* of a container. The container’s writable layer does not persist after the container is deleted, but is suitable for storing ephemeral data that is generated at runtime. Storage drivers are optimized for space efficiency, but (depending on the storage driver) write speeds are lower than native file system performance, especially for storage drivers that a use *copy-on-write* filesystem. Write-intensive applications, such as database storage, are impacted by a performance overhead, particularly if pre-existing data exists in the *read-only layer*.
+
+=== Images and layers
+
+A Docker *image* is built up from a series of **layer**s. Each layer represents an instruction in the image’s *Dockerfile*. Each layer except the very last one is read-only. Consider the following Dockerfile:
+
+[source,dockerfile]
+----
+# syntax=docker/dockerfile:1
+FROM ubuntu:18.04
+LABEL org.opencontainers.image.authors="org@example.com"
+COPY . /app
+RUN make /app
+RUN rm -r $HOME/.cache
+CMD python /app/app.py
+----
+
+This Dockerfile contains four commands. *Commands that modify the filesystem create a layer*. The `FROM` statement starts out by creating a layer from the `ubuntu:18.04` image. The `LABEL` command only modifies the image’s *_metadata_*, and does not produce a new layer. The `COPY` command adds some files from your Docker client’s current directory. The first `RUN` command builds your application using the `make` command, and writes the result to a new layer. The second `RUN` command removes a cache directory, and writes the result to a new layer. Finally, the `CMD` instruction specifies what command to run within the container, which only modifies the image’s metadata, which does not produce an image layer.
+
+The layers are stacked on top of each other. When you create a new container, you add a new writable layer on top of the underlying layers. This layer is often called the “**container layer**”. All changes made to the running container, such as writing new files, modifying existing files, and deleting files, are written to this thin writable container layer. The diagram below shows a container based on an `ubuntu:15.04` image.
+
+image:{container-layers}[,55%,55%]
+
+A *_storage driver_* handles the details about the way these layers interact with each other. Different storage drivers are available, which have advantages and disadvantages in different situations.
+
+=== Container and layers
+
+The major difference between a *container* and an *image* is the top writable layer. All writes to the container that add new or modify existing data are stored in this writable layer. When the container is deleted, the writable layer is also deleted. The underlying image remains unchanged.
+
+Because each container has its own writable container layer, and all changes are stored in this container layer, multiple containers can share access to the same underlying image and yet have their own data state. The diagram below shows multiple containers sharing the same Ubuntu 15.04 image.
+
+image:{sharing-layers}[,55%,55%]
+
+Docker uses storage drivers to manage the contents of the image layers and the writable container layer. Each storage driver handles the implementation differently, but all drivers use stackable image layers and the copy-on-write (*CoW*) strategy.
+
+=== OverlayFS storage driver
+
+*OverlayFS* is a modern *_union filesystem_* that is similar to AUFS, but faster and with a simpler implementation. Docker provides two storage drivers for OverlayFS: the original `overlay`, and the newer and more stable `overlay2`.
+
+NOTE: If you use `OverlayFS`, use the `overlay2` driver rather than the `overlay` driver, because it is more efficient in terms of inode utilization. To use the new driver, you need version 4.0 or higher of the Linux kernel, or RHEL or CentOS using version 3.10.0-514 and above.
+
+*OverlayFS* layers two directories on a single Linux host and presents them as a single directory. These directories are called *layers* and the unification process is referred to as a *_union mount_*. OverlayFS refers to the lower directory as *lowerdir* and the upper directory a *upperdir*. The unified view is exposed through its own directory called *merged*.
+
+The `overlay2` driver natively supports up to 128 lower `OverlayFS` layers. 
+
+[source,console,highlight="14-35"]
+----
+$ docker inspect mcr.microsoft.com/dotnet/sdk:6.0
+[
+    {
+        "Id": "sha256:9c1e3c82ea06ae547e96fbf0f79f730415f3455382e1579c3ec2622d10501ef4",
+        "Created": "2021-11-08T14:19:59.103176004Z",
+        "Author": "",
+        "Config": {
+...
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 716092661,
+        "VirtualSize": 716092661,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/ea211697af6b071e56ce17df4d54226d4353d0de05a3ad8033767e8f6ed3023f/diff:/var/lib/docker/overlay2/b5fd146da25ab16508a79a53a3c78b699a8e18f2d9c4553ba8d8f172167a87a5/diff:/var/lib/docker/overlay2/2b5ce862e9d32969e8b2b3e8a8f0a514017cb9c7bee6fe58bc66f458f0dd567a/diff:/var/lib/docker/overlay2/0d92388fa7bddbdd5ea02f72d0a8c39496f702ded180e4851933ca4bfdcd915b/diff:/var/lib/docker/overlay2/13311071290c03e561fa8624d087c44458c12489a26a36e657c9a81be446e7e7/diff:/var/lib/docker/overlay2/640923cae84f10bdf0b8a5e1a33f0c11beaeaa2fdaf8a88e7d2cf15df923dbf5/diff:/var/lib/docker/overlay2/23da192846a08500d2bdd7b722e24f21417519559dad2c9c0d7ec77ec8c0c54a/diff",
+                "MergedDir": "/var/lib/docker/overlay2/162d5deed8943e85231e0fa8d6955da344dc17f45e860a69455b0897a6f046d4/merged",
+                "UpperDir": "/var/lib/docker/overlay2/162d5deed8943e85231e0fa8d6955da344dc17f45e860a69455b0897a6f046d4/diff",
+                "WorkDir": "/var/lib/docker/overlay2/162d5deed8943e85231e0fa8d6955da344dc17f45e860a69455b0897a6f046d4/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:e8b689711f21f9301c40bf2131ce1a1905c3aa09def1de5ec43cf0adf652576e",
+                "sha256:20debbac273f9807ed9db9c09a97dbcf328e1ba049fb754b528c6bbcf0e062b7",
+                "sha256:59acba85fd35a919862cb8d3e52eb7ea19a0c1e7418e5219f1c5b8fc35de9a35",
+                "sha256:488c0e360c4107f7ec49bcda9ebad2a077d276cd37db8da1c05f8b6f2e2ffa8d",
+                "sha256:3545d521d2dea1ac4f126a59fb28efce96577ecf59794b4ae2fc89282d6fa612",
+                "sha256:b56a3e5973f3cca46ab8fd5519d8ed7bb373934c3ae2f7f26e670832c463dc22",
+                "sha256:4764cdc9aa40e1841b92001e485b73d1c70a5571a633bf12a8055727a0ba6663",
+                "sha256:8eaa7029894562a570d2f9e5db4b6d2384fedec934381996695e82f8d826d897"
+            ]
+        }
+    }
+]
+----
+
+== References
+
+* https://en.wikipedia.org/wiki/OverlayFS
+* https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html
+* https://man7.org/linux/man-pages/man8/mount.8.html
+* https://opencontainers.org/about/overview/ 
+* https://docs.docker.com/storage/storagedriver/
+* https://docs.docker.com/storage/storagedriver/overlayfs-driver/
