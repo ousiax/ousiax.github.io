@@ -745,6 +745,271 @@ Filesystem             Size  Used Avail Use% Mounted on
   Labels on physical volume "/dev/sdb" successfully wiped.
 ----
 
+== Docker Device Mapper Storage Driver
+
+Device Mapper is a kernel-based framework that underpins many advanced volume management technologies on Linux. Docker’s *devicemapper* storage driver leverages the *_thin provisioning_* and *_snapshotting_* capabilities of this framework for image and container management. This article refers to the Device Mapper storage driver as `devicemapper`, and the kernel framework as _Device Mapper_.
+
+The `devicemapper` driver uses block devices dedicated to Docker and operates at the block level, rather than the file level. These devices can be extended by adding physical storage to your Docker host, and they perform better than using a filesystem at the operating system (OS) level.
+
+[IMPORTANT]
+====
+The `devicemapper` storage driver requires `direct-lvm` for production environments, because `loopback-lvm`, while zero-configuration, has very poor performance. `devicemapper` was the recommended storage driver for CentOS and RHEL, as their kernel version did not support `overlay2`. However, current versions of CentOS and RHEL now have support for `overlay2`, which is now the recommended driver.
+====
+
+=== Configure `loop-lvm` mode for testing
+
+This configuration is only appropriate for testing. The `loop-lvm` mode makes use of a ‘loopback’ mechanism that allows files on the local disk to be read from and written to as if they were an actual physical disk or block device. However, the addition of the loopback mechanism, and interaction with the OS filesystem layer, means that IO operations can be slow and resource-intensive. Use of loopback devices can also introduce race conditions. However, setting up `loop-lvm` mode can help identify basic issues (such as missing user space packages, kernel drivers, etc.) ahead of attempting the more complex set up required to enable `direct-lvm` mode. `loop-lvm` mode should therefore only be used to perform rudimentary testing prior to configuring `direct-lvm`.
+
+. Stop Docker.
++
+[source,sh]
+sudo systemctl stop docker
+
+. Edit `/etc/docker/daemon.json`. If it does not yet exist, create it. Assuming that the file was empty, add the following contents.
++
+[source,json]
+----
+{
+  "storage-driver": "devicemapper"
+}
+----
+
+. Start Docker.
++
+[source,sh]
+sudo systemctl start docker
+
+. Verify that the daemon is using the devicemapper storage driver. Use the `docker info` command and look for Storage Driver.
++
+[source,console]
+----
+$ docker info
+<...>
+Server:
+<...>
+ Server Version: 20.10.10
+ Storage Driver: devicemapper
+  Pool Name: docker-8:33-3832377-pool
+  Pool Blocksize: 65.54kB
+  Base Device Size: 10.74GB
+  Backing Filesystem: ext4
+  Udev Sync Supported: true
+  Data file: /dev/loop0
+  Metadata file: /dev/loop1
+  Data loop file: /var/lib/docker/devicemapper/devicemapper/data
+  Metadata loop file: /var/lib/docker/devicemapper/devicemapper/metadata
+  Data Space Used: 240.1MB
+  Data Space Total: 107.4GB
+  Data Space Available: 39.26GB
+  Metadata Space Used: 17.47MB
+  Metadata Space Total: 2.147GB
+  Metadata Space Available: 2.13GB
+  Thin Pool Minimum Free Space: 10.74GB
+  Deferred Removal Enabled: true
+  Deferred Deletion Enabled: true
+  Deferred Deleted Device Count: 0
+  Library Version: 1.02.175 (2021-01-08)
+<...>
+WARNING: the devicemapper storage-driver is deprecated, and will be removed in a future release.
+WARNING: devicemapper: usage of loopback devices is strongly discouraged for production use.
+         Use `--storage-opt dm.thinpooldev` to specify a custom block storage device.
+----
+
+=== Configure `direct-lvm` mode manually
+
+* Create a physical volume on your block device
++
+[source,console]
+----
+# pvcreate /dev/sda /dev/sdb 
+  Physical volume "/dev/sda" successfully created.
+  Physical volume "/dev/sdb" successfully created.
+
+# pvs
+  PV         VG Fmt  Attr PSize  PFree 
+  /dev/sda      lvm2 ---  20.00g 20.00g
+  /dev/sdb      lvm2 ---  10.00g 10.00g
+----
+
+* Create a `docker` volume group on the same device
++
+[source,console]
+----
+# vgcreate docker /dev/sda /dev/sdb 
+  Volume group "docker" successfully created
+
+# vgs
+  VG     #PV #LV #SN Attr   VSize  VFree 
+  docker   2   0   0 wz--n- 29.99g 29.99g
+----
+
+* Create two logical volumes named `thinpool` and `thinpoolmeta`
++
+[source,console]
+----
+# lvcreate --wipesignatures y -n thinpool docker -l 95%VG
+  Logical volume "thinpool" created.
+
+# lvcreate --wipesignatures y -n thinpoolmeta docker -l 1%VG
+  Logical volume "thinpoolmeta" created.
+
+# lvs
+  LV           VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool     docker -wi-a-----  28.49g                                                    
+  thinpoolmeta docker -wi-a----- 304.00m            
+----
+
+* Convert the volumes to a thin pool and a storage location for metadata for the thin pool.
++
+[source,console]
+----
+# lvconvert -y \
+    --zero n \
+    -c 512K \
+    --thinpool docker/thinpool \
+    --poolmetadata docker/thinpoolmeta
+
+  Thin pool volume with chunk size 512.00 KiB can address at most 126.50 TiB of data.
+  WARNING: Converting docker/thinpool and docker/thinpoolmeta to thin pool's data and metadata volumes with metadata wiping.
+  THIS WILL DESTROY CONTENT OF LOGICAL VOLUME (filesystem etc.)
+  Converted docker/thinpool and docker/thinpoolmeta to thin pool.
+
+# lvs
+  LV       VG     Attr       LSize  Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-a-t--- 28.49g             0.00   5.28    
+----
+
+* Configure autoextension of thin pools via an `lvm` profile.
++
+[source,console]
+----
+# cat <<EOF > /etc/lvm/profile/docker-thinpool.profile
+> activation {
+  thin_pool_autoextend_threshold=80
+  thin_pool_autoextend_percent=20
+}
+> EOF
+----
+
+* Apply the LVM profile.
++
+[source,console]
+----
+# lvchange --metadataprofile docker-thinpool docker/thinpool
+  Logical volume docker/thinpool changed.
+  thinpool docker twi-a-t--- 28.49g             0.00   5.28                            
+
+# lvs -v
+  LV       VG     #Seg Attr       LSize  Maj Min KMaj KMin Pool Origin Data%  Meta%  Move Cpy%Sync Log Convert LV UUID                                LProfile       
+  thinpool docker    1 twi-a-t--- 28.49g  -1  -1  254    2             0.00   5.28                             6Bc4oY-boP1-IpU1-tShb-cg9L-Jleb-ryr5H3 docker-thinpool
+----
+
+* Ensure monitoring of the logical volume is enabled.
++
+[source,console]
+----
+# lvs -o+seg_monitor
+  LV       VG     Attr       LSize  Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert Monitor  
+  thinpool docker twi-a-t--- 28.49g             0.00   5.28                             monitored
+----
+
+* If you have ever run Docker on this host before, or if `/var/lib/docker/` exists, move it out of the way so that Docker can use the new LVM pool to store the contents of image and containers.
+
+* Edit `/etc/docker/daemon.json` and configure the options needed for the devicemapper storage driver.
++
+[source,console]
+----
+{
+    "storage-driver": "devicemapper",
+    "storage-opts": [
+    "dm.thinpooldev=/dev/mapper/docker-thinpool",
+    "dm.use_deferred_removal=true",
+    "dm.use_deferred_deletion=true"
+    ]
+}
+----
+
+* Verify that Docker is using the new configuration using `docker info`.
++
+[source,console]
+----
+# systemctl start docker
+
+# docker info
+<...>
+Server:
+<...>
+ Server Version: 20.10.10
+ Storage Driver: devicemapper
+  Pool Name: docker-thinpool
+  Pool Blocksize: 524.3kB
+  Base Device Size: 10.74GB
+  Backing Filesystem: ext4
+  Udev Sync Supported: true
+  Data Space Used: 246.4MB
+  Data Space Total: 30.59GB
+  Data Space Available: 30.35GB
+  Metadata Space Used: 16.86MB
+  Metadata Space Total: 318.8MB
+  Metadata Space Available: 301.9MB
+  Thin Pool Minimum Free Space: 3.059GB
+  Deferred Removal Enabled: true
+  Deferred Deletion Enabled: true
+  Deferred Deleted Device Count: 0
+  Library Version: 1.02.175 (2021-01-08)
+<...>
+
+WARNING: the devicemapper storage-driver is deprecated, and will be removed in a future release.
+----
+
+[source,console]
+----
+# docker pull nginx
+Using default tag: latest
+latest: Pulling from library/nginx
+Digest: sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e
+Status: Image is up to date for nginx:latest
+docker.io/library/nginx:latest
+
+# df -h
+Filesystem      Size  Used Avail Use% Mounted on
+udev            1.9G     0  1.9G   0% /dev
+tmpfs           391M  980K  390M   1% /run
+/dev/sdc1        98G   62G   32G  67% /
+tmpfs           2.0G     0  2.0G   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+tmpfs           391M  4.0K  391M   1% /run/user/1000
+
+# docker run -d --rm nginx
+1e607905907150e645ef9b21641eea7da0e67176a9d84994a4396ba65dd4bb1e
+# docker run -d --rm nginx
+b37be054f907b7f050f46fe983619ec21cb8eb031a3e08f8910bbdea31e1e7ce
+# docker run -d --rm nginx
+2e2cb2d0c8487bed16269b9ef05ae7efc292f6edae52aa702cff64188d56ea72
+# docker run -d --rm nginx
+d3387890e4ec5e04083e20f073b83d738b960b40b9e605977e05fbf74c13efe4
+
+# docker ps -s
+CONTAINER ID   IMAGE     COMMAND                  CREATED              STATUS              PORTS     NAMES                SIZE
+d3387890e4ec   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    vibrant_ellis        1.09kB (virtual 141MB)
+2e2cb2d0c848   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    intelligent_hoover   1.09kB (virtual 141MB)
+b37be054f907   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    crazy_hertz          1.09kB (virtual 141MB)
+1e6079059071   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    admiring_bassi       1.09kB (virtual 141MB)
+
+# df -h
+Filesystem      Size  Used Avail Use% Mounted on
+udev            1.9G     0  1.9G   0% /dev
+tmpfs           391M  1.3M  389M   1% /run
+/dev/sdc1        98G   62G   32G  67% /
+tmpfs           2.0G     0  2.0G   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+tmpfs           391M  4.0K  391M   1% /run/user/1000
+/dev/dm-3       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/c265f0f52c442fb87e8a73f6dbac7444a42c9b623ca843f514e26dc746c6fc2d
+/dev/dm-4       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/d9abc8be04e4633a01417c19ef8dbebaf7d2f643d06dda6d367cb99470cb9bd6
+/dev/dm-5       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/5c25217f2211de7e4b33c0554bb47eb3f733e4069f67d615b80b9f58a7008bb5
+/dev/dm-6       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/d9fb543a0b0bee229da02e7ce705b3b222967d49b085b894a88179ed86e4bc4f
+----
+
 == References
 
 * link:/2018/04/09/partition-format-mount-disk-driver-linux/[Partition, format and mount disk driver on Linux]
@@ -755,3 +1020,4 @@ Filesystem             Size  Used Avail Use% Mounted on
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/device_mapper
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/index
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/storage_administration_guide/ext4grow
+* https://docs.docker.com/storage/storagedriver/device-mapper-driver/
