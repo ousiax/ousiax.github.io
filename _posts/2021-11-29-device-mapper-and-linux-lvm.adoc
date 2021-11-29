@@ -1,0 +1,757 @@
+= Device Mapper and Linux LVM
+:page-layout: post
+:page-categories: ['linux']
+:page-tags: ['linux', 'lvm', 'devicemapper']
+:page-date: 2021-11-29 10:29:24 +0800
+:page-revdate: 2021-11-29 10:29:24 +0800
+:sectnums:
+:toc:
+:toclevels: 4
+
+:logical_volume_management: https://en.wikipedia.org/wiki/Logical_volume_management
+
+== Device Mapper
+
+The *device mapper* is a framework provided by the Linux kernel for mapping *_physical block devices_* onto higher-level *_virtual block devices_*. It forms the foundation of the {logical_volume_management}[logical volume manager (LVM)], _software RAIDs_ and _dm-crypt_ disk encryption, and offers additional features such as file system _snapshots_.
+
+Device mapper works by passing data from a virtual block device, which is provided by the device mapper itself, to another block device. Data can be also modified in transition, which is performed, for example, in the case of device mapper providing disk encryption or simulation of unreliable hardware behavior. 
+
+Functions provided by the device mapper include *linear*, *striped* and *error* mappings, as well as *crypt* and *multipath targets*.
+
+The following mapping targets are available:
+
+* *cache* – allows creation of hybrid volumes, by using solid-state drives (SSDs) as caches for hard disk drives (HDDs)
+* *clone* – will permit usage before a transfer is complete.
+* *crypt* – provides data encryption, by using the Linux kernel's Crypto API
+* *delay* – delays reads and/or writes to different devices (used for testing)
+* *era* – behaves in a way similar to the linear target, while it keeps track of blocks that were written to within a user-defined period of time
+* *error* – simulates I/O errors for all mapped blocks (used for testing)
+* *flakey* – simulates periodic unreliable behaviour (used for testing)
+* *linear* – maps a continuous range of blocks onto another block device
+* *mirror* – maps a mirrored logical device, while providing data redundancy
+* *multipath* – supports the mapping of multipathed devices, through usage of their path groups
+* *raid* – offers an interface to the Linux kernel's _software RAID_ driver (md)
+* *snapshot and snapshot-origin* – used for creation of LVM snapshots, as part of the underlying _copy-on-write_ scheme
+* *striped* – stripes the data across physical devices, with the number of stripes and the striping chunk size as parameters
+* *thin*  – allows creation of devices larger than the underlying physical device, physical space is allocated only when written to
+* *zero* – an equivalent of _/dev/zero_, all reads return blocks of zeros, and writes are discarded
+
+:the_linux_storage_stack_diagram: /assets/device-mapper/The Linux Storage Stack Diagram.svg
+
+image::{the_linux_storage_stack_diagram}[,75%,75%]
+
+=== The `dmsetup` Command
+
+The application interface to the Device Mapper is the `ioctl` system call. The user interface is the `dmsetup` command. 
+
+The `dmsetup` command is a command line wrapper for communication with the Device Mapper. For general system information about LVM devices, you may find the `info`, `ls`, `status`, and `deps` options of the `dmsetup` command to be useful.
+
+* *The `dmsetup ls` Command*
++
+You can list the device names of mapped devices with the `dmsetup ls` command. You can list devices that have at least one target of a specified type with the `dmsetup ls --target target_type` command.  The `dmsetup ls` command provides a `--tree` option that displays dependencies between devices as a tree.
++
+[source,console]
+----
+# dmsetup ls
+vg0-lvol0	(254:0)
+
+# dmsetup ls --target linear
+vg0-lvol0	(254, 0)
+
+# dmsetup ls --tree
+vg0-lvol0 (254:0)
+ └─ (8:0)
+
+# lvextend -L +20G vg0/lvol0
+  Size of logical volume vg0/lvol0 changed from 500.00 MiB (125 extents) to <20.49 GiB (5245 extents).
+  Logical volume vg0/lvol0 successfully resized.
+
+# lsblk 
+NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda           8:0    0   20G  0 disk 
+└─vg0-lvol0 254:0    0 20.5G  0 lvm  
+sdb           8:16   0   10G  0 disk 
+└─vg0-lvol0 254:0    0 20.5G  0 lvm  
+sdc           8:32   0  100G  0 disk 
+└─sdc1        8:33   0  100G  0 part /
+
+# dmsetup ls --tree
+vg0-lvol0 (254:0)
+ ├─ (8:16)
+ └─ (8:0)
+----
+
+* *The `dmsetup info` Command*
++
+The `dmsetup info` device command provides summary information about Device Mapper devices. If you do not specify a device name, the output is information about all of the currently configured Device Mapper devices.
++
+[source,console]
+----
+# dmsetup info vg0-lvol0 
+Name:              vg0-lvol0
+State:             ACTIVE
+Read Ahead:        256
+Tables present:    LIVE
+Open count:        0
+Event number:      0
+Major, minor:      254, 0
+Number of targets: 2
+UUID: LVM-iGEIRSIULIXi00RrqQZzoFEHYupSo8xDEYdOMnMSAjPKLNsXtT3wp9ozCyHzfZa5
+
+# lvs -v
+  LV    VG  #Seg Attr       LSize   Maj Min KMaj KMin Pool Origin Data%  Meta%  Move Cpy%Sync Log Convert LV UUID                                LProfile
+  lvol0 vg0    2 -wi-a----- <20.49g  -1  -1  254    0                                                     EYdOMn-MSAj-PKLN-sXtT-3wp9-ozCy-HzfZa5      
+----
+
+* *The `dmsetup status` Command*
++
+The `dmsetup status` device command provides status information for each target in a specified device. If you do not specify a device name, the output is information about all of the currently configured Device Mapper devices.
++
+[source,console]
+----
+# dmsetup status vg0-lvol0  
+0 41934848 linear 
+41934848 1032192 linear 
+----
+
+* *The `dmsetup deps` Command*
++
+The `dmsetup deps` device command provides a list of (major, minor) pairs for devices referenced by the mapping table for the specified device. If you do not specify a device name, the output is information about all of the currently configured Device Mapper devices. 
++
+[source,console]
+----
+# dmsetup deps vg0-lvol0 
+2 dependencies	: (8, 16) (8, 0)
+----
+
+== Logical Volume Manager (LVM)
+
+:computer_storage: https://en.wikipedia.org/wiki/Computer_storage
+:disk_partitioning: https://en.wikipedia.org/wiki/Disk_partitioning
+:data_striping: https://en.wikipedia.org/wiki/Data_striping
+
+In {computer_storage}[computer storage], *logical volume management* or *LVM* provides a method of allocating space on mass-storage devices that is more flexible than conventional {disk_partitioning}[partitioning] schemes to store volumes. In particular, a volume manager can concatenate, {data_striping}[stripe] together or otherwise combine partitions (or block devices in general) into larger virtual partitions that administrators can re-size or move, potentially without interrupting system use. 
+
+TIP: {disk_partitioning}[*Disk partitioning*] or *disk slicing* is the creation of one or more regions on *_secondary storage_*, so that each region can be managed separately. These regions are called *partitions*. It is typically the first step of preparing a newly installed disk, before any file system is created. The disk stores the information about the partitions' locations and sizes in an area known as the *partition table* that the operating system reads before any other part of the disk. Each partition then appears to the operating system as a distinct "logical" disk that uses part of the actual disk.
+
+TIP: {data_striping}[*Data striping*] is the technique of segmenting logically sequential data, such as a file, so that *_consecutive segments_* are stored on different physical storage devices. Striping is useful when a processing device requests data more quickly than a single storage device can provide it. By spreading segments across multiple devices which can be accessed concurrently, total data throughput is increased.
+
+Most volume-manager implementations share the same basic design. They start with *physical volumes* (*PVs*), which can be either *_hard disks_*, *_hard disk partitions_*, or Logical Unit Numbers (LUNs) of an external storage device. Volume management treats each PV as being composed of a sequence of chunks called *physical extents* (*PEs*).
+
+Normally, PEs simply map one-to-one to *logical extents* (*LEs*). With mirroring, multiple PEs map to each LE. These PEs are drawn from a *physical volume group* (*PVG*), a set of same-sized PVs which act similarly to hard disks in a *_RAID1_* array. PVGs are usually laid out so that they reside on different disks or data buses for maximum redundancy.
+
+The system pools LEs into a *volume group* (*VG*). The pooled LEs can then be concatenated together into virtual disk partitions called *logical volumes* or *LVs*. Systems can use LVs as raw block devices just like disk partitions: creating mountable file systems on them, or using them as swap storage. 
+
+image::/assets/device-mapper/LVM1.svg[,55%,55%]
+
+LVM is used for the following purposes:
+
+:hot_swapping: https://en.wikipedia.org/wiki/Hot_swapping
+
+* Creating single logical volumes of multiple physical volumes or entire hard disks (somewhat similar to RAID 0, but more similar to JBOD), allowing for dynamic volume resizing.
+
+* Managing large hard disk farms by allowing disks to be added and replaced without downtime or service disruption, in combination with {hot_swapping}[hot swapping].
++
+TIP: {hot_swapping}[*Hot swapping*] is the replacement or addition of components to a computer system without stopping, shutting down, or rebooting the system; *hot plugging* describes the addition of components only. Components which have such functionality are said to be *hot-swappable* or *hot-pluggable*; likewise, components which do not are *cold-swappable* or *cold-pluggable*. 
+
+* On small systems (like a desktop), instead of having to estimate at installation time how big a partition might need to be, LVM allows filesystems to be easily resized as needed.
+
+* Performing consistent backups by taking snapshots of the logical volumes.
+
+* Encrypting multiple physical partitions with one password.
+
+LVM can be considered as *a thin software layer on top of the hard disks and partitions*, which creates an abstraction of continuity and ease-of-use for managing hard drive replacement, repartitioning and backup. 
+
+image::/assets/device-mapper/Lvm.svg[,55%,55%]
+
+=== Logical Volumes
+
+Volume management creates a layer of abstraction over physical storage, allowing you to create logical storage volumes. This provides much greater flexibility in a number of ways than using physical storage directly. With a logical volume, you are not restricted to physical disk sizes. In addition, the hardware storage configuration is hidden from the software so it can be resized and moved without stopping applications or unmounting file systems. This can reduce operational costs.
+Logical volumes provide the following advantages over using physical storage directly:
+
+* Flexible capacity
++
+When using logical volumes, file systems can extend across multiple disks, since you can aggregate disks and partitions into a single logical volume.
+
+* Resizeable storage pools
++
+You can extend logical volumes or reduce logical volumes in size with simple software commands, without reformatting and repartitioning the underlying disk devices.
+
+* Online data relocation
++
+To deploy newer, faster, or more resilient storage subsystems, you can move data while your system is active. Data can be rearranged on disks while the disks are in use. For example, you can empty a hot-swappable disk before removing it.
+
+* Convenient device naming
++
+Logical storage volumes can be managed in user-defined and custom named groups.
+
+* Disk striping
++
+You can create a logical volume that stripes data across two or more disks. This can dramatically increase throughput.
+
+* Mirroring volumes
++
+Logical volumes provide a convenient way to configure a mirror for your data.
+
+* Volume Snapshots
++
+Using logical volumes, you can take device snapshots for consistent backups or to test the effect of changes without affecting the real data. 
+
+=== LVM with CLI Command
+
+==== Physical Volumes
+
+* *Setting the Partition Type*
++
+If you are using a whole disk device for your physical volume, the disk must have no partition table. For whole disk devices only the partition table must be erased, which will effectively destroy all data on that disk. You can remove an existing partition table by zeroing the first sector with the following command:
++
+[source,console]
+# dd if=/dev/zero of=PhysicalVolume bs=512 count=1
++
+--
+** Use `dd` to erase disk partition table
++
+[source,console]
+----
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk 
+└─sda1   8:1    0   20G  0 part 
+sdb      8:16   0   10G  0 disk 
+└─sdb1   8:17   0    5G  0 part 
+sdc      8:32   0  100G  0 disk 
+└─sdc1   8:33   0  100G  0 part /
+
+# dd if=/dev/zero of=/dev/sda bs=512 count=1
+1+0 records in
+1+0 records out
+512 bytes copied, 0.00303601 s, 169 kB/s
+
+# lsblk 
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk 
+sdb      8:16   0   10G  0 disk 
+└─sdb1   8:17   0    5G  0 part 
+sdc      8:32   0  100G  0 disk 
+└─sdc1   8:33   0  100G  0 part /
+----
+--
+
+* *Initializing Physical Volumes*
++
+Use the `pvcreate` command to initialize a block device to be used as a physical volume. Initialization is analogous to formatting a file system.
++
+The following command initializes the whole disk `/dev/sda`, and partition `/dev/sdb1` as LVM physical volumes for later use as part of LVM logical volumes.
++
+[source,console]
+----
+# pvcreate /dev/sda /dev/sdb1
+  Physical volume "/dev/sda" successfully created.
+  Physical volume "/dev/sdb1" successfully created.
+----
+
+* *Scanning for Block Devices*
++
+You can scan for block devices that may be used as physical volumes with the `lvmdiskscan` command, as shown in the following example. 
++
+[source,console]
+----
+# lvmdiskscan 
+  /dev/sda  [      20.00 GiB] LVM physical volume
+  /dev/sdb1 [       5.00 GiB] LVM physical volume
+  /dev/sdc1 [    <100.00 GiB] 
+  0 disks
+  1 partition
+  1 LVM physical volume whole disk
+  1 LVM physical volume
+----
+
+* *Displaying Physical Volumes*
++
+There are three commands you can use to display properties of LVM physical volumes: `pvs`, `pvdisplay`, and `pvscan`.
++
+The `pvs` command provides physical volume information in a configurable form, displaying one line per physical volume.
++
+The `pvdisplay` command provides a verbose multi-line output for each physical volume. It displays physical properties (size, extents, volume group, and so on) in a fixed format.
++
+The `pvscan` command scans all supported LVM block devices in the system for physical volumes. 
++
+[source,console]
+----
+# pvs
+  PV         VG Fmt  Attr PSize  PFree 
+  /dev/sda      lvm2 ---  20.00g 20.00g
+  /dev/sdb1     lvm2 ---   5.00g  5.00g
+
+# pvdisplay 
+  "/dev/sda" is a new physical volume of "20.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/sda
+  VG Name               
+  PV Size               20.00 GiB
+  Allocatable           NO
+  PE Size               0   
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               dkb7NA-jjx0-203S-wb8K-KUnu-dbj3-RLQ1lc
+   
+  "/dev/sdb1" is a new physical volume of "5.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/sdb1
+  VG Name               
+  PV Size               5.00 GiB
+  Allocatable           NO
+  PE Size               0   
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               TYTlaL-Wbzd-wZhW-tNeb-GWFA-HErD-NJbKNU
+   
+# pvscan 
+  PV /dev/sda                       lvm2 [20.00 GiB]
+  PV /dev/sdb1                      lvm2 [5.00 GiB]
+  Total: 2 [25.00 GiB] / in use: 0 [0   ] / in no VG: 2 [25.00 GiB]
+----
+
+* *Resizing a Physical Volume*
++
+If you need to change the size of an underlying block device for any reason, use the `pvresize` command to update LVM with the new size. You can execute this command while LVM is using the physical volume.
++
+[source,console]
+----
+# pvresize --setphysicalvolumesize 10G /dev/sda 
+/dev/sda: Requested size 10.00 GiB is less than real size 20.00 GiB. Proceed?  [y/n]: y
+  WARNING: /dev/sda: Pretending size is 20971520 not 41943040 sectors.
+  Physical volume "/dev/sda" changed
+  1 physical volume(s) resized or updated / 0 physical volume(s) not resized
+----
+
+* *Removing Physical Volumes*
++
+If a device is no longer required for use by LVM, you can remove the LVM label with the `pvremove` command. Executing the `pvremove` command zeroes the LVM metadata on an empty physical volume. 
++
+[source,console]
+----
+# pvremove /dev/sda 
+  Labels on physical volume "/dev/sda" successfully wiped.
+----
+
+==== Volume Groups
+
+* *Creating Volume Groups*
++
+To create a volume group from one or more physical volumes, use the `vgcreate` command. The `vgcreate` command creates a new volume group by name and adds at least one physical volume to it.
++
+[source,console]
+----
+# vgcreate vg0 /dev/sda /dev/sdb1 
+  Volume group "vg0" successfully created
+
+# pvs
+  PV         VG  Fmt  Attr PSize   PFree  
+  /dev/sda   vg0 lvm2 a--  <20.00g <20.00g
+  /dev/sdb1  vg0 lvm2 a--   <5.00g  <5.00g
+----
++
+When physical volumes are used to create a volume group, its disk space is divided into `4MB` extents, by default.
++
+LVM volume groups and underlying logical volumes are included in the device special file directory tree in the /dev directory with the following layout:
++
+[source,console]
+----
+/dev/<vg>/<lv>/
+----
++
+The device special files are not present if the corresponding logical volume is not currently active. 
+
+* *Adding Physical Volumes to a Volume Group*
++
+To add additional physical volumes to an existing volume group, use the `vgextend` command. The `vgextend` command increases a volume group's capacity by adding one or more free physical volumes. 
++
+[source,console]
+----
+# vgextend vg0 /dev/sdb2 
+  Volume group "vg0" successfully extended
+----
+
+* *Displaying Volume Groups*
++
+The `vgscan` command, which scans all the disks for volume groups and rebuilds the LVM cache file, also displays the volume groups.
++
+The `vgs` command provides volume group information in a configurable form, displaying one line per volume group.
++
+The `vgdisplay` command displays volume group properties (such as size, extents, number of physical volumes, and so on) in a fixed form.
++
+[source,console]
+----
+# vgs
+  VG  #PV #LV #SN Attr   VSize   VFree  
+  vg0   3   0   0 wz--n- <25.99g <25.99g
+
+# vgscan 
+  Found volume group "vg0" using metadata type lvm2
+
+# vgdisplay 
+  --- Volume group ---
+  VG Name               vg0
+  System ID             
+  Format                lvm2
+  Metadata Areas        3
+  Metadata Sequence No  2
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                0
+  Open LV               0
+  Max PV                0
+  Cur PV                3
+  Act PV                3
+  VG Size               <25.99 GiB
+  PE Size               4.00 MiB
+  Total PE              6653
+  Alloc PE / Size       0 / 0   
+  Free  PE / Size       6653 / <25.99 GiB
+  VG UUID               5dLR48-em6r-8UIA-PcPe-RyLY-p8gB-QNOzpU
+----
+
+* *Removing Physical Volumes from a Volume Group*
++
+To remove unused physical volumes from a volume group, use the `vgreduce` command. The `vgreduce` command shrinks a volume group's capacity by removing one or more empty physical volumes. This frees those physical volumes to be used in different volume groups or to be removed from the system.
++
+Before removing a physical volume from a volume group, you can make sure that the physical volume is not used by any logical volumes by using the `pvdisplay` command.
++
+[source,console]
+----
+# pvdisplay /dev/sdb2 
+  --- Physical volume ---
+  PV Name               /dev/sdb2
+  VG Name               vg0
+  PV Size               1.00 GiB / not usable 4.00 MiB
+  Allocatable           yes 
+  PE Size               4.00 MiB
+  Total PE              255
+  Free PE               255
+  Allocated PE          0
+  PV UUID               sBmEek-5ylr-T3FE-daaw-mNOb-J2Yu-XzNR1q
+----
++
+If the physical volume is still being used you will have to migrate the data to another physical volume using the `pvmove` command. Then use the `vgreduce` command to remove the physical volume. 
++
+[source,console]
+----
+# pvmove /dev/sdb2 /dev/sdb1 
+  No data to move for vg0.
+----
+
+* *Activating and Deactivating Volume Groups*
++
+When you create a volume group it is, by default, activated. This means that the logical volumes in that group are accessible and subject to change.
++
+There are various circumstances for which you need to make a volume group inactive and thus unknown to the kernel. To deactivate or activate a volume group, use the `-a` (`--active`) argument of the `vgchange` command.
++
+[source,console]
+----
+# vgchange -a n vg0 
+  0 logical volume(s) in volume group "vg0" now active
+----
+
+* *Renaming a Volume Group*
++
+Use the `vgrename` command to rename an existing volume group. 
++
+[source,console]
+----
+# vgrename vg0 vg1
+  Volume group "vg0" successfully renamed to "vg1"
+----
+
+* *Removing Volume Groups*
++
+To remove a volume group that contains no logical volumes, use the `vgremove` command.
++
+[source,console]
+----
+# vgremove vg1
+  Volume group "vg1" successfully removed
+----
+
+==== Logical Volumes
+
+* *Creating Linear Logical Volumes*
++
+To create a logical volume, use the `lvcreate` command. If you do not specify a name for the logical volume, the default name `lvol#` is used where `#` is the internal number of the logical volume.
++
+When you create a logical volume, the logical volume is carved from a volume group using the free extents on the physical volumes that make up the volume group. Normally logical volumes use up any space available on the underlying physical volumes on a next-free basis. Modifying the logical volume frees and reallocates space in the physical volumes.
++
+The following command creates a logical volume 10 gigabytes in size in the volume group `vg0`.
++
+[source,console]
+----
+# lvcreate -L 10G vg1 
+  Logical volume "lvol0" created.
+
+# ls -l /dev/vg1/lvol0 
+lrwxrwxrwx 1 root root 7 Nov 29 15:39 /dev/vg1/lvol0 -> ../dm-0
+----
++
+You can use the `-l` argument of the `lvcreate` command to specify the size of the logical volume in extents.
++
+[source,console]
+----
+# lvcreate -l 50 vg1
+  Logical volume "lvol1" created.
+
+# lvs 
+  LV    VG  Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0 vg1 -wi-a-----  10.00g                                                    
+  lvol1 vg1 -wi-a----- 200.00m     
+----
+
+* *Creating Thinly-Provisioned Logical Volumes*
++
+Logical volumes can be thinly provisioned. This allows you to create logical volumes that are larger than the available extents. Using thin provisioning, you can manage a storage pool of free space, known as a thin pool, which can be allocated to an arbitrary number of devices when needed by applications. You can then create devices that can be bound to the thin pool for later allocation when an application actually writes to the logical volume. The thin pool can be expanded dynamically when needed for cost-effective allocation of storage space. 
++
+You can use the `-T` (or `--thin`) option of the `lvcreate` command to create either a thin pool or a thin volume. You can also use `-T` option of the `lvcreate` command to create both a thin pool and a thin volume in that pool at the same time with a single command. 
++
+[source,console]
+----
+# lvcreate -L 100M -T vg1/mythinpool0
+  Thin pool volume with chunk size 64.00 KiB can address at most 15.81 TiB of data.
+  Logical volume "mythinpool0" created.
+
+# lvs
+  LV          VG  Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 -wi-a-----  10.00g                                                    
+  lvol1       vg1 -wi-a----- 200.00m                                                    
+  mythinpool0 vg1 twi-a-tz-- 100.00m             0.00   10.84                           
+
+# lvcreate -V 1G -T vg1/mythinpool0 -n thinvolume0
+  WARNING: Sum of all thin volume sizes (1.00 GiB) exceeds the size of thin pool vg1/mythinpool0 (100.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "thinvolume0" created.
+
+# lvs
+  LV          VG  Attr       LSize   Pool        Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 -wi-a-----  10.00g                                                           
+  lvol1       vg1 -wi-a----- 200.00m                                                           
+  mythinpool0 vg1 twi-aotz-- 100.00m                    0.00   10.94                           
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0        0.00                                   
+
+
+# lvcreate -L 100m -T vg1/mythinpool1 -V 50m -n thinvolume1
+  Rounding up size to full physical extent 52.00 MiB
+  Thin pool volume with chunk size 64.00 KiB can address at most 15.81 TiB of data.
+  Logical volume "thinvolume1" created.
+
+# lvs
+  LV          VG  Attr       LSize   Pool        Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 -wi-a-----  10.00g                                                           
+  lvol1       vg1 -wi-a----- 200.00m                                                           
+  mythinpool0 vg1 twi-aotz-- 100.00m                    0.00   10.94                           
+  mythinpool1 vg1 twi-aotz-- 100.00m                    0.00   10.94                           
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0        0.00                                   
+  thinvolume1 vg1 Vwi-a-tz--  52.00m mythinpool1        0.00   
+----
+
+* *Creating Snapshot Volumes*
++
+Use the `-s` argument of the `lvcreate` command to create a snapshot volume. *A snapshot volume is writable.*
++
+LVM does not allow you to create a snapshot volume that is larger than the size of the origin volume plus needed metadata for the volume. If you specify a snapshot volume that is larger than this, the system will create a snapshot volume that is only as large as will be needed for the size of the origin. 
++
+[source,console]
+----
+# lvcreate -L 100m -n snap0 -s /dev/vg1/lvol0
+  WARNING: Sum of all thin volume sizes (1.05 GiB) exceeds the size of thin pools (200.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "snap0" created.
+
+# lvs
+  LV          VG  Attr       LSize   Pool        Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 owi-a-s---  10.00g                                                           
+  lvol1       vg1 -wi-a----- 200.00m                                                           
+  mythinpool0 vg1 twi-aotz-- 100.00m                    0.00   10.94                           
+  mythinpool1 vg1 twi-aotz-- 100.00m                    0.00   10.94                           
+  snap0       vg1 swi-a-s--- 100.00m             lvol0  0.00                                   
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0        0.00                                   
+  thinvolume1 vg1 Vwi-a-tz--  52.00m mythinpool1        0.00                                   
+----
+
+* *Creating Thinly-Provisioned Snapshot Volumes*
++
+Thin snapshot volumes allow many virtual devices to be stored on the same data volume. This simplifies administration and allows for the sharing of data between snapshot volumes.
++
+Thin snapshot volumes provide the following benefits:
++
+--
+** A thin snapshot volume can reduce disk usage when there are multiple snapshots of the same origin volume.
+
+** If there are multiple snapshots of the same origin, then a write to the origin will cause one *COW* operation to preserve the data. Increasing the number of snapshots of the origin should yield no major slowdown.
+
+** Thin snapshot volumes can be used as a logical volume origin for another snapshot. This allows for an arbitrary depth of recursive snapshots (snapshots of snapshots of snapshots...).
+
+** A snapshot of a thin logical volume also creates a thin logical volume. This consumes no data space until a COW operation is required, or until the snapshot itself is written.
+
+** A thin snapshot volume does not need to be activated with its origin, so a user may have only the origin active while there are many inactive snapshot volumes of the origin.
+
+** When you delete the origin of a thinly-provisioned snapshot volume, each snapshot of that origin volume becomes an independent thinly-provisioned volume. This means that instead of merging a snapshot with its origin volume, you may choose to delete the origin volume and then create a new thinly-provisioned snapshot using that independent volume as the origin volume for the new snapshot. 
+--
++
+Thin snapshots can be created for thinly-provisioned origin volumes, or for origin volumes that are not thinly-provisioned. 
++
+[source,console]
+----
+# lvcreate -s -n mysnapshot1  vg1/thinvolume0
+  WARNING: Sum of all thin volume sizes (2.05 GiB) exceeds the size of thin pools (200.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "mysnapshot1" created.
+
+# lvchange -p r vg1/lvol1
+  Logical volume vg1/lvol1 changed.
+
+# lvchange -a n vg1/lvol1
+
+# lvcreate -s -n mysnapshot2 --thinpool mythinpool1  vg1/lvol1
+  WARNING: Sum of all thin volume sizes (<2.25 GiB) exceeds the size of thin pools (200.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "mysnapshot2" created.
+
+# lvs
+  LV          VG  Attr       LSize   Pool        Origin      Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 owi-a-s---  10.00g                                                                
+  lvol1       vg1 ori------- 200.00m                                                                
+  mysnapshot1 vg1 Vwi---tz-k   1.00g mythinpool0 thinvolume0                                        
+  mysnapshot2 vg1 Vwi-a-tz-- 200.00m mythinpool1 lvol1       0.00                                   
+  mythinpool0 vg1 twi-aotz-- 100.00m                         0.00   10.94                           
+  mythinpool1 vg1 twi-aotz-- 100.00m                         0.00   11.04                           
+  snap0       vg1 swi-a-s--- 100.00m             lvol0       0.00                                   
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0             0.00                                   
+  thinvolume1 vg1 Vwi-a-tz--  52.00m mythinpool1             0.00                 
+----
+
+=== LVM Configuration Examples
+
+* To use disks in a volume group, *label them as LVM physical volumes* with the `pvcreate` command.
++
+[source,console]
+----
+# lsblk 
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk 
+└─sda1   8:1    0   10G  0 part 
+sdb      8:16   0   10G  0 disk 
+sdc      8:32   0  100G  0 disk 
+└─sdc1   8:33   0  100G  0 part /
+
+# dd if=/dev/zero of=/dev/sda count=1
+1+0 records in
+1+0 records out
+512 bytes copied, 0.00135126 s, 379 kB/s
+
+# pvcreate /dev/sda /dev/sdb 
+  Physical volume "/dev/sda" successfully created.
+  Physical volume "/dev/sdb" successfully created.
+
+# pvs
+  PV         VG Fmt  Attr PSize  PFree 
+  /dev/sda      lvm2 ---  20.00g 20.00g
+  /dev/sdb      lvm2 ---  10.00g 10.00g
+----
+
+* *Create a volume group* that consists of the LVM physical volumes you have created.
++
+[source,console]
+----
+# vgcreate vg0 /dev/sda /dev/sdb 
+  Volume group "vg0" successfully created
+
+# vgs
+  VG  #PV #LV #SN Attr   VSize  VFree 
+  vg0   2   0   0 wz--n- 29.99g 29.99g
+----
+
+* *Create the logical volume* from the volume group you have created.
++
+[source,console]
+----
+# lvcreate -L 5G vg0 
+  Logical volume "lvol0" created.
+
+# lvs
+  LV    VG  Attr       LSize Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0 vg0 -wi-a----- 5.00g                                                    
+----
+
+* *Create a file system* on the logical volume.
++
+[source,console]
+----
+# mkfs.ext4 /dev/vg0/lvol0 
+mke2fs 1.46.2 (28-Feb-2021)
+Creating filesystem with 1310720 4k blocks and 327680 inodes
+Filesystem UUID: b08cfa69-5034-4e46-b045-d5d7221bc434
+Superblock backups stored on blocks: 
+	32768, 98304, 163840, 229376, 294912, 819200, 884736
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (16384 blocks): done
+Writing superblocks and filesystem accounting information: done 
+----
+
+* *Resize the file system* online.
++
+[source,console]
+----
+# mkdir /mnt/data
+# mount /dev/mapper/vg0-lvol0 /mnt/data/
+# grep mapper /proc/mounts 
+/dev/mapper/vg0-lvol0 /mnt/data ext4 rw,relatime 0 0
+# df -h /mnt/data/
+Filesystem             Size  Used Avail Use% Mounted on
+/dev/mapper/vg0-lvol0  4.9G   24K  4.6G   1% /mnt/data
+
+# lvextend -L +5G /dev/vg0/lvol0 
+  Size of logical volume vg0/lvol0 changed from 5.00 GiB (1280 extents) to 10.00 GiB (2560 extents).
+  Logical volume vg0/lvol0 successfully resized.
+
+# resize2fs /dev/vg0/lvol0 
+resize2fs 1.46.2 (28-Feb-2021)
+Filesystem at /dev/vg0/lvol0 is mounted on /mnt/data; on-line resizing required
+old_desc_blocks = 1, new_desc_blocks = 2
+The filesystem on /dev/vg0/lvol0 is now 2621440 (4k) blocks long.
+
+# df -h /mnt/data/
+Filesystem             Size  Used Avail Use% Mounted on
+/dev/mapper/vg0-lvol0  9.8G   23M  9.3G   1% /mnt/data
+----
+
+* *Cleanup*
++
+[source,console]
+----
+# umount /mnt/data && rm -rf /mnt/data/
+
+# vgremove vg0 -y
+  Logical volume "lvol0" successfully removed
+  Volume group "vg0" successfully removed
+
+# pvremove /dev/sda /dev/sdb 
+  Labels on physical volume "/dev/sda" successfully wiped.
+  Labels on physical volume "/dev/sdb" successfully wiped.
+----
+
+== References
+
+* link:/2018/04/09/partition-format-mount-disk-driver-linux/[Partition, format and mount disk driver on Linux]
+* https://en.wikipedia.org/wiki/Device_mapper
+* https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux) 
+* https://en.wikipedia.org/wiki/Logical_volume_management
+* https://en.wikipedia.org/wiki/Hot_swapping
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/device_mapper
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/index
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/storage_administration_guide/ext4grow
