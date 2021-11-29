@@ -847,16 +847,21 @@ WARNING: devicemapper: usage of loopback devices is strongly discouraged for pro
 +
 [source,console]
 ----
-# lvcreate --wipesignatures y -n thinpool docker -l 95%VG
+# lvcreate --wipesignatures y -n thinpool docker -L 500m
   Logical volume "thinpool" created.
 
-# lvcreate --wipesignatures y -n thinpoolmeta docker -l 1%VG
+# lvcreate --wipesignatures y -n thinpoolmeta docker -L 50m
+  Rounding up size to full physical extent 52.00 MiB
   Logical volume "thinpoolmeta" created.
+
+# dmsetup ls
+docker-thinpoolmeta	(254:1)
+docker-thinpool	(254:0)
 
 # lvs
   LV           VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
-  thinpool     docker -wi-a-----  28.49g                                                    
-  thinpoolmeta docker -wi-a----- 304.00m            
+  thinpool     docker -wi-a----- 500.00m                                                    
+  thinpoolmeta docker -wi-a-----  52.00m                                                    
 ----
 
 * Convert the volumes to a thin pool and a storage location for metadata for the thin pool.
@@ -874,9 +879,14 @@ WARNING: devicemapper: usage of loopback devices is strongly discouraged for pro
   THIS WILL DESTROY CONTENT OF LOGICAL VOLUME (filesystem etc.)
   Converted docker/thinpool and docker/thinpoolmeta to thin pool.
 
+# dmsetup ls
+docker-thinpool_tdata	(254:1)
+docker-thinpool_tmeta	(254:0)
+docker-thinpool	(254:2)
+
 # lvs
-  LV       VG     Attr       LSize  Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
-  thinpool docker twi-a-t--- 28.49g             0.00   5.28    
+  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-a-t--- 500.00m             0.00   10.07          
 ----
 
 * Configure autoextension of thin pools via an `lvm` profile.
@@ -897,11 +907,10 @@ WARNING: devicemapper: usage of loopback devices is strongly discouraged for pro
 ----
 # lvchange --metadataprofile docker-thinpool docker/thinpool
   Logical volume docker/thinpool changed.
-  thinpool docker twi-a-t--- 28.49g             0.00   5.28                            
 
 # lvs -v
-  LV       VG     #Seg Attr       LSize  Maj Min KMaj KMin Pool Origin Data%  Meta%  Move Cpy%Sync Log Convert LV UUID                                LProfile       
-  thinpool docker    1 twi-a-t--- 28.49g  -1  -1  254    2             0.00   5.28                             6Bc4oY-boP1-IpU1-tShb-cg9L-Jleb-ryr5H3 docker-thinpool
+  LV       VG     #Seg Attr       LSize   Maj Min KMaj KMin Pool Origin Data%  Meta%  Move Cpy%Sync Log Convert LV UUID                                LProfile       
+  thinpool docker    1 twi-a-t--- 500.00m  -1  -1  254    2             0.00   10.07                            34X3Lb-QjmS-tkgG-LZWm-OUs3-FECR-X2hmMp docker-thinpool
 ----
 
 * Ensure monitoring of the logical volume is enabled.
@@ -909,8 +918,8 @@ WARNING: devicemapper: usage of loopback devices is strongly discouraged for pro
 [source,console]
 ----
 # lvs -o+seg_monitor
-  LV       VG     Attr       LSize  Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert Monitor  
-  thinpool docker twi-a-t--- 28.49g             0.00   5.28                             monitored
+  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert Monitor  
+  thinpool docker twi-a-t--- 500.00m             0.00   10.07                            monitored
 ----
 
 * If you have ever run Docker on this host before, or if `/var/lib/docker/` exists, move it out of the way so that Docker can use the new LVM pool to store the contents of image and containers.
@@ -947,12 +956,12 @@ Server:
   Backing Filesystem: ext4
   Udev Sync Supported: true
   Data Space Used: 246.4MB
-  Data Space Total: 30.59GB
-  Data Space Available: 30.35GB
-  Metadata Space Used: 16.86MB
-  Metadata Space Total: 318.8MB
-  Metadata Space Available: 301.9MB
-  Thin Pool Minimum Free Space: 3.059GB
+  Data Space Total: 524.3MB
+  Data Space Available: 277.9MB
+  Metadata Space Used: 5.505MB
+  Metadata Space Total: 54.53MB
+  Metadata Space Available: 49.02MB
+  Thin Pool Minimum Free Space: 52.43MB
   Deferred Removal Enabled: true
   Deferred Deletion Enabled: true
   Deferred Deleted Device Count: 0
@@ -971,49 +980,70 @@ Digest: sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e
 Status: Image is up to date for nginx:latest
 docker.io/library/nginx:latest
 
-# df -h
-Filesystem      Size  Used Avail Use% Mounted on
-udev            1.9G     0  1.9G   0% /dev
-tmpfs           391M  980K  390M   1% /run
-/dev/sdc1        98G   62G   32G  67% /
-tmpfs           2.0G     0  2.0G   0% /dev/shm
-tmpfs           5.0M     0  5.0M   0% /run/lock
-tmpfs           391M  4.0K  391M   1% /run/user/1000
+# lvs 
+  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-a-t--- 600.00m             69.42  10.31     
 
-# docker run -d --rm nginx
-1e607905907150e645ef9b21641eea7da0e67176a9d84994a4396ba65dd4bb1e
-# docker run -d --rm nginx
-b37be054f907b7f050f46fe983619ec21cb8eb031a3e08f8910bbdea31e1e7ce
-# docker run -d --rm nginx
-2e2cb2d0c8487bed16269b9ef05ae7efc292f6edae52aa702cff64188d56ea72
-# docker run -d --rm nginx
-d3387890e4ec5e04083e20f073b83d738b960b40b9e605977e05fbf74c13efe4
+# docker run --rm -d nginx
+9c4cb272b38b3bc1cf469cfa885abe2547df49c93f983b3b48596bed1cdb1b8e
+# docker run --rm -d nginx
+99d9be78d9707f36bda6329e42448e3fb0f18eb79b41eb072db4144f490bebbd
+# docker run --rm -d nginx
+53e8d193c92132431ffb0c34c2b3575f1a0df81dff718d34153970f3bdb61a9a
+# docker run --rm -d nginx
+dd2834a4f72305a90eb332c1970667e601dabc6a47ca27be4882b7e01a4c7107
+# docker run --rm -d nginx
+353a9cb5896670f7edbd0caed4a716552a1d1bf8948c31b1c2791ae26715cda9
+# docker run --rm -d nginx
+9e8c545bcbfa2a01c0708140bb9e3ab29b829e14a096084839e9c428e1cf6c72
 
 # docker ps -s
-CONTAINER ID   IMAGE     COMMAND                  CREATED              STATUS              PORTS     NAMES                SIZE
-d3387890e4ec   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    vibrant_ellis        1.09kB (virtual 141MB)
-2e2cb2d0c848   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    intelligent_hoover   1.09kB (virtual 141MB)
-b37be054f907   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    crazy_hertz          1.09kB (virtual 141MB)
-1e6079059071   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   80/tcp    admiring_bassi       1.09kB (virtual 141MB)
+CONTAINER ID   IMAGE     COMMAND                  CREATED         STATUS         PORTS     NAMES                 SIZE
+9e8c545bcbfa   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    romantic_chaum        1.09kB (virtual 141MB)
+353a9cb58966   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    peaceful_carson       1.09kB (virtual 141MB)
+dd2834a4f723   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    suspicious_thompson   1.09kB (virtual 141MB)
+53e8d193c921   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    lucid_antonelli       1.09kB (virtual 141MB)
+99d9be78d970   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    gifted_chaum          1.09kB (virtual 141MB)
+9c4cb272b38b   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    youthful_allen        1.09kB (virtual 141MB)
 
 # df -h
 Filesystem      Size  Used Avail Use% Mounted on
 udev            1.9G     0  1.9G   0% /dev
-tmpfs           391M  1.3M  389M   1% /run
-/dev/sdc1        98G   62G   32G  67% /
+tmpfs           391M  1.4M  389M   1% /run
+/dev/sdb1        98G   62G   32G  67% /
 tmpfs           2.0G     0  2.0G   0% /dev/shm
 tmpfs           5.0M     0  5.0M   0% /run/lock
 tmpfs           391M  4.0K  391M   1% /run/user/1000
-/dev/dm-3       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/c265f0f52c442fb87e8a73f6dbac7444a42c9b623ca843f514e26dc746c6fc2d
-/dev/dm-4       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/d9abc8be04e4633a01417c19ef8dbebaf7d2f643d06dda6d367cb99470cb9bd6
-/dev/dm-5       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/5c25217f2211de7e4b33c0554bb47eb3f733e4069f67d615b80b9f58a7008bb5
-/dev/dm-6       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/d9fb543a0b0bee229da02e7ce705b3b222967d49b085b894a88179ed86e4bc4f
+/dev/dm-4       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/1e3bc2b9ece4a7496fb62ac28b70f81c2c9c2c12c1a11f8be45bb0d1aba37a46
+/dev/dm-3       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/3de2e58935eae6cec5b8412db8f75cf1113c5df202a4c3c52354892af054a5b4
+/dev/dm-5       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/28cca0406d4e6e0d166d8da345bbb113bff1c40f5a493d957877eecd1d6b214b
+/dev/dm-7       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/67bba018334381eb84a5c8bcdd123af5db429d3add3d27cea9ee39359d9d127f
+/dev/dm-6       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/f37bd1fabee07ec2e4256c3e725e7d9001a5cb042c6993a56cc3db1840ad3d5e
+/dev/dm-8       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/6e9517b86e554438cd35d9d78474677da7a65de9ab4fd1dd25583dfd5ba8e6f1
+# lvs
+  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-aot--- 600.00m             73.42  10.63                           
+----
+
+[source,console]
+----
+# docker pull debian:bullseye
+bullseye: Pulling from library/debian
+647acf3d48c2: Pull complete 
+Digest: sha256:e8c184b56a94db0947a9d51ec68f42ef5584442f20547fa3bd8cbd00203b2e7a
+Status: Downloaded newer image for debian:bullseye
+docker.io/library/debian:bullseye
+
+# lvs
+  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-aot--- 864.00m             71.30  10.71                           
 ----
 
 == References
 
 * link:/2018/04/09/partition-format-mount-disk-driver-linux/[Partition, format and mount disk driver on Linux]
 * https://en.wikipedia.org/wiki/Device_mapper
+* https://www.kernel.org/doc/Documentation/device-mapper/thin-provisioning.txt
 * https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux) 
 * https://en.wikipedia.org/wiki/Logical_volume_management
 * https://en.wikipedia.org/wiki/Hot_swapping
@@ -1021,3 +1051,5 @@ tmpfs           391M  4.0K  391M   1% /run/user/1000
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/index
 * https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/storage_administration_guide/ext4grow
 * https://docs.docker.com/storage/storagedriver/device-mapper-driver/
+* https://developers.redhat.com/blog/2014/09/30/overview-storage-scalability-docker
+
