@@ -24,7 +24,30 @@ In some Unix-like systems, most device files are managed as part of a *_virtual 
 
 Device nodes correspond to resources that an operating system's kernel has already allocated. Unix identifies those resources by a *_major number_* and a *_minor number_*, both stored as part of the structure of a node. The assignment of these numbers occurs uniquely in different operating systems and on different computer platforms. Generally, the major number identifies the device driver and the minor number identifies a particular device (possibly out of many) that the driver controls: in this case, the system may pass the minor number to a driver. However, in the presence of *_dynamic number allocation_*, this may not be the case. 
 
-image::{simplified_structure_of_the_linux_kernel_io}[,55%,55%]
+image:{simplified_structure_of_the_linux_kernel_io}[,45%,45%]
+image:https://www.ibm.com/docs/en/linuxonibm/com.ibm.linux.z.lgdd/lxnode.jpg[,45%,45%]
+
+User space programs access character and block devices through device nodes also referred to as device special files. 
+
+[source,console]
+----
+# lsblk 
+NAME                    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                       8:0    0   20G  0 disk 
+├─docker-thinpool_tmeta 254:0    0   52M  0 lvm  
+│ └─docker-thinpool     254:2    0  864M  0 lvm  
+└─docker-thinpool_tdata 254:1    0  864M  0 lvm  
+  └─docker-thinpool     254:2    0  864M  0 lvm  
+sdb                       8:16   0  100G  0 disk 
+└─sdb1                    8:17   0  100G  0 part /
+sdc                       8:32   0   10G  0 disk 
+
+# ls -l /dev/sd*
+brw-rw---- 1 root disk 8,  0 Nov 29 20:13 /dev/sda
+brw-rw---- 1 root disk 8, 16 Nov 29 19:16 /dev/sdb
+brw-rw---- 1 root disk 8, 17 Nov 29 19:16 /dev/sdb1
+brw-rw---- 1 root disk 8, 32 Nov 29 20:13 /dev/sdc
+----
 
 ==== Character Devices
 
@@ -111,17 +134,23 @@ Sizes in the Device Mapper are always specified in sectors (512 bytes).
 
 When a device is specified as a mapping parameter in the Device Mapper, it can be referenced by the device name in the filesystem (for example, _/dev/hda_) or by the major and minor numbers in the format `major:minor`. The `major:minor` format is preferred because it avoids pathname lookups.
 
-The following shows a sample mapping table for a device. In this table there are four `linear` targets:
+The following shows a sample mapping table for a device.
 
-[source,text]
+[source,console]
 ----
-0 35258368 linear 8:48 65920
-35258368 35258368 linear 8:32 65920
-70516736 17694720 linear 8:16 17694976
-88211456 17694720 linear 8:16 256
-----
+# dmsetup ls
+docker-thinpool_tdata	(254:1)
+docker-thinpool_tmeta	(254:0)
+docker-thinpool	(254:2)
+docker-8:17-3541243-067f280bcb2a54b005f1c85751b39d0b60fbe82a27bb84f0292b310f70fb754b	(254:3)
 
-The first 2 parameters of each line are the segment starting block and the length of the segment. The next keyword is the mapping target, which in all of the cases in this example is `linear`. The rest of the line consists of the parameters for a linear target. 
+# dmsetup table
+docker-thinpool_tdata: 0 1024000 linear 8:0 2048
+docker-thinpool_tdata: 1024000 745472 linear 8:0 1239040
+docker-thinpool_tmeta: 0 106496 linear 8:0 1026048
+docker-thinpool: 0 1769472 thin-pool 254:0 254:1 1024 345 1 skip_block_zeroing 
+docker-8:17-3541243-067f280bcb2a54b005f1c85751b39d0b60fbe82a27bb84f0292b310f70fb754b: 0 20971520 thin 254:2 24
+----
 
 === The `dmsetup` Command
 
@@ -830,7 +859,7 @@ Filesystem             Size  Used Avail Use% Mounted on
 
 == Docker Device Mapper Storage Driver
 
-Device Mapper is a kernel-based framework that underpins many advanced volume management technologies on Linux. Docker’s *devicemapper* storage driver leverages the *_thin provisioning_* and *_snapshotting_* capabilities of this framework for image and container management. This article refers to the Device Mapper storage driver as `devicemapper`, and the kernel framework as _Device Mapper_.
+Device Mapper is a kernel-based framework that underpins many advanced volume management technologies on Linux. Docker’s *devicemapper* storage driver leverages the *_thin provisioning_* and *_snapshotting_* capabilities of this framework for image and container management.
 
 The `devicemapper` driver uses block devices dedicated to Docker and operates at the block level, rather than the file level. These devices can be extended by adding physical storage to your Docker host, and they perform better than using a filesystem at the operating system (OS) level.
 
@@ -1053,7 +1082,7 @@ Server:
 
 WARNING: the devicemapper storage-driver is deprecated, and will be removed in a future release.
 ----
-
++
 [source,console]
 ----
 # docker pull nginx
@@ -1107,7 +1136,7 @@ tmpfs           391M  4.0K  391M   1% /run/user/1000
   LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
   thinpool docker twi-aot--- 600.00m             73.42  10.63                           
 ----
-
++
 [source,console]
 ----
 # docker pull debian:bullseye
@@ -1126,6 +1155,7 @@ docker.io/library/debian:bullseye
 
 * link:/2018/04/09/partition-format-mount-disk-driver-linux/[Partition, format and mount disk driver on Linux]
 * https://en.wikipedia.org/wiki/Device_file
+* https://www.ibm.com/docs/en/linux-on-systems?topic=hdaa-names-nodes-numbers
 * https://en.wikipedia.org/wiki/Device_mapper
 * https://wiki.gentoo.org/wiki/Device-mapper
 * https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
