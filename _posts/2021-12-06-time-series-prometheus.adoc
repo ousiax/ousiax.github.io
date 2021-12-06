@@ -1,0 +1,241 @@
+= Time Series and Prometheus
+:page-layout: post
+:page-categories: ['prometheus']
+:page-tags: ['prometheus', 'time series', 'tsdb' ]
+:page-date: 2021-12-06 09:47:59 +0800
+:page-revdate: 2021-12-06 09:47:59 +0800
+:toc:
+:toclevel: 5
+:sectnums:
+
+== What is Time Series
+
+:mathematics: https://en.wikipedia.org/wiki/Mathematics
+:sequence: https://en.wikipedia.org/wiki/Sequence
+:discrete_time: https://en.wikipedia.org/wiki/Discrete-time
+
+In {mathematics}[mathematics], a *time series* is a series of data points indexed (or listed or graphed) in *_time order_*. Most commonly, a time series is a {sequence}[sequence] taken at successive equally spaced points in time. Thus it is a sequence of {discrete_time}[discrete-time] data.
+
+.A time series of temperature.
+[%header,width=45%,cols="1,1"]
+|===
+|Time
+|Value
+
+|09:00
+|24°C
+
+|10:00
+|26°C
+
+|11:00
+|27°C
+|===
+
+'''
+
+Time series are powerful. They help you understand the past by letting you analyze the state of the system at any point in time. Time series could tell you that the server crashed moments after the free disk space went down to zero.
+
+*_Time series analysis_* comprises methods for analyzing time series data in order to extract meaningful statistics and other characteristics of the data. *_Time series forecasting_* is the use of a model to predict future values based on previously observed values. 
+
+'''
+
+The common case is issuing a single query for a measurement with one or more additional properties as _dimensions_. For example, querying a temperature measurement along with a _location_ property. In this case, multiple series are returned back from that single query and each series has unique location as a dimension.
+
+Every time series is uniquely identified by its metric *name* and optional key-value pairs for identifying dimensions called *labels*.
+
+Example labels could be `{location=us}` or `{country=us,state=ma,city=boston}`. Within a set of time series, the combination of its name and labels identifies each series.
+
+Given a metric name and a set of labels, time series are frequently identified using this *notation*:
+
+[source,console]
+<metric name>{<label name>=<label value>, ...}
+
+For example, a time series with the metric name `temperature` and the labels `country=us`, `state=ma` and `city=boston` could be written like this:
+
+[source,console]
+temperature{country=us,state=ma,city=boston}
+
+For example, `temperature {country=us,state=ma,city=boston}` could identify the series of temperature values for the city of Boston in the US.
+
+In table databases such SQL, these dimensions are generally the `GROUP BY` parameters of a query.
+
+For example, consider a query like:
+
+[source,sql]
+----
+SELECT BUCKET(StartTime, 1h), AVG(Temperature) AS Temp, Location FROM T
+  GROUP BY BUCKET(StartTime, 1h), Location
+  ORDER BY time asc
+----
+
+This query would return a table with three columns with data types time, number, and string respectively:
+
+[%header,cols="1,1,1"]
+|===
+|StartTime
+|Temp
+|Location
+
+|09:00
+|24
+|LGA
+
+|09:00
+|20
+|BOS
+
+|10:00
+|26
+|LGA
+
+|10:00
+|22
+|BOS
+|===
+
+'''
+
+Combining a collection of measurements is called *aggregation*. There are several ways to aggregate time series data. Here are some common ones:
+
+* *Average* returns the sum of all values divided by the total number of values.
+* *Min* and *Max* return the smallest and largest value in the collection.
+* *Sum* returns the sum of all values in the collection.
+* *Count* returns the number of values in the collection.
+
+== What is Prometheus?
+
+*Prometheus* is an open-source systems monitoring and alerting toolkit originally built at SoundCloud. Prometheus joined the https://cncf.io/[Cloud Native Computing Foundation] in 2016 as the second hosted project, after https://kubernetes.io/[Kubernetes].
+
+Prometheus collects and stores its *metrics* as time series data, i.e. metrics information is stored with the timestamp at which it was recorded, alongside optional key-value pairs called *labels*.
+
+image::https://prometheus.io/assets/architecture.png[,75%,75%]
+
+'''
+
+The Prometheus offer four core metric types: _counter_, _gauge_, _histogram_, _summary_. 
+
+:monotonic_function: https://en.wikipedia.org/wiki/Monotonic_function
+
+* *Counter*
++
+A *_counter_* is a cumulative metric that represents a single {monotonic_function}[monotonically increasing counter] whose value can only increase or be reset to zero on restart. For example, you can use a counter to represent the number of requests served, tasks completed, or errors.
++
+Do not use a counter to expose a value that can decrease. For example, do not use a counter for the number of currently running processes; instead use a gauge.
+
+* *Gauge*
++
+A *_gauge_* is a metric that represents a single numerical value that can arbitrarily go up and down.
++
+Gauges are typically used for measured values like temperatures or current memory usage, but also "counts" that can go up and down, like the number of concurrent requests.
+
+* *Histogram*
++
+A *_histogram_* samples observations (usually things like request durations or response sizes) and counts them in configurable buckets. It also provides a sum of all observed values.
++
+A histogram with a base metric name of `<basename>` exposes multiple time series during a scrape:
++
+--
+** *_cumulative counters_* for the observation buckets, exposed as `<basename>_bucket{le="<upper inclusive bound>"}`
+** the *_total sum_* of all observed values, exposed as `<basename>_sum`
+** the *_count of events_* that have been observed, exposed as `<basename>_count` (identical to `<basename>_bucket{le="+Inf"}` above)
+--
+
+* *Summary*
++
+Similar to a _histogram_, a *_summary_* samples observations (usually things like request durations and response sizes). While it also provides a total count of observations and a sum of all observed values, it calculates configurable quantiles over a sliding time window.
++
+A summary with a base metric name of `<basename>` exposes multiple time series during a scrape:
++
+--
+** streaming *_φ-quantiles_* (0 ≤ φ ≤ 1) of observed events, exposed as `<basename>{quantile="<φ>"}`
+** the *_total sum_* of all observed values, exposed as `<basename>_sum`
+** the *_count of events_* that have been observed, exposed as `<basename>_count`
+--
+
+'''
+
+Prometheus provides a functional query language called *PromQL* (Prometheus Query Language) that lets the user select and aggregate time series data in real time. 
+
+In Prometheus's expression language, an expression or sub-expression can evaluate to one of four types:
+
+--
+* *Instant vector* - a set of time series containing a single sample for each time series, all sharing the same timestamp
+* *Range vector* - a set of time series containing a range of data points over time for each time series
+* *Scalar* - a simple numeric floating point value
+* *String* - a simple string value; currently unused
+--
+
+*# Instant vector selectors*
+
+Instant vector selectors allow the selection of a set of time series and a single sample value for each at a given timestamp (instant): in the simplest form, only a metric name is specified. This results in an instant vector containing elements for all time series that have this metric name.
+
+This example selects all time series that have the http_requests_total metric name:
+
+[source,promql]
+http_requests_total
+
+It is possible to filter these time series further by appending a comma separated list of label matchers in curly braces (`{}`).
+
+This example selects only those time series with the `http_requests_total` metric name that also have the `job` label set to `prometheus` and their `group` label set to `canary`:
+
+[source,promql]
+http_requests_total{job="prometheus",group="canary"}
+
+It is also possible to negatively match a label value, or to match label values against regular expressions. The following label matching operators exist:
+
+* *=*: Select labels that are exactly equal to the provided string.
+* *!=*: Select labels that are not equal to the provided string.
+* *=~*: Select labels that regex-match the provided string.
+* *!~*: Select labels that do not regex-match the provided string.
+
+For example, this selects all `http_requests_total` time series for `staging`, `testing`, and `development` environments and HTTP methods other than `GET`.
+
+[source,promql]
+http_requests_total{environment=~"staging|testing|development",method!="GET"}
+
+Label matchers can also be applied to metric names by matching against the internal `__name__` label. For example, the expression `http_requests_total` is equivalent to `{__name__="http_requests_total"}`.
+
+*# Range Vector Selectors*
+
+Range vector literals work like instant vector literals, except that they select a range of samples back from the current instant. Syntactically, a time duration is appended in square brackets (`[]`) at the end of a vector selector to specify how far back in time values should be fetched for each resulting range vector element.
+
+In this example, we select all the values we have recorded within the last 5 minutes for all time series that have the metric name `http_requests_total` and a `job` label set to `prometheus`:
+
+[source,promql]
+http_requests_total{job="prometheus"}[5m]
+
+'''
+
+*Federation* allows a Prometheus server to scrape selected time series from another Prometheus server.
+
+On any given Prometheus server, the `/federate` endpoint allows retrieving the current value for a selected set of time series in that server. At least one `match[]` URL parameter must be specified to select the series to expose. Each `match[]` argument needs to specify an instant vector selector like `up` or `{job="api-server"}`. If multiple `match[]` parameters are provided, the union of all matched series is selected.
+
+[source,console]
+----
+$ curl -XGET -G \
+    --data-urlencode 'match[]={job="kubernetes-endpoints", namespace="ingress-nginx"}' \
+    https://prometheus.local.io/federate
+----
+
+To federate metrics from one server to another, configure your destination Prometheus server to scrape from the `/federate` endpoint of a source server, while also enabling the `honor_labels` scrape option and passing in the desired `match[]` parameters.
+
+// === Histograms and Summaries
+// 
+// A histogram is a graphical representation of the distribution of numerical data. It groups values into buckets (sometimes also called bins) and then counts how many values fall into each bucket.
+// 
+// Histograms and summaries are more complex metric types. Not only does a single histogram or summary create a multitude of time series, it is also more difficult to use these metric types correctly. 
+// 
+// Histograms and summaries both sample observations, typically request durations or response sizes. They track the *_number of observations_* and the *_sum of the observed values_*, allowing you to calculate the average of the observed values.
+// 
+// * https://grafana.com/docs/grafana/latest/basics/intro-histograms/
+// * https://prometheus.io/docs/practices/histograms/
+
+== References
+
+* https://en.wikipedia.org/wiki/Time_series
+* https://grafana.com/docs/grafana/latest/basics/timeseries/
+* https://prometheus.io/docs/concepts/data_model/
+* https://prometheus.io/docs/prometheus/latest/querying/basics/
+* https://techannotation.wordpress.com/2021/07/19/irate-vs-rate-whatre-they-telling-you/
+* https://prometheus.io/docs/prometheus/latest/federation/
