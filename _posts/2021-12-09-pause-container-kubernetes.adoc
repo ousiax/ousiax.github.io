@@ -1,0 +1,181 @@
+= What is pause container in Kubernetes
+:page-layout: post
+:page-categories: ['kubernetes']
+:page-tags: ['kubernetes', 'namespace', 'cni']
+:page-date: 2021-12-09 13:06:06 +0800
+:page-revdate: 2021-12-09 13:06:06 +0800
+
+[quote]
+----
+Eric Paris to google-c...@googlegroups.com
+Sep 25, 2014, 8:35:48 PM
+
+The pause container is a container which holds the network namespace
+for the pod. It does nothing 'useful'. (It's actually just a little
+bit of assembly that goes to sleep and never wakes up)
+
+This means that your 'apache' container can die, and come back to
+life, and all of the network setup will still be there. Normally if
+the last process in a network namespace dies the namespace would be
+destroyed and creating a new apache container would require creating
+all new network setup. With pause, you'll always have that one last
+thing in the namespace.
+
+I'd suggest thinking of it as an implementation detail you just ignore.
+
+ref: https://groups.google.com/g/kubernetes-users/c/jVjv0QK4b_o
+----
+
+'''
+
+A *Pod* (as in a pod of whales or pea pod) is *_a group of one or more containers, with shared storage and network resources_*, and a specification for how to run the containers. 
+
+* Each Pod is assigned a unique IP address for each address family.
+ 
+* Every container in a Pod shares the network namespace, including the IP address and network ports.
+ 
+* Inside a Pod (and *only* then), the containers that belong to the Pod can communicate with one another using `localhost`.
+ 
+* Within a Pod, containers share an IP address and port space, and can find each other via `localhost`.
+ 
+* The containers in a Pod can also communicate with each other using standard inter-process communications like SystemV semaphores or POSIX shared memory.
+ 
+* Containers within the Pod see the system hostname as being the same as the configured `name` for the Pod.
+
+'''
+
+*_Talk is cheap_*, let's demo it.
+
+* *pod.yaml*
++
+[source,yaml]
+----
+pod.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: demo
+  name: demo
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      command:
+        - sleep
+        - 3650d
+    - name: nginx
+      image: nginx:1.21
+----
+
+* *kubectl apply -n default -f pod.yaml*
++
+[source,console]
+----
+$ kubectl apply -n default -f pod.yaml 
+pod/demo created
+
+$ kubectl get po demo 
+NAME   READY   STATUS    RESTARTS   AGE
+demo   2/2     Running   0          40s
+----
+
+* *Use `docker ps` to show the containers*
++
+[source,console]
+----
+$ sudo docker ps | grep demo
+f93bf3b7e0be   f8f4ffc8092c           "/docker-entrypoint.…"   About a minute ago   Up About a minute             k8s_nginx_demo_default_8cfc283b-354c-47b6-8100-9bc288f836c6_0
+3277526fb144   busybox                "sleep 3650d"            About a minute ago   Up About a minute             k8s_busybox_demo_default_8cfc283b-354c-47b6-8100-9bc288f836c6_0
+e7ecd72b58e2   k8s.gcr.io/pause:3.5   "/pause"                 About a minute ago   Up About a minute             k8s_POD_demo_default_8cfc283b-354c-47b6-8100-9bc288f836c6_0
+
+$ sudo docker ps | grep demo | cut -d ' ' -f 1 | xargs sudo docker inspect -f '{{.State.Pid}}'
+570765
+570710
+570593
+----
+
+* *Use `lsns` to list `tasks` (i.e. processes) namespaces*
++
+[source,console,highlight="5-6,16-17,29,31"]
+----
+$ sudo lsns -p 570765
+        NS TYPE   NPROCS    PID USER  COMMAND
+4026531834 time      236      1 root  /sbin/init
+4026531837 user      236      1 root  /sbin/init
+4026533140 ipc         7 570593 65535 /pause
+4026533143 net         7 570593 65535 /pause
+4026533389 mnt         5 570765 root  nginx: master process nginx -g daemon off;
+4026533390 uts         5 570765 root  nginx: master process nginx -g daemon off;
+4026533391 pid         5 570765 root  nginx: master process nginx -g daemon off;
+4026533395 cgroup      5 570765 root  nginx: master process nginx -g daemon off;
+
+$ sudo lsns -p 570710
+        NS TYPE   NPROCS    PID USER  COMMAND
+4026531834 time      236      1 root  /sbin/init
+4026531837 user      236      1 root  /sbin/init
+4026533140 ipc         7 570593 65535 /pause
+4026533143 net         7 570593 65535 /pause
+4026533383 mnt         1 570710 root  sleep 3650d
+4026533384 uts         1 570710 root  sleep 3650d
+4026533385 pid         1 570710 root  sleep 3650d
+4026533386 cgroup      1 570710 root  sleep 3650d
+
+$ sudo lsns -p 570593
+        NS TYPE   NPROCS    PID USER  COMMAND
+4026531834 time      236      1 root  /sbin/init
+4026531837 user      236      1 root  /sbin/init
+4026533138 mnt         1 570593 65535 /pause
+4026533139 uts         1 570593 65535 /pause
+4026533140 ipc         7 570593 65535 /pause
+4026533141 pid         1 570593 65535 /pause
+4026533143 net         7 570593 65535 /pause
+4026533210 cgroup      1 570593 65535 /pause
+
+$ sudo nsenter -m -t 570765 cat /etc/hostname
+demo
+
+$ sudo nsenter -m -t 570710 cat /etc/hostname
+demo
+----
+
+* *Use `wget` to access nginx at `busybox` within the pod*
++
+[source,console]
+----
+$ sudo nsenter -n -t 570710 wget -q -S -O /dev/null localhost
+  HTTP/1.1 200 OK
+  Server: nginx/1.21.3
+  Date: Thu, 09 Dec 2021 06:04:24 GMT
+  Content-Type: text/html
+  Content-Length: 615
+  Last-Modified: Tue, 07 Sep 2021 15:21:03 GMT
+  Connection: keep-alive
+  ETag: "6137835f-267"
+  Accept-Ranges: bytes
+
+$ kubectl exec -n default -it demo -c busybox -- wget -q -S -O /dev/null localhost
+  HTTP/1.1 200 OK
+  Server: nginx/1.21.3
+  Date: Thu, 09 Dec 2021 06:06:54 GMT
+  Content-Type: text/html
+  Content-Length: 615
+  Last-Modified: Tue, 07 Sep 2021 15:21:03 GMT
+  Connection: close
+  ETag: "6137835f-267"
+  Accept-Ranges: bytes
+----
+
+* *Clean up with `kubectl delete -n default -f pod.yaml`*
++
+[source,console]
+----
+$ kubectl delete -n default -f pod.yaml 
+pod "demo" deleted
+----
+
+== References
+
+* https://groups.google.com/g/kubernetes-users/c/jVjv0QK4b_o
+* https://kubernetes.io/docs/concepts/workloads/pods/
+* https://kubernetes.io/docs/concepts/cluster-administration/networking/
