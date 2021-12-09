@@ -5,7 +5,6 @@
 :page-date: 2021-12-06 09:47:59 +0800
 :page-revdate: 2021-12-06 09:47:59 +0800
 :toc:
-:toclevel: 5
 :sectnums:
 
 == What is Time Series
@@ -38,7 +37,7 @@ Time series are powerful. They help you understand the past by letting you analy
 
 *_Time series analysis_* comprises methods for analyzing time series data in order to extract meaningful statistics and other characteristics of the data. *_Time series forecasting_* is the use of a model to predict future values based on previously observed values. 
 
-'''
+=== Name and Labels
 
 The common case is issuing a single query for a measurement with one or more additional properties as _dimensions_. For example, querying a temperature measurement along with a _location_ property. In this case, multiple series are returned back from that single query and each series has unique location as a dimension.
 
@@ -94,7 +93,7 @@ This query would return a table with three columns with data types time, number,
 |BOS
 |===
 
-'''
+=== Aggregation
 
 Combining a collection of measurements is called *aggregation*. There are several ways to aggregate time series data. Here are some common ones:
 
@@ -111,7 +110,7 @@ Prometheus collects and stores its *metrics* as time series data, i.e. metrics i
 
 image::https://prometheus.io/assets/architecture.png[,75%,75%]
 
-'''
+=== Metric Types
 
 The Prometheus offer four core metric types: _counter_, _gauge_, _histogram_, _summary_. 
 
@@ -153,7 +152,7 @@ A summary with a base metric name of `<basename>` exposes multiple time series d
 ** the *_count of events_* that have been observed, exposed as `<basename>_count`
 --
 
-'''
+=== PromQL
 
 Prometheus provides a functional query language called *PromQL* (Prometheus Query Language) that lets the user select and aggregate time series data in real time. 
 
@@ -166,7 +165,7 @@ In Prometheus's expression language, an expression or sub-expression can evaluat
 * *String* - a simple string value; currently unused
 --
 
-*# Instant vector selectors*
+==== Instant vector selectors
 
 Instant vector selectors allow the selection of a set of time series and a single sample value for each at a given timestamp (instant): in the simplest form, only a metric name is specified. This results in an instant vector containing elements for all time series that have this metric name.
 
@@ -196,7 +195,7 @@ http_requests_total{environment=~"staging|testing|development",method!="GET"}
 
 Label matchers can also be applied to metric names by matching against the internal `__name__` label. For example, the expression `http_requests_total` is equivalent to `{__name__="http_requests_total"}`.
 
-*# Range Vector Selectors*
+==== Range Vector Selectors
 
 Range vector literals work like instant vector literals, except that they select a range of samples back from the current instant. Syntactically, a time duration is appended in square brackets (`[]`) at the end of a vector selector to specify how far back in time values should be fetched for each resulting range vector element.
 
@@ -205,7 +204,7 @@ In this example, we select all the values we have recorded within the last 5 min
 [source,promql]
 http_requests_total{job="prometheus"}[5m]
 
-'''
+=== Federation
 
 *Federation* allows a Prometheus server to scrape selected time series from another Prometheus server.
 
@@ -219,6 +218,52 @@ $ curl -XGET -G \
 ----
 
 To federate metrics from one server to another, configure your destination Prometheus server to scrape from the `/federate` endpoint of a source server, while also enabling the `honor_labels` scrape option and passing in the desired `match[]` parameters.
+
+==== HTTP API
+The following endpoint returns an overview of the current state of the Prometheus target discovery:
+
+[source,console]
+GET /api/v1/targets
+
+Both the active and dropped targets are part of the response by default. `labels` represents the label set after relabelling has occurred. `discoveredLabels` represent the unmodified labels retrieved during service discovery before relabelling has occurred.
+
+The `state` query parameter allows the caller to filter by active or dropped targets, (e.g., `state=active`, `state=dropped`, `state=any`). Note that an empty array is still returned for targets that are filtered out. Other values are ignored.
+
+[source,console]
+----
+$ curl -s localhost:9090/api/v1/targets | jq
+{
+  "status": "success",
+  "data": {
+    "activeTargets": [
+      {
+        "discoveredLabels": {
+          "__address__": "localhost:9090",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "15s",
+          "__scrape_timeout__": "10s",
+          "job": "prometheus"
+        },
+        "labels": {
+          "instance": "localhost:9090",
+          "job": "prometheus"
+        },
+        "scrapePool": "prometheus",
+        "scrapeUrl": "http://localhost:9090/metrics",
+        "globalUrl": "http://far-seer-01:9090/metrics",
+        "lastError": "",
+        "lastScrape": "2021-12-09T14:35:32.832227246+08:00",
+        "lastScrapeDuration": 0.004144766,
+        "health": "up",
+        "scrapeInterval": "15s",
+        "scrapeTimeout": "10s"
+      }
+    ],
+    "droppedTargets": []
+  }
+}
+----
 
 // === Histograms and Summaries
 // 
