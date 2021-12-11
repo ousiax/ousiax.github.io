@@ -1,10 +1,9 @@
 ---
 layout: post
-title: Partition, format and mount disk driver on Linux
+title: Partition, format and mount driver on Linux
 date: 2018-04-09 14:22:13 +0800
-categories: ['Linux']
-tags: ['Linux', 'Mount']
-disqus_identifier: 145595994683785754045383210501758924598
+categories: ['linux']
+tags: ['linux', 'fdisk', 'mount']
 ---
 
 - TOC

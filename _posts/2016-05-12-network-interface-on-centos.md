@@ -2,9 +2,8 @@
 layout: post
 title: "Network Interface On CentOS"
 date: 2016-05-12 15:11:10 +0800
-categories: ['Linux', ]
-tags: ['Linux', 'CentOS', 'Network']
-disqus_identifier: 232439217093332920585807267185644346866
+categories: ['linux', ]
+tags: ['linux', 'centos', 'network']
 ---
 Under Red Hat Enterprise Linux, all network communications occur between configured software *interfaces* and *physical networking devices* connected to the system.
 

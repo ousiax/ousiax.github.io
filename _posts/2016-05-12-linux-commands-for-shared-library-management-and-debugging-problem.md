@@ -2,9 +2,8 @@
 layout: post
 title: "Linux Shared Library Management & Debugging Problem"
 date: 2016-05-12 18:26:42 +0800
-categories: ['Linux']
-tags: ['Linux']
-disqus_identifier: 243398258692857642813586467616780302218
+categories: ['linux']
+tags: ['linux', 'ldd', 'ldconfig']
 ---
 If you are a developer, you will re-use code provided by others.
 

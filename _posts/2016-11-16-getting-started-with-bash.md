@@ -2,9 +2,8 @@
 layout: post
 title: "认识与学习 BASH"
 date: 2016-11-16 09:30:39 +0800
-categories: Linux
-tags: ['Linux', 'Shell', 'Bash']
-disqus_identifier: 180988753761717130939285996517108463885
+categories: ['linux']
+tags: ['linux', 'shell', 'bash']
 ---
 ## 硬件、核心与 Shell
 

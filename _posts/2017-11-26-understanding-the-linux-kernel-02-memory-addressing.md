@@ -2,9 +2,8 @@
 layout: post
 title: "Understanding the Linux Kernel 02"
 date: 2017-11-26 15:47:35 +0800
-categories: ['Linux']
-tags: ['Linux']
-disqus_identifier: 257026711520257894806533149560676763425
+categories: ['linux']
+tags: ['linux']
 ---
 <small>*对枯燥的事情有所坚持—耗子*</small>
 

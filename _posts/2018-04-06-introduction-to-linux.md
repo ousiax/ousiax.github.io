@@ -2,9 +2,8 @@
 layout: post
 title: Introduction to Linux
 date: 2018-04-06 14:34:59 +0800
-categories: ['Linux']
-tags: ['Linux']
-disqus_identifier: 48067408406029811070672091991462348188
+categories: ['linux']
+tags: ['linux']
 ---
 
 - TOC
