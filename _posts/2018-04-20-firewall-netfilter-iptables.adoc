@@ -1,4 +1,4 @@
-= Firewall, netfilter & iptables
+= Linux firewall, netfilter and iptables
 :page-layout: post
 :page-categories: ['linux']
 :page-tags: ['linux', 'iptables', 'netfilter']
@@ -111,11 +111,11 @@ The typical things a rule might match on are what interface the packet came in o
 
 Targets are specified using the `-j` or `--jump` option. Targets can be either _user-defined chains_, (i.e. if these conditions are matched, jump to the following user-defined chain and continue processing there), one of the special _built-in targets_, or a _target extension_.
 
-* If the target is a built-in target, the fate of the packet is decided immediately and processing of the packet in current table is stopped.
+* If the target is a *built-in target*, the fate of the packet is decided immediately and processing of the packet in current table is stopped.
 
-* If the target is a user-defined chain and the fate of the packet is not decided by this second chain, it will be filtered against the remaining rules of the original chain.
+* If the target is a *user-defined chain* and the fate of the packet is not decided by this second chain, it will be filtered against the remaining rules of the original chain.
 
-* Target extensions can be either terminating (as built-in targets) or non-terminating (as user-defined chains).
+* *Target extensions* can be either terminating (as built-in targets) or non-terminating (as user-defined chains).
 
 === Policy Chain Default Behavior
 
@@ -152,7 +152,7 @@ $ sudo iptables --policy OUTPUT DROP
 $ sudo iptables --policy FORWARD DROP
 ----
 
-== Configuration and Usage
+== Usage
 
 [source,man]
 ----
@@ -246,6 +246,72 @@ TABLES
                   table provides the following built-in chains: INPUT (for packets coming into the box itself), OUTPUT (for altering locally-gener‐
                   ated packets before routing), and FORWARD (for altering packets being routed through the box).
 
+OPTIONS
+       The options that are recognized by iptables and ip6tables can be divided into several different groups.
+
+   COMMANDS
+       These options specify the desired action to perform. Only one of them can be specified on the command line unless  otherwise  stated  below.
+       For long versions of the command and option names, you need to use only enough letters to ensure that iptables can differentiate it from all
+       other options.
+
+       -A, --append chain rule-specification
+              Append one or more rules to the end of the selected chain.  When the source  and/or  destination  names  resolve  to  more  than  one
+              address, a rule will be added for each possible address combination.
+
+       -C, --check chain rule-specification
+              Check  whether  a  rule matching the specification does exist in the selected chain. This command uses the same logic as -D to find a
+              matching entry, but does not alter the existing iptables configuration and uses its exit code to indicate success or failure.
+
+       -D, --delete chain rule-specification
+       -D, --delete chain rulenum
+              Delete one or more rules from the selected chain.  There are two versions of this command: the rule can be specified as a  number  in
+              the chain (starting at 1 for the first rule) or a rule to match.
+
+       -I, --insert chain [rulenum] rule-specification
+              Insert one or more rules in the selected chain as the given rule number.  So, if the rule number is 1, the rule or rules are inserted
+              at the head of the chain.  This is also the default if no rule number is specified.
+
+       -R, --replace chain rulenum rule-specification
+              Replace a rule in the selected chain.  If the source and/or destination names resolve to multiple addresses, the command  will  fail.
+              Rules are numbered starting at 1.
+
+       -L, --list [chain]
+              List  all rules in the selected chain.  If no chain is selected, all chains are listed. Like every other iptables command, it applies
+              to the specified table (filter is the default), so NAT rules get listed by
+               iptables -t nat -n -L
+              Please note that it is often used with the -n option, in order to avoid long reverse DNS lookups.  It is  legal  to  specify  the  -Z
+              (zero)  option  as  well, in which case the chain(s) will be atomically listed and zeroed.  The exact output is affected by the other
+              arguments given. The exact rules are suppressed until you use
+               iptables -L -v
+
+       -S, --list-rules [chain]
+              Print all rules in the selected chain.  If no chain is selected, all chains are printed like iptables-save. Like every other iptables
+              command, it applies to the specified table (filter is the default).
+
+       -F, --flush [chain]
+              Flush the selected chain (all the chains in the table if none is given).  This is equivalent to deleting all the rules one by one.
+
+       -Z, --zero [chain [rulenum]]
+              Zero  the  packet and byte counters in all chains, or only the given chain, or only the given rule in a chain. It is legal to specify
+              the -L, --list (list) option as well, to see the counters immediately before they are cleared. (See above.)
+
+       -N, --new-chain chain
+              Create a new user-defined chain by the given name.  There must be no target of that name already.
+
+       -X, --delete-chain [chain]
+              Delete the optional user-defined chain specified.  There must be no references to the chain.   If  there  are,  you  must  delete  or
+              replace the referring rules before the chain can be deleted.  The chain must be empty, i.e. not contain any rules.  If no argument is
+              given, it will attempt to delete every non-builtin chain in the table.
+
+       -P, --policy chain target
+              Set the policy for the chain to the given target.  See the section TARGETS for the legal targets.  Only  built-in  (non-user-defined)
+              chains can have policies, and neither built-in nor user-defined chains can be policy targets.
+
+       -E, --rename-chain old-chain new-chain
+              Rename the user specified chain to the user supplied name.  This is cosmetic, and has no effect on the structure of the table.
+
+       -h     Help.  Give a (currently very brief) description of the command syntax.
+
 # ...
 
 SEE ALSO
@@ -256,65 +322,113 @@ SEE ALSO
        See http://www.netfilter.org/.
 ----
 
-=== Showing the Current Rules
+==== *`iptables [-t table] -L [chain [rulenum]] [options...]`*
 
+* List all rules in the selected chain. If no chain is selected, all chains are listed.
++
 [source,console]
 ----
-$ sudo iptables -L # default table 'filter'
+~]# iptables -L
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
+KUBE-SERVICES  all  --  anywhere             anywhere             ctstate NEW /* kubernetes service portals */
+KUBE-EXTERNAL-SERVICES  all  --  anywhere             anywhere             ctstate NEW /* kubernetes externally-visible service portals */
+...
 
-Chain FORWARD (policy ACCEPT)
-target     prot opt source               destination         
+ ~]# iptables -L -n --line-numbers
+Chain INPUT (policy ACCEPT)
+num  target     prot opt source               destination         
+1    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
+2    KUBE-EXTERNAL-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes externally-visible service portals
+ */
+...
 
-Chain OUTPUT (policy ACCEPT)
+ ~]# iptables -L INPUT 1 -n
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
+----
 
-$ sudo iptables -t nat -L
+* Like every other _iptables_ command, it applies to the specified table (_filter_ is the default), so NAT rules get listed by:
++
+[source,console]
+----
+~]# iptables -t nat -L -n
 Chain PREROUTING (policy ACCEPT)
 target     prot opt source               destination         
-
-Chain INPUT (policy ACCEPT)
-target     prot opt source               destination         
-
-Chain OUTPUT (policy ACCEPT)
-target     prot opt source               destination         
-
-Chain POSTROUTING (policy ACCEPT)
-target     prot opt source               destination         arget     prot opt source               destination    
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service portals */
+CNI-HOSTPORT-DNAT  all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+...
 ----
 
+* Please note that it is often used with the `-n` option, in order to avoid long reverse DNS lookups.
++
 [source,console]
 ----
-$ sudo iptables -S # default table 'filter'
--P INPUT ACCEPT
--P FORWARD ACCEPT
--P OUTPUT ACCEPT
+~]# iptables -L -n
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
+KUBE-EXTERNAL-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes externally-visible service portals */
+...
+----
 
-$ sudo iptables -t nat -S
+=== *`iptables [-t table] -S [chain [rulenum]]`*
+
+* Print all rules in the selected chain. If no chain is selected, all chains are printed like _iptables-save_.
++
+[source,console]
+----
+~]# iptables -t nat -S
 -P PREROUTING ACCEPT
 -P INPUT ACCEPT
 -P OUTPUT ACCEPT
 -P POSTROUTING ACCEPT
 ----
 
-=== Resetting Rules
+* Like every other _iptables_ command, it applies to the specified table (_filter_ is the default).
++
+[source,console]
+----
+ ~]# iptables -t nat -S OUTPUT
+-P OUTPUT ACCEPT
+-A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A OUTPUT -m comment --comment "portmap/canal-portmap" -j CANAL-DNAT
+-A OUTPUT -m addrtype --dst-type LOCAL -j DOCKER
+-A OUTPUT -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT
+----
 
+=== *`iptables [-t table] -F [chain [rulenum]] [options...]`*
+
+* Flush the selected chain (all the chains in the table if none is given).  This is equivalent to deleting all the rules one by one.
++
 [source,sh]
 ----
 # Flush your iptables all chains rules at filter table
-$ sudo iptables -F
+~]# iptables -F
+
+~]# iptables -F INPUT    # Flush the INPUT chain only
+~]# iptables -F OUTPUT   # Flush the OUTPUT chain only
+~]# iptables -F FORWARD  # Flush the FORWARD chain only
 
 # Flush your iptables all chains rules at nat table
-$ sudo iptables -t nat -F
-
-$ sudo iptables -F INPUT    # Flush the INPUT chain only
-$ sudo iptables -F OUTPUT   # Flush the OUTPUT chain only
-$ sudo iptables -F FORWARD  # Flush the FORWARD chain only
+~]# iptables -t nat -F
 ----
 
-=== Editing Rules
+=== *`iptables [-t table] {-A|-C|-I|-R|-D} chain ...`*
 
-Rules can be edited by appending `-A` a rule to a chain, inserting `-I` it at a specific position on the chain, replacing `-R` an existing rule, or delete `-D` it.
+[source,console]
+----
+iptables [-t table] -A chain rule-specification
+
+iptables [-t table] -C chain rule-specification
+
+iptables [-t table] -I chain [rulenum] rule-specification
+
+iptables [-t table] -R chain rulenum rule-specification
+
+iptables [-t table] -D chain rulenum
+----
+
+Rules can be edited by appending `-A` a rule to a chain, inserting `-I` it at a specific position on the chain, replacing `-R` an existing rule, or delete `-D` it, and check exists with `-C`.
 
 ==== Allowing Incomming Traffic on Specific Ports
 
@@ -322,13 +436,20 @@ You could start by blocking traffic, but you might be working over SSH, where yo
 
 To allow incomming traffic on the default SSH port (22), you could tell iptables to allow all TCP traffic on that port to come in.
 
-[source,sh]
-$ sudo iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+[source,console]
+----
+~]# iptables -C  INPUT -p tcp --dport ssh -j ACCEPT
+iptables: Bad rule (does a matching rule exist in that chain?).
 
-or
+~]# iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+
+~]# iptables -C INPUT -p tcp --dport ssh -j ACCEPT
+----
+
+Also, you can also specify the destination port with number.
 
 [source,sh]
-$ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+~]#  iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
 Referring back to the list above, you can see that this tells iptables:
 
@@ -341,50 +462,52 @@ Lets check the rules: (only the first few lines shown, you will see more)
 
 [source,console]
 ----
-$ sudo iptables -L
+ ~]# iptables -L INPUT -n
 Chain INPUT (policy ACCEPT)
-target     prot opt source               destination
-ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
+target     prot opt source               destination         
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
 ----
 
 Now, let's allow all incomming web traffic
 
-```console
-$ sudo iptables -A INPUT -p tcp --dport http -j ACCEPT
-$ sudo iptables -A INPUT -p tcp --dport https -j ACCEPT
-```
-or
+[source,console]
+----
+~]# iptables -A INPUT -p tcp --dport http -j ACCEPT
+~]# iptables -A INPUT -p tcp --dport https -j ACCEPT
 
-```console
-$ sudo iptables -A INPUT -p tcp -m multiport --dports http,https -j ACCEPT
-```
+# or
+
+~]# iptables -A INPUT -p tcp -m multiport --dports http,https -j ACCEPT
+----
 
 Checking our rules, we have
 
-```console
-$ sudo iptables -L
+[source,console]
+----
+ ~]# iptables -L INPUT -n
 Chain INPUT (policy ACCEPT)
-target     prot opt source               destination
-ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
-ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
-ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
-```
+target     prot opt source               destination         
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            multiport dports 80,443
+----
 
 Allow default port range for Kubernetes NodePort servies.
 
-```console
-$ sudo iptables -A INPUT -p tcp --dport 30000:32767 -j ACCEPT -m comment --comment "Allow default port range of kubernetes nodeport services"
-$ sudo iptables -L
+[source,console]
+----
+~]# iptables -A INPUT -p tcp --dport 30000:32767 -j ACCEPT -m comment --comment "Allow default port range of kubernetes nodeport services"
+
+~]# iptables -L INPUT -n
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
-ACCEPT     tcp  --  anywhere             anywhere             tcp dpts:30000:32767 /* Allow default port range of kubernetes nodeport services */
-
-Chain FORWARD (policy DROP)
-target     prot opt source               destination         
-
-Chain OUTPUT (policy ACCEPT)
-target     prot opt source               destination 
-```
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            multiport dports 80,443
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpts:30000:32767 /* Allow default port range of kubernetes nodeport services */
+----
 
 We have specifically allowed tcp traffic to the ssh and web ports, but as we have not blocked anything, all traffic can still come in.
 
@@ -403,45 +526,45 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
 DROP       all  --  anywhere             anywhere
 ```
 
-#### Allow Incomming Traffic on Specific IP Addresses
+==== Allow Incomming Traffic on Specific IP Addresses
 
-- Here `-s 0/0` stand for any incomming source with any IP addresses.
+* Here `-s 0/0` stand for any incomming source with any IP addresses.
++
+```console
+$ sudo iptables -A INPUT -p tcp -s 0/0 --dport 22 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
+```
 
-    ```console
-    $ sudo iptables -A INPUT -p tcp -s 0/0 --dport 22 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
-    ```
+* `-s 192.168.66.128/24` using CIDR values, it stands for IP starting from 192.168.66.1 to 192.168.66.255.
++
+```console
+$ sudo iptables -A INPUT -p tcp -s 192.168.66.128/24 --dport 22 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:ssh
+```
++
+```console
+$ sudo iptables -A INPUT -p tcp -s 192.168.66.128/32 --dport 22 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
+```
++
+```console
+$ sudo iptables -A INPUT -p tcp -s 192.168.66.128 --dport 22 -j ACCEPT
+$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
+```
 
-- `-s 192.168.66.128/24` using CIDR values, it stands for IP starting from 192.168.66.1 to 192.168.66.255.
-
-    ```console
-    $ sudo iptables -A INPUT -p tcp -s 192.168.66.128/24 --dport 22 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:ssh
-    ```
-
-    ```console
-    $ sudo iptables -A INPUT -p tcp -s 192.168.66.128/32 --dport 22 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
-    ```
-    
-    ```console
-    $ sudo iptables -A INPUT -p tcp -s 192.168.66.128 --dport 22 -j ACCEPT
-    $ sudo iptables -L
-    Chain INPUT (policy ACCEPT)
-    target     prot opt source               destination
-    ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh
-    ```
-
-#### Blocking ICMP
+==== Blocking ICMP
 
 ```console
 $ sudo iptables -A OUTPUT -p icmp --icmp-type 8 -j DROP
@@ -449,12 +572,12 @@ $ sudo iptables -L
 Chain OUTPUT (policy ACCEPT)
 target     prot opt source               destination
 DROP       icmp --  anywhere             anywhere             icmp echo-request
-$ ping www.codefarm.me
-PING www.codefarm.me (104.27.162.235) 56(84) bytes of data.
+$ ping blog.codefarm.me
+PING blog.codefarm.me (104.27.162.235) 56(84) bytes of data.
 ping: sendmsg: Operation not permitted
 ```
 
-#### Blocking MongoDB from outside attach
+==== Blocking MongoDB from outside attach
 
 ```console
 $ sudo iptables -A INPUT -p tcp -s 192.168.66.0/24 --dport 27017 -j ACCEPT
@@ -464,7 +587,7 @@ target     prot opt source               destination
 ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:27017
 ```
     
-#### Blocking DDOS
+==== Blocking DDOS
     
 ```console
 $ sudo iptables -A INPUT -p tcp --dport 80 -m limit --limit 20/minute --limit-burst 100 -j ACCEPT
@@ -474,7 +597,7 @@ target     prot opt source               destination
 ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http limit: avg 20/min burst 100
 ```
 
-#### Insert a New Rule / Replace an Old Rule
+==== Insert a New Rule / Replace an Old Rule
 
 ```console
 $ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
@@ -498,7 +621,7 @@ ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
 ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
 ```
 
-#### Create User Defined Chain / Target
+==== Create User Defined Chain / Target
 
 ```console
 $ sudo iptables -N CODE_FARM
@@ -538,7 +661,7 @@ target     prot opt source               destination
 ACCEPT     tcp  --  anywhere             anywhere
 ```
 
-### Saving and Restoring IPTables Rules
+=== Saving and Restoring IPTables Rules
 
 Changes to **iptables** are transitory; if the system is rebooted or if the **iptables** service is restarted, the rules are automatically flushed and reset. To save the rules so that they are loaded when the **iptables** service is started, use the following command: 
 
