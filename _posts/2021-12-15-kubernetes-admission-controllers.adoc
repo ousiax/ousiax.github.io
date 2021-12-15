@@ -118,19 +118,110 @@ Kubernetes has officially https://kubernetes.io/blog/2021/04/06/podsecuritypolic
 *PodSecurityPolicy is being replaced by a new, simplified {podsecurity}[PodSecurity] admission controller.*
 ====
 
-Kubernetes has officially https://kubernetes.io/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/[deprecated PodSecurityPolicy] in version 1.21. PodSecurityPolicy will be shut down in version 1.25.
-
 PodSecurityPolicy is a built-in admission controller that allows a cluster administrator to control security-sensitive aspects of the Pod specification.
 
 A {pod-security-policy}[*PodSecurityPolicy*] is a built-in admission controller that allows a cluster administrator to control security-sensitive aspects of the Pod specification to create and update Pods on your cluster.
 
-In most Kubernetes clusters, RBAC (Role-Based Access Control) {role-and-clusterrole}[rules] control access to these resources. `list`, `get`, `create`, `edit`, and `delete` are the sorts of API operations that RBAC cares about, but *_RBAC does not consider what settings are being put into the resources it controls_*.
+In most Kubernetes clusters, RBAC (Role-Based Access Control) {role-and-clusterrole}[rules] control access to these resources. `list`, `get`, `create`, `edit`, and `delete` are the sorts of API operations that RBAC cares about, but _RBAC does not consider what settings are being put into the resources it controls_.
 
 To control what sorts of settings are allowed in the resources defined in your cluster, you need *Admission Control* in addition to RBAC. 
 
 Kubernetes SIG Security, SIG Auth, and a diverse collection of other community members have been working together for months to ensure that what’s coming next is going to be awesome. We have developed a Kubernetes Enhancement Proposal ({kep-2579}[KEP 2579]) and a prototype for a new feature, currently being called by the temporary name "*PSP Replacement Policy*."
 
 If your use of PSP is relatively simple, with a few policies and straightforward binding to service accounts in each namespace, you will likely find PSP Replacement Policy to be a good match for your needs. Evaluate your PSPs compared to the Kubernetes {pod-security-standards}[*Pod Security Standards*] to get a feel for where you’ll be able to use the Restricted, Baseline, and Privileged policies. Please follow along with or contribute to the KEP and subsequent development, and try out the Alpha release of PSP Replacement Policy when it becomes available.
+
+==== Policy Order
+
+In addition to restricting pod creation and update, pod security policies can also be used to provide default values for many of the fields that it controls. When multiple policies are available, the pod security policy controller selects policies according to the following criteria:
+
+* PodSecurityPolicies which allow the pod as-is, without changing defaults or mutating the pod, are preferred. The order of these non-mutating PodSecurityPolicies doesn't matter.
+* If the pod must be defaulted or mutated, the first PodSecurityPolicy (ordered by name) to allow the pod is selected.
+
+NOTE: During update operations (during which mutations to pod specs are disallowed) only non-mutating PodSecurityPolicies are used to validate the pod. 
+
+.# policy/privileged-psp.yaml
+[source,yaml]
+----
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: privileged
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  privileged: true
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+  - '*'
+  volumes:
+  - '*'
+  hostNetwork: true
+  hostPorts:
+  - min: 0
+    max: 65535
+  hostIPC: true
+  hostPID: true
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+----
+
+.# policy/restricted-psp.yaml 
+[source,yaml]
+----
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: restricted
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
+    apparmor.security.beta.kubernetes.io/allowedProfileNames: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/defaultProfileName:  'runtime/default'
+spec:
+  privileged: false
+  # Required to prevent escalations to root.
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  # Allow core volume types.
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    # Assume that ephemeral CSI drivers & persistentVolumes set up by the cluster admin are safe to use.
+    - 'csi'
+    - 'persistentVolumeClaim'
+    - 'ephemeral'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    # Require the container to run without root privileges.
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    # This policy assumes the nodes are using AppArmor rather than SELinux.
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  readOnlyRootFilesystem: false
+----
 
 == Pod Security Admission
 
