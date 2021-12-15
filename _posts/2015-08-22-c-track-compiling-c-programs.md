@@ -4,7 +4,7 @@ layout: post
 title: "C track: compiling C programs"
 date: 2015-08-22 13:53:11 +0800
 categories: ['C', ]
-tags: ['C', 'Compiling']
+tags: ['C', 'compiling']
 ---
 
 * TOC
