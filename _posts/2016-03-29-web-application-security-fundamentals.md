@@ -2,9 +2,8 @@
 layout: post
 title: "Web 应用安全基础"
 date: 2016-03-29 20:55:16 +0800
-categories: ['Web',]
-tags: ['Web', 'Security']
-disqus_identifier: 95224089416555028000460144967225061458
+categories: ['security',]
+tags: ['http', 'security']
 ---
 关于Web应用的安全性，我们会想到的有网站污损，盗取信用卡号码，拒绝服务攻击（DoS），病毒，特洛伊木马，蠕虫……，而这些问题中最大的问是对安全的无知。
 

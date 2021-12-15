@@ -2,9 +2,8 @@
 layout: post
 title: "Ruby Notes 3 Expression and Operators"
 date: 2016-04-05 04:35:28 +0800
-categories: ['Ruby',]
-tags: ['Ruby', 'The Ruby Programming Language']
-disqus_identifier: 148944458392457931693068551563381245374
+categories: ['ruby',]
+tags: ['ruby', 'the ruby programming language']
 ---
 An *expression* is a chunk of Ruby code that the Ruby interpreter can evaluate to produce a value.
 

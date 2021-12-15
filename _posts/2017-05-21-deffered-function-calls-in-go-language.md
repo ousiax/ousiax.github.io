@@ -2,9 +2,8 @@
 layout: post
 title: "Deffered Function Calls in Go Language"
 date: 2017-05-21 10:30:37 +0800
-categories: ['Go']
-tags: ['Go']
-disqus_identifier: 43398230421857166741638950775453953109
+categories: ['go']
+tags: ['go']
 ---
 
 The program below fetchs an HTML document and prints it to the `os.Stdout`. The `title` function inspects the `Content-Type` header of the server's response and returns an error if the document is not HTML.

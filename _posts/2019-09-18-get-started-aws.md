@@ -2,7 +2,7 @@
 layout: post
 title: Get Started with AWS
 date: 2019-09-18 15:55:54 +0800
-categories: ['aws']
+categories: ['cloud']
 tags: ['aws']
 ---
 

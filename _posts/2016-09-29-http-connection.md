@@ -2,9 +2,8 @@
 layout: post
 title: "HTTP 连接管理"
 date: 2016-09-29 18:42:43 +0800
-categories: ['HTTP']
-tags: ['HTTP']
-disqus_identifier: 7407566363332140142057605526964339034
+categories: ['http']
+tags: ['http']
 ---
 
 ## TCP 连接

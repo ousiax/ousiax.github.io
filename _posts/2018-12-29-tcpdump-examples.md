@@ -2,8 +2,8 @@
 layout: post
 title: Tcpdump Examples
 date: 2018-12-29 10:22:30 +0800
-categories: ['tcp/ip']
-tags: ['tcpdump']
+categories: ['networking']
+tags: ['tcpdump','tcp/ip']
 ---
 
 - TOC

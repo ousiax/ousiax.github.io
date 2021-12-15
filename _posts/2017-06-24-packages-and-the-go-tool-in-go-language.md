@@ -2,9 +2,8 @@
 layout: post
 title: "Packages and the Go Tool in Go Language"
 date: 2017-06-24 16:32:30 +0800
-categories: ['Go']
-tags: ['Go']
-disqus_identifier: 257409765399196217876693476961781781942
+categories: ['go']
+tags: ['go']
 ---
 
 - TOC

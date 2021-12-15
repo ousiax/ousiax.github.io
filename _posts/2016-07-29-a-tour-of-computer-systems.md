@@ -2,9 +2,8 @@
 layout: post
 title: "01 A Tour of Computer Systems"
 date: 2016-07-29 08:20:48 +0800
-categories: ['Computer Systems',]
-tags: ['Computer Systems',]
-disqus_identifier: 252397676093320183531364236369978394903
+categories: ['systems']
+tags: ['systems']
 ---
 
 计算机是由硬件和软件组成的，它们共同协作运行应用程序。计算机内部的信息被标识为一组组的位，它们根据上下文有不同的解释方式。程序被其他程序翻译成不同的形式，开始时是 ASCII 文本，然后被编译器和连接器翻译成二进制可执行文件。

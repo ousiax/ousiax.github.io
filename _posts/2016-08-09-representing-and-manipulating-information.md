@@ -2,9 +2,8 @@
 layout: post
 title: "02 Representing and Manipulating Information"
 date: 2016-08-09 09:33:32 +0800
-categories: ['Computer Systems']
-tags: ['Computer Systems']
-disqus_identifier: 200820953271057489688831391671548082137
+categories: ['systems']
+tags: ['systems']
 ---
 
 计算机将信息按位编码，通常组织成字节序列。用不同的编码方式表示整数、实数和字符串。不同的计算机模型在编码数字和多字节数据中的字节排序时使用不同的约定。

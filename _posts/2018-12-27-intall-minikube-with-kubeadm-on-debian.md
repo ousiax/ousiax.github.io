@@ -2,9 +2,8 @@
 layout: post
 title: Intall Minikube with kubeadm on Debian 9
 date: 2018-12-27 13:49:17 +0800
-categories: ['Docker']
-tags: ['Docker', 'K8S', 'Kubernetes', 'Minikube', 'Kubeadm']
-disqus_identifier: 25609677555699789769540068998527786259
+categories: ['kubernetes']
+tags: ['docker', 'kubernetes', 'minikube', 'kubeadm']
 ---
 - TOC
 {:toc}

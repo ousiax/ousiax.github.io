@@ -1,10 +1,9 @@
 ---
-disqus_identifier: 164786765557704604696316809304499526528
 layout: post
 title: "Virtualenv for python runtime"
 date: 2015-08-06 22:36:37 +0800
-categories: ['Python',]
-tags: ['Python', 'virtualenv']
+categories: ['python',]
+tags: ['python', 'virtualenv']
 ---
 **virtualenv** is a tool to create isolated Python environments.
 

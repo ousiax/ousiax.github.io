@@ -2,9 +2,8 @@
 layout: post
 title:  Docker and Minikube behind HTTP Proxy
 date: 2018-08-09 17:15:35 +0800
-categories: ['Docker']
-tags: ['Docker', 'http-proxy', 'minikube']
-disqus_identifier: 15059992242987533345377741887650482851
+categories: ['kubernetes']
+tags: ['docker', 'proxy', 'minikube', 'kubernetes']
 ---
 
 - TOC

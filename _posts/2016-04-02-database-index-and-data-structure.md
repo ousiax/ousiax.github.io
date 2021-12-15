@@ -2,9 +2,8 @@
 layout: post
 title: "Database index and data structure"
 date: 2016-04-02 23:52:59 +0800
-categories: ['Database']
-tags: ['Database'] 
-disqus_identifier: 29018175396248835893689403008126715228
+categories: ['database']
+tags: ['database'] 
 ---
 ### Hash table
 

@@ -2,9 +2,8 @@
 layout: post
 title: Docker Logging via EFK Stack with Docker Compose
 date: 2018-06-29 15:42:23 +0800
-categories: ['EFK']
-tags: ['EFK', 'CNCF', 'Docker']
-disqus_identifier: 17531140728367429958872257764126983915
+categories: ['docker']
+tags: ['efk', 'cncf', 'docker', 'docker-compose']
 ---
 
 - TOC

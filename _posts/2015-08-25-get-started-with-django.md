@@ -2,9 +2,8 @@
 layout: post
 title: "Get started with Django"
 date: 2015-08-25 09:24:02 +0800
-categories: ['Django',]
-tags: ['Django', 'Python', 'MVC']
-disqus_identifier: 211742707858540489660235138336075611031
+categories: ['python']
+tags: ['django', 'python']
 ---
 ### 1. Project
 

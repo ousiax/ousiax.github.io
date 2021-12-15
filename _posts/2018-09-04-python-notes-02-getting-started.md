@@ -2,9 +2,8 @@
 layout: post
 title: Python Notes 02 GETTING STARTED
 date: 2018-09-04 14:48:54 +0800
-categories: ['Python']
-tags: ['Python', 'Core.Python.Programming']
-disqus_identifier: 197262917931935836197907686195116672870
+categories: ['python']
+tags: ['python', 'core.python.programming']
 ---
 * 􀁺 介绍
 * 􀁺 输入/输出

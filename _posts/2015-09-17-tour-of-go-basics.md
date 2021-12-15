@@ -2,9 +2,8 @@
 layout: post
 title: "Tour of Go - Basics"
 date: 2015-09-17 19:08:50 +0800
-categories: ['Go',]
-tags: ['Go',]
-disqus_identifier: 169718269277941381806697907674654776658
+categories: ['go']
+tags: ['go']
 ---
 ## Packages, variables, and function
 

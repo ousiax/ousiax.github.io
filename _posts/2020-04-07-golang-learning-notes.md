@@ -2,8 +2,8 @@
 layout: post
 title: Golang Learning Notes 
 date: 2020-04-07 09:24:39 +0800
-categories: ['Go']
-tags: ['Go']
+categories: ['go']
+tags: ['go']
 ---
 
 - TOC

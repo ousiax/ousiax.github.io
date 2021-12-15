@@ -2,9 +2,8 @@
 layout: post
 title: Python Notes 03 BASICS
 date: 2018-09-04 14:52:35 +0800
-categories: ['Python']
-tags: ['Python', 'Core.Python.Programming']
-disqus_identifier: 266429557700945441178663277444404070717
+categories: ['python']
+tags: ['python', 'core.python.programming']
 ---
 * 􀁺 语句和语法
 * 􀁺 变量赋值

@@ -2,9 +2,8 @@
 layout: post
 title: "Origin of “endian”"
 date: 2016-08-02 09:03:44 +0800
-categories: ['Computer Systems']
-tags: ['Computer Systems']
-disqus_identifier: 52209555451418127931884305823216572973
+categories: ['systems']
+tags: ['systems', 'litte-endian']
 ---
 # 寻址和字节顺序
 

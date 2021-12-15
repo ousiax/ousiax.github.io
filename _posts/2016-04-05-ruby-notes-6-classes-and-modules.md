@@ -2,9 +2,8 @@
 layout: post
 title: "Ruby Notes 6 Classes and Modules"
 date: 2016-04-05 13:04:35 +0800
-categories: ['Ruby',]
-tags: ['Ruby', 'The Ruby Programming Language']
-disqus_identifier: 250443302884947471193195785856976787941
+categories: ['ruby',]
+tags: ['ruby', 'the ruby programming language']
 ---
 Classes can include—or inherit methods fom—modules.
 

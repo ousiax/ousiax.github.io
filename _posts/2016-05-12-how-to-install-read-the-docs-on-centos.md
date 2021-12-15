@@ -2,9 +2,8 @@
 layout: post
 title: "How to install Read The Docs on CentOS"
 date: 2016-05-12 01:36:16 +0800
-categories: ['Python']
-tags: ['ReadTheDocs', 'Python', 'CentOS', 'Git', 'Nginx']
-disqus_identifier: 320150661822729104925016946000399763251
+categories: ['python']
+tags: ['read-the-docs', 'python']
 ---
 ## Installation Read The Docs
 

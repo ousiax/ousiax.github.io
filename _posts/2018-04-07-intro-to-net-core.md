@@ -2,9 +2,8 @@
 layout: post
 title: Intro to .NET (Core)
 date: 2018-04-07 17:10:15 +0800
-categories: ['.NET']
-tags: ['.NET']
-disqus_identifier: 333887457919243711380116557278304717974
+categories: ['dotnet']
+tags: ['dotnet']
 ---
 - TOC
 {:toc}

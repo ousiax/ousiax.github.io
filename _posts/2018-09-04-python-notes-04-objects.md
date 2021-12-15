@@ -2,9 +2,8 @@
 layout: post
 title: Python Notes 04 OBJECTS
 date: 2018-09-04 14:53:15 +0800
-categories: ['Python']
-tags: ['Python', 'Core.Python.Programming']
-disqus_identifier: 175777933757599057595782754491610707478
+categories: ['python']
+tags: ['python', 'core.python.programming']
 ---
 * 􀁺 Python 对象
 * 􀁺 内建类型

@@ -2,9 +2,8 @@
 layout: post
 title: "Review Terms in Database System Concepts"
 date: 2017-03-18 10:54:38 +0800
-categories: ['Database']
-tags: ['Database']
-disqus_identifier: 200638505825154188109093812439264257291
+categories: ['database']
+tags: ['database']
 ---
 * TOC
 {:toc}

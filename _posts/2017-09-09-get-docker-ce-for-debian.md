@@ -2,9 +2,8 @@
 layout: post
 title: "Get Docker CE for Debian"
 date: 2017-09-09 11:54:43 +0800
-categories: ['Docker']
-tags: ['Docker']
-disqus_identifier: 260659360412813282584524805438777536616
+categories: ['docker']
+tags: ['docker','debian']
 ---
 - TOC
 {:toc}

@@ -2,9 +2,8 @@
 layout: post
 title: "Unix Internals: The New Frontiers"
 date: 2018-02-03 15:14:37 +0800
-categories: ['Unix',]
-tags: ['Unix']
-disqus_identifier: 83792099409831129219031460862419980974
+categories: ['unix',]
+tags: ['unix', 'linux']
 ---
 
 - TOC

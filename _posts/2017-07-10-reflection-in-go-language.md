@@ -2,9 +2,8 @@
 layout: post
 title: "Reflection in Go Language"
 date: 2017-07-10 18:11:09 +0800
-categories: ['Go']
-tags: ['Go']
-disqus_identifier: 150037307151081399886760146224917375989
+categories: ['go']
+tags: ['go']
 ---
 
 Go provides a mechnism to update variables and inspect their values at run time, to call their mehtods, and to apply the operations intrinsic to their representation, all without their types at compile time. This mechnism is called *reflection*.

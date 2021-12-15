@@ -2,9 +2,8 @@
 layout: post
 title: "Tour of Go - Methods and interfaces"
 date: 2015-09-18 19:41:03 +0800
-categories: ['Go',]
-tags: ['Go', ]
-disqus_identifier: 308371642106453527511949979648299400705
+categories: ['go',]
+tags: ['go', ]
 ---
 ## Methods and interfaces
 

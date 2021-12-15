@@ -1,11 +1,11 @@
 ---
-disqus_identifier: 43362371170676917162452558258983273616
 layout: post
 title: "Create bootable USB stick from ISO in Mac OS X"
 date: 2016-03-27 11:06:05 +0800
-categories: ['OS X',]
-tags: ['OS X', 'Bootable USB', 'ISO',]
+categories: ['macos',]
+tags: ['macos', 'bootable usb', 'iso']
 ---
+
 ##### Original: [{{ page.title }}](http://blog.tinned-software.net/create-bootable-usb-stick-from-iso-in-mac-os-x/) at [http://blog.tinned-software.net/](http://blog.tinned-software.net/ "Tinned-Software")
 
 Booting from a USB stick is nowadays more and more important. More and more PCs (and servers) are delivered by default without a CD/DVD drive. To install the OS of your choice, USB sticks provide you the easiest possibility. In fact, it can even work out cheaper than burning a CD or DVD that you just throw away once the version is outdated.

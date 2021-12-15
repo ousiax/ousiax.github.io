@@ -2,8 +2,8 @@
 layout: post
 title: '数学归纳法之递归求值'
 date: 2019-03-21 15:39:17 +0800
-categories: ['Programming']
-tags: ['Programming', 'mathematical induction', 'tail call', 'tail recusive']
+categories: ['coding']
+tags: ['coding', 'mathematical induction', 'tail call', 'tail recusive']
 ---
 
 ### 数学归纳法 

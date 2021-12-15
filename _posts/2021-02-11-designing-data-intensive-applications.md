@@ -2,8 +2,8 @@
 layout: post
 title: Designing Data-Intensive Applications
 date: 2021-02-11 16:42:53 +0800
-categories: ['Data']
-tags: ['Data']
+categories: ['database']
+tags: ['database']
 ---
 
 Reliability:

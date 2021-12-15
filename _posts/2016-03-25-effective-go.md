@@ -1,10 +1,9 @@
 ---
-disqus_identifier: 199339668823144458658841503300748955592
 layout: post
 title: "Effective Go"
 date: 2016-03-25 23:55:56 +0800
-categories: ['Go']
-tags: ['Go']
+categories: ['go']
+tags: ['go']
 ---
 
 *Reference from [Effective Go (golang.org/doc)](https://golang.org/doc/effective_go.html)*

@@ -2,9 +2,8 @@
 layout: post
 title: "Testing in Go Language"
 date: 2017-07-01 13:42:56 +0800
-categories: ['Go']
-tags: ['Go']
-disqus_identifier: 88285347216346570168573710594433451269
+categories: ['go']
+tags: ['go']
 ---
 
 * TOC

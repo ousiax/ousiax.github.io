@@ -2,9 +2,8 @@
 layout: post
 title: "How to install Python 2.7 from source on CentOS"
 date: 2016-05-11 23:38:01 +0800
-categories: ['Python']
-tags: ['Python', 'CentOS']
-disqus_identifier: 94384535001828622001171135555741952473
+categories: ['python']
+tags: ['python']
 ---
 #### Show CentOS version
 

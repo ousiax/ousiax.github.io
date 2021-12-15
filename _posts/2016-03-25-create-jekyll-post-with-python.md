@@ -1,10 +1,9 @@
 ---
-disqus_identifier: 336505236916646378554443448103515918249
 layout: post
 title: "Create Jekyll Post with Python"
 date: 2016-03-25 15:43:01 +0800
-categories: ['Python',]
-tags: ['Python', 'Jekyll',]
+categories: ['python',]
+tags: ['python', 'jekyll']
 ---
 *Jekyll-post.py*
 {% highlight python %}

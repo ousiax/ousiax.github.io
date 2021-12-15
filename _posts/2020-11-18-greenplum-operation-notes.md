@@ -2,8 +2,8 @@
 layout: post
 title: Greenplum 运维札记
 date: 2020-11-18 16:07:04 +0800
-categories: ['Greenplum']
-tags: ['Greenplum', 'GP']
+categories: ['database']
+tags: ['greenplum']
 maifont: WenQuanYi Micro Hei
 ---
 

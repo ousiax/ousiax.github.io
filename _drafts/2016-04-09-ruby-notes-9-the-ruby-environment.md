@@ -2,9 +2,8 @@
 layout: post
 title: "Ruby Notes 9 The Ruby Environment"
 date: 2016-04-09 18-11-54 +0800
-categories: ['Ruby',]
-tags: ['Ruby',]
-disqus_identifier: 31198560380106697013871733803357711349
+categories: ['ruby',]
+tags: ['ruby',]
 ---
 # TO BE CONTINUED...
 

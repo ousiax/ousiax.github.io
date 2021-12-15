@@ -2,10 +2,10 @@
 layout: post
 title: "Anonymous functions and closures"
 date: 2016-04-03 06:36:48 +0800
-categories: ['Misc',]
-tags: ['Programming Language', 'Lambda', 'Closure']
-disqus_identifier: 253207475315520978685533137076644128787
+categories: ['programming']
+tags: ['programming', 'lambda', 'closure']
 ---
+
 ### Anonymous functions & lambda expression
 
 An **anonymous funciton** (also **function literal** or **lambda abstraction**) is a *function* definition that is not *bound* to an *identifier*. In other world, an anonymous function is only a function without function name.

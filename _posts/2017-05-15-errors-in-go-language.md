@@ -2,9 +2,8 @@
 layout: post
 title: "Errors in Go language"
 date: 2017-05-15 13:52:44 +0800
-categories: ['Go',]
-tags: ['Go',]
-disqus_identifier: 152253863621932544857164999968478049190
+categories: ['go']
+tags: ['go']
 ---
 
 **Some functions always succeed at their task.** For example, `strings.Contains` and `strconv.FromatBool` have well-defined results for all possible argument values and cannot fail—barring catastrophic and unpredictable scenarios like running out of memory, where the sympthom is far from the cause and from which there's little hope of recovery.

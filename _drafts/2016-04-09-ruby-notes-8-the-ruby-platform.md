@@ -2,9 +2,8 @@
 layout: post
 title: "Ruby Notes 8 The Ruby Platform"
 date: 2016-04-09 18-11-26 +0800
-categories: ['Ruby',]
-tags: ['Ruby',]
-disqus_identifier: 187250052067745748626069281846718390236
+categories: ['ruby',]
+tags: ['ruby',]
 ---
 # TO BE CONTINUED...
 

@@ -2,9 +2,8 @@
 layout: post
 title: "Capturing Iteration Variables in Go Language"
 date: 2017-05-15 19:33:03 +0800
-categories: ['Go']
-tags: ['Go', 'Closure', "Anonymous Functions"]
-disqus_identifier: 141757748613418085833278844065856773717
+categories: ['go']
+tags: ['go', 'closure']
 ---
 
 Named functions can be declared only at the package level, but we can use a *function literal* to denote a function value within any expression. A function literal is written like a function declaration, but without a name following the `func` keyword. It is an expression, and its value is called an ***anonymous function***.

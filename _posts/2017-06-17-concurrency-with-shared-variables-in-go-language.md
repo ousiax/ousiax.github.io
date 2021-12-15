@@ -2,9 +2,8 @@
 layout: post
 title: "Concurrency with Shared Variables in Go Language"
 date: 2017-06-17 16:25:34 +0800
-categories: ['Go',]
-tags: ['Go',]
-disqus_identifier: 54531108245291027721254300040613364965
+categories: ['go']
+tags: ['go']
 ---
 
 - TOC

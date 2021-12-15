@@ -2,9 +2,8 @@
 layout: post
 title: "Python & WSGI Applications"
 date: 2016-05-13 14:51:33 +0800
-categories: ['Python']
-tags: ['Python', 'WSGI']
-disqus_identifier: 86045526457165983718688743244436200313
+categories: ['python']
+tags: ['python', 'wsgi']
 ---
 
 ## Installing uWSGI with Python support

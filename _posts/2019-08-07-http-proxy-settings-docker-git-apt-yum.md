@@ -2,8 +2,8 @@
 layout: post
 title: HTTP Proxy Settings for Docker, git, apt, yum
 date: 2019-08-07 15:20:11 +0800
-categories: ['HTTP']
-tags: ['HTTP', 'PROXY']
+categories: ['http']
+tags: ['http', 'proxy']
 ---
 
 ### 1. Setup HTTP Proxy Environment Variables
