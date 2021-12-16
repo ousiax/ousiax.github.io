@@ -104,7 +104,289 @@ NOTE: Note: When using `clientConfig.service`, the server cert must be valid for
 
 Besides, there's a sample of admission controller at GitHub: https://github.com/qqbuby/kube-admission.
 
-=== What is a Pod Security Policy?
+== Pod and Container Security Context
+
+.Principle of Least Privilege
+[TIP]
+====
+
+ref: https://en.wikipedia.org/wiki/Principle_of_least_privilege
+
+In information security, computer science, and other fields, the *principle of least privilege* (*PoLP*), also known as the *principle of minimal privilege* or the *principle of least authority*, requires that in a particular _abstraction layer_ of a computing environment, every module (such as a _process_, a _user_, or a _program_, depending on the subject) must be able to access only the information and resources that are necessary for its legitimate purpose.
+
+Benefits of the principle include:
+
+* *Better system stability*.
++
+When code is limited in the scope of changes it can make to a system, it is easier to test its possible actions and interactions with other applications. In practice for example, applications running with restricted rights will not have access to perform operations that could crash a machine, or adversely affect other applications running on the same system.
+
+* *Better system security*.
++
+When code is limited in the system-wide actions it may perform, vulnerabilities in one application cannot be used to exploit the rest of the machine. For example, Microsoft states “Running in standard user mode gives customers increased protection against inadvertent system-level damage caused by "shatter attacks" and malware, such as root kits, spyware, and undetectable viruses”.
+
+* *Ease of deployment*.
++
+In general, the fewer privileges an application requires, the easier it is to deploy within a larger environment. This usually results from the first two benefits, applications that install device drivers or require elevated security privileges typically have additional steps involved in their deployment. For example, on Windows a solution with no device drivers can be run directly with no installation, while device drivers must be installed separately using the Windows installer service in order to grant the driver elevated privileges.
+====
+
+:users_and_groups: https://wiki.archlinux.org/index.php/users_and_groups
+:security-enhanced_linux: https://en.wikipedia.org/wiki/Security-Enhanced_Linux
+:linux-capabilities: https://linux-audit.com/linux-capabilities-hardening-linux-binaries-by-removing-setuid/
+:apparmor: https://kubernetes.io/docs/tutorials/clusters/apparmor/
+:seccomp: https://kubernetes.io/docs/tutorials/clusters/seccomp/
+:no_new_privs: https://www.kernel.org/doc/Documentation/prctl/no_new_privs.txt
+
+A *security context* defines privilege and access control settings for a Pod or Container. Security context settings include, but are not limited to:
+
+* Discretionary Access Control: Permission to access an object, like a file, is based on {users_and_groups}[user ID (UID) and group ID (GID)].
+
+* {security-enhanced_linux}[Security Enhanced Linux (SELinux)]: Objects are assigned security labels.
+
+* Running as privileged or unprivileged.
+
+* {linux-capabilities}[Linux Capabilities]: Give a process some privileges, but not all the privileges of the root user.
+
+* {apparmor}[AppArmor]: Use program profiles to restrict the capabilities of individual programs.
+
+* {seccomp}[Seccomp]: Filter a process's system calls.
+
+* AllowPrivilegeEscalation: Controls whether a process can gain more privileges than its parent process. This bool directly controls whether the {no_new_privs}[no_new_privs] flag gets set on the container process.
++
+AllowPrivilegeEscalation is true always when the container is: 
++
+1) run as Privileged
++
+OR 
++
+2) has `CAP_SYS_ADMIN`.
+
+* readOnlyRootFilesystem: Mounts the container's root filesystem as read-only.
+
+For more information about security mechanisms in Linux, see https://www.linux.com/learn/overview-linux-kernel-security-features[Overview of Linux Kernel Security Features].
+
+==== Set the security context for a Pod
+
+:podsecuritycontext-v1-core: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
+
+To specify security settings for a Pod, include the `securityContext` field in the Pod specification.
+
+The `securityContext` field is a {podsecuritycontext-v1-core}[PodSecurityContext] object.
+
+The security settings that you specify for a Pod apply to all Containers in the Pod. 
+
+.pods/security/security-context.yaml
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo
+spec:
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 2000
+  volumes:
+  - name: sec-ctx-vol
+    emptyDir: {}
+  containers:
+  - name: sec-ctx-demo
+    image: busybox:1
+    stdin: true
+    tty: true
+    volumeMounts:
+    - name: sec-ctx-vol
+      mountPath: /data/demo
+    securityContext:
+      allowPrivilegeEscalation: false
+----
+
+In the configuration file, the `runAsUser` field specifies that for any Containers in the Pod, all processes run with user ID 1000. The `runAsGroup` field specifies the primary group ID of 3000 for all processes within any containers of the Pod. *If this field is omitted, the primary group ID of the containers will be root(0).* Any files created will also be owned by user 1000 and group 3000 when `runAsGroup` is specified. Since `fsGroup` field is specified, all processes of the container are also part of the supplementary group ID 2000. The owner for volume `/data/demo` and any files created in that volume will be Group ID 2000.
+
+[source,console]
+----
+$ kubectl apply -f pods/security/security-context.yaml
+
+$ kubectl exec -it security-context-demo -- sh
+/ $ id
+uid=1000 gid=3000 groups=2000
+
+/ $ ls -l /data
+total 4
+drwxrwsrwx    2 root     2000          4096 Dec 16 09:14 demo
+
+/ $ touch /data/demo/testfile 
+
+/ $ ls -l /data/demo/testfile 
+-rw-r--r--    1 1000     2000             0 Dec 16 09:15 /data/demo/testfile
+
+/ $ stat /data/demo/
+  File: /data/demo/
+  Size: 4096      	Blocks: 8          IO Block: 4096   directory
+Device: 801h/2049d	Inode: 3539320     Links: 2
+Access: (2777/drwxrwsrwx)  Uid: (    0/    root)   Gid: ( 2000/ UNKNOWN)
+<...>
+
+/ $ cat /etc/passwd 
+root:x:0:0:root:/root:/bin/sh
+<...>
+www-data:x:33:33:www-data:/var/www:/bin/false
+operator:x:37:37:Operator:/var:/bin/false
+nobody:x:65534:65534:nobody:/home:/bin/false
+
+/ $ cat /etc/group 
+root:x:0:
+<...>
+nobody:x:65534:
+
+/ $ exit
+----
+
+==== Set the security context for a Container
+
+To specify security settings for a Container, include the `securityContext` field in the Container manifest.
+
+Security settings that you specify for a Container apply only to the individual Container, and they override settings made at the Pod level when there is overlap.
+
+Container settings do not affect the Pod's Volumes.
+
+.pods/security/security-context-2.yaml
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo-2
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+  - name: sec-ctx-demo-2
+    image: busybox:1
+    stdin: true
+    tty: true
+    securityContext:
+      runAsUser: 2000
+      allowPrivilegeEscalation: false
+----
+
+[source,console]
+----
+$ kubectl apply -f pods/security/security-context-2.yaml
+
+$ kubectl exec -it security-context-demo-2 -- sh
+/ $ id
+uid=2000 gid=0(root)
+
+/ $ exit
+----
+
+==== Set capabilities for a Container
+
+:linux-capabilities-man-7: https://man7.org/linux/man-pages/man7/capabilities.7.html
+
+With {linux-capabilities-man-7}[Linux capabilities], you can grant certain privileges to a process without granting all the privileges of the root user. To add or remove Linux capabilities for a Container, include the `capabilities` field in the `securityContext` section of the Container manifest.
+
+First, see what happens when you don't include a `capabilities` field. 
+
+.pods/security/security-context-3.yaml
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo-3
+spec:
+  containers:
+  - name: sec-ctx-3
+    image: k8s.gcr.io/echoserver:1.10
+    ports:
+    - containerPort: 8080
+----
+
+[source,console,highlight="8-9"]
+----
+$ kubectl exec -it security-context-demo-3 -- sh
+
+# id
+uid=0(root) gid=0(root) groups=0(root)
+
+# cat /proc/1/status | grep Cap
+CapInh:	00000000a80425fb
+CapPrm:	00000000a80425fb
+CapEff:	00000000a80425fb
+CapBnd:	00000000a80425fb
+CapAmb:	0000000000000000
+
+# exit
+----
+
+Next, run a Container that is the same as the preceding container, except that it has additional capabilities set.
+
+.pods/security/security-context-4.yaml
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo-4
+spec:
+  containers:
+  - name: sec-ctx-4
+    image: k8s.gcr.io/echoserver:1.10
+    ports:
+    - containerPort: 8080
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN", "SYS_TIME"]
+----
+
+[source,console,highlight="8-9"]
+----
+$ kubectl exec -it security-context-demo-4 -- sh
+
+# id
+uid=0(root) gid=0(root) groups=0(root)
+
+# cat /proc/1/status | grep Cap
+CapInh:	00000000aa0435fb
+CapPrm:	00000000aa0435fb
+CapEff:	00000000aa0435fb
+CapBnd:	00000000aa0435fb
+CapAmb:	0000000000000000
+
+# exit
+----
+
+Compare the capabilities of the two Containers:
+
+[source,console]
+----
+00000000a80425fb
+00000000aa0435fb
+----
+
+:linux-capability-h: https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
+In the capability bitmap of the first container, bits 12 and 25 are clear. In the second container, bits 12 and 25 are set. Bit 12 is `CAP_NET_ADMIN`, and bit 25 is `CAP_SYS_TIME`. See {linux-capability-h}[capability.h] for definitions of the capability constants.
+
+[NOTE]
+====
+Linux capability constants have the form `CAP_XXX`. But when you list capabilities in your Container manifest, you must omit the `CAP_` portion of the constant. For example, to add `CAP_SYS_TIME`, include `SYS_TIME` in your list of capabilities. 
+====
+
+==== Clean up
+
+Delete the Pod:
+
+[source,console]
+----
+kubectl delete pod security-context-demo
+kubectl delete pod security-context-demo-2
+kubectl delete pod security-context-demo-3
+kubectl delete pod security-context-demo-4
+----
+
+== What is a Pod Security Policy?
 
 :pod-security-policy: https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 :role-and-clusterrole: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole
@@ -222,7 +504,7 @@ spec:
   readOnlyRootFilesystem: false
 ----
 
-==== Enabling Pod Security Policies
+=== Enabling Pod Security Policies
 
 :podsecuritypolicy: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#podsecuritypolicy
 :how-do-i-turn-on-an-admission-control-plug-in: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#how-do-i-turn-on-an-admission-control-plug-in
@@ -266,7 +548,7 @@ $ kubectl delete ns psp-test
 namespace "psp-test" deleted
 ----
 
-==== Authorizing Policies
+=== Authorizing Policies
 
 :configure-service-account: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
 
@@ -333,7 +615,7 @@ If a `RoleBinding` (not a `ClusterRoleBinding`) is used, it will only grant usag
   name: system:authenticated
 ----
 
-==== kube-psp-advisor
+=== kube-psp-advisor
 
 :kube-psp-advisor: https://github.com/sysdiglabs/kube-psp-advisor
 
@@ -366,7 +648,7 @@ $ kubectl advise-psp inspect --namespace default --report
 ...
 ----
 
-==== Example
+=== Example
 
 [source,console]
 ----
@@ -458,6 +740,16 @@ clusterrole.rbac.authorization.k8s.io "psp:hostpath" deleted
 
 == Pod Security Admission
 
+:pod-security-standards: https://kubernetes.io/docs/concepts/security/pod-security-standards/
+
+NOTE: FEATURE STATE: `Kubernetes v1.23 [beta]`
+
+The Kubernetes {pod-security-standards}[Pod Security Standards] define different isolation levels for Pods. These standards let you define how you want to restrict the behavior of pods in a clear, consistent fashion.
+
+Kubernetes offers a built-in *Pod Security* {admission-controllers}[admission controller], the successor to {pod-security-policy}[PodSecurityPolicies].
+
+Pod security restrictions are applied at the namespace level when pods are created.
+
 == References
 
 * https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/
@@ -466,5 +758,6 @@ clusterrole.rbac.authorization.k8s.io "psp:hostpath" deleted
 * https://kubernetes.io/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/
 * https://kubernetes.io/docs/concepts/security/pod-security-admission/
 * https://www.suse.com/c/rancher_blog/enhancing-kubernetes-security-with-pod-security-policies-part-2/
-* https://sysdig.com/blog/psp-in-production/
 * https://sysdig.com/blog/enable-kubernetes-pod-security-policy/
+* https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+* https://bridgecrew.io/blog/creating-a-secure-kubernetes-nginx-deployment-using-checkov/
