@@ -6,6 +6,7 @@
 :page-revdate: 2021-12-15 12:27:15 +0800
 :sectnums:
 :toc:
+:toclevels: 4
 
 == What is an admission controller
 
@@ -130,8 +131,6 @@ Kubernetes SIG Security, SIG Auth, and a diverse collection of other community m
 
 If your use of PSP is relatively simple, with a few policies and straightforward binding to service accounts in each namespace, you will likely find PSP Replacement Policy to be a good match for your needs. Evaluate your PSPs compared to the Kubernetes {pod-security-standards}[*Pod Security Standards*] to get a feel for where you’ll be able to use the Restricted, Baseline, and Privileged policies. Please follow along with or contribute to the KEP and subsequent development, and try out the Alpha release of PSP Replacement Policy when it becomes available.
 
-==== Policy Order
-
 In addition to restricting pod creation and update, pod security policies can also be used to provide default values for many of the fields that it controls. When multiple policies are available, the pod security policy controller selects policies according to the following criteria:
 
 * PodSecurityPolicies which allow the pod as-is, without changing defaults or mutating the pod, are preferred. The order of these non-mutating PodSecurityPolicies doesn't matter.
@@ -223,6 +222,240 @@ spec:
   readOnlyRootFilesystem: false
 ----
 
+==== Enabling Pod Security Policies
+
+:podsecuritypolicy: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#podsecuritypolicy
+:how-do-i-turn-on-an-admission-control-plug-in: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#how-do-i-turn-on-an-admission-control-plug-in
+
+Pod security policy control is implemented as an optional {podsecuritypolicy}[admission controller]. PodSecurityPolicies are enforced by {how-do-i-turn-on-an-admission-control-plug-in}[enabling the admission controller], but doing so *without authorizing any policies will prevent any pods from being created in the cluster*.
+
+[source,yaml,highlight=8]
+----
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+# ...
+    - --enable-admission-plugins=NodeRestriction,PodSecurityPolicy
+# ...
+----
+
+[source,console,highlight=17]
+----
+$ kubectl create ns psp-test
+namespace/psp-test created
+
+$ kubectl create rolebinding -n psp-test default:edit --clusterrole edit --serviceaccount psp-test:default
+rolebinding.rbac.authorization.k8s.io/default:edit created
+
+$ kubectl --as system:serviceaccount:psp-test:default create -n psp-test -f- <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pause
+spec:
+  containers:
+    - name: pause
+      image: k8s.gcr.io/pause
+EOF
+Error from server (Forbidden): error when creating "STDIN": pods "pause" is forbidden: PodSecurityPolicy: unable to admit pod: []
+
+$ kubectl delete ns psp-test 
+namespace "psp-test" deleted
+----
+
+==== Authorizing Policies
+
+:configure-service-account: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+
+When a PodSecurityPolicy resource is created, it does nothing. In order to use it, the requesting user or target pod's {configure-service-account}[service account] must be authorized to use the policy, by allowing the `use` verb on the policy.
+
+Most Kubernetes pods are not created directly by users. Instead, they are typically created indirectly as part of a _Deployment_, _ReplicaSet_, or other templated controller via the _controller manager_. Granting the controller access to the policy would grant access for all pods created by that controller, so the preferred method for authorizing policies is to grant access to the pod's service account.
+
+RBAC is a standard Kubernetes authorization mode, and can easily be used to authorize use of policies.
+
+First, a `Role` or `ClusterRole` needs to grant access to use the desired policies. The rules to grant access look like this:
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: <role name>
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs:     ['use']
+  resourceNames:
+  - <list of policies to authorize>
+----
+
+Then the `(Cluster)Role` is bound to the authorized user(s):
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: <binding name>
+roleRef:
+  kind: ClusterRole
+  name: <role name>
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+# Authorize all service accounts in a namespace (recommended):
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: system:serviceaccounts:<authorized namespace>
+# Authorize specific service accounts (not recommended):
+- kind: ServiceAccount
+  name: <authorized service account name>
+  namespace: <authorized pod namespace>
+# Authorize specific users (not recommended):
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: <authorized user name>
+----
+
+If a `RoleBinding` (not a `ClusterRoleBinding`) is used, it will only grant usage for pods being run in the same namespace as the binding. This can be paired with system groups to grant access to all pods run in the namespace:
+
+[source,yaml]
+----
+# Authorize all service accounts in a namespace:
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: system:serviceaccounts
+# Or equivalently, all authenticated users in a namespace:
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: system:authenticated
+----
+
+==== kube-psp-advisor
+
+:kube-psp-advisor: https://github.com/sysdiglabs/kube-psp-advisor
+
+Kubernetes Pod Security Policy Advisor (a.k.a {kube-psp-advisor}[kube-psp-advisor]) is an opensource tool from Sysdig. kube-psp-advisor scans the existing security context from Kubernetes resources like deployments, daementsets, replicasets, etc taken as the reference model we want to enforce and then automatically generates the Pod Security Policy for all the resources in the entire cluster.
+
+[source,console]
+----
+$ kubectl krew install advise-psp
+Updated the local copy of plugin index.
+Installing plugin: advise-psp
+Installed plugin: advise-psp
+\
+ | Use this plugin:
+ | 	kubectl advise-psp
+ | Documentation:
+ | 	https://github.com/sysdiglabs/kube-psp-advisor
+/
+WARNING: You installed plugin "advise-psp" from the krew-index plugin repository.
+   These plugins are not audited for security by the Krew maintainers.
+   Run them at your own risk.
+
+$ kubectl advise-psp inspect --namespace default --report
+{
+  "podSecuritySpecs": {
+    "hostIPC": [],
+    "hostNetwork": [],
+    "hostPID": []
+  },
+  "podVolumeTypes": {
+...
+----
+
+==== Example
+
+[source,console]
+----
+$ kubectl apply -f - <<EOF
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: psp-hostpath
+spec:
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  volumes:
+    - configMap
+    - emptyDir
+    - projected
+    - secret
+    - downwardAPI
+EOF
+Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/psp-hostpath created
+
+$ kubectl apply -f - <<EOF
+> apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: psp:hostpath
+rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs:     ['use']
+    resourceNames:
+      - psp-hostpath
+EOF
+clusterrole.rbac.authorization.k8s.io/psp:hostpath unchanged
+
+$ kubectl create ns psp-test
+namespace/psp-test created
+
+$ kubectl create rolebinding -n psp-test edit --clusterrole edit --serviceaccount psp-test:default
+rolebinding.rbac.authorization.k8s.io/edit created
+
+$ kubectl create rolebinding -n psp-test psp:hostpath --clusterrole psp:hostpath --serviceaccount psp-test:default
+rolebinding.rbac.authorization.k8s.io/psp:hostpath created
+
+$ kubectl apply -n psp-test --as system:serviceaccount:psp-test:default -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pause
+spec:
+  containers:
+    - name: pause
+      image: k8s.gcr.io/pause:3.6
+EOF
+pod/pause created
+
+$ kubectl apply -n psp-test --as system:serviceaccount:psp-test:default -f - <<EOF
+> apiVersion: v1
+kind: Pod
+metadata:
+  name: hostpath
+spec:
+  containers:
+    - name: pause
+      image: k8s.gcr.io/pause:3.6
+  volumes:
+    - name: hostpath
+      hostPath:
+        path: /tmp
+EOF
+Error from server (Forbidden): error when creating "STDIN": pods "hostpath" is forbidden: PodSecurityPolicy: unable to admit pod: [spec.volumes[0]: Invalid value: "hostPath": hostPath volumes are not allowed to be used]
+
+$ kubectl delete ns psp-test 
+namespace "psp-test" deleted
+
+$ kubectl delete psp psp-hostpath 
+Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy "psp-hostpath" deleted
+
+$ kubectl delete clusterrole psp:hostpath
+clusterrole.rbac.authorization.k8s.io "psp:hostpath" deleted
+----
+
 == Pod Security Admission
 
 == References
@@ -232,3 +465,6 @@ spec:
 * https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 * https://kubernetes.io/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/
 * https://kubernetes.io/docs/concepts/security/pod-security-admission/
+* https://www.suse.com/c/rancher_blog/enhancing-kubernetes-security-with-pod-security-policies-part-2/
+* https://sysdig.com/blog/psp-in-production/
+* https://sysdig.com/blog/enable-kubernetes-pod-security-policy/
