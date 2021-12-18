@@ -1,0 +1,920 @@
+= kubernetes Users and Role-Based Access Control
+:page-layout: post
+:page-categories: ['kubernetes']
+:page-tags: ['kubernetes', 'certificate', 'x509']
+:page-date: 2021-11-11 13:40:22 +0800
+:page-revdate: 2021-11-11 13:40:22 +0800
+:sectnums:
+:toc:
+
+== Users in Kubernetes
+
+All Kubernetes clusters have two categories of users: *service accounts* managed by Kubernetes, and *normal users*.
+
+It is assumed that a cluster-independent service manages normal users in the following ways:
+
+* an administrator distributing private keys
+* a user store like Keystone or Google Accounts
+* a file with a list of usernames and passwords
+
+In this regard, Kubernetes does not have objects which represent normal user accounts. Normal users cannot be added to a cluster through an API call.
+
+Even though a *normal user* cannot be added via an API call, *any user that presents a valid certificate signed by the cluster's certificate authority (CA) is considered authenticated*.
+
+* Kubernetes determines the username from the common name and groups from organization name in the 'subject' of the cert (e.g., "/CN=bob/O=group1/O=group2"). 
+* The role based access control (RBAC) sub-system would determine whether the user or group is authorized to perform a specific operation on a resource.
+
+In contrast, *service accounts* are users managed by the Kubernetes API.
+
+* They are bound to specific namespaces, and created automatically by the API server or manually through API calls.
+* Service accounts are tied to a set of credentials stored as `Secrets`, which are mounted into pods allowing *in-cluster* processes to talk to the Kubernetes API.
+
+API requests are tied to either a normal user or a service account, or are treated as https://kubernetes.io/docs/reference/access-authn-authz/authentication/#anonymous-requests[anonymous] requests. This means every process inside or outside the cluster, from a human user typing kubectl on a workstation, to kubelets on nodes, to members of the control plane, must authenticate when making requests to the API server, or be treated as an anonymous user.
+
+When a request reaches the https://kubernetes.io/docs/concepts/overview/kubernetes-api/[Kubernetes API], it goes through several stages, illustrated in the following diagram:
+
+image::https://d33wubrfki0l68.cloudfront.net/673dbafd771491a080c02c6de3fdd41b09623c90/50100/images/docs/admin/access-control-overview.svg[,75%,75%]
+
+== Authentication Strategies
+
+Kubernetes uses *client certificates*, *bearer tokens*, an *authenticating proxy*, or *HTTP basic auth* to authenticate API requests through authentication plugins.
+
+As HTTP requests are made to the API server, plugins attempt to associate the following attributes with the request:
+
+* `Username`: a string which identifies the end user. Common values might be `kube-admin` or `jane@example.com`.
+* `UID`: a string which identifies the end user and attempts to be more consistent and unique than username.
+* `Groups`: a set of strings, each of which indicates the user's membership in a named logical collection of users. Common values might be `system:masters` or `devops-team`.
+* `Extra fields`: a map of strings to list of strings which holds additional information authorizers may find useful.
+
+All values are opaque to the authentication system and only hold significance when interpreted by an https://kubernetes.io/docs/reference/access-authn-authz/authorization/[authorizer].
+
+You can enable multiple authentication methods at once. You should usually use at least two methods:
+
+* service account tokens for service accounts
+* at least one other method for user authentication.
+
+When multiple authenticator modules are enabled, the first module to successfully authenticate the request short-circuits evaluation. The API server does not guarantee the order authenticators run in.
+
+*The* `system:authenticated` *group is included in the list of groups for all authenticated users.*
+
+=== X509 Client Certs
+
+Client certificate authentication is enabled by passing the `--client-ca-file=SOMEFILE` option to API server.
+
+* The referenced file must contain one or more certificate authorities to use to validate client certificates presented to the API server.
+* If a client certificate is presented and verified, the *_common name_* of the subject is used as the user name for the request.
+* As of Kubernetes 1.4, client certificates can also indicate a user's group memberships using the certificate's *_organization_* fields.
+* To include multiple group memberships for a user, include multiple organization fields in the certificate.
+
+For example, using the `openssl` command line tool to generate a certificate signing request:
+
+[source,sh]
+----
+openssl req \
+    -nodes -newkey rsa -keyout jbeda.pem \
+    -out jbeda-csr.pem -subj "/CN=jbeda/O=app1/O=app2"
+----
+
+This would create a CSR for the username "jbeda", belonging to two groups, "app1" and "app2".
+
+=== Static Token File
+
+The API server reads bearer tokens from a file when given the `--token-auth-file=SOMEFILE` option on the command line.
+
+* Currently, tokens last indefinitely, and the token list cannot be changed without restarting API server.
+
+* The token file is a csv file with a minimum of 3 columns: token, user name, user uid, followed by optional group names.
+
+When using https://datatracker.ietf.org/doc/html/rfc6750[bearer token authentication] from an http client, the API server expects an `Authorization` header with a value of `Bearer THETOKEN`. The bearer token must be a character sequence that can be put in an HTTP header value using no more than the encoding and quoting facilities of HTTP. For example: if the bearer token is `31ada4fd-adec-460c-809a-9e56ceb75269` then it would appear in an HTTP header as shown below.
+
+[source,console]
+Authorization: Bearer 31ada4fd-adec-460c-809a-9e56ceb75269
+
+=== Service Account Tokens
+
+A service account is an automatically enabled authenticator that uses _signed bearer tokens_ to verify requests.
+
+The plugin takes two optional flags:
+
+* `--service-account-key-file`
++
+A file containing a PEM encoded key for signing bearer tokens. If unspecified, the API server's TLS private key will be used.
+
+* `--service-account-lookup`
++
+If enabled, tokens which are deleted from the API will be revoked.
+
+Service accounts are usually created automatically by the API server and associated with pods running in the cluster through the `ServiceAccount` https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/[Admission Controller].
+
+* Bearer tokens are mounted into pods at well-known locations, and allow in-cluster processes to talk to the API server.
+* Accounts may be explicitly associated with pods using the `serviceAccountName` field of a `PodSpec`.
++
+[source,console,highlight="15-17,20,23-26"]
+----
+$ kubectl get po -n kube-system coredns-df5d546b4-zbqv2 -oyaml
+apiVersion: v1
+kind: Pod
+metadata:
+  ...
+  name: coredns-df5d546b4-zbqv2
+  namespace: kube-system
+  ownerReferences:
+  ...
+spec:
+  containers:
+   ...
+    volumeMounts:
+    ...
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: coredns-token-9lfnq
+      readOnly: true
+  ...
+  serviceAccount: coredns
+  serviceAccountName: coredns
+  volumes:
+  ...
+  - name: coredns-token-9lfnq
+    secret:
+      defaultMode: 420
+      secretName: coredns-token-9lfnq
+status:
+...
+
+$ kubectl exec -it -n kube-system coredns-df5d546b4-zbqv2 -- bash
+[coredns-df5d546b4-zbqv2 /]$ ls -l /var/run/secrets/kubernetes.io/serviceaccount/
+total 0
+lrwxrwxrwx 1 root root 13 Nov 26 15:33 ca.crt -> ..data/ca.crt
+lrwxrwxrwx 1 root root 16 Nov 26 15:33 namespace -> ..data/namespace
+lrwxrwxrwx 1 root root 12 Nov 26 15:33 token -> ..data/token
+----
+
+Service account bearer tokens are perfectly valid to use *outside the cluster* and can be used to create identities for long standing jobs that wish to talk to the Kubernetes API.
+
+To manually create a service account, use the `kubectl create serviceaccount (NAME)` command. This creates a service account in the current namespace and an associated secret.
+
+[source,console]
+----
+$ kubectl create serviceaccount jenkins
+serviceaccount/jenkins created
+----
+
+Check an associated secret:
+
+[source,console]
+----
+$ kubectl get serviceaccounts jenkins -oyaml
+----
+
+[source,yml]
+----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # ...
+secrets:
+- name: jenkins-token-z792q
+----
+
+The created secret holds the public CA of the API server and a signed JSON Web Token (JWT).
+
+[source,console]
+----
+$ kubectl get secrets jenkins-token-z792q -oyaml
+----
+
+[source,yml]
+----
+apiVersion: v1
+data:
+  ca.crt: (APISERVER'S CA BASE64 ENCODED)
+  namespace: ZGVmYXVsdA==
+  token: (BEARER TOKEN BASE64 ENCODED)
+kind: Secret
+metadata:
+  # ...
+type: kubernetes.io/service-account-token
+----
+
+NOTE: Values are base64 encoded because secrets are always base64 encoded. 
+
+The signed JWT can be used as a bearer token to authenticate as the given service account. Normally these secrets are mounted into pods for in-cluster access to the API server, but can be used from outside the cluster as well.
+
+[source,sh]
+----
+token=$(kubectl get secrets jenkins-token-z792q -ojsonpath='{.data.token}' | base64 -d)
+----
+
+[source,sh]
+----
+echo $token cut -d '.' -f2 \
+    | base64 -d \
+    | jq
+----
+
+[source,console]
+----
+{
+  "iss": "kubernetes/serviceaccount",
+  "kubernetes.io/serviceaccount/namespace": "default",
+  "kubernetes.io/serviceaccount/secret.name": "jenkins-token-z792q",
+  "kubernetes.io/serviceaccount/service-account.name": "jenkins",
+  "kubernetes.io/serviceaccount/service-account.uid": "7053145a-d791-48e1-829c-8d8852d36e4f",
+  "sub": "system:serviceaccount:default:jenkins"
+}
+----
+
+[source,sh]
+----
+curl -k https://localhost:6443/api/v1/namespaces/default \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/yaml"
+----
+
+[source,console,highlight=2]
+----
+apiVersion: v1
+code: 403
+details:
+  kind: namespaces
+  name: default
+kind: Status
+message: 'namespaces "default" is forbidden: User "system:serviceaccount:default:jenkins"
+  cannot get resource "namespaces" in API group "" in the namespace "default"'
+metadata: {}
+reason: Forbidden
+status: Failure
+----
+
+*Service accounts authenticate with the username* `system:serviceaccount:(NAMESPACE):(SERVICEACCOUNT)`, *and are assigned to the groups* `system:serviceaccounts` *and* `system:serviceaccounts:(NAMESPACE)`.
+
+NOTE: Because service account tokens are stored in secrets, any user with read access to those secrets can authenticate as the service account. Be cautious when granting permissions to service accounts and read capabilities for secrets.
+
+== Authorization Overview
+
+In Kubernetes, you must be authenticated (logged in) before your request can be authorized (granted permission to access).
+
+Kubernetes expects attributes that are common to REST API requests. This means that Kubernetes authorization works with existing organization-wide or cloud-provider-wide access control systems which may handle other APIs besides the Kubernetes API.
+
+=== Request Allowed or Denied
+
+Kubernetes authorizes API requests using the API server. It evaluates all of the request attributes against all policies and allows or denies the request. All parts of an API request must be allowed by some policy in order to proceed. This means that permissions are denied by default.
+
+(Although Kubernetes uses the API server, access controls and policies that depend on specific fields of specific kinds of objects are handled by *Admission Controllers*.)
+
+When multiple authorization modules are configured, each is checked in sequence. If any authorizer approves or denies a request, that decision is immediately returned and no other authorizer is consulted. If all modules have no opinion on the request, then the request is denied. A deny returns an HTTP status code 403.
+
+=== Request Attributes
+
+Kubernetes reviews only the following API request attributes:
+
+* *user* - The `user` string provided during authentication.
+* *group* - The list of group names to which the authenticated user belongs.
+* *extra* - A map of arbitrary string keys to string values, provided by the authentication layer.
+* *API* - Indicates whether the request is for an API resource.
+* *Request path* - Path to miscellaneous non-resource endpoints like `/api` or `/healthz`.
+* *API request verb* - API verbs like `get`, `list`, `create`, `update`, `patch`, `watch`, `delete`, and `deletecollection` are used for resource requests.
+* *HTTP request verb* - Lowercased HTTP methods like `get`, `post`, `put`, and `delete` are used for non-resource requests.
+* *Resource* - The ID or name of the resource that is being accessed (for resource requests only) -- For resource requests using `get`, `update`, `patch`, and `delete` verbs, you must provide the resource name.
+* *Subresource* - The subresource that is being accessed (for resource requests only).
+* *Namespace* - The namespace of the object that is being accessed (for namespaced resource requests only).
+* *API group* - The API Group being accessed (for resource requests only). An empty string designates the core https://kubernetes.io/docs/reference/using-api/#api-groups[API group].
+
+=== Request Verb 
+
+*Non-resource requests* Requests to endpoints other than `/api/v1/...` or `/apis/<group>/<version>/...` are considered "non-resource requests", and use the lower-cased HTTP method of the request as the verb. For example, a GET request to endpoints like `/api` or `/healthz` would use `get` as the verb.
+
+*Resource requests* To determine the request verb for a resource API endpoint, review the HTTP verb used and whether or not the request acts on an individual resource or a collection of resources:
+
+[%header,cols="1,7"]
+|===
+|HTTP verb
+|request verb
+
+|POST
+|create
+
+|GET, HEAD
+|get (for individual resources), list (for collections, including full object content), watch (for watching an individual resource or collection of resources)
+
+|PUT
+|update
+
+|PATCH
+|patch
+
+|DELETE
+|delete (for individual resources), deletecollection (for collections)
+|===
+
+Kubernetes sometimes checks authorization for additional permissions using specialized verbs. For example:
+
+* RBAC
++
+`bind` and `escalate` verbs on `roles` and `clusterroles` resources in the `rbac.authorization.k8s.io` API group.
+
+* Authentication
++
+`impersonate` verb on `users`, `groups`, and `serviceaccounts` in the `core` API group, and the `userextras` in the `authentication.k8s.io` API group.
+
+=== Authorization Modes
+
+The Kubernetes API server may authorize a request using one of several authorization modes:
+
+* *Node* - A special-purpose authorization mode that grants permissions to kubelets based on the pods they are scheduled to run.
+
+* *ABAC* - Attribute-based access control (ABAC) defines an access control paradigm whereby access rights are granted to users through the use of policies which combine attributes together. The policies can use any type of attributes (user attributes, resource attributes, object, environment attributes, etc).
+
+* *RBAC* - Role-based access control (RBAC) is a method of regulating access to computer or network resources based on the roles of individual users within an enterprise. In this context, access is the ability of an individual user to perform a specific task, such as view, create, or modify a file.
+** When specified RBAC (Role-Based Access Control) uses the `rbac.authorization.k8s.io` API group to drive authorization decisions, allowing admins to dynamically configure permission policies through the Kubernetes API.
+** To enable RBAC, start the apiserver with `--authorization-mode=RBAC`.
+
+* *Webhook* - A WebHook is an HTTP callback: an HTTP POST that occurs when something happens; a simple event-notification via HTTP POST. A web application implementing WebHooks will POST a message to a URL when certain things happen. 
+
+==== Checking API Access
+
+kubectl provides the `auth can-i` subcommand for quickly querying the API authorization layer. The command uses the `SelfSubjectAccessReview` API to determine if the current user can perform a given action, and works regardless of the authorization mode used.
+
+[source,console]
+----
+$ kubectl auth can-i create deployments --namespace dev
+yes
+
+$ kubectl auth can-i create deployments --namespace prod
+no
+----
+
+Administrators can combine this with https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation[user impersonation] to determine what action other users can perform.
+
+[source,console]
+----
+$ kubectl auth can-i list secrets --namespace dev --as dave
+no
+----
+
+Similarly, to check whether a Service Account named `dev-sa` in Namespace `dev` can list Pods in the Namespace `target`:
+
+[source,console]
+----
+$ kubectl auth can-i list pods \
+	--namespace target \
+	--as system:serviceaccount:dev:dev-sa
+yes
+----
+
+`SelfSubjectAccessReview` is part of the `authorization.k8s.io` API group, which exposes the API server authorization to external services. Other resources in this group include:
+
+* `SubjectAccessReview`
++
+Access review for any user, not only the current one. Useful for delegating authorization decisions to the API server. For example, the kubelet and extension API servers use this to determine user access to their own APIs.
+
+* `LocalSubjectAccessReview`
++
+Like `SubjectAccessReview` but restricted to a specific namespace.
+
+* `SelfSubjectRulesReview`
++
+A review which returns the set of actions a user can perform within a namespace. Useful for users to quickly summarize their own access, or for UIs to hide/show actions.
+
+These APIs can be queried by creating normal Kubernetes resources, where the response "status" field of the returned object is the result of the query.
+
+[source,console]
+----
+$ kubectl create -f - -o yaml << EOF
+apiVersion: authorization.k8s.io/v1
+kind: SelfSubjectAccessReview
+spec:
+  resourceAttributes:
+    group: apps
+    resource: deployments
+    verb: create
+    namespace: dev
+EOF
+
+apiVersion: authorization.k8s.io/v1
+kind: SelfSubjectAccessReview
+metadata:
+...
+spec:
+  resourceAttributes:
+    group: apps
+    namespace: dev
+    resource: deployments
+    verb: create
+status:
+  allowed: true
+----
+
+== RBAC Authorization
+
+Role-based access control (RBAC) is a method of regulating access to computer or network resources based on the roles of individual users within your organization.
+
+RBAC authorization uses the `rbac.authorization.k8s.io` API group to drive authorization decisions, allowing you to dynamically configure policies through the Kubernetes API.
+
+The RBAC API declares four kinds of Kubernetes object: `Role`, `ClusterRole`, `RoleBinding` and `ClusterRoleBinding`.
+
+=== Role and ClusterRole
+
+An RBAC _Role_ or _ClusterRole_ contains rules that represent a set of permissions. Permissions are purely additive (there are no "deny" rules).
+
+A *Role* always sets permissions within a particular namespace; when you create a Role, you have to specify the namespace it belongs in.
+
+*ClusterRole*, by contrast, is a non-namespaced resource. The resources have different names (Role and ClusterRole) because a Kubernetes object always has to be either namespaced or not namespaced; it can't be both.
+
+ClusterRoles have several uses. You can use a ClusterRole to:
+
+* define permissions on namespaced resources and be granted within individual namespace(s)
+* define permissions on namespaced resources and be granted across all namespaces
+* define permissions on cluster-scoped resources
+
+*If you want to define a role within a namespace, use a Role; if you want to define a role cluster-wide, use a ClusterRole.*
+
+Here's an example Role in the "default" namespace that can be used to grant read access to pods:
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+----
+
+A ClusterRole can be used to grant the same permissions as a Role. Because ClusterRoles are cluster-scoped, you can also use them to grant access to:
+
+* cluster-scoped resources (like _nodes_)
+* non-resource endpoints (like _/healthz_)
+* namespaced resources (like _Pods_), across all namespaces
+* For example: you can use a ClusterRole to allow a particular user to run _kubectl get pods --all-namespaces_
+
+Here is an example of a ClusterRole that can be used to grant read access to secrets in any particular namespace, or across all namespaces (depending on how it is https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding[bound]):
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  # "namespace" omitted since ClusterRoles are not namespaced
+  name: secret-reader
+rules:
+- apiGroups: [""]
+  #
+  # at the HTTP level, the name of the resource for accessing Secret
+  # objects is "secrets"
+  resources: ["secrets"]
+  verbs: ["get", "watch", "list"]
+----
+
+:path-segment-names: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#path-segment-names
+
+*The name of a Role or a ClusterRole object must be a valid {path-segment-names}[path segment name].*
+
+=== RoleBinding and ClusterRoleBinding
+
+A role binding grants the permissions defined in a role to a user or set of users. It holds a list of subjects (users, groups, or service accounts), and a reference to the role being granted. A RoleBinding grants permissions within a specific namespace whereas a ClusterRoleBinding grants that access cluster-wide.
+
+A RoleBinding may reference any Role in the same namespace. Alternatively, *a RoleBinding can reference a ClusterRole and bind that ClusterRole to the namespace of the RoleBinding.* If you want to bind a ClusterRole to all the namespaces in your cluster, you use a ClusterRoleBinding.)
+
+*The name of a RoleBinding or ClusterRoleBinding object must be a valid {path-segment-names}[path segment name].*
+
+Here is an example of a RoleBinding that grants the "pod-reader" Role to the user "jane" within the "default" namespace. This allows "jane" to read pods in the "default" namespace.
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+# This role binding allows "jane" to read pods in the "default" namespace.
+# You need to already have a Role named "pod-reader" in that namespace.
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+# You can specify more than one "subject"
+- kind: User
+  name: jane # "name" is case sensitive
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  # "roleRef" specifies the binding to a Role / ClusterRole
+  kind: Role #this must be Role or ClusterRole
+  name: pod-reader # this must match the name of the Role or ClusterRole you wish to bind to
+  apiGroup: rbac.authorization.k8s.io
+----
+
+*A RoleBinding can also reference a ClusterRole to grant the permissions defined in that ClusterRole to resources inside the RoleBinding's namespace.* This kind of reference lets you define a set of common roles across your cluster, then reuse them within multiple namespaces.
+
+For instance, even though the following RoleBinding refers to a ClusterRole, "dave" (the subject, case sensitive) will only be able to read Secrets in the "development" namespace, because the RoleBinding's namespace (in its metadata) is "development".
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+# This role binding allows "dave" to read secrets in the "development" namespace.
+# You need to already have a ClusterRole named "secret-reader".
+kind: RoleBinding
+metadata:
+  name: read-secrets
+  #
+  # The namespace of the RoleBinding determines where the permissions are granted.
+  # This only grants permissions within the "development" namespace.
+  namespace: development
+subjects:
+- kind: User
+  name: dave # Name is case sensitive
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+----
+
+To grant permissions across a whole cluster, you can use a ClusterRoleBinding. The following ClusterRoleBinding allows any user in the group "manager" to read secrets in any namespace.
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+# This cluster role binding allows anyone in the "manager" group to read secrets in any namespace.
+kind: ClusterRoleBinding
+metadata:
+  name: read-secrets-global
+subjects:
+- kind: Group
+  name: manager # Name is case sensitive
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+----
+
+=== Referring to Resources
+
+In the Kubernetes API, most *resources* are represented and accessed using a string representation of their object name, such as 'pods' for a Pod. RBAC refers to resources using exactly the same name that appears in the URL for the relevant API endpoint. Some Kubernetes APIs involve a *subresource*, such as the logs for a Pod.
+
+A request for a Pod's logs looks like:
+
+[source,console]
+GET /api/v1/namespaces/{namespace}/pods/{name}/log
+
+* In this case, `pods` is the namespaced resource for Pod resources, and `log` is a subresource of pods.
+
+* To represent this in an RBAC role, use a slash (`/`) to delimit the resource and subresource.
+
+* To allow a subject to read `pods` and also access the `log` subresource for each of those Pods, you write:
++
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-and-pod-logs-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list"]
+----
+
+You can also refer to resources by name for certain requests through the `resourceNames` list.
+
+* When specified, requests can be restricted to individual instances of a resource.
+
+* Here is an example that restricts its subject to only `get` or `update` a ConfigMap named `my-configmap`:
++
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: configmap-updater
+rules:
+- apiGroups: [""]
+  #
+  # at the HTTP level, the name of the resource for accessing ConfigMap
+  # objects is "configmaps"
+  resources: ["configmaps"]
+  resourceNames: ["my-configmap"]
+  verbs: ["update", "get"]
+----
+
+=== Aggregated ClusterRoles
+
+You can _aggregate_ several ClusterRoles into one combined ClusterRole. A controller, running as part of the cluster control plane, watches for ClusterRole objects with an `aggregationRule` set. The `aggregationRule` defines a label selector that the controller uses to match other ClusterRole objects that should be combined into the `rules` field of this one.
+
+Here is an example aggregated ClusterRole:
+
+[source,console]
+----
+$ kubectl get clusterrole admin -oyaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: admin
+aggregationRule:
+  clusterRoleSelectors:
+  - matchLabels:
+      rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules: [] # The control plane automatically fills in the rules
+
+$ kubectl get clusterrole system:aggregate-to-admin -oyaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+  name: system:aggregate-to-admin
+rules: []
+
+$ kubectl get clusterrole edit -oyaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  creationTimestamp: "2021-07-19T07:10:31Z"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+aggregationRule:
+  clusterRoleSelectors:
+  - matchLabels:
+      rbac.authorization.k8s.io/aggregate-to-edit: "true"
+  name: edit
+rules: []
+----
+
+*If you create a new ClusterRole that matches the label selector of an existing aggregated ClusterRole, that change triggers adding the new rules into the aggregated ClusterRole.*
+
+=== Referring to Subjects
+
+A RoleBinding or ClusterRoleBinding binds a role to subjects. Subjects can be groups, users or ServiceAccounts.
+
+Kubernetes represents usernames as strings. These can be: plain names, such as "alice"; email-style names, like "+++bob@example.com+++"; or numeric user IDs represented as a string. It is up to you as a cluster administrator to configure the authentication modules so that authentication produces usernames in the format you want.
+
+[CAUTION]
+====
+The prefix `system:` is reserved for Kubernetes system use, so you should ensure that you don't have users or groups with names that start with `system:` by accident. Other than this special prefix, the RBAC authorization system does not require any format for usernames.
+====
+
+In Kubernetes, Authenticator modules provide group information. Groups, like users, are represented as strings, and that string has no format requirements, other than that the prefix `system:` is reserved.
+
+ServiceAccounts have names prefixed with `system:serviceaccount:`, and belong to groups that have names prefixed with `system:serviceaccounts:`.
+
+[NOTE]
+====
+* `system:serviceaccount:` (singular) is the prefix for service account usernames.
+* `system:serviceaccounts:` (plural) is the prefix for service account groups.
+====
+
+=== Default Roles and Role Bindings
+
+API servers create a set of default ClusterRole and ClusterRoleBinding objects. Many of these are `system:` prefixed, which indicates that the resource is directly managed by the cluster control plane. All of the default ClusterRoles and ClusterRoleBindings are labeled with `kubernetes.io/bootstrapping=rbac-defaults`.
+
+[CAUTION]
+====
+Take care when modifying ClusterRoles and ClusterRoleBindings with names that have a `system:` prefix. Modifications to these resources can result in non-functional clusters.
+====
+
+* Auto-reconciliation
++
+At each start-up, the API server updates default cluster roles with any missing permissions, and updates default cluster role bindings with any missing subjects. This allows the cluster to repair accidental modifications, and helps to keep roles and role bindings up-to-date as permissions and subjects change in new Kubernetes releases.
++
+To opt out of this reconciliation, set the `rbac.authorization.kubernetes.io/autoupdate` annotation on a default cluster role or rolebinding to `false`. Be aware that missing default permissions and subjects can result in non-functional clusters.
++
+Auto-reconciliation is enabled by default if the RBAC authorizer is active.
+
+* User-facing roles
++
+Some of the default ClusterRoles are not `system:` prefixed. These are intended to be user-facing roles. They include super-user roles (`cluster-admin`), roles intended to be granted cluster-wide using ClusterRoleBindings, and roles intended to be granted within particular namespaces using RoleBindings (`admin`, `edit`, `view`).
++
+User-facing ClusterRoles use ClusterRole _aggregation_ to allow admins to include rules for custom resources on these ClusterRoles. To add rules to the `admin`, `edit`, or `view` roles, create a ClusterRole with one or more of the following labels:
++
+[source,yaml]
+----
+metadata:
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+----
+
+== Cluster Access Using kubeconfig Files
+
+Use kubeconfig files to organize information about clusters, users, namespaces, and authentication mechanisms. The kubectl command-line tool uses kubeconfig files to find the information it needs to choose a cluster and communicate with the API server of a cluster.
+
+[NOTE]
+====
+A file that is used to configure access to clusters is called a kubeconfig file. This is a generic way of referring to configuration files. It does not mean that there is a file named _kubeconfig_.
+====
+
+[WARNING]
+====
+Only use kubeconfig files from trusted sources. Using a specially-crafted kubeconfig file could result in malicious code execution or file exposure. If you must use an untrusted kubeconfig file, inspect it carefully first, much as you would a shell script.
+====
+
+By default, kubectl looks for a file named config in the `$HOME/.kube` directory. You can specify other kubeconfig files by setting the `KUBECONFIG` environment variable or by setting the `--kubeconfig` flag.
+
+To access a cluster, you need to know the location of the cluster and have credentials to access it.
+
+Check the location and credentials that kubectl knows about with this command:
+
+[source,console]
+$ kubectl config view
+
+=== Create kubeconfig file based X509 User
+
+* Generate a certificate signing request:
++
+[source,console]
+----
+$ openssl req -nodes -newkey rsa -subj "/CN=developer/O=developers" -keyout developer.key -out developer-csr.pem
+Generating a RSA private key
+.............................................+++++
+.............................................+++++
+writing new private key to 'developer.key'
+-----
+----
+
+* Create a CertificateSigningRequest and submit it to Kubernetes Cluster:
++
+[source,console]
+----
+$ kubectl apply -f - <<EOF
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: developers
+spec:
+  username: developer
+  groups: ["developers"]
+  request: $(base64 <(cat developer-csr.pem) | tr -d '\n')
+  usages: ["digital signature", "key encipherment", "client auth"]
+  #expirationSeconds: 7200
+  signerName: kubernetes.io/kube-apiserver-client
+EOF
+certificatesigningrequest.certificates.k8s.io/developers created
+----
+
+* Use kubectl to approve it:
++
+[source,console]
+----
+$ kubectl get csr developers 
+NAME         AGE    SIGNERNAME                            REQUESTOR   CONDITION
+developers   104s   kubernetes.io/kube-apiserver-client   developer   Pending
+
+$ kubectl certificate approve developers
+certificatesigningrequest.certificates.k8s.io/developers approved
+----
+
+* Retrieve the certificate from the CSR object:
++
+[source,console]
+----
+$ kubectl get csr developers -ojsonpath='{.status.certificate}' | base64 -d > developer.crt
+----
+
+* Add to kubeconfig:
++
+.config.sh
+[source,bash]
+----
+#!/bin/bash
+set -e
+
+kubectl config set-cluster \
+    kubernetes \
+    --kubeconfig developer.config \
+    --server $(kubectl config view --minify | grep server | awk '{print $NF}') \
+    --certificate-authority <(kubectl config view --raw -ojsonpath='{.clusters[].cluster.certificate-authority-data}' | base64 -d) \
+    --embed-certs
+
+kubectl config set-credentials \
+    developer \
+    --kubeconfig developer.config \
+    --user developer \
+    --client-key developer.key \
+    --client-certificate developer.crt \
+    --embed-certs
+
+kubectl config set-context \
+    developer@kubernetes \
+    --kubeconfig developer.config \
+    --cluster kubernetes \
+    --user developer \
+    --namespace default
+
+kubectl config use-context developer@kubernetes --kubeconfig developer.config
+----
++
+[source,console]
+----
+$ bash conf.sh 
+Cluster "kubernetes" set.
+User "developer" set.
+Context "developer@kubernetes" modified.
+Switched to context "developer@kubernetes".
+----
+
+
+* Create Role and RoleBinding:
++
+[source,console]
+----
+$ kubectl get ns --kubeconfig developer.config 
+Error from server (Forbidden): namespaces is forbidden: User "developer" cannot list resource "namespaces" in API group "" at the cluster scope
+
+$ kubectl create clusterrole developer:namespace:view \
+    --resource namespace \
+    --verb get \
+    --verb list
+clusterrole.rbac.authorization.k8s.io/developer:namespace:view created
+
+$ kubectl create clusterrolebinding developer:namespace:view \
+    --clusterrole=developer:namespace:view \
+    --user developer
+clusterrolebinding.rbac.authorization.k8s.io/developer:namespace:view created
+
+$ kubectl get ns --kubeconfig developer.config 
+NAME              STATUS   AGE
+default           Active   152d
+kube-node-lease   Active   152d
+kube-public       Active   152d
+kube-system       Active   152d
+----
+
+=== Create kubeconfig file based Service Account Token
+
+.conf.sh 
+[source,bash]
+----
+#!/bin/bash
+set -e
+
+kubectl config set-cluster \
+    kubernetes \
+    --kubeconfig developer.config \
+    --server $(kubectl config view --minify | grep server | awk '{print $NF}') \
+    --certificate-authority <(kubectl get -n dev secrets developer-token-lm72w -ojsonpath="{.data.ca\.crt}" | base64 -d) \
+    --embed-certs
+
+kubectl config set-credentials \
+    developer \
+    --kubeconfig developer.config \
+    --token $(kubectl get -n dev secrets developer-token-lm72w -ojsonpath="{.data.token}" | base64 -d)
+
+kubectl config set-context \
+    developer@kubernetes \
+    --kubeconfig developer.config \
+    --cluster kubernetes \
+    --user developer \
+    --namespace dev
+
+kubectl config use-context developer@kubernetes --kubeconfig developer.config
+----
+[source,console]
+----
+$ kubectl create ns dev
+namespace/dev created
+
+$ kubectl create sa -n dev developer
+serviceaccount/developer created
+
+$ bash conf.sh 
+Cluster "kubernetes" set.
+User "developer" set.
+Context "developer@kubernetes" modified.
+Switched to context "developer@kubernetes".
+
+$ kubectl get po -n dev --kubeconfig developer.config 
+Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:dev:developer" cannot list resource "pods" in API group "" in the namespace "dev"
+
+$ kubectl create rolebinding dev:developer:view --clusterrole view --namespace dev --serviceaccount dev:developer
+rolebinding.rbac.authorization.k8s.io/dev:developer:view created
+
+$ kubectl get po -n dev --kubeconfig developer.config 
+No resources found in dev namespace.
+----
+
+== References
+
+* https://www.cncf.io/blog/2018/08/01/demystifying-rbac-in-kubernetes/
+* https://kubernetes.io/docs/reference/access-authn-authz/authentication/
+* https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
+* https://kubernetes.io/docs/reference/access-authn-authz/authorization/
+* https://kubernetes.io/docs/reference/access-authn-authz/rbac
+* https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+* https://kubernetes.io/docs/reference/kubectl/overview/
+* https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
+* https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
+* https://github.com/ahmetb/kubectx/blob/master/kubens
+* https://datatracker.ietf.org/doc/html/rfc6750
