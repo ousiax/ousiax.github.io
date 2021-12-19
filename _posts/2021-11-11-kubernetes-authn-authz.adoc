@@ -860,24 +860,26 @@ kube-system       Active   152d
 #!/bin/bash
 set -e
 
+secretname=$(kubectl get sa -n dev developer -ojsonpath="{.secrets[*].name}")
+
 kubectl config set-cluster \
     kubernetes \
     --kubeconfig developer.config \
     --server $(kubectl config view --minify | grep server | awk '{print $NF}') \
-    --certificate-authority <(kubectl get -n dev secrets developer-token-lm72w -ojsonpath="{.data.ca\.crt}" | base64 -d) \
+    --certificate-authority <(kubectl get secrets -n dev $secretname -ojsonpath="{.data.ca\.crt}" | base64 -d) \
     --embed-certs
 
 kubectl config set-credentials \
     developer \
     --kubeconfig developer.config \
-    --token $(kubectl get -n dev secrets developer-token-lm72w -ojsonpath="{.data.token}" | base64 -d)
+    --token $(kubectl get secrets -n dev $secretname -ojsonpath="{.data.token}" | base64 -d)
 
 kubectl config set-context \
     developer@kubernetes \
     --kubeconfig developer.config \
     --cluster kubernetes \
     --user developer \
-    --namespace dev
+    --namespace default
 
 kubectl config use-context developer@kubernetes --kubeconfig developer.config
 ----
