@@ -1,56 +1,553 @@
 = Public-key cryptography and X.509
 :page-layout: post
 :page-categories: ["crypto"]
-:page-tags: ["crypto", "x509", "openssl", "certificate"]
+:page-tags: ["crypto", "x509", "openssl", "pkcs"]
 :page-date: 2019-01-31 14:31:20 +0800
-:page-revdate: 2021-11-09 14:19:21 +08:00 
+:page-revdate: Tue, 21 Dec 2021 10:08:21 +0800
 :sectnums:
 :toc:
+:toclevels: 4
 
-== Cryptosystem
+== Cryptography
+
+*Cryptography* is used to protect information and communications.
+
+This is typically done by using cryptographic techniques to scramble plaintext (ordinary text) into ciphertext (encoded text) and back again.
+
+* This scrambling process is called *encryption*.
+* The reverse process is called *decryption*.
+
+Cryptography is concerned with the following objectives:
+
+* *Confidentiality*: The information can be understood by only the intended audience.
+* *Integrity*: The information cannot be altered in storage or in transit.
+* *Non-repudiation*: The creator of information cannot later deny that creation.
+* *Authentication*: The sender and receiver can confirm each other's identity.
+
+The *encryption* process requires an algorithm and a key.
+
+* The *algorithm* defines how data is transformed from plaintext into ciphertext and back to plaintext.
+* A *key* is a random string of data used as input to the algorithm.
+
+All of the security of the process is contained in the key. Therefore, the key must be stored securely. The details of the most popular algorithms, however, are publicly available.
+
+There are two types of encryption.
+
+* *Symmetric encryption* uses the same key for both encryption and decryption.
+* *Asymmetric encryption* uses different but mathematically related keys to perform encryption and decryption.
 
 In cryptography, a *cryptosystem* is a suite of cryptographic algorithms needed to implement a particular security service, most commonly for achieving confidentiality (encryption).
 
-Typically, a cryptosystem consists of three algorithms: one for https://en.wikipedia.org/wiki/Key_generation[key generation], one for encryption, and one for decryption. The term _cipher_ (sometimes _cypher_) is often used to refer to a pair of algorithms, one for encryption and one for decryption. Therefore, the term _cryptosystem_ is most often used when the key generation algorithm is important. For this reason, the term _cryptosystem_ is commonly used to refer to https://en.wikipedia.org/wiki/Public_key_cryptography[public key] techniques; however both "cipher" and "cryptosystem" are used for https://en.wikipedia.org/wiki/Symmetric-key_algorithm[symmetric key] techniques.
+Typically, a cryptosystem consists of three algorithms: one for https://en.wikipedia.org/wiki/Key_generation[key generation], one for encryption, and one for decryption.
 
-=== Public-key cryptography
+The term _cipher_ (sometimes _cypher_) is often used to refer to a pair of algorithms, one for encryption and one for decryption. Therefore, the term _cryptosystem_ is most often used when the key generation algorithm is important. For this reason, the term _cryptosystem_ is commonly used to refer to https://en.wikipedia.org/wiki/Public_key_cryptography[public key] techniques; however both "cipher" and "cryptosystem" are used for https://en.wikipedia.org/wiki/Symmetric-key_algorithm[symmetric key] techniques.
 
-*Public-key cryptography*, or *asymmetric cryptography*, is a cryptographic system that uses pairs of https://en.wikipedia.org/wiki/Cryptographic_key[keys]: _public keys_ which may be disseminated widely, and _private keys_ which are known only to the owner. The generation of such keys depends on cryptographic algorithms based on mathematical problems to produce one-way functions. Effective security only requires keeping the private key private; the public key can be openly distributed without compromising security.
+=== Symmetric Encryption 
+
+*Symmetric encryption* uses the same key to encrypt plaintext into ciphertext and decrypt ciphertext back into plaintext. The necessary length of the key, expressed in number of bits, is determined by the algorithm. After the key is used to encrypt plaintext, the encrypted message is sent to the recipient who then decrypts the ciphertext.
+
+image::https://docs.microsoft.com/en-us/azure/iot-hub/media/tutorial-x509-introduction/symmetric-keys.png[,65%,65%]
+
+*Symmetric-key algorithms* are algorithms for cryptography that use the same https://en.wikipedia.org/wiki/Key_(cryptography)[cryptographic keys] for both encryption of https://en.wikipedia.org/wiki/Plaintext[plaintext] and decryption of https://en.wikipedia.org/wiki/Ciphertext[ciphertext].
+
+* The keys may be identical or there may be a simple transformation to go between the two keys.
+
+* The keys, in practice, represent a https://en.wikipedia.org/wiki/Shared_secret[shared secret] between two or more parties that can be used to maintain a private information link.
++
+This requirement that both parties have access to the secret key is one of the main drawbacks of symmetric key encryption, in comparison to https://en.wikipedia.org/wiki/Public_key_encryption[public-key encryption] (also known as asymmetric key encryption).
+
+=== Asymmetric Encryption
+
+If only symmetric encryption is used, the problem is that all parties to the communication must possess the private key. However, it is possible that unauthorized third parties can capture the key during transmission to authorized users. To address this issue, use asymmetric or public key cryptography instead.
+
+In asymmetric cryptography, every user has two mathematically related keys called a key pair. One key is public and the other key is private. The key pair ensures that only the recipient has access to the private key needed to decrypt the data. The following illustration summarizes the asymmetric encryption process.
+
+image::https://docs.microsoft.com/en-us/azure/iot-hub/media/tutorial-x509-introduction/asymmetric-keys.png[,55%,55%]
+
+<1> The recipient creates a public-private key pair and sends the *public key* to a CA.
++
+The *CA* packages the public key in an *X.509 certificate*.
+
+<2> The sending party obtains the recipient's public key from the CA.
+
+<3> The sender encrypts plaintext data using an encryption algorithm.
++
+The recipient's public key is used to perform encryption.
+
+<4> The sender transmits the ciphertext to the recipient.
++
+It isn't necessary to send the key because the recipient already has the private key needed to decrypt the ciphertext.
+
+<5> The recipient decrypts the ciphertext by using the specified asymmetric algorithm and the *private key*.
+
+*Public-key cryptography*, or *asymmetric cryptography*, is a cryptographic system that uses public-private key pair of https://en.wikipedia.org/wiki/Cryptographic_key[keys]:
+
+* *public keys* which may be disseminated widely, 
+* and *private keys* which are known only to the owner.
+
+The generation of such keys depends on cryptographic algorithms based on mathematical problems to produce one-way functions. Effective security only requires keeping the private key private; the public key can be openly distributed without compromising security.
 
 In such a system, any person can encrypt a message using the receiver's _public key_, but that encrypted message can only be decrypted with the receiver's _private key_.
 
-=== RSA
+==== Asymmetric Signing
 
-*RSA (Rivest--Shamir--Adleman)* is one of the first https://en.wikipedia.org/wiki/Public-key_cryptography[public-key cryptosystems] and is widely used for secure data transmission. In such a https://en.wikipedia.org/wiki/Cryptosystem[cryptosystem], the https://en.wikipedia.org/wiki/Encryption_key[encryption key] is public and it is different from the https://en.wikipedia.org/wiki/Decryption_key[decryption key] which is kept secret (private). The acronym RSA is made of the initial letters of the surnames of Ron Rivest, Adi Shamir, and Leonard Adleman, who first publicly described the algorithm in 1978.
+Asymmetric algorithms can be used to protect data from modification (integrity) and prove the identity of the data creator (non-repudiation). The following illustration shows how asymmetric signing helps prove the sender's identity.
 
-RSA is a relatively slow algorithm, and because of this, it is less commonly used to directly encrypt user data. More often, RSA passes encrypted shared keys for https://en.wikipedia.org/wiki/Symmetric-key_algorithm[symmetric key] cryptography which in turn can perform bulk encryption-decryption operations at much higher speed.
+image::https://docs.microsoft.com/en-us/azure/iot-hub/media/tutorial-x509-introduction/asymmetric-signing.png[,45%,45%]
 
-=== Symmetric-key algorithm
+<1> The sender passes plaintext data through an asymmetric encryption algorithm, using the private key for encryption.
++
+Notice that this scenario reverses use of the private and public keys outlined in the preceding section that detailed asymmetric encryption.
 
-*Symmetric-key algorithms* are algorithms for cryptography that use the same https://en.wikipedia.org/wiki/Key_(cryptography)[cryptographic keys] for both encryption of https://en.wikipedia.org/wiki/Plaintext[plaintext] and decryption of https://en.wikipedia.org/wiki/Ciphertext[ciphertext]. The keys may be identical or there may be a simple transformation to go between the two keys. The keys, in practice, represent a https://en.wikipedia.org/wiki/Shared_secret[shared secret] between two or more parties that can be used to maintain a private information link. This requirement that both parties have access to the secret key is one of the main drawbacks of symmetric key encryption, in comparison to https://en.wikipedia.org/wiki/Public_key_encryption[public-key encryption] (also known as asymmetric key encryption).
+<2> The resulting ciphertext is sent to the recipient.
 
-=== Public key certificate
+<3> The recipient obtains the originator's public key from a directory.
 
-In https://en.wikipedia.org/wiki/Cryptography[cryptography], a *public key certificate*, also known as a *digital certificate* or *identity certificate*, is an electronic document used to prove the ownership of a https://en.wikipedia.org/wiki/Key_authentication[public key]. The certificate includes information about the key, information about the identity of its owner (called the subject), and the https://en.wikipedia.org/wiki/Digital_signature[digital signature] of an entity that has verified the certificate's contents (called the issuer). If the signature is valid, and the software examining the certificate trusts the issuer, then it can use that key to communicate securely with the certificate's subject. In email encryption, code signing, and e-signature systems, a certificate's subject is typically a person or organization. However, in https://en.wikipedia.org/wiki/Transport_Layer_Security[Transport Layer Security (TLS)] a certificate's subject is typically a computer or other device, though TLS certificates may identify organizations or individuals in addition to their core role in identifying devices. TLS, sometimes called by its older name Secure Sockets Layer (SSL), is notable for being a part of https://en.wikipedia.org/wiki/HTTPS[HTTPS], a protocol for securely browsing the web.
+<4> The recipient decrypts the ciphertext by using the originator's public key.
++
+The resulting plaintext proves the originator's identity because only the originator has access to the private key that initially encrypted the original text.
 
-In a typical https://en.wikipedia.org/wiki/Public-key_infrastructure[public-key infrastructure] (PKI) scheme, the certificate issuer is a https://en.wikipedia.org/wiki/Certificate_authority[certificate authority] (CA), usually a company that charges customers to issue certificates for them. By contrast, in a web of trust scheme, individuals sign each other's keys directly, in a format that performs a similar function to a public key certificate.
+==== RSA (Rivest-Shamir-Adleman)
 
-The most common format for public key certificates is defined by X.509. Because X.509 is very general, the format is further constrained by profiles defined for certain use cases, such as https://en.wikipedia.org/wiki/PKIX[Public Key Infrastructure (X.509)] as defined in RFC 5280.
+*RSA (Rivest--Shamir--Adleman)* is one of the first https://en.wikipedia.org/wiki/Public-key_cryptography[public-key cryptosystems] and is widely used for secure data transmission.
 
-=== X.509
+In such a https://en.wikipedia.org/wiki/Cryptosystem[cryptosystem], the https://en.wikipedia.org/wiki/Encryption_key[encryption key] is public and it is different from the https://en.wikipedia.org/wiki/Decryption_key[decryption key] which is kept secret (private).
 
-In https://en.wikipedia.org/wiki/Cryptography[cryptography], *X.509* is a standard defining the format of https://en.wikipedia.org/wiki/Public_key_certificate[public key certificates]. X.509 certificates are used in many Internet protocols, including https://en.wikipedia.org/wiki/Transport_Layer_Security[TLS/SSL], which is the basis for HTTPS, the secure protocol for browsing the web. They are also used in offline applications, like https://en.wikipedia.org/wiki/Electronic_signature[electronic signatures]. An X.509 certificate contains a public key and an identity (a hostname, or an organization, or an individual), and is either signed by a https://en.wikipedia.org/wiki/Certificate_authority[certificate authority] or self-signed. When a certificate is signed by a trusted certificate authority, or validated by other means, someone holding that certificate can rely on the public key it contains to establish secure communications with another party, or validate documents https://en.wikipedia.org/wiki/Digital_signature[digitally signed] by the corresponding private key.
+The acronym RSA is made of the initial letters of the surnames of Ron Rivest, Adi Shamir, and Leonard Adleman, who first publicly described the algorithm in 1978.
 
-==== Certificate filename extensions
+RSA is a relatively slow algorithm, and because of this, it is less commonly used to directly encrypt user data.
 
-There are several commonly used filename extensions for X.509 certificates. Unfortunately, some of these extensions are also used for other data such as private keys.
+More often, RSA passes encrypted shared keys for https://en.wikipedia.org/wiki/Symmetric-key_algorithm[symmetric key] cryptography which in turn can perform bulk encryption-decryption operations at much higher speed.
 
-* `.pem` -- (https://en.wikipedia.org/wiki/Privacy-enhanced_Electronic_Mail[Privacy-enhanced Electronic Mail]) https://en.wikipedia.org/wiki/Base64[Base64] encoded https://en.wikipedia.org/wiki/Distinguished_Encoding_Rules[DER] certificate, enclosed between "[.code]``-----BEGIN CERTIFICATE-----``" and "[.code]``-----END CERTIFICATE-----``"
-* `.cer`, `.crt`, `.der` -- usually in binary https://en.wikipedia.org/wiki/Distinguished_Encoding_Rules[DER] form, but Base64-encoded certificates are common too (see `.pem` above)
+=== Combining Symmetric and Asymmetric Encryption
 
-=== Certificate signing request
+Symmetric and asymmetric encryption can be combined to take advantage of their relative strengths.
 
-In public key infrastructure (PKI) systems, a *certificate signing request* (also *CSR* or *certification request*) is a message sent from an applicant to a https://en.wikipedia.org/wiki/Certificate_authority[certificate authority] in order to apply for a https://en.wikipedia.org/wiki/Public_key_certificate[digital identity certificate]. It usually contains the public key for which the certificate should be issued, identifying information (such as a domain name) and integrity protection (e.g., a digital signature). The most common format for CSRs is the https://en.wikipedia.org/wiki/PKCS[PKCS] #10 specification and another is the Signed Public Key and Challenge SPKAC format generated by some web browsers.
+Symmetric encryption is much faster than asymmetric but, because of the necessity of sending private keys to other parties, is not as secure.
+
+To combine the two types together,
+
+* symmetric encryption can be used to convert plaintext to ciphertext.
+
+* Asymmetric encryption is used to exchange the symmetric key.
+
+This is demonstrated by the following diagram.
+
+image::https://docs.microsoft.com/en-us/azure/iot-hub/media/tutorial-x509-introduction/symmetric-asymmetric-encryption.png[,65%,65%]
+
+<1> The sender retrieves the recipient's public key.
+
+<2> The sender generates a symmetric key and uses it to encrypt the original data.
+
+<3> The sender uses the recipient's public key to encrypt the symmetric key.
+
+<4> The sender transmits the encrypted symmetric key and the ciphertext to the intended recipient.
+
+<5> The recipient uses the private key that matches the recipient's public key to decrypt the sender's symmetric key.
+
+<6> The recipient uses the symmetric key to decrypt the ciphertext.
+
+=== Signing
+
+*Digital signing* can be used to determine whether the data has been modified in transit or at rest.
+
+* The data is passed through a *hash algorithm*, a one-way function that produces a mathematical result from the given message.
+* The result is called a *hash value*, *message digest*, *digest*, *signature*, or *thumbprint*.
+* A hash value cannot be reversed to obtain the original message.
+
+Because a small change in the message results in a significant change in the thumbprint, the hash value can be used to determine whether a message has been altered.
+
+The following illustration shows how asymmetric encryption and hash algorithms can be used to verify that a message has not been modified.
+
+image::https://docs.microsoft.com/en-us/azure/iot-hub/media/tutorial-x509-introduction/signing.png[,75%,75%]
+
+<1> The sender creates a *plaintext message*.
+
+<2> The sender hashes the plaintext message to create a *message digest*.
+
+<3> The sender encrypts the digest using a *private key*.
+
+<4> The sender transmits the plaintext message and the encrypted digest to the intended recipient.
+
+<5> The recipient decrypts the digest by using the sender's *public key*.
+
+<6> The recipient runs the same *hash algorithm* that the sender used over the message.
+
+<7> The recipient compares the resulting signature to the decrypted signature.
++
+If the digests are the same, the message was not modified during transmission.
+
+== Public Key Cryptography Standards (*PKCS*)
+
+In cryptography, *PKCS* stands for "Public Key Cryptography Standards".
+
+These are a group of public-key cryptography standards devised and published by RSA Security LLC, starting in the early 1990s.
+
+The company published the standards to promote the use of the cryptography techniques to which they had patents, such as the RSA algorithm, the Schnorr signature algorithm and several others.
+
+Though not industry standards (because the company retained control over them), some of the standards in recent years have begun to move into the "standards-track" processes of relevant standards organizations such as the IETF and the PKIX working-group. 
+
+[%header,cols="1,1,2,5"]
+|===
+|
+|Version
+|Name
+|Comments
+
+|PKCS #1
+|2.2
+|RSA Cryptography Standard
+|See RFC 8017. Defines the mathematical properties and format of RSA public and private keys (ASN.1-encoded in clear-text), and the basic algorithms and encoding/padding schemes for performing RSA encryption, decryption, and producing and verifying signatures.
+
+|PKCS #7
+|1.5
+|Cryptographic Message Syntax Standard
+|See RFC 2315. Used to sign and/or encrypt messages under a PKI. Used also for certificate dissemination (for instance as a response to a PKCS #10 message). Formed the basis for S/MIME, which is as of 2010 based on RFC 5652, an updated Cryptographic Message Syntax Standard (CMS). Often used for single sign-on.
+
+|PKCS #8
+|1.2
+|Private-Key Information Syntax Standard
+|See RFC 5958. Used to carry private certificate keypairs (encrypted or unencrypted).
+
+|PKCS #10
+|1.7
+|Certification Request Standard
+|See RFC 2986. Format of messages sent to a certification authority to request certification of a public key. See certificate signing request.
+
+|PKCS #12
+|1.1
+|Personal Information Exchange Syntax Standard
+|See RFC 7292. Defines a file format commonly used to store private keys with accompanying public key certificates, protected with a password-based symmetric key. *PFX* is a predecessor to PKCS #12.
++
+This container format can contain multiple embedded objects, such as multiple certificates. Usually protected/encrypted with a password.
+|===
+
+=== PKCS #7
+
+In cryptography, "*PKCS #7*: Cryptographic Message Syntax" (a.k.a. "CMS") is a standard syntax for storing signed and/or encrypted data.
+
+* PKCS #7 files may be stored both as raw *DER* format or as *PEM* format.
+
+* PEM format is the same as DER format but wrapped inside Base64 encoding and sandwiched in between ----BEGIN PKCS7---- and ----END PKCS7----.
+
+* Windows uses the "*.p7b*" file name extension for both these encodings.
+
+A typical use of a PKCS #7 file would be to store certificates and/or certificate revocation lists.
+
+Here's an example of how to first download a certificate, then wrap it inside a PKCS #7 archive and then read from that archive: 
+
+[source,console]
+----
+$ openssl s_client -connect local.io:443 -xcertform PEM </dev/null 2>/dev/null  | openssl x509 > local.io.pem
+
+$ openssl crl2pkcs7 -nocrl -certfile local.io.pem -out local.io.p7b
+
+$ openssl pkcs7 -in local.io.p7b -noout -print_certs 
+subject=C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Department, CN = *.local.io
+
+issuer=C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Department, CN = *.local.io
+----
+
+=== PKCS #8
+
+In cryptography, *PKCS #8* is a standard syntax for storing private key information.
+
+The PKCS #8 private key may be encrypted with a *passphrase* using the PKCS #5 standards, which supports multiple ciphers.
+
+PKCS #8 private keys are typically exchanged in the PEM base64-encoded format, for example:
+
+[source,console]
+----
+$ openssl genrsa -out key.pem 512 # 512 bits is a weak key, please specify 2048+ bits.
+Generating RSA private key, 512 bit long modulus (2 primes)
+....+++++++++++++++++++++++++++
+....+++++++++++++++++++++++++++
+e is 65537 (0x010001)
+
+$ cat key.pem 
+-----BEGIN RSA PRIVATE KEY-----
+MIIBOwIBAAJBANVSqsBpnvvBiG6Kz2d0vFHJcaiTtk159rzo8Pco+tE/dYHXilN+
+y/2tQzJ2SLW59TFKU7/YhZBsiT/Eao5QdZkCAwEAAQJAS16Yy8DFlieLv5q1qtTY
+0IC+8pO13mvQHHCk6n6FF7aR9xSLNh4Ks0Xv5vXs/Or3zHIaUMAmvZD8idj1KMQy
+MQIhAOvVSdE5B+QGvRolFZKHiCOysatf1XUYghLRFb7jZuD1AiEA55CZPXf72Des
+sfV84fmGT5UyGwbRkpPj8D+W8cmRC5UCIEkkf556V64rQN8o/UXS7zBTLbN/J48H
+qN/5JQttL+05AiEA1MZGOHgWXm+R7Jdwn8eDBX9G4hSa3z+rE2eq0BLxhx0CIQDT
+8DOVyoWuyM/5Tl58YFgOadgpZZDqHC3LAT9zwt0h4g==
+-----END RSA PRIVATE KEY-----
+
+$ openssl rsa -in key.pem -pubout 2>/dev/null 
+-----BEGIN PUBLIC KEY-----
+MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBANVSqsBpnvvBiG6Kz2d0vFHJcaiTtk15
+9rzo8Pco+tE/dYHXilN+y/2tQzJ2SLW59TFKU7/YhZBsiT/Eao5QdZkCAwEAAQ==
+-----END PUBLIC KEY-----
+----
+
+=== PKCS #10
+
+In public key infrastructure (PKI) systems, a *certificate signing request* (also *CSR* or *certification request*) is a message sent from an applicant to a {certificate_authority}[certificate authority] in order to apply for a https://en.wikipedia.org/wiki/Public_key_certificate[digital identity certificate].
+
+It usually contains the *public key* for which the certificate should be issued, *identifying information* (such as a domain name) and *integrity protection* (e.g., a digital signature).
+
+The most common format for CSRs is the *PKCS #10* specification and another is the Signed Public Key and Challenge SPKAC format generated by some web browsers.
+
+Before creating a CSR, the applicant first generates a *key pair*, keeping the private key secret.
+
+The CSR contains information identifying the applicant (such as a *distinguished name* in the case of an X.509 certificate) which must be signed using the applicant's *private key*.
+
+The CSR also contains the *public key* chosen by the applicant.
+
+The CSR may be accompanied by other credentials or proofs of identity required by the *certificate authority*, and the certificate authority may contact the applicant for further information. 
+
+A certification request consists of three main parts:
+
+* the certification request information,
+* a signature algorithm identifier,
+* and a digital signature on the certification request information.
+
+The first part contains the significant information, including the public key.
+
+The signature by the requester prevents an entity from requesting a bogus certificate of someone else's public key. Thus the private key is needed to produce, but it is not part of, the CSR.
+
+The PKCS#10 standard defines a binary format (*DER*) for encoding CSRs expressed in *ASN.1*.
+
+A CSR may also be represented as a Base64 encoded PKCS#10 (*PEM*).
+
+[source,console]
+----
+$ openssl genrsa -out key.pem 2048
+Generating RSA private key, 2048 bit long modulus (2 primes)
+.............................+++++
+....+++++
+e is 65537 (0x010001)
+
+$ cat req.pem 
+-----BEGIN CERTIFICATE-----
+MIIDDTCCAfWgAwIBAgIUQ7SPGfNcoaVJ5m/I6Hyley7IG2gwDQYJKoZIhvcNAQEL
+BQAwFjEUMBIGA1UEAwwLZXhhbXBsZS5jb20wHhcNMjExMjIxMDcyMTIyWhcNMjIw
+MTIwMDcyMTIyWjAWMRQwEgYDVQQDDAtleGFtcGxlLmNvbTCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBALSzGjH++EooGvOGZgkfOBWGHMc8GXnMS1Pst+S8
+O/IgF1rsDffGOFLtKCsMoSIwc6qq3Et8N9mnwORITjp1fVdhAToeWAsGim4evRRf
+1YUSghtbO/BGeu19sbgnGHqA3ExO5lm2zcE3TxgIZkOkYQAgLbR/svav922xj85Z
+HsuvnOPxemWNUxCCBsucu95QhQ5CLTjNDkxfPV9B9V6OfdhpoOtQowKt5ueUvLqt
+1L+EgetUxnHz9+rPBBgO22qgvcVnkIn0oAJ8/s8s1BUhtNdvILZ1cAwEOGqNbya2
+IL0Z5U+UUhiprC4o80K9EBDvU/xQUX524EjlD0wZq7Ncn2MCAwEAAaNTMFEwHQYD
+VR0OBBYEFL6KbULLcDDedyr4opkFYg6owGOBMB8GA1UdIwQYMBaAFL6KbULLcDDe
+dyr4opkFYg6owGOBMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEB
+AKnFgZPtyU9UXNxoO4C2vOxTix9oVwx02q2oQJpwZdviO83r8Z8FE6/ZX+GdVEAz
+g9btu/relajtaZwUzz9PSAA7W6j123tzu8USU7iROaRFFV6zejk/qxk0ahibNato
+WQCxemcIev1FiA9bR9m3q84K7etEb9+mO+MYXPzvOZsRE/g52h9X34+ZuRlxCutC
+oI6Nv4Bj61t5a/7jcBBDJCXQ4iI6GhVyYw/o2NeYpjmLVrxbDu4+oQ9l/JQYMBz9
+9JcZOp5K5HL4fLj6UJYP/o0tJSBar2Db08Z16btSFnBXlnR02elfeLYx9mz6fdlt
+/268X2cHeQJtLTfNvk5LFuU=
+-----END CERTIFICATE-----
+
+$ openssl req -x509 -new -key key.pem -subj "/CN=example.com" -out req.pem
+
+$ openssl asn1parse -i -in req.pem 
+    0:d=0  hl=4 l= 781 cons: SEQUENCE          
+    4:d=1  hl=4 l= 501 cons:  SEQUENCE          
+    8:d=2  hl=2 l=   3 cons:   cont [ 0 ]        
+   10:d=3  hl=2 l=   1 prim:    INTEGER           :02
+   13:d=2  hl=2 l=  20 prim:   INTEGER           :43B48F19F35CA1A549E66FC8E87CA57B2EC81B68
+   35:d=2  hl=2 l=  13 cons:   SEQUENCE          
+   37:d=3  hl=2 l=   9 prim:    OBJECT            :sha256WithRSAEncryption
+   48:d=3  hl=2 l=   0 prim:    NULL              
+   50:d=2  hl=2 l=  22 cons:   SEQUENCE          
+   52:d=3  hl=2 l=  20 cons:    SET               
+   54:d=4  hl=2 l=  18 cons:     SEQUENCE          
+   56:d=5  hl=2 l=   3 prim:      OBJECT            :commonName
+   61:d=5  hl=2 l=  11 prim:      UTF8STRING        :example.com
+   ...
+----
+
+
+
+== Public Key Certificates
+
+:rfc5280: https://tools.ietf.org/html/rfc5280
+:certificate_authority: https://en.wikipedia.org/wiki/Certificate_authority
+
+In https://en.wikipedia.org/wiki/Cryptography[cryptography], a *public key certificate*, also known as a *digital certificate* or *identity certificate*, is an electronic document used to prove the ownership of a https://en.wikipedia.org/wiki/Key_authentication[public key].
+
+The certificate includes information about the *key*, information about the identity of its owner (called the *subject*), and the https://en.wikipedia.org/wiki/Digital_signature[digital *signature*] of an entity that has verified the certificate's contents (called the *issuer*).
+
+If the signature is valid, and the software examining the certificate trusts the issuer, then it can use that key to communicate securely with the certificate's subject.
+
+In email encryption, code signing, and e-signature systems, a certificate's subject is typically a person or organization.
+
+However, in https://en.wikipedia.org/wiki/Transport_Layer_Security[Transport Layer Security (*TLS*)] a certificate's subject is typically a computer or other device, though TLS certificates may identify organizations or individuals in addition to their core role in identifying devices.
+
+TLS, sometimes called by its older name Secure Sockets Layer (SSL), is notable for being a part of https://en.wikipedia.org/wiki/HTTPS[HTTPS], a protocol for securely browsing the web.
+
+In a typical https://en.wikipedia.org/wiki/Public-key_infrastructure[public-key infrastructure] (PKI) scheme, the certificate issuer is a {certificate_authority}[certificate authority] (CA), usually a company that charges customers to issue certificates for them. By contrast, in a web of trust scheme, individuals sign each other's keys directly, in a format that performs a similar function to a public key certificate.
+
+The most common format for public key certificates is defined by X.509.
+
+Because X.509 is very general, the format is further constrained by profiles defined for certain use cases, such as https://en.wikipedia.org/wiki/PKIX[Public Key Infrastructure (X.509)] as defined in {rfc5280}[RFC 5280].
+
+== X.509 Public Key Certificates
+
+In https://en.wikipedia.org/wiki/Cryptography[cryptography], *X.509* is a standard defining the format of https://en.wikipedia.org/wiki/Public_key_certificate[public key certificates].
+
+X.509 certificates are used in many Internet protocols, including https://en.wikipedia.org/wiki/Transport_Layer_Security[TLS/SSL], which is the basis for HTTPS, the secure protocol for browsing the web.
+
+They are also used in offline applications, like https://en.wikipedia.org/wiki/Electronic_signature[electronic signatures].
+
+X.509 certificates are digital documents that represent a user, computer, service, or device.
+
+* They are issued by a {certificate_authority}[certification authority] (CA), subordinate CA, or registration authority or self-signed and contain the public key of the certificate subject.
+
+* They do not contain the subject's private key which must be stored securely.
+
+Public key certificates are documented by {rfc5280}[RFC 5280]. They are digitally signed and, in general, contain the following information:
+
+* Information about the certificate *subject*
+* The *public key* that corresponds to the subject's private key
+* Information about the issuing *CA*
+* The supported encryption and/or digital *signing algorithms*
+* Information to determine the *revocation and validity status* of the certificate
+
+When a certificate is signed by a trusted certificate authority, or validated by other means, someone holding that certificate can rely on the public key it contains to establish secure communications with another party, or validate documents https://en.wikipedia.org/wiki/Digital_signature[digitally signed] by the corresponding private key.
+
+=== Certificate Fields
+
+Over time there have been three certificate versions. Each version adds fields to the one before. Version 3 is current and contains version 1 and version 2 fields in addition to version 3 fields.
+
+#*Version 1*# defined the following fields:
+
+* *Version*: A value (1, 2, or 3) that identifies the version number of the certificate
+* *Serial Number*: A unique number for each certificate issued by a CA
+* *CA Signature Algorithm*: Name of the algorithm the CA uses to sign the certificate contents
+* *Issuer Name*: The distinguished name (DN) of the certificate's issuing CA
+* *Validity Period*: The time period for which the certificate is considered valid
+* *Subject Name*: Name of the entity represented by the certificate
+* *Subject Public Key Info*: Public key owned by the certificate subject
+
+#*Version 2*# added the following fields containing information about the certificate issuer. These fields are, however, rarely used.
+
+* *Issuer Unique ID*: A unique identifier for the issuing CA as defined by the CA
+* *Subject Unique ID*: A unique identifier for the certificate subject as defined by the issuing CA
+
+#*Version 3*# certificates added the following extensions:
+
+* *Authority Key Identifier*: This can be one of two values:
++
+--
+** The subject of the CA and serial number of the CA certificate that issued this certificate
+** A hash of the public key of the CA that issued this certificate
+--
+* *Subject Key Identifier*: Hash of the current certificate's public key
+* *Key Usage* Defines the service for which a certificate can be used.
++
+This can be one or more of the following values:
++
+--
+** *Digital Signature*
+** *Non-Repudiation*
+** *Key Encipherment*
+** *Data Encipherment*
+** *Key Agreement*
+** *Key Cert Sign*
+** *CRL Sign*
+** *Encipher Only*
+** *Decipher Only*
+--
+* *Private Key Usage Period*: Validity period for the private key portion of a key pair
+* *Certificate Policies*: Policies used to validate the certificate subject
+* *Policy Mappings*: Maps a policy in one organization to policy in another
+* *Subject Alternative Name*: List of alternate names for the subject
+* *Issuer Alternative Name*: List of alternate names for the issuing CA
+* *Subject Dir Attribute*: Attributes from an X.500 or LDAP directory
+* *Basic Constraints*: Allows the certificate to designate whether it is issued to a CA, or to a user, computer, device, or service.
++
+This extension also includes a path length constraint that limits the number of subordinate CAs that can exist.
+* *Name Constraints*: Designates which namespaces are allowed in a CA-issued certificate
+* *Policy Constraints*: Can be used to prohibit policy mappings between CAs
+* *Extended Key Usage*: Indicates how a certificate's public key can be used beyond the purposes identified in the *Key Usage* extension
+* *CRL Distribution Points*: Contains one or more URLs where the base certificate revocation list (CRL) is published
+* *Inhibit anyPolicy*: Inhibits the use of the All Issuance Policies OID (2.5.29.32.0) in subordinate CA certificates
+* *Freshest CRL*: Contains one or more URLs where the issuing CA's delta CRL is published
+* *Authority Information Access*: Contains one or more URLs where the issuing CA certificate is published
+* *Subject Information Access*: Contains information about how to retrieve additional details for a certificate subject
+
+=== Certificate Formats
+
+:pem: https://en.wikipedia.org/wiki/Privacy-enhanced_Electronic_Mail
+:der: https://en.wikipedia.org/wiki/Distinguished_Encoding_Rules
+:pkcs7: https://en.wikipedia.org/wiki/PKCS7
+:pkcs12: https://en.wikipedia.org/wiki/PKCS12
+
+There are several commonly used filename extensions for X.509 certificates.
+
+* *.pem* – ({pem}[Privacy-enhanced Electronic Mail]) *Base64* encoded {der}[*DER*] certificate, enclosed between "-----BEGIN CERTIFICATE-----" and "-----END CERTIFICATE-----"
+* *.cer*, *.crt*, *.der* – usually in binary DER form, but Base64-encoded certificates are common too
+* *.p7b*, *.p7c* – {pkcs7}[PKCS#7] SignedData structure without data, just certificate(s) or CRL(s)
+* *.p12* – {pkcs12}[PKCS#12], may contain certificate(s) (public) and private keys (password protected)
+* *.pfx* – PFX, predecessor of {pkcs12}[PKCS#12] (usually contains data in PKCS#12 format, e.g., with PFX files generated in IIS)
+
+{pkcs7}[PKCS#7] is a standard for signing or encrypting (officially called "enveloping") data. Since the certificate is needed to verify signed data, it is possible to include them in the SignedData structure. A `.P7C` file is a degenerated SignedData structure, without any data to sign.
+
+{pkcs12}[PKCS#12] evolved from the personal information exchange (*PFX*) standard and is used to exchange public and private objects in a single file. 
+
+==== Abstract Syntax Notation One (*ASN.1*)
+
+Abstract Syntax Notation One (*ASN.1*) is a standard interface description language for defining data structures that can be serialized and deserialized in a cross-platform way.
+
+It is broadly used in telecommunications and computer networking, and especially in cryptography.
+
+The advantage is that the ASN.1 description of the data encoding is independent of a particular computer or programming language.
+
+Because ASN.1 is both human-readable and machine-readable, an ASN.1 compiler can compile modules into libraries of code, codecs, that decode or encode the data structures.
+
+==== X.690 BER CER *DER*
+
+X.690 is an ITU-T standard specifying several *ASN.1* encoding formats:
+
+* Basic Encoding Rules (BER)
+* Canonical Encoding Rules (CER)
+* Distinguished Encoding Rules (*DER*)
+
+The *Basic Encoding Rules* were the original rules laid out by the *ASN.1* standard for *encoding* abstract information into a concrete *data stream*.
+
+The rules, collectively referred to as a transfer syntax in ASN.1 parlance, specify the exact octet sequences which are used to encode a given data item.
+
+The syntax defines such elements as: 
+
+* the representations for basic data types, 
+* the structure of length information, 
+* and the means for defining complex or compound types based on more primitive types.
+
+The BER syntax, along with two subsets of BER (the *CER* and the *DER*), are defined by the ITU-T's X.690 standards document, which is part of the ASN.1 document series. 
+
+==== Privacy-Enhanced Mail (*PEM*)
+
+Privacy-Enhanced Mail (*PEM*) is a de facto file format for storing and sending cryptographic *keys*, *certificates*, and other data, based on a set of 1993 IETF standards defining "privacy-enhanced mail."
+
+Many cryptography standards use *ASN.1* to define their data structures, and Distinguished Encoding Rules (*DER*) to serialize those structures.
+
+Because DER produces binary output, it can be challenging to transmit the resulting files through systems, like electronic mail, that only support ASCII.
+
+The PEM format solves this problem by encoding the binary data using *base64*.
+
+* PEM also defines a one-line header, consisting of *-----BEGIN, a label, and -----*, and a one-line footer, consisting of *-----END, a label, and -----*.
+* The label determines the type of message encoded.
+* Common labels include *CERTIFICATE*, *CERTIFICATE REQUEST*, *PRIVATE KEY* and *X509 CRL*.
+
+PEM data is commonly stored in files with a 
+
+* "*.pem*" suffix, a "*.cer*" 
+* or "*.crt*" suffix (for certificates),
+* or a "*.key*" suffix (for public or private keys).
+
+The *label* inside a PEM file represents the type of the data more accurately than the file suffix, since many different types of data can be saved in a ".pem" file.
+
+In particular PEM refers to the header and base64 wrapper for a binary format contained within, but does not specify any type or format for the binary data, so that a PEM file may contain "almost anything base64 encoded and wrapped with BEGIN and END lines".
+
+
+A PEM file may contain multiple instances.
+
+* For instance, an operating system might provide a file containing a list of trusted CA certificates,
+* or a web server might be configured with a "chain" file containing an end-entity certificate plus a list of intermediate certificates. 
 
 == OpenSSL
 
@@ -62,7 +559,7 @@ The OpenSSL Software Foundation (OSF) represents the OpenSSL project in most leg
 
 Versions are available for most Unix and Unix-like operating systems (including Solaris, Linux, macOS, QNX, and the various open-source BSD operating systems), OpenVMS and Microsoft Windows.
 
-=== Create a self-signed-certificate
+=== Self-signed Certificate
 
 * Generate a self signed root certificate
 +
@@ -102,7 +599,7 @@ subject=C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Depart
 SHA1 Fingerprint=1A:EB:13:40:38:AD:2E:42:57:A6:8A:BB:09:7A:5B:70:8B:69:C6:20
 ----
 
-=== Display the contents of a certificate:
+=== Show Certificate:
 
 [source,console]
 ----
@@ -180,7 +677,7 @@ Certificate:
          35:9c:d9:1e
 ----
 
-=== Sign certificate signing request
+=== Sign Certificate Signing Request
 
 
 * Generate a self signed root certificate
@@ -284,7 +781,7 @@ subject=C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Depart
 issuer=C = CN, ST = Shanghai, L = Shanghai, O = Global Security, OU = IT Department, CN = example.com
 ----
 
-=== Generate certificate with `subjectAltName`
+=== Generate Certificate with `subjectAltName`
 
 [source,sh,highlight='8']
 ----
@@ -319,7 +816,7 @@ Certificate:
 . . .
 ----
 
-=== Create config file for generating CSR
+=== Create CSR Config File
 
 * Generate a `server.key` with 2048bit
 +
@@ -404,13 +901,18 @@ openssl x509 \
 
 == References
 
-. Cryptosystem, https://en.wikipedia.org/wiki/Cryptosystem
-. Public-key cryptography, https://en.wikipedia.org/wiki/Public-key_cryptography
-. RSA (cryptosystem), https://en.wikipedia.org/wiki/RSA_(cryptosystem)
-. Symmetric-key algorithm, https://en.wikipedia.org/wiki/Symmetric-key_algorithm
-. X.509, https://en.wikipedia.org/wiki/X.509
-. Certificate signing request, https://en.wikipedia.org/wiki/Certificate_signing_request
-. OpenSSL, https://en.wikipedia.org/wiki/OpenSSL
-. https://crypto.stackexchange.com/questions/43697/what-is-the-difference-between-pem-csr-key-and-crt
-. https://serverfault.com/questions/9708/what-is-a-pem-file-and-how-does-it-differ-from-other-openssl-generated-key-file
-. https://www.shellhacks.com/create-csr-openssl-without-prompt-non-interactive/
+* https://en.wikipedia.org/wiki/Cryptosystem
+* https://en.wikipedia.org/wiki/Public-key_cryptography
+* https://en.wikipedia.org/wiki/RSA_(cryptosystem)
+* https://en.wikipedia.org/wiki/Symmetric-key_algorithm
+* https://docs.microsoft.com/en-us/azure/iot-hub/tutorial-x509-introduction
+* https://docs.microsoft.com/en-us/azure/iot-hub/tutorial-x509-certificates
+* https://en.wikipedia.org/wiki/X.509
+* https://tools.ietf.org/html/rfc5280
+* https://en.wikipedia.org/wiki/X.690#DER_encoding
+* https://en.m.wikipedia.org/wiki/ASN.1
+* https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail
+* https://en.wikipedia.org/wiki/PKCS
+* https://en.wikipedia.org/wiki/Certificate_signing_request
+* https://en.wikipedia.org/wiki/OpenSSL
+* https://www.digicert.com/kb/ssl-support/openssl-quick-reference-guide.htm
