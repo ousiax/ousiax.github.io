@@ -1,0 +1,709 @@
+= MySQL Playgroud
+:page-layout: post
+:page-categories: ['mysql']
+:page-tags: ['mysql']
+:page-date: 2021-12-29 15:39:20 +0800
+:page-revdate: 2021-12-29 15:39:20 +0800
+:sectnums:
+:toc:
+
+== Deploying MySQL on Linux with Docker
+
+=== Starting a MySQL Server Instance
+
+To start a new Docker container for a MySQL Server, use the following command:
+
+> docker run --name=container_name [--restart on-failure] -d -e MYSQL_RANDOM_ROOT_PASSWORD=yes [-e MYSQL_ONETIME_PASSWORD=yes] image_name:tag
+
+[source,console]
+----
+$ docker run --name mysql8 -d -e MYSQL_RANDOM_ROOT_PASSWORD=yes mysql:8 
+b4b86043b5562bb9069d82a663e2beae7fb417d6c3a005ade1a9b48ced6048f5
+
+$ docker logs mysql8 2>&1 | grep GENERATED
+2021-12-29 08:22:09+00:00 [Note] [Entrypoint]: GENERATED ROOT PASSWORD: aetheQuihaichoReiziejeey3Echoovi
+----
+
+[source,console,highlight="9"]
+----
+$ docker logs mysql8 
+2021-12-29 08:21:58+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.27-1debian10 started.
+2021-12-29 08:21:59+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2021-12-29 08:21:59+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.27-1debian10 started.
+2021-12-29 08:21:59+00:00 [Note] [Entrypoint]: Initializing database files
+...
+2021-12-29 08:22:05+00:00 [Note] [Entrypoint]: Starting temporary server
+...
+2021-12-29 08:22:09+00:00 [Note] [Entrypoint]: GENERATED ROOT PASSWORD: aetheQuihaichoReiziejeey3Echoovi
+...
+
+2021-12-29 08:22:11+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+
+2021-12-29T08:22:12.185059Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.27) starting as process 1
+2021-12-29T08:22:12.193270Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+
+2021-12-29T08:22:12.948002Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.27'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+----
+
+=== Connecting to and Disconnecting from the Server
+
+To connect to the server, you usually need to provide a MySQL user name when you invoke mysql and, most likely, a password. If the server runs on a machine other than the one where you log in, you must also specify a host name.
+
+[source,console]
+----
+$> mysql -h host -u user -p
+Enter password: ********
+----
+
+`host` and `user` represent the host name where your MySQL server is running and the user name of your MySQL account. Substitute appropriate values for your setup. The +++********+++ represents your password; enter it when mysql displays the Enter password: prompt. 
+
+[source,console]
+----
+$ docker exec -it mysql8 mysql -u root -p
+Enter password: 
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 9
+Server version: 8.0.27 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> \q
+Bye
+----
+
+== Entering Queries
+
+Here is a simple query that asks the server to tell you its version number and the current date. Type it in as shown here following the `mysql>` prompt and press Enter: 
+
+[source,console]
+----
+$ docker exec -it mysql8 mysql -u root -p
+Enter password: 
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 10
+Server version: 8.0.27 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> SELECT VERSION(), CURRENT_DATE;
++-----------+--------------+
+| VERSION() | CURRENT_DATE |
++-----------+--------------+
+| 8.0.27    | 2021-12-29   |
++-----------+--------------+
+1 row in set (0.00 sec)
+----
+
+This query illustrates several things about mysql:
+
+* A query normally consists of an SQL statement followed by a semicolon.
+
+* When you issue a query, mysql sends it to the server for execution and displays the results, then prints another `mysql>` prompt to indicate that it is ready for another query.
+
+* mysql displays query output in tabular form (rows and columns).
++
+The first row contains labels for the columns.
++
+The rows following are the query results.
+
+* mysql shows how many rows were returned and how long the query took to execute, which gives you a rough idea of server performance.
++
+These values are imprecise because they represent wall clock time (not CPU or machine time), and because they are affected by factors such as server load and network latency.
+
+Keywords may be entered in any lettercase. The following queries are equivalent:
+
+[source,mysql]
+----
+mysql> SELECT VERSION(), CURRENT_DATE;
+mysql> select version(), current_date;
+mysql> SeLeCt vErSiOn(), current_DATE;
+----
+
+Here is another query. It demonstrates that you can use mysql as a simple calculator: 
+
+[source,mysql]
+----
+mysql> SELECT SIN(PI()/4), (4+1)*5;
++-------------------------+---------+
+| SIN(PI()/4)             | (4+1)*5 |
++-------------------------+---------+
+|      0.7071067811865475 |      25 |
++-------------------------+---------+
+1 row in set (0.00 sec)
+
+----
+
+You can even enter multiple statements on a single line. Just end each one with a semicolon:
+
+[source,mysql]
+----
+mysql> SELECT VERSION(); SELECT NOW();
++-----------+
+| VERSION() |
++-----------+
+| 8.0.27    |
++-----------+
+1 row in set (0.00 sec)
+
++---------------------+
+| NOW()               |
++---------------------+
+| 2021-12-29 09:18:28 |
++---------------------+
+1 row in set (0.00 sec)
+
+----
+
+Here is a simple multiple-line statement:
+
+[source,mysql]
+----
+mysql> SELECT 
+    -> USER()
+    -> ,
+    -> CURRENT_DATE
+    -> ;
++----------------+----------------+
+| USER()         | CURRENT_DATE   |
++----------------+----------------+
+| root@localhost | 2021-12-29     |
++----------------+----------------+
+1 row in set (0.00 sec)
+
+----
+
+== Creating and Using a Database
+
+Use the `SHOW` statement to find out what databases currently exist on the server:
+
+[source,mysql]
+----
+mysql> SHOW DATABASES;
++------------------------------------------------------------------+
+| Database                                                         |
++------------------------------------------------------------------+
+| information_schema                                               |
+| mysql                                                            |
+| performance_schema                                               |
+| sys                                                              |
++------------------------------------------------------------------+
+4 rows in set (0.01 sec)
+
+----
+
+The list of databases displayed by the statement may be different on your machine; `SHOW DATABASES` does not show databases that you have no privileges for if you do not have the `SHOW DATABASES` privilege. 
+
+=== Creating and Selecting a Database
+
+If the administrator creates your database for you when setting up your permissions, you can begin using it. Otherwise, you need to create it yourself:
+
+[source,mysql]
+----
+mysql> CREATE DATABASE test;
+Query OK, 1 row affected (0.02 sec)
+----
+
+Under Unix, database names are case-sensitive (unlike SQL keywords), so you must always refer to your database as test, not as Test, TEST, or some other variant. This is also true for table names. 
+
+Creating a database does not select it for use; you must do that explicitly. To make menagerie the current database, use this statement:
+
+[source,mysql]
+----
+mysql> SELECT DATABASE();
++------------------------------------+
+| DATABASE()                         |
++------------------------------------+
+| NULL                               |
++------------------------------------+
+1 row in set (0.00 sec)
+
+mysql> USE test
+Database changed
+
+mysql> SELECT DATABASE();
++------------------------------------+
+| DATABASE()                         |
++------------------------------------+
+| test                               |
++------------------------------------+
+1 row in set (0.00 sec)
+
+----
+
+Your database needs to be created only once, but you must select it for use each time you begin a mysql session. You can do this by issuing a `USE` statement as shown in the example. Alternatively, you can select the database on the command line when you invoke mysql. Just specify its name after any connection parameters that you might need to provide. For example: 
+
+[source,mysql]
+----
+$ docker exec -it mysql8 mysql -u root -p test
+Enter password: 
+...
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> SELECT DATABASE();
++------------+
+| DATABASE() |
++------------+
+| test       |
++------------+
+1 row in set (0.00 sec)
+
+mysql> 
+----
+
+=== Creating a Table
+
+Creating the database is the easy part, but at this point it is empty, as `SHOW TABLES` tells you:
+
+[source,mysql]
+----
+mysql> SHOW TABLES;
+Empty set (0.01 sec)
+----
+
+Use a `CREATE TABLE` statement to specify the layout of your table:
+
+[source,mysql]
+----
+mysql> CREATE TABLE pet (
+    ->     name VARCHAR(20),
+    ->     owner VARCHAR(20),
+    ->     species VARCHAR(20),
+    ->     sex CHAR(1),
+    ->     birth DATE,
+    ->     death DATE
+    -> );
+Query OK, 0 rows affected (0.03 sec)
+
+----
+
+If you make a poor choice and it turns out later that you need a longer field, MySQL provides an `ALTER TABLE` statement. 
+
+Once you have created a table, `SHOW TABLES` should produce some output: 
+
+[source,mysql]
+----
+mysql> SHOW TABLES;
++----------------+
+| Tables_in_test |
++----------------+
+| pet            |
++----------------+
+1 row in set (0.01 sec)
+
+----
+
+[source,mysql]
+----
+mysql> SHOW TABLES IN test;
++----------------+
+| Tables_in_test |
++----------------+
+| pet            |
++----------------+
+1 row in set (0.00 sec)
+
+----
+
+To verify that your table was created the way you expected, use a `DESCRIBE` statement:
+
+[source,mysql]
+----
+mysql> DESCRIBE pet;
++---------+-------------+------+-----+---------+-------+
+| Field   | Type        | Null | Key | Default | Extra |
++---------+-------------+------+-----+---------+-------+
+| name    | varchar(20) | YES  |     | NULL    |       |
+| owner   | varchar(20) | YES  |     | NULL    |       |
+| species | varchar(20) | YES  |     | NULL    |       |
+| sex     | char(1)     | YES  |     | NULL    |       |
+| birth   | date        | YES  |     | NULL    |       |
+| death   | date        | YES  |     | NULL    |       |
++---------+-------------+------+-----+---------+-------+
+6 rows in set (0.07 sec)
+
+----
+
+=== Loading Data into a Table
+
+After creating your table, you need to populate it. The `LOAD DATA` and `INSERT` statements are useful for this. 
+
+[%header,cols="1,1,1,1,1,1"]
+|===
+|name
+|owner
+|species
+|sex
+|birth
+|death
+
+|Fluffy
+|Harold
+|cat
+|f
+|1993-02-04 	
+|
+
+|Claws
+|Gwen
+|cat
+|m
+|1994-03-17 	
+|
+
+|Buffy
+|Harold
+|dog
+|f
+|1989-05-13 	
+|
+
+|Fang
+|Benny
+|dog
+|m
+|1990-08-27 	
+|
+
+|Bowser
+|Diane
+|dog
+|m
+|1979-08-31
+|1995-07-29
+
+|Chirpy
+|Gwen
+|bird
+|f
+|1998-09-11 	
+|
+
+|Whistler
+|Gwen
+|bird
+|
+|1997-12-09 	
+|
+|Slim 	Benny 	snake 	m 	1996-04-29 	
+|===
+
+You could create a text file `pet.txt` containing one record per line, with values separated by tabs, and given in the order in which the columns were listed in the `CREATE TABLE` statement. For missing values (such as unknown sexes or death dates for animals that are still living), you can use `NULL` values. To represent these in your text file, use `\N` (backslash, capital-N). For example, the record for Whistler the bird would look like this (where the whitespace between values is a single tab character): 
+
+[source,text]
+----
+Whistler        Gwen    bird    \N      1997-12-09      \N
+----
+
+To load the text file `pet.txt` into the pet table, use this statement:
+
+[source,mysql]
+----
+mysql> LOAD DATA LOCAL INFILE '/path/pet.txt' INTO TABLE pet;
+----
+
+When you want to add new records one at a time, the `INSERT` statement is useful. In its simplest form, you supply values for each column, in the order in which the columns were listed in the `CREATE TABLE` statement. Suppose that Diane gets a new hamster named “Puffball.” You could add a new record using an `INSERT` statement like this:
+
+[source,mysql]
+----
+mysql> INSERT INTO pet
+    -> VALUES (
+    ->         'Puffball',
+    ->         'Diane',
+    ->         'hamster',
+    ->         'f',
+    ->         '1999-03-30',
+    ->         NULL
+    ->     );
+Query OK, 1 row affected (0.03 sec)
+
+----
+
+String and date values are specified as quoted strings here. Also, with `INSERT`, you can insert `NULL` directly to represent a missing value. You do not use `\N` like you do with `LOAD DATA`. 
+
+=== Retrieving Information from a Table
+
+[source,mysql]
+----
+mysql> SELECT * FROM pet;
++----------+--------+---------+------+------------+------------+
+| name     | owner  | species | sex  | birth      | death      |
++----------+--------+---------+------+------------+------------+
+| Puffball | Diane  | hamster | f    | 1999-03-30 | NULL       |
+| Fluffy   | Harold | cat     | f    | 1993-02-04 | NULL       |
+| Claws    | Gwen   | cat     | m    | 1994-03-17 | NULL       |
+| Buffy    | Harold | dog     | f    | 1989-05-13 | NULL       |
+| Fang     | Benny  | dog     | m    | 1990-08-27 | NULL       |
+| Bowser   | Diane  | dog     | m    | 1979-08-31 | 1995-07-29 |
+| Chirpy   | Gwen   | bird    | f    | 1998-09-11 | NULL       |
+| Whistler | Gwen   | bird    | NULL | 1997-12-09 | NULL       |
+| Slim     | Benny  | snake   | m    | 1996-04-29 | NULL       |
++----------+--------+---------+------+------------+------------+
+9 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE name='Browser';
+Empty set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE name='Bowser';
++--------+-------+---------+------+------------+------------+
+| name   | owner | species | sex  | birth      | death      |
++--------+-------+---------+------+------------+------------+
+| Bowser | Diane | dog     | m    | 1979-08-31 | 1995-07-29 |
++--------+-------+---------+------+------------+------------+
+1 row in set (0.00 sec)
+
+mysql> SELECT name,birth FROM pet;
++----------+------------+
+| name     | birth      |
++----------+------------+
+| Puffball | 1999-03-30 |
+| Fluffy   | 1993-02-04 |
+| Claws    | 1994-03-17 |
+| Buffy    | 1989-05-13 |
+| Fang     | 1990-08-27 |
+| Bowser   | 1979-08-31 |
+| Chirpy   | 1998-09-11 |
+| Whistler | 1997-12-09 |
+| Slim     | 1996-04-29 |
++----------+------------+
+9 rows in set (0.00 sec)
+
+mysql> SELECT name,birth FROM pet ORDER BY birth;
++----------+------------+
+| name     | birth      |
++----------+------------+
+| Bowser   | 1979-08-31 |
+| Buffy    | 1989-05-13 |
+| Fang     | 1990-08-27 |
+| Fluffy   | 1993-02-04 |
+| Claws    | 1994-03-17 |
+| Slim     | 1996-04-29 |
+| Whistler | 1997-12-09 |
+| Chirpy   | 1998-09-11 |
+| Puffball | 1999-03-30 |
++----------+------------+
+9 rows in set (0.00 sec)
+
+mysql> SELECT name,
+    ->     birth,
+    ->     CURDATE(),
+    ->     TIMESTAMPDIFF(YEAR, birth, CURDATE()) AS age
+    -> FROM pet;
++----------+------------+------------+------+
+| name     | birth      | CURDATE()  | age  |
++----------+------------+------------+------+
+| Puffball | 1999-03-30 | 2021-12-29 |   22 |
+| Fluffy   | 1993-02-04 | 2021-12-29 |   28 |
+| Claws    | 1994-03-17 | 2021-12-29 |   27 |
+| Buffy    | 1989-05-13 | 2021-12-29 |   32 |
+| Fang     | 1990-08-27 | 2021-12-29 |   31 |
+| Bowser   | 1979-08-31 | 2021-12-29 |   42 |
+| Chirpy   | 1998-09-11 | 2021-12-29 |   23 |
+| Whistler | 1997-12-09 | 2021-12-29 |   24 |
+| Slim     | 1996-04-29 | 2021-12-29 |   25 |
++----------+------------+------------+------+
+9 rows in set (0.01 sec)
+
+mysql> SELECT name,
+    ->     birth,
+    ->     death,
+    ->     TIMESTAMPDIFF(YEAR, birth, death) AS age
+    -> FROM pet
+    -> WHERE death IS NOT NULL
+    -> ORDER BY age;
++--------+------------+------------+------+
+| name   | birth      | death      | age  |
++--------+------------+------------+------+
+| Bowser | 1979-08-31 | 1995-07-29 |   15 |
++--------+------------+------------+------+
+1 row in set (0.00 sec)
+
+----
+
+[source,mysql]
+----
+mysql>  SELECT '2018-10-31' + INTERVAL 1 DAY;
++-------------------------------+
+| '2018-10-31' + INTERVAL 1 DAY |
++-------------------------------+
+| 2018-11-01                    |
++-------------------------------+
+1 row in set (0.00 sec)
+
+mysql> SELECT '2018-10-32' + INTERVAL 1 DAY;
++-------------------------------+
+| '2018-10-32' + INTERVAL 1 DAY |
++-------------------------------+
+| NULL                          |
++-------------------------------+
+1 row in set, 1 warning (0.00 sec)
+
+mysql> SHOW WARNINGS;
++---------+------+----------------------------------------+
+| Level   | Code | Message                                |
++---------+------+----------------------------------------+
+| Warning | 1292 | Incorrect datetime value: '2018-10-32' |
++---------+------+----------------------------------------+
+1 row in set (0.00 sec)
+
+----
+
+[source,mysql]
+----
+mysql> SELECT 1 IS NULL, 1 IS NOT NULL;
++-----------+---------------+
+| 1 IS NULL | 1 IS NOT NULL |
++-----------+---------------+
+|         0 |             1 |
++-----------+---------------+
+1 row in set (0.00 sec)
+
+mysql> SELECT 1 = NULL, 1 <> NULL, 1 < NULL, 1 > NULL;
++----------+-----------+----------+----------+
+| 1 = NULL | 1 <> NULL | 1 < NULL | 1 > NULL |
++----------+-----------+----------+----------+
+|     NULL |      NULL |     NULL |     NULL |
++----------+-----------+----------+----------+
+1 row in set (0.00 sec)
+
+mysql> SELECT 0 IS NULL, 0 IS NOT NULL, '' IS NULL, '' IS NOT NULL;
++-----------+---------------+------------+----------------+
+| 0 IS NULL | 0 IS NOT NULL | '' IS NULL | '' IS NOT NULL |
++-----------+---------------+------------+----------------+
+|         0 |             1 |          0 |              1 |
++-----------+---------------+------------+----------------+
+1 row in set (0.00 sec)
+
+----
+
+[source,mysql]
+----
+mysql> SELECT * FROM pet WHERE name LIKE 'b%';
++--------+--------+---------+------+------------+------------+
+| name   | owner  | species | sex  | birth      | death      |
++--------+--------+---------+------+------------+------------+
+| Buffy  | Harold | dog     | f    | 1989-05-13 | NULL       |
+| Bowser | Diane  | dog     | m    | 1979-08-31 | 1995-07-29 |
++--------+--------+---------+------+------------+------------+
+2 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE name LIKE '%fy';
++--------+--------+---------+------+------------+-------+
+| name   | owner  | species | sex  | birth      | death |
++--------+--------+---------+------+------------+-------+
+| Fluffy | Harold | cat     | f    | 1993-02-04 | NULL  |
+| Buffy  | Harold | dog     | f    | 1989-05-13 | NULL  |
++--------+--------+---------+------+------------+-------+
+2 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE name LIKE '%w%';
++----------+-------+---------+------+------------+------------+
+| name     | owner | species | sex  | birth      | death      |
++----------+-------+---------+------+------------+------------+
+| Claws    | Gwen  | cat     | m    | 1994-03-17 | NULL       |
+| Bowser   | Diane | dog     | m    | 1979-08-31 | 1995-07-29 |
+| Whistler | Gwen  | bird    | NULL | 1997-12-09 | NULL       |
++----------+-------+---------+------+------------+------------+
+3 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE name LIKE '_____';
++-------+--------+---------+------+------------+-------+
+| name  | owner  | species | sex  | birth      | death |
++-------+--------+---------+------+------------+-------+
+| Claws | Gwen   | cat     | m    | 1994-03-17 | NULL  |
+| Buffy | Harold | dog     | f    | 1989-05-13 | NULL  |
++-------+--------+---------+------+------------+-------+
+2 rows in set (0.00 sec)
+
+----
+
+[source,mysql]
+----
+mysql> SELECT * FROM pet WHERE REGEXP_LIKE(name, '^b');
++--------+--------+---------+------+------------+------------+
+| name   | owner  | species | sex  | birth      | death      |
++--------+--------+---------+------+------------+------------+
+| Buffy  | Harold | dog     | f    | 1989-05-13 | NULL       |
+| Bowser | Diane  | dog     | m    | 1979-08-31 | 1995-07-29 |
++--------+--------+---------+------+------------+------------+
+2 rows in set (0.01 sec)
+
+mysql> SELECT * FROM pet WHERE REGEXP_LIKE(name, 'fy$');
++--------+--------+---------+------+------------+-------+
+| name   | owner  | species | sex  | birth      | death |
++--------+--------+---------+------+------------+-------+
+| Fluffy | Harold | cat     | f    | 1993-02-04 | NULL  |
+| Buffy  | Harold | dog     | f    | 1989-05-13 | NULL  |
++--------+--------+---------+------+------------+-------+
+2 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE REGEXP_LIKE(name, 'w');
++----------+-------+---------+------+------------+------------+
+| name     | owner | species | sex  | birth      | death      |
++----------+-------+---------+------+------------+------------+
+| Claws    | Gwen  | cat     | m    | 1994-03-17 | NULL       |
+| Bowser   | Diane | dog     | m    | 1979-08-31 | 1995-07-29 |
+| Whistler | Gwen  | bird    | NULL | 1997-12-09 | NULL       |
++----------+-------+---------+------+------------+------------+
+3 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE REGEXP_LIKE(name, '^.....$');
++-------+--------+---------+------+------------+-------+
+| name  | owner  | species | sex  | birth      | death |
++-------+--------+---------+------+------------+-------+
+| Claws | Gwen   | cat     | m    | 1994-03-17 | NULL  |
+| Buffy | Harold | dog     | f    | 1989-05-13 | NULL  |
++-------+--------+---------+------+------------+-------+
+2 rows in set (0.00 sec)
+
+mysql> SELECT * FROM pet WHERE REGEXP_LIKE(name, '^.{5}$');
++-------+--------+---------+------+------------+-------+
+| name  | owner  | species | sex  | birth      | death |
++-------+--------+---------+------+------------+-------+
+| Claws | Gwen   | cat     | m    | 1994-03-17 | NULL  |
+| Buffy | Harold | dog     | f    | 1989-05-13 | NULL  |
++-------+--------+---------+------+------------+-------+
+2 rows in set (0.00 sec)
+
+----
+
+[source,mysql]
+----
+mysql> SELECT COUNT(*) FROM pet;
++----------+
+| COUNT(*) |
++----------+
+|        9 |
++----------+
+1 row in set (0.00 sec)
+
+mysql> SELECT owner, COUNT(*) FROM pet GROUP BY owner;
++--------+----------+
+| owner  | COUNT(*) |
++--------+----------+
+| Diane  |        2 |
+| Harold |        2 |
+| Gwen   |        3 |
+| Benny  |        2 |
++--------+----------+
+4 rows in set (0.00 sec)
+
+----
+
+== Access Control and Account Management
+
+== References
+
+* https://hub.docker.com/_/mysql
+* https://dev.mysql.com/doc/refman/8.0/en/
