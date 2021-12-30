@@ -923,9 +923,45 @@ To see what privileges a given account has, use the `SHOW GRANTS` statement. For
 
 [source,console]
 ----
-mysql> SELECT host,user FROM mysql.user;
+SHOW GRANTS FOR 'joe'@'office.example.com';
+SHOW GRANTS FOR 'joe'@'home.example.com';
+----
+
+MySQL access control involves two stages when you run a client program that connects to the server:
+
+* Stage 1: The server *accepts or rejects the connection* based on your identity and whether you can verify your identity by supplying the correct password.
+
+* Stage 2: Assuming that you can connect, the server *checks each statement you issue* to determine whether you have sufficient privileges to perform it.
+
+=== Account User Names and Passwords
+
+MySQL stores accounts in the `user` table of the `mysql` system database. An account is defined in terms of a user name and the client host or hosts from which the user can connect to the server.
+
+[source,console]
+----
+mysql> DESCRIBE mysql.user;
++--------------------------+-----------------------------------+------+-----+-----------------------+-------+
+| Field                    | Type                              | Null | Key | Default               | Extra |
++--------------------------+-----------------------------------+------+-----+-----------------------+-------+
+| Host                     | char(255)                         | NO   | PRI |                       |       |
+| User                     | char(32)                          | NO   | PRI |                       |       |
+| Select_priv              | enum('N','Y')                     | NO   |     | N                     |       |
+| Insert_priv              | enum('N','Y')                     | NO   |     | N                     |       |
+| Update_priv              | enum('N','Y')                     | NO   |     | N                     |       |
+| Delete_priv              | enum('N','Y')                     | NO   |     | N                     |       |
+| Create_priv              | enum('N','Y')                     | NO   |     | N                     |       |
+| Drop_priv                | enum('N','Y')                     | NO   |     | N                     |       |
+
+...
+----
+
+An account may also have authentication credentials such as a password. The credentials are handled by the account authentication plugin. MySQL supports multiple authentication plugins. Some of them use built-in authentication methods, whereas others enable authentication using external authentication methods.
+
+[source,console]
+----
+mysql> SELECT Host,User FROM mysql.user;
 +-----------+------------------+
-| host      | user             |
+| Host      | User             |
 +-----------+------------------+
 | %         | root             |
 | localhost | mysql.infoschema |
@@ -935,14 +971,543 @@ mysql> SELECT host,user FROM mysql.user;
 +-----------+------------------+
 5 rows in set (0.00 sec)
 
-mysql> SHOW GRANTS FOR root;
 ----
 
-MySQL access control involves two stages when you run a client program that connects to the server:
+=== Privileges Provided by MySQL
 
-* Stage 1: The server *accepts or rejects the connection* based on your identity and whether you can verify your identity by supplying the correct password.
+The privileges granted to a MySQL account determine which operations the account can perform. MySQL privileges differ in the contexts in which they apply and at different levels of operation:
 
-* Stage 2: Assuming that you can connect, the server *checks each statement you issue* to determine whether you have sufficient privileges to perform it.
+* *Administrative privileges* enable users to manage operation of the MySQL server.
++
+These privileges are global because they are not specific to a particular database.
+
+* *Database privileges* apply to a database and to all objects within it.
++
+These privileges can be granted for specific databases, or globally so that they apply to all databases.
+
+* *Privileges for database objects* such as tables, indexes, views, and stored routines can be granted for specific objects within a database, for all objects of a given type within a database (for example, all tables in a database), or globally for all objects of a given type in all databases. 
+
+=== Grant Tables
+
+The mysql system database includes several grant tables that contain information about user accounts and the privileges held by them.
+
+However, normally you do not modify the grant tables directly. Modifications occur indirectly when you use account-management statements such as `CREATE USER`, `GRANT`, and `REVOKE` to set up accounts and control the privileges available to each one. When you use such statements to perform account manipulations, the server modifies the grant tables on your behalf. 
+
+These mysql database tables contain grant information:
+
+* user: User accounts, static global privileges, and other nonprivilege columns.
+
+* global_grants: Dynamic global privileges.
+
+* db: Database-level privileges.
+
+* tables_priv: Table-level privileges.
+
+* columns_priv: Column-level privileges.
+
+* procs_priv: Stored procedure and function privileges.
+
+* proxies_priv: Proxy-user privileges.
+
+* default_roles: Default user roles.
+
+* role_edges: Edges for role subgraphs.
+
+* password_history: Password change history. 
+
+To check the privileges for a given account, use the `SHOW GRANTS` statement.
+
+[source,sql]
+SHOW GRANTS FOR 'bob'@'pc84.example.com';
+
+To display nonprivilege properties of an account, use `SHOW CREATE` USER:
+
+[source,sql]
+SHOW CREATE USER 'bob'@'pc84.example.com';
+
+=== Specifying Account Names
+
+MySQL account names consist of a user name and a host name, which enables creation of distinct accounts for users with the same user name who connect from different hosts. 
+
+Account names appear in SQL statements such as `CREATE USER`, `GRANT`, and `SET PASSWORD` and follow these rules:
+
+* Account name syntax is `'user_name'@'host_name'`.
+
+* The `@'host_name'` part is optional.
++
+An account name consisting only of a user name is equivalent to `'user_name'@'%'`. For example, `'me'` is equivalent to `'me'@'%'`.
+
+* The user name and host name need not be quoted if they are legal as unquoted identifiers.
++
+Quotes must be used if a user_name string contains special characters (such as space or -), or a host_name string contains special characters or wildcard characters (such as . or %).
++
+For example, in the account name `'test-user'@'%.com'`, both the user name and host name parts require quotes.
+
+* Quote user names and host names as identifiers or as strings, using either backticks (```), single quotation marks (`'`), or double quotation marks (`"`).
+
+*  The user name and host name parts, if quoted, must be quoted separately. That is, write `'me'@'localhost'`, not `'me@localhost'`. The latter is actually equivalent to `'me@localhost'@'%'`.
+
+* A reference to the `CURRENT_USER` or `CURRENT_USER()` function is equivalent to specifying the current client's user name and host name literally. 
++
+[source,console]
+----
+mysql> SELECT CURRENT_USER;
++----------------+
+| CURRENT_USER   |
++----------------+
+| root@localhost |
++----------------+
+1 row in set (0.01 sec)
+
+----
+
+MySQL stores account names in grant tables in the `mysql` system database using separate columns for the user name and host name parts:
+
+* The `user` table contains one row for each account.
+
+** The `User` and `Host` columns store the user name and host name.
+** This table also indicates which global privileges the account has.
+
+* Other grant tables indicate privileges an account has for databases and objects within databases.
+
+** These tables have `User` and `Host` columns to store the account name.
+** Each row in these tables associates with the account in the `user` table that has the same `User` and `Host` values.
+
+* For access-checking purposes, 
+
+** comparisons of `User` values are case-sensitive;
+** comparisons of `Host` values are not case-sensitive. 
+
+User names and host names have certain special values or wildcard conventions, as described following.
+
+An account with a blank user name is an *anonymous user*. To specify an anonymous user in SQL statements, use a quoted empty user name part, such as `''@'localhost'`.
+
+The host name part of an account name can take many forms, and wildcards are permitted:
+
+* A host value can be a host name or an IP address (IPv4 or IPv6).
+
+** The name `'localhost'` indicates the local host.
+** The IP address `'127.0.0.1'` indicates the IPv4 loopback interface.
+** The IP address `'::1'` indicates the IPv6 loopback interface.
+
+* The `%` and `_` wildcard characters are permitted in host name or IP address values. These have the same meaning as for pattern-matching operations performed with the `LIKE` operator.
+
+** A host value of `'%'` matches any host name, whereas a value of `'%.mysql.com'` matches any host in the `mysql.com` domain.
+** `'198.51.100.%'` matches any host in the `198.51.100` class C network.
+
+* MySQL does not perform matching on host names that start with digits and a dot.
+
+* For a host value specified as an IPv4 address, a netmask can be given to indicate how many address bits to use for the network number. Netmask notation cannot be used for IPv6 addresses. 
++
+The syntax is `host_ip/netmask`. For example:
++
+[source,sql]
+CREATE USER 'david'@'198.51.100.0/255.255.255.0';
+
+* As of MySQL 8.0.23, a host value specified as an IPv4 address can be written using CIDR notation, such as `198.51.100.44/24`.
+
+=== Specifying Role Names
+
+MySQL role names refer to roles, which are named collections of privileges.
+
+Role names have syntax and semantics similar to account names. As stored in the grant tables, they have the same properties as account names.
+
+Role names differ from account names in these respects:
+
+* The user part of role names cannot be blank. Thus, there is no “anonymous role” analogous to the concept of “anonymous user.”
+
+* As for an account name, omitting the host part of a role name results in a host part of `'%'`. But unlike `'%'` in an account name, a host part of `'%'` in a role name has no wildcard properties. For example, for a name `'me'@'%'` used as a role name, the host part (`'%'`) is just a literal value; it has no “any host” matching property.
+
+* Netmask notation in the host part of a role name has no significance.
+
+* An account name is permitted to be `CURRENT_USER()` in several contexts. A role name is not. 
+
+=== Access Control, Stage 1: Connection Verification
+
+When you attempt to connect to a MySQL server, the server accepts or rejects the connection based on these conditions:
+
+* Your identity and whether you can verify it by supplying the proper credentials.
+
+* Whether your account is locked or unlocked. 
+
+The server checks credentials first, then account locking state. A failure at either step causes the server to deny access to you completely. Otherwise, the server accepts the connection, and then enters Stage 2 and waits for requests.
+
+The server performs identity and credentials checking using columns in the user table, accepting the connection only if these conditions are satisfied:
+
+* The client host name and user name match the `Host` and `User` columns in some user table row.
+
+* The client supplies the credentials specified in the row (for example, a password), as indicated by the `authentication_string` column. Credentials are interpreted using the authentication plugin named in the `plugin` column.
+
+* The row indicates that the account is unlocked. Locking state is recorded in the `account_locked` column, which must have a value of `'N'`. Account locking can be set or changed with the `CREATE USER` or `ALTER USER` statement. 
+
+The `authentication_string` column can be blank. This is not a wildcard and does not mean that any password matches. It means that the user must connect without specifying a password. The authentication method implemented by the plugin that authenticates the client may or may not use the password in the `authentication_string` column. In this case, it is possible that an external password is also used to authenticate to the MySQL server. 
+
+From MySQL's point of view, the encrypted password is the *real* password, so you should never give anyone access to it. In particular, **do not give nonadministrative users read access to tables in the `mysql` system database**. 
+
+=== Access Control, Stage 2: Request Verification
+
+After the server accepts a connection, it enters Stage 2 of access control. For each request that you issue through the connection, the server determines what operation you want to perform, then checks whether your privileges are sufficient. This is where the privilege columns in the grant tables come into play. These privileges can come from any of the `user`, `global_grants`, `db`, `tables_priv`, `columns_priv`, or `procs_priv` tables.
+
+The `user` and `global_grants` tables grant *global privileges* for a given account indicate the account privileges that apply on a global basis no matter what the default database is.
+
+It is wise to grant privileges in the `user` table only to people who need them, such as database administrators.
+
+For other users, leave all privileges in the user table set to `'N'` and grant privileges at more specific levels only (for particular databases, tables, columns, or routines).
+
+=== Adding Accounts, Assigning Privileges, and Dropping Accounts
+
+To manage MySQL accounts, use the SQL statements intended for that purpose:
+
+* `CREATE USER` and `DROP USER` create and remove accounts.
+
+* `GRANT` and `REVOKE` assign privileges to and revoke privileges from accounts.
+
+* `SHOW GRANTS` displays account privilege assignments. 
+
+==== Creating Accounts and Granting Privileges
+
+The following example uses `CREATE USER` and `GRANT` statements to set up four accounts (where you see `'password'`, substitute an appropriate password): 
+
+[source,sql]
+----
+CREATE USER 'finley' @'localhost' IDENTIFIED BY 'password';
+GRANT ALL ON *.* TO 'finley' @'localhost' WITH
+GRANT OPTION;
+
+CREATE USER 'finley' @'%.example.com' IDENTIFIED BY 'password';
+GRANT ALL ON *.* TO 'finley' @'%.example.com' WITH
+GRANT OPTION;
+
+CREATE USER 'admin' @'localhost' IDENTIFIED BY 'password';
+GRANT RELOAD,
+    PROCESS ON *.* TO 'admin' @'localhost';
+
+CREATE USER 'dummy' @'localhost';
+----
+
+The previous example grants privileges at the global level. The next example creates three accounts and grants them access at lower levels; that is, to specific databases or objects within databases. Each account has a user name of custom, but the host name parts differ:
+
+[source,sql]
+----
+CREATE USER 'custom' @'localhost' IDENTIFIED BY 'password';
+GRANT ALL ON bankaccount.* TO 'custom' @'localhost';
+
+CREATE USER 'custom' @'host47.example.com' IDENTIFIED BY 'password';
+GRANT SELECT,
+    INSERT,
+    UPDATE,
+    DELETE,
+    CREATE,
+    DROP ON expenses.* TO 'custom' @'host47.example.com';
+    
+CREATE USER 'custom' @'%.example.com' IDENTIFIED BY 'password';
+GRANT SELECT,
+    INSERT,
+    UPDATE,
+    DELETE,
+    CREATE,
+    DROP ON customer.addresses TO 'custom' @'%.example.com';
+----
+
+==== Checking Account Privileges and Properties
+
+[source,console]
+----
+mysql> SELECT User,Host FROM mysql.user;
++------------------+--------------------+
+| User             | Host               |
++------------------+--------------------+
+| root             | %                  |
+| custom           | %.example.com      |
+| finley           | %.example.com      |
+| custom           | host47.example.com |
+| admin            | localhost          |
+| custom           | localhost          |
+| dummy            | localhost          |
+| finley           | localhost          |
+| mysql.infoschema | localhost          |
+| mysql.session    | localhost          |
+| mysql.sys        | localhost          |
+| root             | localhost          |
++------------------+--------------------+
+12 rows in set (0.00 sec)
+
+----
+
+To see the privileges for an account, use `SHOW GRANTS`:
+
+[source,console]
+----
+mysql> SHOW GRANTS FOR 'admin'@'localhost';
++-----------------------------------------------------+
+| Grants for admin@localhost                          |
++-----------------------------------------------------+
+| GRANT RELOAD, PROCESS ON *.* TO `admin`@`localhost` |
++-----------------------------------------------------+
+1 row in set (0.00 sec)
+
+----
+
+To see nonprivilege properties for an account, use `SHOW CREATE USER`:
+
+[source,console]
+----
+mysql> SHOW CREATE USER 'admin'@'localhost'\G
+*************************** 1. row ***************************
+CREATE USER for admin@localhost: CREATE USER `admin`@`localhost` IDENTIFIED WITH 'caching_sha2_password' AS '$A$005$d6zqX\nG\'S03)B8Ixmrn5EBoH1Fc4MFp5p07e1AIzknBpHaKaHwdaXpB' REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK PASSWORD HISTORY DEFAULT PASSWORD REUSE INTERVAL DEFAULT PASSWORD REQUIRE CURRENT DEFAULT
+1 row in set (0.00 sec)
+
+----
+
+==== Revoking Account Privileges
+
+To revoke account privileges, use the `REVOKE` statement. Privileges can be revoked at different levels, just as they can be granted at different levels.
+
+* Revoke global privileges:
++
+[source,sql]
+----
+REVOKE ALL
+  ON *.*
+  FROM 'finley'@'%.example.com';
+
+REVOKE RELOAD
+  ON *.*
+  FROM 'admin'@'localhost';
+----
+
+* Revoke database-level privileges:
++
+[source,sql]
+----
+REVOKE CREATE,DROP
+  ON expenses.*
+  FROM 'custom'@'host47.example.com';
+----
+
+* Revoke table-level privileges:
++
+[source,sql]
+----
+REVOKE INSERT,UPDATE,DELETE
+  ON customer.addresses
+  FROM 'custom'@'%.example.com';
+----
+
+To check the effect of privilege revocation, use `SHOW GRANTS`:
+
+[source,console]
+----
+mysql> SHOW GRANTS FOR 'admin'@'localhost';
++---------------------------------------------+
+| Grants for admin@localhost                  |
++---------------------------------------------+
+| GRANT PROCESS ON *.* TO `admin`@`localhost` |
++---------------------------------------------+
+----
+
+==== Dropping Accounts
+
+To remove an account, use the `DROP USER` statement. For example, to drop some of the accounts created previously:
+
+[source,sql]
+----
+DROP USER 'finley'@'localhost';
+DROP USER 'finley'@'%.example.com';
+DROP USER 'admin'@'localhost';
+DROP USER 'dummy'@'localhost';
+----
+
+=== Assigning Account Passwords
+
+To assign a password when you create a new account, use `CREATE USER` and include an `IDENTIFIED BY` clause:
+
+[source,sql]
+CREATE USER 'jeffrey'@'localhost' IDENTIFIED BY 'password';
+
+To assign or change a password for an existing account, use the `ALTER USER` statement with an `IDENTIFIED BY` clause:
+
+[source,sql]
+ALTER USER 'jeffrey'@'localhost' IDENTIFIED BY 'password';
+
+If you are not connected as an anonymous user, you can change your own password without naming your own account literally:
+
+[source,sql]
+ALTER USER USER() IDENTIFIED BY 'password';
+
+=== Account Locking
+
+MySQL supports locking and unlocking user accounts using the `ACCOUNT LOCK` and `ACCOUNT UNLOCK` clauses for the `CREATE USER` and `ALTER USER` statements:
+
+When used with `CREATE USER`, these clauses specify the initial locking state for a new account. In the absence of either clause, the account is created in an unlocked state.
+
+When used with `ALTER USER`, these clauses specify the new locking state for an existing account. In the absence of either clause, the account locking state remains unchanged.
+
+Account locking state is recorded in the account_locked column of the `mysql.user` system table. The output from `SHOW CREATE USER` indicates whether an account is locked or unlocked.
+
+If a client attempts to connect to a locked account, the attempt fails. The server increments the Locked_connects status variable that indicates the number of attempts to connect to a locked account, returns an `ER_ACCOUNT_HAS_BEEN_LOCKED` error, and writes a message to the error log:
+
+[source,console]
+----
+Access denied for user 'user_name'@'host_name'.
+Account is locked.
+----
+
+[source,console]
+----
+mysql> CREATE USER test@localhost IDENTIFIED BY 'pwd';
+Query OK, 0 rows affected (0.02 sec)
+
+mysql> GRANT ALL ON test.* TO test@localhost;
+Query OK, 0 rows affected, 1 warning (0.01 sec)
+
+mysql> SHOW WARNINGS;
++---------+------+--------------------------------------------------------------------------------------------------------------+
+| Level   | Code | Message                                                                                                      |
++---------+------+--------------------------------------------------------------------------------------------------------------+
+| Warning | 1285 | MySQL is started in --skip-name-resolve mode; you must restart it without this switch for this grant to work |
++---------+------+--------------------------------------------------------------------------------------------------------------+
+1 row in set (0.01 sec)
+
+mysql> ALTER USER test@localhost ACCOUNT LOCK;
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> SELECT User,Host,account_locked FROM mysql.user WHERE User='test';
++------+-----------+----------------+
+| User | Host      | account_locked |
++------+-----------+----------------+
+| test | localhost | Y              |
++------+-----------+----------------+
+1 row in set (0.00 sec)
+
+----
+
+[source,console]
+----
+$ docker exec -it mysql8 mysql -u test -p
+Enter password: 
+ERROR 3118 (HY000): Access denied for user 'test'@'localhost'. Account is locked.
+----
+
+[source,console]
+----
+mysql> DROP USER test@localhost;
+Query OK, 0 rows affected (0.01 sec)
+
+----
+
+== Backup and Recovery
+
+:mysqldump: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
+
+It is important to back up your databases so that you can recover your data and be up and running again in case problems occur, such as system crashes, hardware failures, or users deleting data by mistake. Backups are also essential as a safeguard before upgrading a MySQL installation, and they can be used to transfer a MySQL installation to another system or to set up replica servers.
+
+=== Using mysqldump for Backups
+
+{mysqldump}[*mysqldump*] produces two types of output, depending on whether the `--tab` option is given:
+
+* Without `--tab`, mysqldump writes SQL statements to the standard output.
+
+** This output consists of `CREATE` statements to create dumped objects (databases, tables, stored routines, and so forth), and `INSERT` statements to load data into tables.
+
+** The output can be saved in a file and reloaded later using mysql to recreate the dumped objects.
+
+** Options are available to modify the format of the SQL statements, and to control which objects are dumped.
+
+* With `--tab`, mysqldump produces two output files for each dumped table.
+
+** The server writes one file as tab-delimited text, one line per table row.
+
+** This file is named `tbl_name.txt` in the output directory.
+
+** The server also sends a `CREATE TABLE` statement for the table to mysqldump, which writes it as a file named `tbl_name.sql` in the output directory. 
+
+==== Dumping Data in SQL Format with mysqldump
+
+By default, mysqldump writes information as SQL statements to the standard output. You can save the output in a file:
+
+[source,console]
+$ mysqldump [arguments] > file_name
+
+To dump all databases, invoke mysqldump with the `--all-databases` option:
+
+[source,console]
+$ mysqldump --all-databases > dump.sql
+
+To dump only specific databases, name them on the command line and use the `--databases` option:
+
+[source,console]
+$ mysqldump --databases db1 db2 db3 > dump.sql
+
+The `--databases` option causes all names on the command line to be treated as database names. Without this option, mysqldump treats the first name as a database name and those following as table names. 
+
+With `--all-databases` or `--databases`, mysqldump writes `CREATE DATABASE` and `USE` statements prior to the dump output for each database. This ensures that when the dump file is reloaded, it creates each database if it does not exist and makes it the default database so database contents are loaded into the same database from which they came. If you want to cause the dump file to force a drop of each database before recreating it, use the `--add-drop-database` option as well. In this case, mysqldump writes a `DROP DATABASE` statement preceding each `CREATE DATABASE` statement. 
+
+To dump a single database, name it on the command line:
+
+[source,console]
+$> mysqldump --databases test > dump.sql
+
+In the single-database case, it is permissible to omit the `--databases` option:
+
+$> mysqldump test > dump.sql
+
+The difference between the two preceding commands is that without `--databases`, the dump output contains no `CREATE DATABASE` or `USE` statements.
+
+To dump only specific tables from a database, name them on the command line following the database name:
+
+[source,console]
+$> mysqldump test t1 t3 t7 > dump.sql
+
+[source,console]
+----
+$ docker exec -it mysql8 sh -c "mysqldump -u root -p --databases test > /tmp/test.sql"
+Enter password: 
+
+$ docker exec -it mysql8 cat /tmp/test.sql
+-- MySQL dump 10.13  Distrib 8.0.27, for Linux (x86_64)
+--
+-- Host: localhost    Database: test
+-- ------------------------------------------------------
+-- Server version	8.0.27
+...
+-- Dump completed on 2021-12-30  8:07:50
+----
+
+==== Reloading SQL-Format Backups
+
+To reload a dump file written by mysqldump that consists of SQL statements, use it as input to the *mysql* client. If the dump file was created by *mysqldump* with the `--all-databases` or `--databases` option, it contains `CREATE DATABASE` and `USE` statements and it is not necessary to specify a default database into which to load the data:
+
+[source,console]
+$ mysql < dump.sql
+
+Alternatively, from within mysql, use a `source` command:
+
+[source,console]
+mysql> source dump.sql
+
+If the file is a single-database dump not containing `CREATE DATABASE` and `USE` statements, create the database first (if necessary):
+
+[source,console]
+$ mysqladmin create db1
+
+Then specify the database name when you load the dump file:
+
+[source,console]
+$ mysql db1 < dump.sql
+
+Alternatively, from within mysql, create the database, select it as the default database, and load the dump file:
+
+[source,console]
+----
+mysql> CREATE DATABASE IF NOT EXISTS db1;
+mysql> USE db1;
+mysql> source dump.sql
+----
+
+== The InnoDB Storage Engine
+
+image::https://dev.mysql.com/doc/refman/8.0/en/images/innodb-architecture.png[,75%,75%]
 
 == References
 
