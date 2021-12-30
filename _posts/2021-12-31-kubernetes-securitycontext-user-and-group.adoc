@@ -1,0 +1,420 @@
+= Kubernetes Securitycontext, User and Group
+:page-layout: post
+:page-categories: ['kubernetes']
+:page-tags: ['kubernetes', 'container']
+:page-date: 2021-12-31 03:19:38 +0800
+:page-revdate: 2021-12-31 03:19:38 +0800
+:sectnums:
+
+== `USER` instruction at Dockerfile
+
+The `USER` instruction sets the user name (or UID) and optionally the user group (or GID) to use when running the image and for any `RUN`, `CMD` and `ENTRYPOINT` instructions that follow it in the `Dockerfile`.
+
+[source,console]
+----
+$ docker run --rm -it debian:11 id
+uid=0(root) gid=0(root) groups=0(root)
+----
+
+[source,console]
+----
+$ cat Dockerfile 
+FROM debian:11
+USER 2000:2000
+
+$ docker build . -t debian:2022
+[+] Building 0.0s (5/5) FINISHED                                                                                                                                        
+ => [internal] load build definition from Dockerfile                                                                                                               0.0s
+ => => transferring dockerfile: 73B                                                                                                                                0.0s
+ => [internal] load .dockerignore                                                                                                                                  0.0s
+ => => transferring context: 2B                                                                                                                                    0.0s
+ => [internal] load metadata for docker.io/library/debian:11                                                                                                       0.0s
+ => [1/1] FROM docker.io/library/debian:11                                                                                                                         0.0s
+ => exporting to image                                                                                                                                             0.0s
+ => => exporting layers                                                                                                                                            0.0s
+ => => writing image sha256:564a3419a320ccf2cb11a43bfe7025d5fc67cc72590af8bbff1b12f95c6f0229                                                                       0.0s
+ => => naming to docker.io/library/debian:2022                                                                                                                     0.0s
+
+$ docker run --rm -it debian:2022 id
+uid=2022 gid=2022 groups=2022
+
+$ echo philosophia > philosophy
+
+$ chmod 400 philosophy 
+
+$ ls -ln philosophy 
+-r-------- 1 1000 1000 12 Dec 31 03:53 philosophy
+
+$ docker run --rm -it -v $PWD:/tmp debian:2022 ls -ln /tmp/philosophy
+-r-------- 1 1000 1000 12 Dec 30 19:53 /tmp/philosophy
+
+$ docker run --rm -it -v $PWD:/tmp debian:2022 cat /tmp/philosophy
+cat: /tmp/philosophy: Permission denied
+
+$ docker run --user 1000:1000 --rm -it -v $PWD:/tmp debian:2022 id
+uid=1000 gid=1000 groups=1000
+
+$ docker run --user 1000:1000 --rm -it -v $PWD:/tmp debian:2022 cat /tmp/philosophy
+philosophia
+----
+
+== Kubernetes Securitycontext
+
+[source,console]
+----
+$ kubectl explain po.spec.securityContext.runAsUser
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    runAsUser <integer>
+
+DESCRIPTION:
+     The UID to run the entrypoint of the container process. Defaults to user
+     specified in image metadata if unspecified. May also be set in
+     SecurityContext. If set in both SecurityContext and PodSecurityContext, the
+     value specified in SecurityContext takes precedence for that container.
+     Note that this field cannot be set when spec.os.name is windows.
+
+$ kubectl explain po.spec.securityContext.runAsGroup
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    runAsGroup <integer>
+
+DESCRIPTION:
+     The GID to run the entrypoint of the container process. Uses runtime
+     default if unset. May also be set in SecurityContext. If set in both
+     SecurityContext and PodSecurityContext, the value specified in
+     SecurityContext takes precedence for that container. Note that this field
+     cannot be set when spec.os.name is windows.
+
+$ kubectl explain po.spec.securityContext.fsGroup
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    fsGroup <integer>
+
+DESCRIPTION:
+     A special supplemental group that applies to all containers in a pod. Some
+     volume types allow the Kubelet to change the ownership of that volume to be
+     owned by the pod:
+
+     1. The owning GID will be the FSGroup 2. The setgid bit is set (new files
+     created in the volume will be owned by FSGroup) 3. The permission bits are
+     OR'd with rw-rw----
+
+     If unset, the Kubelet will not modify the ownership and permissions of any
+     volume. Note that this field cannot be set when spec.os.name is windows.
+
+$ kubectl explain po.spec.securityContext.runAsNonRoot
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    runAsNonRoot <boolean>
+
+DESCRIPTION:
+     Indicates that the container must run as a non-root user. If true, the
+     Kubelet will validate the image at runtime to ensure that it does not run
+     as UID 0 (root) and fail to start the container if it does. If unset or
+     false, no such validation will be performed. May also be set in
+     SecurityContext. If set in both SecurityContext and PodSecurityContext, the
+     value specified in SecurityContext takes precedence.
+
+$ kubectl explain po.spec.containers.securityContext.runAsUser
+$ kubectl explain po.spec.containers.securityContext.runAsGroup
+$ kubectl explain po.spec.containers.securityContext.runAsNonRoot
+
+$ kubectl explain po.spec.containers.securityContext.privileged
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    privileged <boolean>
+
+DESCRIPTION:
+     Run container in privileged mode. Processes in privileged containers are
+     essentially equivalent to root on the host. Defaults to false. Note that
+     this field cannot be set when spec.os.name is windows.
+
+$ kubectl explain po.spec.containers.securityContext.allowPrivilegeEscalation
+KIND:     Pod
+VERSION:  v1
+
+FIELD:    allowPrivilegeEscalation <boolean>
+
+DESCRIPTION:
+     AllowPrivilegeEscalation controls whether a process can gain more
+     privileges than its parent process. This bool directly controls if the
+     no_new_privs flag will be set on the container process.
+     AllowPrivilegeEscalation is true always when the container is: 1) run as
+     Privileged 2) has CAP_SYS_ADMIN Note that this field cannot be set when
+     spec.os.name is windows.
+
+$ kubectl explain po.spec.containers.securityContext.capabilities
+KIND:     Pod
+VERSION:  v1
+
+RESOURCE: capabilities <Object>
+
+DESCRIPTION:
+     The capabilities to add/drop when running containers. Defaults to the
+     default set of capabilities granted by the container runtime. Note that
+     this field cannot be set when spec.os.name is windows.
+
+     Adds and removes POSIX capabilities from running containers.
+
+FIELDS:
+   add	<[]string>
+     Added capabilities
+
+   drop	<[]string>
+     Removed capabilities
+----
+
+[source,console]
+----
+$ cat sec-01.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-01
+spec:
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+$ kubectl create -f sec-01.yaml 
+pod/sec-01 created
+
+$ kubectl exec -it sec-01 -- id
+uid=0(root) gid=0(root) groups=0(root)
+----
+
+[source,console]
+----
+$ cat sec-02.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-02
+spec:
+  containers:
+    - image: debian:2022
+      name: debian
+      stdin: true
+      tty: true
+
+$ kubectl create -f sec-02.yaml 
+pod/sec-02 created
+
+$ kubectl exec -it sec-02 -- id
+uid=2022 gid=0(root) groups=0(root)
+----
+
+[source,console]
+----
+$ cat sec-03.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-02
+spec:
+  securityContext:
+    runAsUser: 2022
+    runAsGroup: 2022
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+$ kubectl create -f sec-03.yaml 
+pod/sec-03 created
+
+$ kubectl exec -it sec-03 -- id
+uid=2022 gid=2022 groups=2022
+----
+
+[source,console]
+----
+$ cat sec-04.yaml 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sec-04
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  local:
+    path: /testdata
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  volumeMode: Filesystem
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sec-04
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    limits:
+      storage: 5Gi
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage
+  volumeMode: Filesystem
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-04
+spec:
+  securityContext:
+    runAsUser: 2022
+    runAsGroup: 2022
+    fsGroup: 3300
+  volumes:
+    - name: testdata
+      persistentVolumeClaim:
+        claimName: sec-04
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+      workingDir: /testdata
+      volumeMounts:
+        - mountPath: /testdata
+          name: testdata
+
+$ kubectl create -f sec-04.yaml 
+persistentvolume/sec-04 created
+persistentvolumeclaim/sec-04 created
+pod/sec-04 created
+
+$ kubectl exec -it sec-04 -- id
+uid=2022 gid=2022 groups=2022,3300
+
+$ kubectl exec -it sec-04 -- ls -ld
+drwxrwsr-x 2 root 3300 4096 Dec 30 21:15 .
+
+$ kubectl exec -it sec-04 -- touch testfile
+
+$ kubectl exec -it sec-04 -- ls -l
+total 0
+-rw-r--r-- 1 2022 3300 0 Dec 30 21:15 testfile
+----
+
+[source,console]
+----
+$ cat sec-05.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-05
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+$ kubectl create -f sec-05.yaml 
+pod/sec-05 created
+
+$ kubectl get po sec-05 
+NAME     READY   STATUS                       RESTARTS   AGE
+sec-05   0/1     CreateContainerConfigError   0          6s
+
+$ kubectl describe po sec-05 
+...
+Events:
+  Type     Reason          Age               From               Message
+  ----     ------          ----              ----               -------
+  Normal   Scheduled       16s               default-scheduler  Successfully assigned default/sec-05 to far-seer-01
+  Normal   SandboxChanged  15s               kubelet            Pod sandbox changed, it will be killed and re-created.
+  Normal   Pulled          2s (x5 over 16s)  kubelet            Container image "debian:11" already present on machine
+  Warning  Failed          2s (x5 over 16s)  kubelet            Error: container has runAsNonRoot and image will run as root (pod: "sec-05_default(7cc40d5a-d4da-4a95-9ad4-bc787b803eb4)", container: debian)
+----
+
+[source,console]
+----
+$ cat sec-06.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-06
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+      securityContext:
+        runAsUser: 3000
+
+$ kubectl create -f sec-06.yaml 
+pod/sec-06 created
+
+$ kubectl get po sec-06 
+NAME     READY   STATUS    RESTARTS   AGE
+sec-06   1/1     Running   0          16s
+----
+
+== Pod Security Policy
+
+[source,console]
+----
+$ kubectl explain psp.spec
+KIND:     PodSecurityPolicy
+VERSION:  policy/v1beta1
+
+RESOURCE: spec <Object>
+
+DESCRIPTION:
+     spec defines the policy enforced.
+
+     PodSecurityPolicySpec defines the policy enforced.
+
+FIELDS:
+   allowPrivilegeEscalation	<boolean>
+     allowPrivilegeEscalation determines if a pod can request to allow privilege
+     escalation. If unspecified, defaults to true.
+
+   allowedCapabilities	<[]string>
+     allowedCapabilities is a list of capabilities that can be requested to add
+     to the container. Capabilities in this field may be added at the pod
+     author's discretion. You must not list a capability in both
+     allowedCapabilities and requiredDropCapabilities.
+
+   privileged	<boolean>
+     privileged determines if a pod can request to be run as privileged.
+
+   requiredDropCapabilities	<[]string>
+     requiredDropCapabilities are the capabilities that will be dropped from the
+     container. These are required to be dropped and cannot be added.
+
+   seLinux	<Object> -required-
+     seLinux is the strategy that will dictate the allowable labels that may be
+     set.
+
+----
