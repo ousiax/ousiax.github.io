@@ -418,3 +418,298 @@ FIELDS:
      set.
 
 ----
+
+Pod security policy control is implemented as an optional admission controller, and policies are enforced by enabling the admission controller, but doing so without authorizing any policies will prevent any pods from being created in the cluster.
+
+[source,console]
+----
+$ kubectl describe po -n kube-system kube-apiserver-node-01 | grep -- '--enable-admission-plugins' 
+      --enable-admission-plugins=NodeRestriction
+----
+
+The Kubernetes API server flag `enable-admission-plugins` takes a comma-delimited list of admission control plugins to invoke prior to modifying objects in the cluster. 
+
+Open kube-apiserver manifest at `/etc/kubernetes/manifests/kube-apiserver.yaml` and edit the server flag `enable-admission-plugin` to append `PodSecurityPolicy`.
+
+[source,console]
+----
+$ sudo cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep -- '--enable-admission-plugins'
+    - --enable-admission-plugins=NodeRestriction,PodSecurityPolicy
+      #- --enable-admission-plugins=NodeRestriction
+----
+
+[source,console]
+----
+kubelet[316726]: E0104 12:50:20.738992  316726 kubelet.go:1711] "Failed creating a mirror pod for" err="pods \"kube-apiserver-node-01\" is forbidden: PodSecurityPolicy: unable to admit pod: []" pod="kube-system/kube-apiserver-node-01"
+----
+
+To let kubelet to create and sync `kube-apiserver` pod when enabled the pod security policy control, we need to create a system `PodSecurityPolicy` for group `system:authenticated` in  namespace `kube-system`. 
+
+[source,console]
+----
+$ cat psp-privileged.yaml 
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: psp-privileged.local.io
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  privileged: true
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+    - '*'
+  volumes:
+    - '*'
+  hostNetwork: true
+  hostPorts:
+    - min: 0
+      max: 65535
+  hostIPC: true
+  hostPID: true
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+$ kubectl apply -f psp-privileged.yaml 
+Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/psp-privileged.local.io created
+
+$ kubectl create clusterrole psp-privileged.local.io \
+    --resource podsecuritypolicy \
+    --resource-name psp-privileged.local.io \
+    --verb use
+clusterrole.rbac.authorization.k8s.io/psp-privileged.local.io created
+
+$ kubectl create rolebinding psp-privileged.local.io \
+    --clusterrole psp-privileged.local.io \
+    --group system:authenticated \
+    -n kube-system
+rolebinding.rbac.authorization.k8s.io/psp-privileged.local.io created
+
+$ kubectl describe po \
+    -n kube-system kube-apiserver-node-01 | grep -- '--enable-admission-plugins'
+      --enable-admission-plugins=NodeRestriction,PodSecurityPolicy
+----
+
+[source,console]
+----
+$ cat psp-unprivileged.yaml 
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: psp-unprivileged.local.io
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+    #allowedCapabilities:
+    #  - '*'
+  requiredDropCapabilities:
+    - SYS_ADMIN
+  volumes:
+    - configMap
+    - projected
+    - secret
+    - downwardAPI
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: MustRunAsNonRoot
+      #rule: MustRunAs
+      #ranges:
+      #  - min: 1
+      #    max: 65535
+  runAsGroup:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+
+$ kubectl apply -f psp-unprivileged.yaml 
+Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/psp-unprivileged.local.io created
+
+$ kubectl create ns test
+namespace/test created
+
+$ kubectl create \
+    -n test rolebinding edit:sa:default \
+    --clusterrole edit \
+    --serviceaccount test:default
+rolebinding.rbac.authorization.k8s.io/edit:sa:default created
+
+$ cat sec-07.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-07
+spec:
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+$ kubectl --as system:serviceaccount:test:default create -f sec-07.yaml 
+Error from server (Forbidden): error when creating "sec-07.yaml": pods "sec-07" is forbidden: PodSecurityPolicy: unable to admit pod: []
+
+$ kubectl create clusterrole psp-unprivileged.local.io \
+    --resource podsecuritypolicy \
+    --resource-name psp-unprivileged.local.io
+error: at least one verb must be specified
+
+$ kubectl create clusterrole psp-unprivileged.local.io \
+    --resource podsecuritypolicy \
+    --resource-name psp-unprivileged.local.io \
+    --verb use
+clusterrole.rbac.authorization.k8s.io/psp-unprivileged.local.io created
+
+$ kubectl create rolebinding \
+    -n test psp-unprivileged.local.io \
+    --clusterrole psp-unprivileged.local.io \
+    --group system:authenticated
+rolebinding.rbac.authorization.k8s.io/psp-unprivileged.local.io created
+
+$ kubectl --as system:serviceaccount:test:default create \
+    -n test \
+    -f sec-07.yaml 
+pod/sec-07 created
+
+$ kubectl get pod
+NAME     READY   STATUS                       RESTARTS   AGE
+sec-07   0/1     CreateContainerConfigError   0          5s
+
+$ kubectl describe po sec-07
+...
+Events:
+  ----     ------     ----              ----               -------
+  ...
+  Warning  Failed     1s (x3 over 13s)  kubelet            Error: container has runAsNonRoot and image will run as root (pod: "sec-07_test(6aac2153-3869-407f-bad0-9ba5c0f084da)", container: debian)
+
+$ cat sec-08.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-08
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+$ kubectl --as system:serviceaccount:test:default create \
+    -n test \
+    -f sec-08.yaml 
+pod/sec-08 created
+
+$ kubectl get po
+NAME     READY   STATUS                       RESTARTS   AGE
+sec-07   0/1     CreateContainerConfigError   0          3m15s
+sec-08   1/1     Running                      0          3s
+
+$ kubectl exec -it sec-08 -- id
+uid=1000 gid=1(daemon) groups=1(daemon)
+----
+
+[source,console]
+----
+$ ls
+Dockerfile  go.mod  main.go
+
+$ cat go.mod 
+module helloworld
+
+go 1.17
+
+$ cat main.go 
+package main
+
+import (
+	"flag"
+	"fmt"
+	"net/http"
+)
+
+var (
+	port int
+)
+
+func main() {
+	flag.IntVar(&port, "port", 8080, "listening port.")
+	flag.Parse()
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello World.\n"))
+	})
+
+	addr := fmt.Sprintf(":%d", port)
+	fmt.Printf("Starting at %s", addr)
+	http.ListenAndServe(addr, nil)
+}
+
+$ cat Dockerfile 
+FROM golang:1.17-bullseye
+WORKDIR /build
+COPY go.* ./
+RUN go mod download
+
+COPY main.go main.go
+RUN go build -o helloworld
+
+FROM debian:bullseye-slim
+COPY --from=0 /build/helloworld /helloworld
+ENTRYPOINT ["/helloworld"]
+
+$ docker build . -t helloworld:v0.1
+[+] Building 2.5s (14/14) FINISHED                                                                                                                                      
+...
+
+$ cat sec-09.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-09
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+    - image: helloworld:v0.1
+      name: helloworld
+      args:
+        - --port=80
+
+$ kubectl create -n test -f sec-09.yaml 
+pod/sec-09 created
+
+$ kubectl get po sec-09 
+NAME     READY   STATUS    RESTARTS   AGE
+sec-09   1/1     Running   0          6s
+
+$ kubectl port-forward pod/sec-09 5000:80 2>&1 > /dev/null &
+[1] 426388
+
+$ curl localhost:5000
+Hello World.
+
+----
