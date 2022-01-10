@@ -435,7 +435,85 @@ When an output plugin is loaded, an internal instance is created. Every instance
 
 === Configuring Fluent Bit
 
-//TODO
+==== Format and Schema
+
+Fluent Bit might optionally use a configuration file to define how the service will behave.
+
+A simple example of a configuration file is as follows:
+
+[source,text]
+----
+[SERVICE]
+    # This is a commented line
+    Daemon    off
+    log_level debug
+----
+
+The configuration schema is defined by three concepts:
+
+* Sections
++
+A *section* is defined by a name or title inside brackets. Looking at the example above, a Service section has been set using `[SERVICE]` definition. Section rules:
++
+** All section content must be indented (4 spaces ideally).
+** Multiple sections can exist on the same file.
+** A section is expected to have comments and entries, it cannot be empty.
+** Any commented line under a section, must be indented too.
+
+* Entries: Key/Value
++
+A section may contain *Entries*, an entry is defined by a line of text that contains a *Key* and a *Value*, using the above example, the `[SERVICE]` section contains two entries, one is the key `Daemon` with value `off` and the other is the key `Log_Level` with the value `debug`. Entries rules:
++
+** An entry is defined by a key and a value.
+** A key must be indented.
+** A key must contain a value which ends in the breakline.
+** Multiple keys with the same name can exist.
++
+Also commented lines are set prefixing the # character, those lines are not processed but they must be indented too.
+
+* Indented Configuration Mode
++
+Fluent Bit configuration files are based in a strict *Indented Mode*, that means that each configuration file must follow the same pattern of alignment from left to right when writing text. By default an indentation level of four spaces from left to right is suggested.
+
+One of the ways to configure Fluent Bit is using a main configuration file. The main configuration file supports four types of sections: *Service*, *Input*, *Filter*, *Output*. In addition, it's also possible to split the main configuration file in multiple files using the feature to include external files: Include File.
+
+The following configuration file example demonstrates how to collect CPU metrics and flush the results every five seconds to the standard output:
+
+[source,text]
+----
+[SERVICE]
+    Flush     5
+    Daemon    off
+    Log_Level debug
+
+[INPUT]
+    Name  cpu
+    Tag   my_cpu
+
+[OUTPUT]
+    Name  stdout
+    Match my*cpu
+----
+
+To avoid complicated long configuration files is better to split specific parts in different files and call them (include) from one main file.
+
+Starting from Fluent Bit 0.12 the new configuration command @INCLUDE has been added and can be used in the following way:
+
+[source,text]
+----
+@INCLUDE somefile.conf
+----
+
+The configuration reader will try to open the path somefile.conf, if not found, it will assume it's a relative path based on the path of the base configuration file.
+
+The *@INCLUDE* command only works at top-left level of the configuration line, it cannot be used inside sections.
+
+Wildcard character (`*`) is supported to include multiple files, e.g:
+
+[source,text]
+----
+@INCLUDE input_*.conf
+----
 
 === Docker
 
@@ -518,11 +596,12 @@ Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Sys
 
 == References
 
-* https://docs.fluentbit.io/
-* https://docs.fluentbit.io/manual/installation/kubernetes
-* https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
 * https://kubernetes.io/docs/concepts/cluster-administration/logging/
 * https://docs.docker.com/config/containers/logging/json-file/
 * https://github.com/kubernetes/kubernetes/issues/53022
 * https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-cri-logging.md
+* https://docs.fluentbit.io/
+* https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file
+* https://docs.fluentbit.io/manual/installation/kubernetes
+* https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
 * https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
