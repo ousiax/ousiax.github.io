@@ -435,8 +435,6 @@ When an output plugin is loaded, an internal instance is created. Every instance
 
 === Configuring Fluent Bit
 
-==== Format and Schema
-
 Fluent Bit might optionally use a configuration file to define how the service will behave.
 
 A simple example of a configuration file is as follows:
@@ -515,6 +513,17 @@ Wildcard character (`*`) is supported to include multiple files, e.g:
 @INCLUDE input_*.conf
 ----
 
+Fluent Bit supports the usage of *environment variables* in any value associated to a key when using a configuration file.
+
+The variables are case sensitive and can be used in the following format:
+
+[source,text]
+----
+${MY_VARIABLE}
+----
+
+When Fluent Bit starts, the configuration reader will detect any request for `${MY_VARIABLE}` and will try to resolve its value.
+
 === Docker
 
 Fluent Bit container images are available on Docker Hub ready for production usage. Current available images can be deployed in multiple architectures.
@@ -575,7 +584,7 @@ To obtain this information, a built-in filter plugin called {filters-kubernetes}
 
 Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Systemd] input plugins to process and enrich records with Kubernetes metadata. Here we will explain the workflow of Tail and how it configuration is correlated with Kubernetes filter. Consider the following configuration example (just for demo purposes, not production):
 
-[source,conf]
+[source,text]
 ----
 [INPUT]
     Name    tail
@@ -594,6 +603,41 @@ Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Sys
     Merge_Log_Key    log_processed
 ----
 
+:inputs-systemd: https://docs.fluentbit.io/manual/pipeline/inputs/systemd
+:inputs-tail: https://docs.fluentbit.io/manual/pipeline/inputs/tail
+:multiline-parsing: https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/multiline-parsing
+
+* Systemd
++
+The {inputs-systemd}[*systemd*] input plugin allows to collect log messages from the *Journald* daemon on Linux environments.
++
+[source,text]
+----
+[INPUT]
+    Name            systemd
+    Tag             host.*
+    Systemd_Filter  _SYSTEMD_UNIT=docker.service
+----
+
+* Tail
++
+The {inputs-tail}[*tail*] input plugin allows to monitor one or several text files. It has a similar behavior like `tail -f` shell command.
++
+The plugin reads every matched file in the *Path* pattern and for every new line found, it generates a new record. Optionally a database file can be used so the plugin can have a history of tracked files and a state of offsets, this is very useful to resume a state if the service is restarted.
++
+If you are running Fluent Bit to process logs coming from containers like Docker or CRI, you can use the new {multiline-parsing}[built-in modes] for such purposes. This will help to reassembly *multiline messages* originally split by Docker or CRI:
++
+[source,text]
+----
+[INPUT]
+    name              tail
+    path              /var/log/containers/*.log
+    #exclude_path      /var/log/containers/*_logging_*.log,/var/log/containers/*_default*.log
+    multiline.parser  docker, cri
+----
++
+The two options separated by a comma means multi-format: try `docker` and `cri` multiline formats.
+
 == References
 
 * https://kubernetes.io/docs/concepts/cluster-administration/logging/
@@ -603,5 +647,7 @@ Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Sys
 * https://docs.fluentbit.io/
 * https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file
 * https://docs.fluentbit.io/manual/installation/kubernetes
-* https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
 * https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
+* https://docs.fluentbit.io/manual/pipeline/inputs/tail
+* https://docs.fluentbit.io/manual/pipeline/inputs/systemd
+* https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
