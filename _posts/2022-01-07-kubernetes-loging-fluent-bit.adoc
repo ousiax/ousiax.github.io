@@ -390,20 +390,20 @@ Consider the following configuration example that aims to deliver CPU metrics to
 [source,conf]
 ----
 [INPUT]
-    Name cpu
-    Tag  my_cpu
+    name cpu
+    tag  my_cpu
 
 [INPUT]
-    Name mem
-    Tag  my_mem
+    name mem
+    tag  my_mem
 
 [OUTPUT]
-    Name   es
-    Match  my_cpu
+    name   es
+    match  my_cpu
 
 [OUTPUT]
-    Name   stdout
-    Match  my_mem
+    name   stdout
+    match  my_mem
 ----
 +
 Routing works automatically reading the Input Tags and the Output Match rules. If some data has a Tag that doesn't match upon routing time, the data is deleted.
@@ -413,16 +413,16 @@ Routing is flexible enough to support *wildcard* in the Match pattern. The below
 [source,conf]
 ----
 [INPUT]
-    Name cpu
-    Tag  my_cpu
+    name cpu
+    tag  my_cpu
 
 [INPUT]
-    Name mem
-    Tag  my_mem
+    name mem
+    tag  my_mem
 
 [OUTPUT]
-    Name   stdout
-    Match  my_*
+    name   stdout
+    match  my_*
 ----
 +
 The match rule is set to `my_*` which means it will match any Tag that starts with `my_`.
@@ -445,13 +445,13 @@ A simple example of a configuration file is as follows:
 ----
 [SERVICE]
     # This is a commented line
-    Daemon    off
+    daemon    off
     log_level debug
 ----
 
 The configuration schema is defined by three concepts:
 
-* Sections
+* *Sections*
 +
 A *section* is defined by a name or title inside brackets. Looking at the example above, a Service section has been set using `[SERVICE]` definition. Section rules:
 +
@@ -460,7 +460,7 @@ A *section* is defined by a name or title inside brackets. Looking at the exampl
 ** A section is expected to have comments and entries, it cannot be empty.
 ** Any commented line under a section, must be indented too.
 
-* Entries: Key/Value
+* *Entries*: Key/Value
 +
 A section may contain *Entries*, an entry is defined by a line of text that contains a *Key* and a *Value*, using the above example, the `[SERVICE]` section contains two entries, one is the key `Daemon` with value `off` and the other is the key `Log_Level` with the value `debug`. Entries rules:
 +
@@ -471,7 +471,7 @@ A section may contain *Entries*, an entry is defined by a line of text that cont
 +
 Also commented lines are set prefixing the # character, those lines are not processed but they must be indented too.
 
-* Indented Configuration Mode
+* *Indented* Configuration Mode
 +
 Fluent Bit configuration files are based in a strict *Indented Mode*, that means that each configuration file must follow the same pattern of alignment from left to right when writing text. By default an indentation level of four spaces from left to right is suggested.
 
@@ -482,17 +482,17 @@ The following configuration file example demonstrates how to collect CPU metrics
 [source,text]
 ----
 [SERVICE]
-    Flush     5
-    Daemon    off
-    Log_Level debug
+    flush     5
+    daemon    off
+    log_level debug
 
 [INPUT]
-    Name  cpu
-    Tag   my_cpu
+    name  cpu
+    tag   my_cpu
 
 [OUTPUT]
-    Name  stdout
-    Match my*cpu
+    name  stdout
+    match my*cpu
 ----
 
 To avoid complicated long configuration files is better to split specific parts in different files and call them (include) from one main file.
@@ -525,6 +525,354 @@ ${MY_VARIABLE}
 ----
 
 When Fluent Bit starts, the configuration reader will detect any request for `${MY_VARIABLE}` and will try to resolve its value.
+
+=== Parsers
+
+:parsers-json: https://docs.fluentbit.io/manual/pipeline/parsers/json
+:parsers-regular-expression: https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression
+
+Parsers are an important component of Fluent Bit, with them you can take any unstructured log entry and give them a structure that makes easier it processing and further filtering.
+
+The parser engine is fully configurable and can process log entries based in two types of format:
+
+* {parsers-json}[JSON Maps]
+* {parsers-regular-expression}[Regular Expressions] (named capture)
+
+By default, Fluent Bit provides a set of pre-configured parsers that can be used for different use cases such as logs from:
+
+* Apache
+* Nginx
+* Docker
+* Syslog rfc5424
+* Syslog rfc3164
+
+Parsers are defined in one or multiple configuration files that are loaded at start time, either from the command line or through the main Fluent Bit configuration file.
+
+Note: If you are using Regular Expressions note that Fluent Bit uses Ruby based regular expressions and we encourage to use http://www.rubular.com/[*Rubular*] web site as an online editor to test them.
+
+Multiple parsers can be defined and each section has it own *properties*. The following table describes the available options for each parser definition:
+
+[%header,cols="1,5"]
+|===
+|Key
+|Description
+
+|Name
+|Set an unique name for the parser in question.
+
+|Format
+|Specify the format of the parser, the available options here are: `json`, `regex`, `ltsv` or `logfmt`.
+
+|Regex
+|If format is `regex`, this option must be set specifying the Ruby Regular Expression that will be used to parse and compose the structured message.
+
+|Time_Key
+|If the log entry provides a field with a timestamp, this option specify the name of that field.
+
+|Time_Format
+|Specify the format of the time field so it can be recognized and analyzed properly. Fluent-bit uses `strptime(3)`  to parse time so you can ferer to https://linux.die.net/man/3/strptime[strptime documentation] for available modifiers.
+
+|Time_Offset
+|Specify a fixed UTC time offset (e.g. -0600, +0200, etc.) for local dates.
+
+|Types
+|Specify the data type of parsed field. The syntax is types `<field_name_1>:<type_name_1> <field_name_2>:<type_name_2> ...`. The supported types are `string`(default), `integer`, `bool`, `float`, `hex`. The option is supported by `ltsv`, `logfmt` and `regex`.
+
+|Decode_Field
+|Decode a field value, the only decoder available is `json`. The syntax is: `Decode_Field json <field_name>`.
+
+|===
+
+All parsers must be defined in a *parsers.conf* file, not in the Fluent Bit global configuration file. The parsers file expose all parsers available that can be used by the Input plugins that are aware of this feature.
+
+* *JSON* Parser
++
+The {parsers-json}[*JSON*] parser is the simplest option: if the original log source is a JSON map string, it will take it structure and convert it directly to the internal binary representation.
++
+A simple configuration that can be found in the default parsers configuration file, is the entry to parse Docker log files (when the tail input plugin is used):
++
+[source,text]
+----
+[PARSER]
+    name        docker
+    format      json
+    time_key    time
+    time_format %Y-%m-%dT%H:%M:%S %z
+----
++
+The following log entry is a valid content for the parser defined above:
++
+[source,json]
+----
+{"key1": 12345, "key2": "abc", "time": "2006-07-28T13:22:04Z"}
+----
++
+After processing, it internal representation will be:
++
+[source,text]
+----
+[1154103724, {"key1"=>12345, "key2"=>"abc"}]
+----
++
+The time has been converted to Unix timestamp (UTC) and the map reduced to each component of the original message.
+
+* *Regex* Parser
++
+The {parsers-regular-expression}[*regex*] parser allows to define a custom Ruby Regular Expression that will use a named capture feature to define which content belongs to which key name.
++
+The following parser configuration example aims to provide rules that can be applied to a Nginx https://nginx.org/en/docs/http/ngx_http_log_module.html[combined] access log entry:
++
+[source,text]
+----
+[PARSER]
+    name   nginx
+    format regex
+    # log_format combined '$remote_addr - $remote_user [$time_local] ' '"$request" $status $body_bytes_sent ''"$http_referer" "$http_user_agent"';
+    regex ^(?<remote_addr>[^ ]+) - (?<remote_user>[^ ]+) \[(?<time>[^\]]+)\] "(?<method>\w+) (?<path>[^ ]+) (?<proto>[^"]+)" (?<status>\d+) (?<body_byte_sent>\d+) "(?<referer>[^"]+)" "(?<user_agent>[^"]+)"$
+    time_key time
+    time_format %d/%b/%Y:%H:%M:%S %z
+    types status:integer body_byte_sent:integer
+----
++
+As an example, takes the following Nginx access log entry:
++
+[source,text]
+----
+192.168.91.1 - - [12/Jan/2022:08:24:28 +0000] "GET / HTTP/1.1" 200 615 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
+----
++
+The above content do not provide a defined structure for Fluent Bit, but enabling the proper parser we can help to make a structured representation of it:
++
+[source,text]
+----
+[
+  1641975868.000000000,
+  {
+    "remote_addr"=>"192.168.91.1",
+    "remote_user"=>"-",
+    "method"=>"GET",
+    "path"=>"/",
+    "proto"=>"HTTP/1.1",
+    "status"=>200,
+    "body_byte_sent"=>615,
+    "referer"=>"-",
+    "user_agent"=>"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
+  }
+]
+----
++
+A common pitfall is that you cannot use characters other than alphabets, numbers and underscore in group names. For example, a group name like `(?<user-name>.*)` will cause an error due to containing an invalid character (`-`).
+
+===  Parser Filter
+
+:filters-parser: https://docs.fluentbit.io/manual/pipeline/filters/parser
+
+The {filters-parser}[*Parser Filter*] plugin allows for parsing fields in event records.
+
+The plugin supports the following configuration parameters:
+
+[%header,cols="1,9,1"]
+|===
+|Key
+|Description
+|Default
+
+|Key_Name
+|Specify field name in record to parse.
+|
+
+|Parser
+|Specify the parser name to interpret the field. Multiple Parser entries are allowed (one per line).
+|
+
+|Preserve_Key
+|Keep original `Key_Name` field in the parsed result. If false, the field will be removed.
+|False
+
+|Reserve_Data
+|Keep all other original fields in the parsed result. If false, all other original fields will be removed.
+|False
+
+|Unescape_Key
+|If the key is an escaped string (e.g: stringify JSON), unescape the string before applying the parser.
+|False
+
+|===
+
+This is an example of parsing a record `{"data":"100 0.5 true This is example"}`.
+
+The plugin needs a parser file which defines how to parse each field.
+
+.etc/parsers.conf
+[source,text]
+----
+[PARSER]
+    name dummy_test
+    format regex
+    regex ^(?<INT>[^ ]+) (?<FLOAT>[^ ]+) (?<BOOL>[^ ]+) (?<STRING>.+)$
+----
+
+The path of the parser file should be written in configuration file under the `[SERVICE]` section.
+
+.etc/fluent-bit.conf
+[source,text]
+----
+[SERVICE]
+    parsers_file parsers.conf
+
+[INPUT]
+    name dummy
+    tag  dummy.data
+    dummy {"data":"100 0.5 true This is example"}
+    samples 3
+
+[FILTER]
+    name parser
+    match dummy.*
+    key_name data
+    parser dummy_test
+
+[OUTPUT]
+    name stdout
+    match *
+----
+
+The raw output *before* parser filtering is:
+
+[source,console]
+----
+docker run --rm  \
+    fluent/fluent-bit:1.8 \
+    /fluent-bit/bin/fluent-bit -q \
+    -i dummy \
+    -p 'tag=dummy.data' \
+    -p 'samples=3' \
+    -p 'dummy={"data":"100 0.5 true This is example"}' \
+    -o stdout
+
+[0] dummy.data: [1641963560.833349997, {"data"=>"100 0.5 true This is example"}]
+[1] dummy.data: [1641963561.834293264, {"data"=>"100 0.5 true This is example"}]
+[2] dummy.data: [1641963562.834409396, {"data"=>"100 0.5 true This is example"}]
+----
+
+
+The output after parser filtering is:
+
+[source,console,highlight="2,5"]
+----
+$ docker run --rm \
+    -v $PWD/etc:/etc/fluent-bit \
+    fluent/fluent-bit:1.8 \
+    /fluent-bit/bin/fluent-bit -q \
+    -c /etc/fluent-bit/fluent-bit.conf
+
+[0] dummy.data: [1641970270.834847487, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
+[1] dummy.data: [1641970271.833919275, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
+[2] dummy.data: [1641970272.834001854, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
+----
+
+By default, the parser plugin only keeps the parsed fields in its output.
+
+If you enable `Reserve_Data`, all other fields are preserved:
+
+.etc2/parsers.conf
+[source,text]
+----
+[PARSER]
+    name dummy_test
+    format regex
+    regex ^(?<INT>[^ ]+) (?<FLOAT>[^ ]+) (?<BOOL>[^ ]+) (?<STRING>.+)$
+----
+
+.etc2/fluent-bit.conf
+[source,text,highlight='15']
+----
+[SERVICE]
+    parsers_file parsers.conf
+
+[INPUT]
+    name dummy
+    tag  dummy.data
+    dummy {"data":"100 0.5 true This is example", "key1":"value1", "key2":"value2"}
+    samples 3
+
+[FILTER]
+    name parser
+    match dummy.*
+    key_name data
+    parser dummy_test
+    reserve_data on
+
+[OUTPUT]
+    name stdout
+    match *
+----
+
+This will produce the output:
+
+[source,console,highlight="2"]
+----
+$ docker run --rm \
+    -v $PWD/etc2:/etc/fluent-bit \
+    fluent/fluent-bit:1.8 \
+    /fluent-bit/bin/fluent-bit -q \
+    -c /etc/fluent-bit/fluent-bit.conf
+
+[0] dummy.data: [1641971163.834882081, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "key1"=>"value1", "key2"=>"value2"}]
+[1] dummy.data: [1641971164.834110226, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "key1"=>"value1", "key2"=>"value2"}]
+[2] dummy.data: [1641971165.833051479, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "key1"=>"value1", "key2"=>"value2"}]
+----
+
+If you enable `Reserved_Data` and `Preserve_Key`, the original key field will be preserved as well:
+
+.etc3/parsers.conf
+[source,text]
+----
+[PARSER]
+    name dummy_test
+    format regex
+    regex ^(?<INT>[^ ]+) (?<FLOAT>[^ ]+) (?<BOOL>[^ ]+) (?<STRING>.+)$
+----
+
+.etc3/fluent-bit.conf
+[source,text,highlight='15-16']
+----
+[SERVICE]
+    parsers_file parsers.conf
+
+[INPUT]
+    name dummy
+    tag  dummy.data
+    dummy {"data":"100 0.5 true This is example", "key1":"value1", "key2":"value2"}
+    samples 3
+
+[FILTER]
+    name parser
+    match dummy.*
+    key_name data
+    parser dummy_test
+    reserve_data on
+    preserve_key on
+
+[OUTPUT]
+    name stdout
+    match *
+----
+
+This will produce the output:
+
+[source,console,highlight="2"]
+----
+$ docker run --rm \
+    -v $PWD/etc3:/etc/fluent-bit \
+    fluent/fluent-bit:1.8 \
+    /fluent-bit/bin/fluent-bit -q  \
+    -c /etc/fluent-bit/fluent-bit.conf
+
+[0] dummy.data: [1641971438.833271871, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "data"=>"100 0.5 true This is example", "key1"=>"value1", "key2"=>"value2"}]
+[1] dummy.data: [1641971439.834690742, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "data"=>"100 0.5 true This is example", "key1"=>"value1", "key2"=>"value2"}]
+[2] dummy.data: [1641971440.834035007, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "data"=>"100 0.5 true This is example", "key1"=>"value1", "key2"=>"value2"}]
+----
 
 === Docker
 
@@ -587,20 +935,20 @@ Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Sys
 [source,text]
 ----
 [INPUT]
-    Name    tail
-    Tag     kube.*
-    Path    /var/log/containers/*.log
-    Parser  docker
+    name    tail
+    tag     kube.*
+    path    /var/log/containers/*.log
+    parser  docker
 
 [FILTER]
-    Name             kubernetes
-    Match            kube.*
-    Kube_URL         https://kubernetes.default.svc:443
-    Kube_CA_File     /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    Kube_Token_File  /var/run/secrets/kubernetes.io/serviceaccount/token
-    Kube_Tag_Prefix  kube.var.log.containers.
-    Merge_Log        On
-    Merge_Log_Key    log_processed
+    name             kubernetes
+    match            kube.*
+    kube_url         https://kubernetes.default.svc:443
+    kube_ca_file     /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kube_token_file  /var/run/secrets/kubernetes.io/serviceaccount/token
+    kube_tag_prefix  kube.var.log.containers.
+    merge_log        on
+    merge_log_key    log_processed
 ----
 
 * Systemd
@@ -610,9 +958,9 @@ The {inputs-systemd}[*systemd*] input plugin allows to collect log messages from
 [source,text]
 ----
 [INPUT]
-    Name            systemd
-    Tag             host.*
-    Systemd_Filter  _SYSTEMD_UNIT=docker.service
+    name            systemd
+    tag             host.*
+    systemd_filter  _SYSTEMD_UNIT=docker.service
 ----
 
 * Tail
