@@ -302,6 +302,89 @@ fluent-bit_1     | [2022/01/11 09:36:39] [ info] [sp] stream processor started
 ^CGracefully stopping... (press Ctrl+C again to force)
 Stopping efk-docker_fluent-bit_1 ... done
 ----
++
+With https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression[*regex parser*], you can also take any unstructured `fluent-bit_1` log entry and give them a structure that makes easier it processing and further filtering.
++
+.conf/parsers.conf 
+[source,text,highlight="14-20"]
+----
+[PARSER]
+    name   json
+    format json
+    time_key time
+    time_format %d/%b/%Y:%H:%M:%S %z
+
+[PARSER]
+    name        docker
+    format      json
+    time_key    time
+    time_format %Y-%m-%dT%H:%M:%S.%L
+    time_keep   On
+
+[PARSER]
+    name   fluentbit
+    format regex
+    regex ^\[(?<time>[^\]]+)\] \[ (?<level>\w+)\] \[(?<compoment>\w+)\] (?<message>.*)$
+    time_key time
+    time_format %Y/%m/%d %H:%M:%S
+----
++
+.conf/fluent-bit.conf 
+[source,text,highlight="20-25"]
+----
+[SERVICE]
+    flush     5
+    daemon    off
+    http_server on
+    log_level info
+    parsers_file parsers.conf
+
+[INPUT]
+    Name   forward
+    Listen 0.0.0.0
+    Port   24224
+
+[FILTER]
+    name parser
+    match efk.*
+    key_name log
+    parser json
+    reserve_data true
+
+[FILTER]
+    name parser
+    match efk.fluent-bit
+    key_name log
+    parser fluentbit
+    reserve_data true
+
+[OUTPUT]
+    name            es
+    match           *
+    host            ${FLB_ES_HOST}
+    port            ${FLB_ES_PORT}
+    replace_dots    on
+    retry_limit     false
+    logstash_format on
+    logstash_prefix fluent-bit
+----
++
+The following is a structured sample log output:
++
+[source,text]
+----
+[
+    1642068626.000000000,
+    {
+        "level"=>"info",
+        "compoment"=>"storage",
+        "message"=>"normal synchronization mode, checksum disabled, max_chunks_up=128",
+        "container_id"=>"1a8f252975be8d83b534e76c81a2a47466314f52a5344b892d14c14f1d4be58b",
+        "container_name"=>"/efk-docker_fluent-bit_1",
+        "source"=>"stderr"
+    }
+]
+----
 
 ** ElasticSearch Test
 +
