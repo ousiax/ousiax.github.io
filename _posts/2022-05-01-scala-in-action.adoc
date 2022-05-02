@@ -1826,9 +1826,576 @@ println()       // better to not drop the ()
 To summarize, 
 
 * it is encouraged style in Scala to define methods that take no parameters and have no side effects as parameterless methods, i.e., leaving off the empty parentheses.
-* On the other hand, you should never define a method that has side-effects without parentheses, because then invocations of that method would look like a field selection. So your clients might be surprised to see the side effects.
+* On the other hand, *you should never define a method that has side-effects without parentheses*, because then invocations of that method would look like a field selection. So your clients might be surprised to see the side effects.
 
 Similarly,
 
-* whenever you invoke a function that has side effects, be sure to include the empty parentheses when you write the invocation.
+* *whenever you invoke a function that has side effects, be sure to include the empty parentheses when you write the invocation.*
 * Another way to think about this is if the function you’re calling performs an operation, use the parentheses, but if it merely provides access to a property, leave the parentheses off.
+
+=== Extending classes
+
+[source,scala]
+----
+// Defining ArrayElement as a subclass of Element.
+//
+// 1. type ArrayElement is a `subtype` of the type Element.
+// 2. class ArrayElement is called a `subclass` of class Element,
+//    that `inherits` all non-private memebers from class Element.
+// 3. Conversely, Element is a `superclass` of ArrayElement.
+class ArrayElement(conts: Array[String]) extends Element {
+  // The contents method `overrides` (or, alternatively: `implements`) 
+  // abstract method contents in class Element.
+  //
+  // NOTE: because the returned array is mutalbe, 
+  // consider returning a `defensive copy` of the array instead.
+  //
+  // This's a `composition` relationship between ArrayElement and Array[String]
+  def contents: Array[String] = conts
+}
+----
+
+=== Overriding methods and fields
+
+The *uniform access principle* is just one aspect where Scala treats fields and methods more uniformly than Java. Another difference is that in Scala, *fields and methods belong to the same namespace*. This makes *it possible for a field to override a parameterless method*.
+
+[source,scala]
+----
+// Overriding a parameterless method with a field.
+class ArrayElement(conts: Array[String]) extends Element {
+  val contents: Array[String] = conts
+}
+
+// $ javap -p ArrayElement.class
+// public class ArrayElement extends Element {
+//   private final java.lang.String[] contents;
+//   public java.lang.String[] contents();
+//   public ArrayElement(java.lang.String[]);
+// }
+----
+
+On the other hand, in Scala it is *forbidden to define a field and method with the same name in the same class*, whereas it is allowed in Java.
+
+[source,scala]
+----
+// This is Java
+class CompilesFine {
+  private int f = 0;
+  public int f() {
+    return 1;
+  }
+}
+
+// But the corresponding Scala class would not compile:
+class WontCompile {
+  private var f = 0 // Won’t compile, because a field
+  def f = 1         // and method have the same name
+}
+----
+
+Java’s four namespaces are fields, methods, types, and packages. By contrast, Scala has just two namespaces are:
+
+* values (fields, methods, packages, and singleton objects)
+* types (class and trait names)
+
+The reason Scala places fields and methods into the same namespace is precisely so you can override a parameterless method with a val, something you can’t do with Java.
+
+The reason that packages share the same namespace as fields and methods in Scala is to enable you to import packages in addition to just importing the names of types, and the fields and methods of singleton objects. 
+
+=== Defining parametric fields
+
+[source,scala]
+----
+// Defining contents as a parametric field.
+//
+// Note that now the contents parameter is prefixed by val.
+// This is a shorthand that defines at the same time a parameter
+// and field with the same name.
+// Specifically, class ArrayElement now has an (unreassignable) field
+// contents, which can be accessed from outside the class.
+// The field is initialized with the value of the parameter.
+class ArrayElement(
+  val contents: Array[String]
+) extends Element
+
+// $ javap -p ArrayElement.class
+// public class ArrayElement extends Element {
+//   private final java.lang.String[] contents;
+//   public java.lang.String[] contents();
+//   public ArrayElement(java.lang.String[]);
+// }
+----
+
+[source,scala]
+----
+// You can also prefix a class parameter with var, 
+//   in which case the corresponding field would be reassignable.
+// Finally, it is possible to add modifiers 
+//   such as private, protected, or override to these parametric fields,
+//   just as you can do for any other class member.
+class Cat {
+  val dangerous = false
+}
+
+class Tiger(
+  override val dangerous: Boolean,
+  private var age: Int
+) extends Cat
+
+// $ javap -p Cat.class Tiger.class
+// public class Cat {
+//   private final boolean dangerous;
+//   public boolean dangerous();
+//   public Cat();
+// }
+//
+// public class Tiger extends Cat {
+//   private final boolean dangerous;
+//   private int age;
+//   public boolean dangerous();
+//   private int age();
+//   private void age_$eq(int);
+//   public Tiger(boolean, int);
+// }
+----
+
+=== Invoking superclass constructors
+
+[source,scala]
+----
+// Invoking a superclass constructor.
+//
+// To invoke a superclass constructor, you simply place
+//   the argument or arguments you want to pass in parentheses
+//   following the name of the superclass.
+class LineElement(s: String) extends ArrayElement(Array(s)) {
+  override def width = s.length
+  override def height = 1
+}
+----
+
+=== Using override modifiers
+
+Scala requires *override*  modifier for all members that override a concrete member in a parent class.
+
+* The modifier is optional if a member implements an abstract member with the same name.
+* The modifier is forbidden if a member does not override or implement some other member in a base class. 
+
+[source,scala]
+----
+abstract class Alice {
+  def foo(): Unit
+  def bar() {}
+}
+
+class Suber extends Bob {
+  def foo() {}
+  def bar() {} // error: method bar needs `override' modifier
+}
+----
+
+=== Polymorphism and dynamic binding
+
+You can create more forms of Element by defining new Element subclasses,
+
+* this phenomenon is *polymorphism*, 
+* the method invocations on variables and expressions are *dynamically bound*.
+
+[source,scala]
+----
+abstract class Element {
+  override def toString() = "Element"
+}
+
+class ArrayElement extends Element {
+  override def toString() = "ArrayElement"
+}
+
+class LineElement extends ArrayElement {
+  override def toString() = "LineElement"
+}
+
+val e1: Element = new ArrayElement 
+val e2: Element = new LineElement 
+println(e1)
+println(e2)
+// Output:
+// ArrayElement
+// LineElement
+----
+
+=== Declaring final members
+
+In Scala, as in Java, you do this by adding a `final` modifier to the member.
+
+[source,scala]
+----
+abstract class Element {
+  final override def toString() = "Element"
+}
+
+final class ArrayElement extends Element {
+  // error: method toString cannot override final member
+  override def toString() = "ArrayElement"
+}
+
+// error: illegal inheritance from final class ArrayElement
+class LineElement extends ArrayElement {
+}
+----
+
+== Defining a factory object
+
+A factory object contains methods that construct other objects.
+
+* Clients would then use these factory methods for object construction rather than constructing the objects directly with new.
+* An advantage of this approach is that object creation can be centralized and the details of how objects are represented with classes can be hidden.
+* This hiding will both make your library simpler for clients to understand, because less detail is exposed, and provide you with more opportunities to change your library’s implementation later without breaking client code.
+
+== Scala’s Hierarchy
+
+In Scala, every class inherits from a common superclass named *Any*.
+
+* Because every class is a subclass of Any, the methods defined in Any are “universal” methods: they may be invoked on any object.
+
+Scala also defines some interesting classes at the bottom of the hierarchy, *Null* and *Nothing*, which essentially act as common subclasses.
+
+* For example, just as Any is a superclass of every other class, Nothing is a subclass of every other class.
+
+** Class Null is the type of the *null reference*; it is a subclass of every reference class (i.e., every class that itself inherits from AnyRef).
+** Null is not compatible with value types.
+** Type Nothing is at the very bottom of Scala’s class hierarchy; it is a subtype of every other type.
++
+[source,scala]
+----
+// The return type of error is Nothing, which tells users
+// that the method will not return normally (it throws an exception instead).
+def error(message: String): Nothing =
+  throw new RuntimeException(message)
+----
+
+The root class Any has two subclasses: *AnyVal* and *AnyRef*.
+
+* AnyVal is the parent class of every built-in value class in Scala.
+
+The other value class, *Unit*, corresponds roughly to Java’s void type; it is used as the result type of a method that does not otherwise return an interesting result. Unit has a single instance value, which is written *()*.
+
+[source,scala]
+----
+scala> Nil
+res22: scala.collection.immutable.Nil.type = List()
+
+scala> null
+res23: Null = null
+
+scala> None
+res24: None.type = None
+
+scala> val x = (() => {})()
+x: Unit = ()
+----
+
+== Traits
+
+Traits are a fundamental unit of code reuse in Scala. A trait encapsulates method and field definitions, which can then be reused by mixing them into classes. Unlike class inheritance, in which each class must inherit from just one superclass, a class can mix in any number of traits.
+
+=== How traits work
+
+A trait definition looks just like a class definition except that it uses the keyword `trait`. 
+
+[source,scala]
+----
+// The definition of trait Philosophical.
+trait Philosophical { //  extends AnyRef
+  def philosophize() {
+    println("I consume memory, therefore I am!")
+  }
+}
+----
+
+Once a trait is defined, it can be mixed in to a class using either the `extends` or `with` keywords.
+
+Scala programmers “mix in” traits rather than inherit from them, because *mixing* in a trait has important differences from the *multiple inheritance* found in many other languages.
+
+[source,scala]
+----
+// Mixing in a trait using extends.
+//
+// Class From subclasses AnyRef (the superclass of Philosophical)
+//   and mixes in Philosophical.
+//
+// Methods inherited from a trait can be used just like 
+//   methods inherited from a superclass.
+class Frog extends Philosophical {
+  override def toString = "green"
+}
+
+val frog = new Frog
+frog.philosophize()
+// Output:
+// I consume memory, therefore I am!
+
+val phil: Philosophical = frog
+frog.philosophize()
+// Output:
+// I consume memory, therefore I am!
+----
+
+If you wish to mix a trait into a class that explicitly extends a superclass, you *use extends to indicate the superclass and with to mix in the trait*.
+
+[source,scala]
+----
+class Animal
+
+trait HasLegs
+
+// Mixing in multiple traits using with.
+class Frog extends Animal with Philosophical with HasLegs {
+  override def toString = "green"
+
+  // override philosophize
+  override def philosophize() {
+    println("It ain't easy being "+ toString +"!")
+  }
+}
+
+val phrog: Philosophical = new Frog
+phrog.philosophize()
+// Output:
+// It ain't easy being green!
+
+trait Philosophical {
+  def philosophize() {}
+}
+----
+
+[source,scala]
+----
+trait Philosophical {
+  def philosophize() {
+    println("I'm thinking, therefore I am!")
+  }
+}
+
+class Zhangsan {
+  override def toString() = "法外狂徒!"
+}
+
+val philZhang: Philosophical = new Zhangsan with Philosophical
+philZhang.philosophize()
+println(philZhang)
+// Output:
+// I'm thinking, therefore I am!
+// 法外狂徒!
+----
+
+Traits can declare fields and maintain state.
+
+* Trait cannot have any “class” parameters, i.e., parameters passed to the primary constructor of a class.
++
+[source,scala]
+----
+trait NoPoint(x: Int, y: Int) // Does not compile
+----
+
+* The other difference between classes and traits is that whereas in classes, super calls are statically bound, in traits, they are dynamically bound.
++
+If you write “super.toString” in a class, you know exactly which method implementation will be invoked.
++
+When you write the same thing in a trait, however, the method implementation to invoke for the super call is undefined when you define the trait.
++
+Rather, the implementation to invoke will be determined anew each time the trait is mixed into a concrete class. This curious behavior of `super` is key to allowing traits to work as *stackable modifications*.
+
+=== Thin versus rich interfaces
+
+One major use of traits is to automatically add methods to a class in terms of methods the class already has. That is, traits can enrich a *thin* interface, making it into a *rich* interface.
+
+=== Traits as stackable modifications
+
+You have now seen one major use of traits: turning a thin interface into a rich one. Now we’ll turn to a second major use: providing stackable modifications to classes. Traits let you *modify* the methods of a class, and they do so in a way that allows you to *stack* those modifications with each other.
+
+Given a class that implements such a queue, you could define traits to perform modifications such as these:
+
+* Doubling: double all integers that are put in the queue
+* Incrementing: increment all integers that are put in the queue
+* Filtering: filter out negative integers from a queue
+
+These three traits represent *modifications*, because they modify the behavior of an underlying queue class rather than defining a full queue class themselves. The three are also *stackable*. You can select any of the three you like, mix them into a class, and obtain a new class that has all of the modifications you chose.
+
+[source,scala]
+----
+// Abstract class IntQueue.
+abstract class IntQueue {
+  def get(): Int
+
+  def put(x: Int)
+}
+
+import scala.collection.mutable.ArrayBuffer
+
+// A BasicIntQueue implemented with an ArrayBuffer.
+class BasicIntQueue extends IntQueue {
+  private val buf = new ArrayBuffer[Int]
+
+  def get() = buf.remove(0)
+
+  def put(x: Int) { buf += x }
+}
+
+scala> val queue = new BasicIntQueue
+queue: BasicIntQueue = BasicIntQueue@9468ea6
+
+scala> queue.put(10)
+
+scala> queue.put(20)
+
+scala> queue.get()
+res3: Int = 10
+
+scala> queue.get()
+res4: Int = 20
+----
+
+[source,scala]
+----
+
+// The Doubling stackable modification trait.
+//
+// The Doubling trait has two funny things going on.
+//
+//   1. The first is that it declares a superclass, IntQueue.
+//      This declaration means that the trait can only be mixed into
+//      a class that also extends IntQueue.
+//      Thus, you can mix Doubling into BasicIntQueue, but not into other types.
+//   2. The second funny thing is that the trait has a super call on a method 
+//      declared abstract. Such calls are illegal for normal classes, because
+//      they will certainly fail at runtime.
+//      For a trait, however, such a call can actually succeed. Since super calls
+//      in a trait are dynamically bound, the super call in trait Doubling will
+//      work so long as the trait is mixed in after another trait or class that
+//      gives a concrete definition to the method.
+trait Doubling extends IntQueue {
+  // This arrangement is frequently needed with traits that implement stackable modifications.
+  // To tell the compiler you are doing this on purpose, you must mark 
+  //   such methods as `abstract override`.
+  // This combination of modifiers is only allowed for members of traits, not classes,
+  //  and it means that the trait must be mixed into some class that has a concrete definition of
+  //    the method in question.
+  abstract override def put(x: Int) { super.put(2 * x) }
+}
+
+// Note that MyQueue defines no new code.
+// It simply identifies a class and mixes in a trait.
+scala> class MyQueue extends BasicIntQueue with Doubling
+defined class MyQueue
+
+scala> val queue = new MyQueue
+queue: MyQueue = MyQueue@130a6c5c
+
+scala> queue.put(10)
+
+scala> queue.get()
+res7: Int = 20
+
+// Mixing in a trait when instantiating with new.
+scala> val queue = new BasicIntQueue with Doubling
+queue: BasicIntQueue with Doubling = $anon$1@d050328
+
+scala> queue.put(10)
+
+scala> queue.get()
+res9: Int = 20
+----
+
+To see how to stack modifications, we need to define the other two modification traits, Incrementing and Filtering.
+
+[source,scala]
+----
+// Stackable modification traits Incrementing and Filtering.
+trait Incrementing extends IntQueue {
+  abstract override def put(x: Int) { super.put(x + 1) }
+}
+
+trait Filtering extends IntQueue {
+  abstract override def put(x: Int) {
+    if (x >= 0) super.put(x)
+  }
+}
+
+scala> val queue = new BasicIntQueue with Incrementing with Filtering
+queue: BasicIntQueue with Incrementing with Filtering = $anon$1@458a5362
+
+scala> queue.put(-1); queue.put(0); queue.put(1)
+
+scala> queue.get()
+res1: Int = 1
+
+scala> queue.get()
+res2: Int = 2
+
+// The order of mixins is significant.
+//  The precise rules, roughly speaking, traits further to the right take effect first.
+//    When you call a method on a class with mixins, the method
+//      in the trait furthest to the right is called first.
+//    If that method calls super, it invokes the method in the next trait to its left,
+//      and so on. 
+scala> val queue = new BasicIntQueue with Filtering with Incrementing
+queue: BasicIntQueue with Filtering with Incrementing = $anon$1@1c8d5d80
+
+scala> queue.put(-1); queue.put(0); queue.put(1)
+
+scala> queue.get()
+res4: Int = 0
+
+scala> queue.get()
+res5: Int = 1
+
+scala> queue.get()
+res6: Int = 2
+----
+
+=== Why not multiple inheritance?
+
+Traits are a way to inherit from multiple class-like constructs, but they differ in important ways from the multiple inheritance present in many languages.
+
+One difference is especially important: *the interpretation of `super`*.
+
+* With multiple inheritance, the method called by a super call can be determined right where the call appears.
+* With traits, the method called is determined by a *linearization* of the classes and traits that are mixed into a class.
+
+== To trait, or not to trait?
+
+Whenever you implement a reusable collection of behavior, you will have to decide whether you want to use a trait or an abstract class.
+
+* *If the behavior will not be reused, then make it a concrete class.*
++
+It is not reusable behavior after all.
+
+* *If it might be reused in multiple, unrelated classes, make it a trait.*
++
+Only traits can be mixed into different parts of the class hierarchy.
+
+* *If you want to inherit from it in Java code, use an abstract class.*
++
+Since traits with code do not have a close Java analog, it tends to be awkward to inherit from a trait in a Java class.+
+Inheriting from a Scala class, meanwhile, is exactly like inheriting from a Java class.
+*
+As one exception, a Scala trait with only abstract members translates directly to a Java interface, so you should feel free to define such traits even if you expect Java code to inherit from it.
+
+* *If you plan to distribute it in compiled form*, and you expect outside groups to write classes inheriting from it, you might lean towards using an *abstract class*.
++
+The issue is that when a trait gains or loses a member, any classes that inherit from it must be recompiled, even if they have not changed.
++
+If outside clients will only call into the behavior, instead of inheriting from it, then using a trait is fine.
+
+* *If efficiency is very important, lean towards using a class.*
++
+Most Java runtimes make a virtual method invocation of a class member a faster operation than an interface method invocation.
++
+Traits get compiled to interfaces and therefore may pay a slight performance overhead.
++
+However, you should make this choice only if you know that the trait in question constitutes a performance bottleneck and have evidence that using a class instead actually solves the problem.
+
+* *If you still do not know, after considering the above, then start by making it as a trait.*
++
+You can always change it later, and in general using a trait keeps more options open.
