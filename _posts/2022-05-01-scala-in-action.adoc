@@ -937,3 +937,807 @@ object MultiTable {
   }
 }
 ----
+
+== Functions and Closures
+
+When programs get larger, you need some way to divide them into smaller, more manageable pieces. For dividing up control flow, Scala offers an approach familiar to all experienced programmers: divide the code into functions. In fact, Scala offers several ways to define functions that are not present in Java. Besides *methods*, which are *functions that are members of some object*, there are also *functions nested within functions*, *function literals*, and *function values*. 
+
+=== Methods
+
+The most common way to define a function is as a member of some object. Such a function is called a *method*. 
+
+[source,scala]
+----
+import scala.io.Source
+
+// LongLines with a private processLine method.
+object LongLines {
+
+  def processFile(filename: String, width: Int) {
+    val source = Source.fromFile(filename)
+    for (line <- source.getLines())
+      processLine(filename, width, line)
+  }
+
+  private def processLine(filename: String,
+    width: Int, line: String) {
+      if (line.length > width)
+        println(filename +": "+ line.trim)
+  }
+}
+
+object FindLongLines {
+  def main(args: Array[String]) {
+    val width = args(0).toInt
+    for (arg <- args.drop(1))
+      LongLines.processFile(arg, width)
+  }
+}
+----
+
+=== Local functions
+
+[source,scala]
+----
+import scala.io.Source
+
+// You can define functions inside other functions.
+// Just like local variables, such local functions 
+// are visible only in their enclosing block. 
+object LongLines {
+
+  def processFile(filename: String, width: Int) {
+
+    // Local functions can access the parameters of their enclosing function.
+    def processLine(line: String) {
+      if (line.length > width)
+        println(filename +": "+ line)
+    }
+
+    val source = Source.fromFile(filename)
+    for (line <- source.getLines())
+      processLine(line)
+  }
+}
+----
+
+=== First-class functions
+
+Scala has *first-class functions*.
+
+* Not only can you define functions and call them, 
+* but you can write down functions as unnamed *literals* and then *pass them around as *values*.
+
+A *function literal* is compiled into a class that when instantiated at runtime is a *function value*.
+
+* Every function value is an instance of some class that extends one of several *FunctionN* traits in `package scala`,
+* such as `Function0` for functions with no parameters, `Function1` for functions with one parameter, and so on.
+* Each FunctionN trait has an `apply` method used to invoke the function.
++
+[source,scala]
+----
+// The => designates that this function converts the thing on the left (any integer x) 
+// to the thing on the right (x + 1). 
+// So, this is a function mapping any integer x to x + 1.
+scala> (x: Int) => x + 1
+res1: Int => Int = $Lambda$1469/0x00000008011c9838@75fdf03c
+
+// Function values are objects, so you can store them in variables if you like.
+scala> var increase = (x: Int) => x + 1
+increase: Int => Int = $Lambda$1470/0x00000008011ca638@2d74a59b
+
+// They are functions, too, so you can invoke them using the usual parentheses function-call notation.
+scala> increase(10)
+res2: Int = 11
+
+// Each FunctionN trait has an `apply` method used to invoke the function.
+scala> increase.apply(10)
+res3: Int = 11
+
+scala> val someNumbers = List(-11, -10, -5, 0, 5, 10)
+someNumbers: List[Int] = List(-11, -10, -5, 0, 5, 10)
+
+// Takes a function as an argument and invokes that function on each of its elements.
+scala> someNumbers.map((x: Int) => 2 * x)
+res0: List[Int] = List(-22, -20, -10, 0, 10, 20)
+----
+
+=== Short forms of function literals
+
+Scala provides a number of ways to leave out redundant information and write function literals more briefly.
+
+* One way to make a function literal more brief is to *leave off the parameter types*.
++
+[source,scala]
+----
+scala> someNumbers.map((x) => 2 * x)
+res1: List[Int] = List(-22, -20, -10, 0, 10, 20)
+----
+
+* A second way to remove useless characters is to *leave out parentheses around a parameter whose type is inferred*.
++
+[source,scala]
+----
+scala> someNumbers.map(x => 2 * x)
+res2: List[Int] = List(-22, -20, -10, 0, 10, 20)
+----
+
+=== Placeholder syntax
+
+To make a function literal even more concise, you can use underscores as placeholders for one or more parameters, so long as *each parameter appears only one time within the function literal*.
+
+[source,scala]
+----
+someNumbers.map(2 * _)
+res3: List[Int] = List(-22, -20, -10, 0, 10, 20)
+
+// Multiple underscores mean multiple parameters, not reuse of a single parameter repeatedly.
+// The first underscore represents the first parameter, 
+// the second underscore the second parameter, 
+// the third underscore the third parameter, and so on.
+scala> val f = (_: Int) + (_: Int)
+f: (Int, Int) => Int = $Lambda$1558/0x00000008011d2a88@129b4b70
+
+scala> f(5, 10)
+res13: Int = 15
+
+scala> someNumbers.reduce(f)
+res14: Int = -11
+
+scala> someNumbers.reduce(_ + _)
+res11: Int = -11
+----
+
+=== Partially applied functions
+
+Although the previous examples substitute underscores in place of individual parameters, you can also *replace an entire parameter list with an underscore*. For example, rather than writing `println(_)`, you could write `println _`. Here’s an example:
+
+[source,scala]
+----
+// Remember that you need to leave a space between the function name and the underscore, 
+// because otherwise the compiler will think you are referring to a different symbol,
+// such as for example, a method named `println_`, which likely does not exist.
+someNumbers.foreach(println _)
+----
+
+Scala treats this short form exactly as if you had written the following:
+
+[source,scala]
+someNumbers.foreach(x => println(x))
+
+In Scala, when you invoke a function, passing in any needed arguments, you *apply* that function *to* the arguments.
+
+[source,scala]
+----
+scala> def sum(a: Int, b: Int, c: Int) = a + b + c
+sum: (a: Int, b: Int, c: Int)Int
+
+// You could apply the function sum to the arguments 1, 2, and 3 like this:
+scala> sum(1, 2, 3)
+res0: Int = 6
+----
+
+A *partially applied function* is an expression in which you don’t supply all of the arguments needed by the function. Instead, you supply some, or none, of the needed arguments.
+
+[source,scala]
+----
+// create a partially applied function expression involving sum, in which you supply none of the three required
+// arguments.
+//  The resulting function can then be stored in a variable.
+scala> val a = sum _
+a: (Int, Int, Int) => Int = $Lambda$1560/0x00000008011cfc58@3ba37b4a
+
+// Given this code, the Scala compiler instantiates a function value
+// that takes the three integer parameters missing from
+// the partially applied function expression, `sum _`, and assigns a reference to
+// that new function value to the variable `a`.
+// When you apply three arguments to this new function value, it will turn around
+// and invoke `sum`, passing in those same three arguments:
+scala> a(1, 2, 3)
+res1: Int = 6
+
+// This function value is an instance of a class generated automatically by 
+// the Scala compiler from `sum _`, the partially applied function expression.
+// The class generated by the compiler has an apply method that takes three arguments.
+// The generated class extends `trait Function3`, which declares a three-arg apply method.
+// The generated class’s `apply` method takes three arguments because three is the number
+// of arguments missing in the `sum _` expression.
+// The Scala compiler translates the expression `a(1, 2, 3)` into an invocation of the
+// function value’s `apply` method, passing in the three arguments 1, 2, and 3.
+// Thus, `a(1, 2, 3)` is a short form for:
+scala> a.apply(1, 2, 3)
+res2: Int = 6
+
+// Another way to think about this kind of expression, in which an underscore is used to represent 
+// an entire parameter list, is as a way to *transform a `def` into a `function value`*.
+//  Although you can’t assign a method or nested function to a variable, or pass it as an argument
+// to another function, you can do these things if you wrap the method or nested function in a 
+// function value by placing an underscore after its name.
+
+// In the case of `sum _`, you are applying it to none of its arguments.
+// But you can also express a partially applied function by supplying some but not all of
+// the required arguments.
+scala> val b = sum(1, _, 3)
+b: Int => Int = $Lambda$1566/0x00000008011d7690@61f38079
+
+scala> b(5)
+res3: Int = 9
+----
+
+If you are writing a partially applied function expression in which you leave off all parameters, such as `println _` or `sum _`, you can express it more concisely by leaving off the underscore if a function is required at that point in the code.
+
+[source,scala]
+----
+someNumbers.foreach(println _)
+
+// You could just write:
+someNumbers.foreach(println)
+----
+
+This last form is allowed only in places where a function is required, such as the invocation of `foreach` in this example. The compiler knows a function is required in this case, because `foreach` requires that a function be passed as an argument. In situations where a function is not required, attempting to use this form will cause a compilation error. 
+
+[source,scala]
+----
+scala> val c = sum
+<console>:12: error: missing argument list for method sum
+Unapplied methods are only converted to functions when a function type is expected.
+You can make this conversion explicit by writing `sum _` or `sum(_,_,_)` instead of `sum`.
+       val c = sum
+               ^
+
+scala> val d = sum _
+d: (Int, Int, Int) => Int = $Lambda$1567/0x00000008011d8c58@19ca9708
+
+scala> d(10, 20, 30)
+res4: Int = 60
+----
+
+=== Closures
+
+You can, however, refer to variables in function body defined elsewhere:
+
+[source,scala]
+----
+(x: Int) => x + more  // how much more?
+----
+
+This function adds “more” to its argument, but what is more? From the point of view of this function, `more` is a *free variable*, because the function literal does not itself give a meaning to it. The `x` variable, by contrast, is a *bound variable*, because it does have a meaning in the context of the function: it is defined as the function’s lone parameter, an Int. If you try using this function literal by itself, without any more defined in its scope, the compiler will complain:
+
+[source,scala]
+----
+scala> (x: Int) => x + more
+<console>:12: error: not found: value more
+       (x: Int) => x + more
+                       ^
+----
+
+On the other hand, the same function literal will work fine so long as there is something available named more:
+
+[source,scala]
+----
+scala> var more = 1
+more: Int = 1
+
+scala> val addMore = (x: Int) => x + more
+addMore: Int => Int = $Lambda$1568/0x00000008011dd218@2a7b81e3
+
+scala> addMore(10)
+res0: Int = 11
+----
+
+The function value (the object) that’s created at runtime from this function literal is called a *closure*.
+
+* The name arises from the act of “*closing*” the function literal by “*capturing*” the bindings of its free variables.
++
+A function literal with no free variables, such as `(x: Int) => x + 1`, is called a *closed term*, where a term is a bit of source code.
++
+Thus a function value created at runtime from this function literal is not a closure in the strictest sense, because `(x: Int) => x + 1` is already closed as written.
++
+But any function literal with *free variables*, such as `(x: Int) => x + more`, is an *open term*.
++
+Therefore, any function value created at runtime from `(x: Int) => x + more` will by definition require that a binding for its free variable, `more`, be captured.
++
+The resulting function value, which will contain a reference to the captured `more` variable, is called a *closure*,
++
+therefore, because the function value is the end product of the act of closing the open term, `(x: Int) => x + more`.
+
+Intuitively, Scala’s closures capture variables themselves, not the value to which variables refer.
+
+[source,scala]
+----
+scala> more = 9999
+more: Int = 9999
+
+scala> addMore(10)
+res3: Int = 10009
+----
+
+[source,scala]
+----
+import scala.collection.mutable.ListBuffer
+
+val funcList = ListBuffer[() => Unit]()
+var x = 0
+for (i <- 1 to 3) {
+  x = i // x: reassignment
+  funcList += (() => println(x))
+}
+funcList.foreach(_())
+
+// Output:
+// 3
+// 3
+// 3
+----
+
+Each time this function is called it will create a new closure. Each closure will access the more variable that was active when the closure was created.
+
+[source,scala]
+----
+scala> def makeIncreaser(more: Int) = (x: Int) => x + more
+makeIncreaser: (more: Int)Int => Int
+
+scala> val inc1 = makeIncreaser(1)
+inc1: Int => Int = $Lambda$1579/0x00000008011d20c8@7b8f6b2c
+
+scala> val inc9999 = makeIncreaser(9999)
+inc9999: Int => Int = $Lambda$1579/0x00000008011d20c8@bdb64b3
+
+scala> inc1(10)
+res4: Int = 11
+
+scala> inc9999(10)
+res5: Int = 10009
+----
+
+=== Special function call forms
+
+* *Repeated parameters*
++
+** Scala allows you to indicate that the last parameter to a function may be repeated.
+** This allows clients to pass *variable length argument lists* to the function.
+** To denote a repeated parameter, place an asterisk after the type of the parameter. 
++
+[source,scala]
+----
+scala> def echo(args: String*) =
+     | for (arg <- args) println(arg)
+echo: (args: String*)Unit
+
+scala> echo()
+
+scala> echo("one")
+one
+
+scala> echo("hello", "world")
+hello
+world
+
+// Nevertheless, if you have an array of the appropriate type, and you attempt
+// to pass it as a repeated parameter, you’ll need to append 
+// the array argument with a colon and an _* symbol, like this:
+scala> val arr = Array("What's", "up", "doc?")
+arr: Array[String] = Array(What's, up, doc?)
+
+scala> echo(arr: _*)
+What's
+up
+doc?
+----
+
+* *Named arguments*
++
+In a normal function call, the arguments in the call are matched one by one in the order of the parameters of the called function:
++
+[source,scala]
+----
+scala> def speed(distance: Float, time: Float): Float =
+     | distance / time
+speed: (distance: Float, time: Float)Float
+
+scala> speed(100, 10)
+res5: Float = 10.0
+
+scala> speed(distance = 100, time = 10)
+res6: Float = 10.0
+
+scala> speed(time = 10, distance = 100)
+res7: Float = 10.0
+----
+
+* *Default parameter values*
++
+[source,scala]
+----
+scala> def printTime(out: java.io.PrintStream = Console.out) =
+     | out.println("time = "+ System.currentTimeMillis())
+printTime: (out: java.io.PrintStream)Unit
+
+scala> printTime()
+time = 1651414239220
+----
+
+=== Tail recursion
+
+[source,scala]
+----
+def approximate(guess: Double): Double =
+  if (isGoodEnough(guess)) guess
+  else approximate(improve(guess))
+----
+
+Functions like `approximate`, which call themselves as their last action, are called *tail recursive*.
+
+If you want the `approximate` function to run faster, you might be tempted to write it with a `while loop` to try and speed it up, like this:
+
+[source,scala]
+----
+def approximateLoop(initialGuess: Double): Double = {
+  var guess = initialGuess
+  while (!isGoodEnough(guess))
+    guess = improve(guess)
+    guess
+}
+----
+
+However, in the case of approximate above, the Scala compiler is able to apply an important *optimization*.
+
+The Scala compiler detects tail recursion and replaces it with a jump back to the beginning of the function, after updating the function parameters with the new values.
+
+* *Tracing tail-recursive functions*
++
+A tail-recursive function will not build a new *stack frame* for each call; all calls will execute in a single frame. 
++
+This function is not tail recursive, because it performs an increment operation after the recursive call.
++
+[source,console]
+----
+// file in Boom.scala
+object Boom {
+  def boom(x: Int): Int = {
+    if (x == 0) {
+      throw new Exception("boom!")
+    } else {
+      // This function is not tail recursive,
+      // because it performs an increment operation after the recursive call.
+      boom(x - 1) + 1
+    }
+  }
+
+  def main(args: Array[String]) {
+    boom(3)
+  }
+}
+
+// Output:
+// $ scala Boom.scala
+// java.lang.Exception: boom!
+// 	at Main$.boom(Boom.scala:4)
+// 	at Main$.boom(Boom.scala:8)
+// 	at Main$.boom(Boom.scala:8)
+// 	at Main$.boom(Boom.scala:8)
+// 	at Main$.main(Boom.scala:13)
+// 	at Main.main(Boom.scala)
+----
++
+If you now modify boom so that it does become tail recursive:
++
+[source,console]
+----
+// file in Bang.scala
+object Bang {
+  def bang(x: Int): Int = {
+    if (x == 0) {
+      throw new Exception("bang!")
+    } else {
+      bang(x - 1)
+    }
+  }
+
+  def main(args: Array[String]) {
+    bang(5)
+  }
+}
+
+// Output:
+// $ scala Bang.scala
+// java.lang.Exception: bang!
+// 	at Main$.bang(Bang.scala:5)
+// 	at Main$.main(Bang.scala:12)
+// 	at Main.main(Bang.scala)
+----
++
+If you think you might be confused by tail-call optimizations when looking at a stack trace, you can turn them off by giving the following argument to the scala shell or to the scalac compiler:
++
+[source,console]
+-g:notailcalls
++
+With that option specified, you will get a longer stack trace:
++
+[source,console]
+----
+$ scala -g:notailcalls Bang.scala
+java.lang.Exception: bang!
+	at Main$.bang(Bang.scala:5)
+	at Main$.bang(Bang.scala:7)
+	at Main$.bang(Bang.scala:7)
+	at Main$.bang(Bang.scala:7)
+	at Main$.bang(Bang.scala:7)
+	at Main$.bang(Bang.scala:7)
+	at Main$.main(Bang.scala:12)
+	at Main.main(Bang.scala)
+----
+
+* *Limits of tail recursion*
++
+The use of tail recursion in Scala is fairly limited, because the JVM instruction set makes implementing more advanced forms of tail recursion very difficult. Scala only optimizes directly recursive calls back to the same func- tion making the call.
++
+If the recursion is indirect, as in the following example of two mutually recursive functions, no optimization is possible:
++
+[source,scala]
+----
+def isEven(x: Int): Boolean =
+  if (x == 0) true else isOdd(x - 1)
+
+def isOdd(x: Int): Boolean =
+  if (x == 0) false else isEven(x - 1)
+----
+
+== Control Abstraction: Higher-order function and Currying
+
+=== Reducing code duplication
+
+These *higher-order functions*—functions that take functions as parameters—give you extra opportunities to condense and simplify code.
+
+[source,scala]
+----
+// object FileMatcher {
+// 
+//   private def filesHere = (new java.io.File(".")).listFiles
+// 
+//   def filesEnding(query: String) =
+//     for (file <- filesHere; if file.getName.endsWith(query))
+//       yield file
+// 
+//   def filesContaining(query: String) =
+//     for (file <- filesHere; if file.getName.contains(query))
+//       yield file
+// 
+//   def filesRegex(query: String) =
+//     for (file <- filesHere; if file.getName.matches(query))
+//       yield file
+// }
+//
+// Experienced programmers will notice all of this repetition and wonder
+// if it can be factored into a common helper function. Doing it the obvious
+// way does not work, however. You would like to be able to do the following:
+//
+// def filesMatching(query: String, matcher: (String, String) => Boolan) =
+//   for (file <- filesHere; if matcher(file.getName, query))
+//     yield file
+//
+// Given this new filesMatching helper method, you can simplify the three 
+// searching methods by having them call the helper method, passing in an
+// appropriate function:
+//
+// def filesEnding(query: String) =
+//   filesMatching(query, _.endsWith(_))
+//
+// def filesContaining(query: String) =
+//   filesMatching(query, _.contains(_))
+//
+// def filesRegex(query: String) =
+//   filesMatching(query, _.matches(_))
+//
+// The function literals used in the above, such as `_.endsWith(_)`
+// and `_.contains(_)`, are instantiated at runtime into function values
+// that are not closures, because they don’t capture any free variables.
+//
+// By contrast, the function literal `_.endsWith(query)`, used in the most
+// recent example, contains one bound variable, the argument represented
+// by the underscore, and one free variable named query.
+//
+// Using closures to reduce code duplication.
+object FileMatcher {
+
+  private def filesHere = (new java.io.File(".")).listFiles
+
+  private def filesMatching(matcher: String => Boolean) = {
+    for (file <- filesHere if matcher(file.getName))
+      yield file
+  }
+
+  def filesEnding(query: String) =
+    // eq. filesMatching((fileName: String) => fileName.endsWith(query))
+    filesMatching(_.endsWith(query))
+
+  def filesContaining(query: String) =
+    // eq. filesMatching((fileName: String) => fileName.contains(query))
+    filesMatching(_.contains(query))
+
+  def filesRegex(query: String) =
+    // eq. filesMatching((fileName: String) => fileName.matches(query))
+    filesMatching(_.matches(query))
+}
+----
+
+=== Currying
+
+A *curried function* is applied to multiple argument lists, instead of just one.
+
+[source,scala]
+----
+// Defining and invoking a “plain old” function.
+scala> def plainOldSum(x: Int, y: Int) = x + y
+plainOldSum: (x: Int, y: Int)Int
+
+scala> plainOldSum(2, 2)
+res0: Int = 4
+
+// Defining and invoking a curried function.
+scala> def curriedSum(x: Int)(y: Int) = x + y
+curriedSum: (x: Int)(y: Int)Int
+
+scala> curriedSum(2)(2)
+res1: Int = 4
+----
+
+What’s happening here is that when you invoke `curriedSum`, you actually get two traditional *function invocations back to back*. The `first` function invocation takes a single `Int` parameter named `x`, and returns a function value for the `second` function. This `second` function takes the `Int` parameter `y`.
+
+You can use the *placeholder notation* to use `curriedSum` in a partially applied function expression, like this:
+
+[source,scala]
+----
+scala> val twoPlus = curriedSum(2) _
+twoPlus: Int => Int = $Lambda$1624/0x00000008011d0838@1fcd9ce1
+
+scala> twoPlus(2)
+res4: Int = 4
+----
+
+=== Writing new control structures
+
+Consider now a more widely used coding pattern: open a resource, operate on it, and then close the resource.
+
+[source,scala]
+----
+// open a resource, operate on it, and then close the resource.
+def withPrintWriter(file: File, op: PrintWriter => Unit) {
+  val writer = new PrintWriter(file)
+  try {
+    op(writer)
+  } finally {
+    writer.close()
+  }
+}
+
+// Given such a method, you can use it like this:
+withPrintWriter(
+  new File("date.txt"),
+  writer => writer.println(new java.util.Date)
+)
+
+----
+
+In any method invocation in Scala in which you’re passing in *exactly one argument*, you can opt to use curly braces to surround the argument instead of parentheses.
+
+[source,scala]
+----
+scala> println("Hello, world!")
+Hello, world!
+
+scala> println { "Hello, world!" }
+Hello, world!
+
+scala> val g = "Hello, world!"
+g: String = Hello, world!
+
+scala> g.substring(7, 9)
+res7: String = wo
+
+scala> g.substring { 7, 9 }
+<console>:1: error: ';' expected but ',' found.
+       g.substring { 7, 9 }
+                      ^
+----
+
+The purpose of this ability to substitute curly braces for parentheses for passing in one argument is to enable client programmers to write function literals between curly braces. This can make a method call feel more like a control abstraction. 
+
+The new version differs from the old one only in that there are now two parameter lists with one parameter each instead of one parameter list with two parameters.
+
+[source,scala]
+----
+// open a resource, operate on it, and then close the resource.
+def withPrintWriter(file: File)(op: PrintWriter => Unit) {
+  val writer = new PrintWriter(file)
+  try {
+    op(writer)
+  } finally {
+    writer.close()
+  }
+}
+
+// Given such a method, you can use it with a more pleasing syntax:
+val file = new File("date.txt")
+withPrintWriter(file) {
+  writer => writer.println(new java.util.Date)
+}
+----
+
+=== By-name parameters
+
+What if you want to implement something more like if or while, however, where there is no value to pass into the code between the curly braces? To help with such situations, Scala provides by-name parameters.
+
+The `myAssert` function will take a function value as input and consult a flag to decide what to do. If the flag is set, `myAssert` will invoke the passed function and verify that it returns `true`. If the flag is turned off, `myAssert` will quietly do nothing at all.
+
+[source,scala]
+----
+// Without using by-name parameters, you could write myAssert like this:
+var assertionsEnabled = true
+
+def myAssert(predicate: () => Boolean) =
+  if (assertionsEnabled && !predicate())
+    throw new AssertionError
+
+// The definition is fine, but using it is a little bit awkward:
+myAssert(() => 5 > 3)
+
+// You would really prefer to leave out the empty parameter list and `=>` symbol
+// in the function literal and write the code like this:
+myAssert(5 > 3) // Won’t work, because missing `() =>`
+----
+
+By-name parameters exist precisely so that you can do this. *To make a by-name parameter, you give the parameter a type starting with +++`=>`+++ instead of +++`() =>`+++.*
+
+[source,scala]
+----
+// Using a by-name parameter.
+def byNameAssert(predicate: => Boolean) =
+  if (assertionsEnabled && !predicate)
+    throw new AssertionError
+
+// The result is that using byNameAssert looks exactly like
+// using a built-in control structure:
+byNameAssert(5 > 3)
+----
+
+A by-name type, in which the empty parameter list, `()`, is left out, is only allowed for parameters. There is no such thing as a by-name variable or a by-name field.
+
+Now, you may be wondering why you couldn’t simply write myAssert using a plain old Boolean for the type of its parameter, like this:
+
+[source,scala]
+----
+def boolAssert(predicate: Boolean) =
+  if (assertionsEnabled && !predicate)
+    throw new AssertionError
+----
+
+This formulation is also legal, of course, and the code using this version of `boolAssert` would still look exactly as before:
+
+[source,scala]
+----
+boolAssert(5 > 3)
+----
+
+Nevertheless, one difference exists between these two approaches that is important to note.
+
+* Because the type of boolAssert’s parameter is `Boolean`, the expression inside the parentheses in `boolAssert(5 > 3)` is *evaluated before the call* to `boolAssert`.
++
+The expression `5 > 3` yields `true`, which is passed to `boolAssert`.
+* By contrast, because the type of byNameAssert's predicate parameter is `\=> Boolean`, the expression inside the parentheses in `byNameAssert(5 > 3)` is *not evaluated before the call* to `byNameAssert`.
++
+Instead a function value will be created whose `apply` method will evaluate `5 > 3`, and this function value will be passed to `byNameAssert`.
+
+The difference between the two approaches, therefore, is that if assertions are disabled, you’ll see any *side effects* that the expression inside the parentheses may have in `boolAssert`, but not in `byNameAssert`.
+
+[source,scala]
+----
+scala> var assertionsEnabled = false
+assertionsEnabled: Boolean = false
+
+scala> byNameAssert(1 / 0 == 0)
+
+scala> boolAssert(1 / 0 == 0)
+java.lang.ArithmeticException: / by zero
+  ... 28 elided
+----
