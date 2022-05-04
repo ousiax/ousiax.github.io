@@ -3534,3 +3534,387 @@ apple
 orange
 
 ----
+
+== Working with Lists
+
+[source,scala]
+----
+// Lists are quite similar to arrays, but there are two important differences.
+//
+// First, lists are immutable.
+//   That is, elements of a list cannot be changed by assignment.
+// Second, lists have a recursive structure (i.e., a linked list), whereas arrays are flat.
+val fruit = List("apples", "oranges", "pears")
+val nums = List(1, 2, 3, 4)
+val diag3 =
+  List(
+    List(1, 0, 0),
+    List(0, 1, 0),
+    List(0, 0, 1)
+  )
+val empty = List() // Nil
+
+// Like arrays, lists are homogeneous: the elements of a list all have the same type.
+// The type of a list that has elements of type T is written `List[T]`.
+val fruit: List[String] = List("apples", "oranges", "pears")
+val nums: List[Int] = List(1, 2, 3, 4)
+val empty: List[Nothing] = List()
+
+// The list type in Scala is covariant.
+// This means that for each pair of types `S` and `T`, if `S` is a subtype of `T`,
+//   then `List[S]` is a subtype of `List[T]`.
+// For instance, `List[String]` is a subtype of `List[Object]`.
+//   This is natural because every list of strings can also be seen as a list of objects.
+// So the empty list object, which has type `List[Nothing]`, can also be seen as an object
+//   of every other list type of the form `List[T]`.
+//
+// `List()` is also of type `List[String]`!
+val xs: List[String] = List()
+
+// All lists are built from two fundamental building blocks, `Nil` and `::` (pronounced “cons”).
+// Nil represents the empty list.
+// The infix operator, `::`, expresses list extension at the front.
+// That is, `x :: xs` represents a list whose first element is `x`, followed
+//   by (the elements of) list `xs`.
+val fruit = "apples" :: ("oranges" :: ("pears" :: Nil))
+val nums = 1::(2::(3::(4::Nil)))
+val diag3 = (1 :: (0 :: (0 :: Nil))) ::
+            (0 :: (1 :: (0 :: Nil))) ::
+            (0 :: (0 :: (1 :: Nil))) :: Nil
+val empty = Nil
+
+// Because it ends in a colon, the `::` operation associates to the right:
+//   `A :: B :: C` is interpreted as A :: (B :: C).
+// Therefore, you can drop the parentheses in the previous definitions. For instance:
+val nums = 1 :: 2 :: 3 :: 4 :: Nil
+// is equivalent to the previous definition of nums.
+----
+
+[source,scala]
+----
+// insertion sort
+def isort(xs: List[Int]): List[Int] =
+  if (xs.isEmpty) Nil
+  else insert(xs.head, isort(xs.tail))
+
+def insert(x: Int, xs: List[Int]): List[Int] =
+  if (xs.isEmpty || x <= xs.head) x :: xs
+  else xs.head :: insert(x, xs.tail)
+
+scala> val hotline = isort(List(3, 2, 1, 5, 4)).mkString("")
+hotline: String = 12345
+----
+
+=== List patterns
+
+Lists can also be taken apart using *pattern matching*.
+
+* List patterns correspond one-by-one to list expressions.
+* You can either match on all elements of a list using a pattern of the form List(...),
++
+[source,scala]
+----
+scala> val List(a, b, c) = fruit
+a: String = apples
+b: String = oranges
+c: String = pears
+----
+
+* or you take lists apart bit by bit using patterns composed from the :: operator and the Nil constant.
++
+[source,scala]
+----
+scala> val a :: b :: rest = fruit
+a: String = apples
+b: String = oranges
+rest: List[String] = List(pears)
+----
++
+[source,scala]
+----
+// insertion sort using pattern matching
+def isort(xs: List[Int]): List[Int] = xs match {
+  case Nil => Nil
+  case x :: rs => insert(x, isort(rs))
+}
+
+def insert(x: Int, xs: List[Int]): List[Int] = xs match {
+  case Nil => x :: Nil
+  case y :: ys => if (x <= y) x :: xs
+                  else y :: insert(x, ys)
+}
+----
+
+=== First-order methods on class List
+
+A method is first-order if it does not take any functions as arguments.
+
+==== Concatenating two lists
+
+An operation similar to `::` is list concatenation, written `:::`.
+
+* Unlike `::`, `:::` takes two lists as operands.
+* The result of `xs``:::``ys` is a new list that contains all the elements of `xs`, followed by all the elements of `ys`.
+* Like cons, list concatenation associates to the right.
++
+[source,scala]
+----
+scala> List(1) :: List(2) :: List(3) :: Nil
+res0: List[List[Int]] = List(List(1), List(2), List(3))
+
+scala> List(1) :: List(2) :: List(3)
+res1: List[Any] = List(List(1), List(2), 3)
+
+scala> List(1) ::: List(2) ::: List(3)
+res2: List[Int] = List(1, 2, 3)
+
+scala> List(1) ::: ( List(2) ::: List(3) )
+res3: List[Int] = List(1, 2, 3)
+----
++
+[source,scala]
+----
+// The Divide and Conquer principle
+//
+// Concatenation (:::) is implemented as a method in class List.
+// It would also be possible to implement concatenation "by hand",
+//   using pattern matching on lists.
+//
+// def append[T](xs: List[T], xy: List[T]): List[T]
+//
+// To design the implementation of append, it pays to remember
+//   the "divide and conquer" design principle for programs
+//   over recursive data structures such as lists.
+//
+// Many algorithms over lists first split an input list into simpler cases
+//   using a pattern match.
+//   That's the *divide* part of the principle.
+// They then construct a result for each case.
+//   If the result is a non-empty list, some of its parts may be constructed
+//   by recursive invocations of the same algorithm.
+//   That's the *conquer* part of the principle.
+
+def append[T](xs: List[T], xy: List[T]): List[T] = xs match {
+  case List() => xy
+  case x ::  xs1 => x :: append(xs1, xy)
+}
+----
+
+==== Taking the length of a list: `length`
+
+The `length` method computes the length of a list.
+
+* On lists, unlike arrays, length is a relatively expensive operation.
+* It needs to traverse the whole list to find its end and therefore takes time proportional to the number of elements in the list.
++
+[source,scala]
+----
+scala> List(1, 2, 3).length
+res3: Int = 3
+----
+
+==== Accessing the end of a list: `init` and `last`
+
+Unlike `head` and `tail`, which both run in constant time, `init` and `last` need to traverse the whole list to compute their result. They therefore take time proportional to the length of the list.
+
+[source,scala]
+----
+scala> val abcde = List('a', 'b', 'c', 'd', 'e')
+abcde: List[Char] = List(a, b, c, d, e)
+
+scala> abcde.last
+res4: Char = e
+
+scala> abcde.init
+res5: List[Char] = List(a, b, c, d)
+
+scala> List().init
+java.lang.UnsupportedOperationException: empty.init
+  at scala.collection.TraversableLike.init(TraversableLike.scala:647)
+  at scala.collection.TraversableLike.init$(TraversableLike.scala:646)
+  at scala.collection.AbstractTraversable.init(Traversable.scala:108)
+  ... 28 elided
+
+scala> List().last
+java.util.NoSuchElementException
+  at scala.collection.LinearSeqOptimized.last(LinearSeqOptimized.scala:150)
+  at scala.collection.LinearSeqOptimized.last$(LinearSeqOptimized.scala:149)
+  at scala.collection.immutable.List.last(List.scala:91)
+  ... 28 elided
+----
+
+==== Reversing lists: `reverse`
+
+[source,scala]
+----
+scala> abcde.reverse
+res6: List[Char] = List(e, d, c, b, a)
+
+// reverse using concatenation(:::):
+// the total complexity of rev is:
+//   n + (n − 1) + ... + 1 = (1 + n) ∗ n / 2
+def rev[T](xs: List[T]): List[T] = xs match {
+  case List() => xs
+  case x :: xs1 => rev(xs1) ::: List(x)
+}
+----
+
+==== Prefixes and suffixes: `drop`, `take`, and `splitAt`
+
+[source,scala]
+----
+// equals: List(abcde.head)
+scala> abcde.take(1)
+res15: List[Char] = List(a)
+
+scala> abcde.take(2)
+res17: List[Char] = List(a, b)
+
+// equals: abcde.tail
+scala> abcde.drop(1)
+res18: List[Char] = List(b, c, d, e)
+
+// equals: List(abcde.take(2), abcde.drop(2))
+scala> abcde.splitAt(2)
+res21: (List[Char], List[Char]) = (List(a, b),List(c, d, e))
+----
+
+==== Element selection: `apply` and `indices`
+
+[source,scala]
+----
+scala> abcde.apply(2) // rare in Scala
+res31: Char = c
+
+scala> abcde(2)       // rare in Scala
+res32: Char = c
+
+scala> abcde.indices
+res33: scala.collection.immutable.Range = Range 0 until 5
+----
+
+==== Flattening a list of lists: `flatten`
+
+The `flatten` method takes a list of lists and flattens it out to a single list:
+
+[source,scala]
+----
+scala> List(List(1, 2), List(3), List(), List(4, 5)).flatten
+res14: List[Int] = List(1, 2, 3, 4, 5)
+scala> fruit.map(_.toCharArray).flatten
+res15: List[Char] = List(a, p, p, l, e, s, o, r, a, n, g, e, s, p, e, a, r, s)
+----
+
+==== Zipping lists: `zip` and `unzip`
+
+[source,scala]
+----
+// The `zip` operation takes two lists and forms a list of pairs:
+scala> abcde.indices zip abcde
+res34: scala.collection.immutable.IndexedSeq[(Int, Char)] = Vector((0,a), (1,b), (2,c), (3,d), (4,e))
+
+// If the two lists are of different length, any unmatched elements are dropped:
+scala> val zipped = abcde zip List(1, 2, 3)
+zipped: List[(Char, Int)] = List((a,1), (b,2), (c,3))
+
+// A useful special case is to zip a list with its index.
+scala> abcde.zipWithIndex
+res18: List[(Char, Int)] = List((a,0), (b,1), (c,2), (d,3), (e,4))
+
+// Any list of tuples can also be changed back to a tuple of lists by using the `unzip` method:
+scala> abcde.zipWithIndex.unzip
+res38: (List[Char], List[Int]) = (List(a, b, c, d, e),List(0, 1, 2, 3, 4))
+----
+
+==== Displaying lists: `toString` and `mkString`
+
+[source,scala]
+----
+scala> abcde.toString
+res20: String = List(a, b, c, d, e)
+
+scala> abcde mkString ("[", ",", "]")
+res21: String = [a,b,c,d,e]
+
+scala> abcde mkString ""
+res22: String = abcde
+
+scala> abcde.mkString
+res23: String = abcde
+
+scala> abcde mkString ("List(", ", ", ")")
+res24: String = List(a, b, c, d, e)
+
+// There are also variants of the `mkString` methods called `addString` which append
+//   the constructed string to a `scala.StringBuilder` object, rather than returning
+//   them as a result:
+scala> val buf = new StringBuilder
+buf: StringBuilder =
+
+scala> abcde addString (buf, "(", ";", ")")
+res42: StringBuilder = (a;b;c;d;e)
+----
+
+==== Converting lists: `iterator`, `toArray`, `copyToArray`
+
+[source,scala]
+----
+// To convert data between the flat world of arrays and the recursive world of
+//   lists, you can use method `toArray` in class List and `toList` in class Array:
+scala> val arr = abcde.toArray
+arr: Array[Char] = Array(a, b, c, d, e)
+
+scala> arr.toList
+res43: List[Char] = List(a, b, c, d, e)
+
+// There's also a method `copyToArray`, which copies list elements to successive array
+//   positions within some destination array.
+scala> val arr2 = new Array[Int](10)
+arr2: Array[Int] = Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+scala> List(1, 2, 3, 4, 5).copyToArray(arr2, 3)
+
+scala> arr2
+res47: Array[Int] = Array(0, 0, 0, 1, 2, 3, 4, 5, 0, 0)
+
+scala> List(1, 2, 3, 4, 5).copyToArray(arr2, 8)
+
+scala> arr2
+res49: Array[Int] = Array(0, 0, 0, 1, 2, 3, 4, 5, 1, 2)
+
+// Finally, if you need to access list elements via an iterator, you
+//   can use the `iterator` method:
+scala> val it = List(1, 23, 45).iterator
+it: Iterator[Int] = <iterator>
+
+scala> it.next
+res56: Int = 1
+
+scala> it.next
+res57: Int = 23
+
+scala> it.next
+res58: Int = 45
+
+scala> it.hasNext
+res59: Boolean = false
+
+scala> it.next
+java.util.NoSuchElementException: next on empty iterator
+  at scala.collection.Iterator$$anon$2.next(Iterator.scala:41)
+  at scala.collection.Iterator$$anon$2.next(Iterator.scala:39)
+  at scala.collection.LinearSeqLike$$anon$1.next(LinearSeqLike.scala:50)
+  ... 28 elided
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
