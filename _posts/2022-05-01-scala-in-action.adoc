@@ -5,6 +5,7 @@
 :page-date: 2022-05-01 09:10:23 +0800
 :page-revdate: 2022-05-01 09:10:23 +0800
 :toc:
+:toclevels: 5
 :sectnums:
 
 == First Steps in Scala
@@ -838,48 +839,6 @@ breakable {
 ----
 
 The `Breaks` class implements `break` by throwing an exception that is caught by an enclosing application of the `breakable` method. Therefore, the call to `break` does not need to be in the same method as the call to `breakable`.
-
-[source,scala]
-----
-// File in Breakable.scala
-object Breaks {
-  def breakable(op: => Unit) {
-    try {
-      op
-    } catch {
-      case _: BreakException => 
-    }
-  }
-
-  def break() {
-    throw new BreakException()
-  }
-
-  final case class BreakException() extends Exception()
-}
-
-object Main {
-  def main(args: Array[String]) {
-    import java.io._
-    import Breaks._
-
-    val in = new BufferedReader(new InputStreamReader(System.in))
-    breakable {
-      while (true) {
-        println("? ")
-        if (in.readLine() == "") break
-      }
-    }
-  }
-}
-----
-
-[source,console]
-----
-$ scala Breakable.scala
-?
-
-----
 
 === Refactoring imperative-style code
 
@@ -2057,6 +2016,32 @@ A factory object contains methods that construct other objects.
 In Scala, every class inherits from a common superclass named *Any*.
 
 * Because every class is a subclass of Any, the methods defined in Any are “universal” methods: they may be invoked on any object.
++
+[source,scala]
+----
+// Class Any at the top of the hierarchy, defines methods that include the following:
+//
+// Because every class inherits from Any, every object in a Scala program can be compared 
+//   using `==`, `!=`, or `equals`; hashed using `##` or `hashCode`;
+//   and formatted using `toString`.
+// The equality and inequality methods, `==` and `!=`, are declared `final` in class Any, so
+//   they cannot be overridden in subclasses.
+// The `==` method is essentially the same as `equals` and
+//     `!=` is always the negation of `equals`.
+// So individual classes can tailor what `==` or `!=` means by overriding the `equals` method.
+final def ==(that: Any): Boolean
+
+final def !=(that: Any): Boolean
+
+def equals(that: Any): Boolean
+
+def ##: Int
+
+def hashCode: Int
+
+def toString: String
+----
+
 
 Scala also defines some interesting classes at the bottom of the hierarchy, *Null* and *Nothing*, which essentially act as common subclasses.
 
@@ -2399,3 +2384,1125 @@ However, you should make this choice only if you know that the trait in question
 * *If you still do not know, after considering the above, then start by making it as a trait.*
 +
 You can always change it later, and in general using a trait keeps more options open.
+
+== Packages and Imports
+
+=== Putting code in packages
+
+Scala code resides in the Java platform’s global hierarchy of packages. The example code you’ve seen so far in this book has been in the unnamed package. You can place code into named packages in Scala in two ways.
+
+First, you can place the contents of an entire file into a package by putting a package clause at the top of the file:
+
+[source,scala]
+----
+// Placing the contents of an entire file into a package.
+package bobsrockets.navigation
+class Navigator
+----
+
+The other way you can place code into packages in Scala is more like C# namespaces. You follow a package clause by a section in curly braces that contains the definitions that go into the package. This syntax is called a *packaging*.
+
+[source,scala]
+----
+// Long form of a simple package declaration.
+package bobsrockets.navigation {
+  class Navigator
+}
+----
+
+== Concise access to related code
+
+When code is divided into a package hierarchy, it doesn’t just help people browse through the code. It also tells the compiler that code in the same package is related in some way to each other. Scala takes advantage of this relatedness by allowing short, unqualified names when accessing code that is in the same package.
+
+Scala provides a package named `_root_` that is outside any package a user can write. Put another way, every top-level package you can write is treated as a member of `package _root_`.
+
+[source,scala]
+----
+package launch {
+  class Booster3
+}
+
+package spaceX {
+  package navigation {
+    package launch {
+      class Booster1
+
+      class MissionControl {
+        val booster1 = new Booster1
+        val booster2 = new spaceX.launch.Booster2
+        val booster3 = new _root_.launch.Booster3
+      }
+    }
+  }
+
+  package launch {
+    class Booster2
+  }
+}
+----
+
+=== Imports
+
+*In Scala, packages and their members can be imported using import clauses.*
+
+[source,scala]
+----
+// Bob’s delightful fruits, ready for import.
+package bobsdelights
+
+abstract class Fruit(
+  val name: String,
+  val color: String
+)
+
+object Fruits {
+  object Apple extends Fruit("apple", "red")
+  object Orange extends Fruit("orange", "orange")
+  object Pear extends Fruit("pear", "yellowish")
+  val menu = List(Apple, Orange, Pear)
+}
+----
+
+* An import clause *makes members of a package or object available by their names* alone
++
+without needing to prefix them by the package or object name.
++
+[source,scala]
+----
+// The first of these corresponds to Java’s single type import,
+//
+// the second to Java’s on-demand import.
+//
+// The only difference is that Scala’s on-demand imports are written
+// with a trailing underscore (`_`) instead of an asterisk (`*`) (after all,
+// `*` is a valid identifier in Scala!).
+//
+// The third import clause above corresponds to Java’s import of static class fields.
+//
+// easy access to Fruit
+import bobsdelights.Fruit
+
+// easy access to all members of bobsdelights
+import bobsdelights._
+
+// easy access to all members of Fruits
+import bobsdelights.Fruits._
+----
+
+* *Imports in Scala can appear anywhere*, not just at the beginning of a compilation unit.
++
+Also, *they can refer to arbitrary values*. 
++
+[source,scala]
+----
+// Importing the members of a regular (not singleton) object.
+def showFruit(fruit: Fruit) {
+  import fruit._
+  println(name +"s are "+ color)
+}
+----
+
+* Another way Scala’s imports are flexible is that they can *import packages themselves, not just their non-package members*.
++
+This is only natural if you think of nested packages being contained in their surrounding package. 
++
+[source,scala]
+----
+// Importing a package name.
+import java.util.regex
+
+class AStarB {
+  // Accesses java.util.regex.Pattern
+  val pat = regex.Pattern.compile("a*b")
+}
+----
+
+* Imports in Scala can also *rename or hide members*.
++
+This is done with an *import selector clause* enclosed in braces, which follows the object from which members are imported. 
++
+[source,scala]
+----
+// imports just members Apple and Orange from object Fruits.
+import Fruits.{Apple, Orange}
+
+// imports the two members Apple and Orange from object Fruits.
+// However, the `Apple` object is renamed to `McIntosh`.
+// So this object can be  accessed with either `Fruits.Apple` or `McIntosh`.
+//  A renaming clause is always of the form “<original-name> => <new-name>”.
+import Fruits.{Apple => McIntosh, Orange}
+
+// imports all members from object `Fruits`.
+// It means the same thing as `import Fruits._`.
+import Fruits.{_}
+// import Fruits._
+
+// imports all members from object Fruits but renames Apple to McIntosh.
+import Fruits.{Apple => McIntosh, _}
+
+// imports all members of `Fruits` except `Pear`.
+// A clause of the form “<original-name> => _” excludes <original-name> from the names
+//  that are imported.
+// In a sense, renaming something to ‘_’ means hiding it altogether.
+// This is useful to avoid ambiguities.
+import Fruits.{Pear => _, _}
+
+// import all Notebooks and all Fruits except for Apple.
+import Notebooks._
+import Fruits.{Apple => _, _}
+----
+
+In summary, an *import selector* can consist of the following:
+
+* A simple name x.
++
+This includes x in the set of imported names.
+
+* A renaming clause +++x => y+++.
++
+This makes the member named x visible under the name y.
+
+* A hiding clause +++x => _+++.
++
+This excludes x from the set of imported names.
+
+* A catch-all ‘_’.
++
+This imports all members except those members mentioned in a preceding clause.
++
+If a catch-all is given, it must come last in the list of import selectors.
+
+* The *simpler import* clauses can be seen as special abbreviations of import clauses with a selector clause.
++
+For example, “+++import p._+++” is equivalent to “+++import p.{_}+++” and “+++import p.n+++” is equivalent to “+++import p.{n}+++”.
+
+=== Implicit imports
+
+Scala adds some imports implicitly to every program. In essence, it is as if the following three import clauses had been added to the top of every source file with extension “.scala”:
+
+[source,scala]
+----
+import java.lang._ // everything in the java.lang package
+import scala._     // everything in the scala package
+import Predef._    // everything in the Predef object
+----
+
+* The *java.lang package* contains standard Java classes.
++
+It is always implicitly imported on the JVM implementation of Scala.
++
+The .NET implementation would import package system instead, which is the .NET analogue of java.lang.
++
+Because java.lang is imported implicitly, you can write Thread instead of java.lang.Thread, for instance.
+
+* As you have no doubt realized by now, the *scala package* contains the standard Scala library, with many common classes and objects.
++
+Because scala is imported implicitly, you can write List instead of scala.List, for instance.
+
+* The *Predef object* contains many definitions of types, methods, and implicit conversions that are commonly used on Scala programs. For example, because Predef is imported implicitly, you can write assert instead of Predef.assert.
+
+* The three import clauses above are treated a bit specially in that *later imports overshadow earlier ones*.
++
+For instance, the StringBuilder class is defined both in package scala and, from Java version 1.5 on, also in package java.lang.
++
+Because the scala import overshadows the java.lang import, the simple name StringBuilder will refer to scala.StringBuilder, not java.lang.StringBuilder.
+
+=== Access modifiers
+
+Members of packages, classes, or objects can be labeled with the access modifiers `private` and `protected`.
+
+* *Private members*
++
+[source,scala]
+----
+// A member labeled private is visible only inside the class or
+//   object that contains the member definition.
+//
+// Java would permit both accesses because it lets an outer class
+//   access private members of its inner classes.
+class Outer {
+
+  class Inner {
+    private def f() { println("f") }
+
+    class InnerMost {
+      f() // OK
+    }
+  }
+
+  (new Inner).f() // error: f is not accessible
+}
+----
+
+* *Protected members*
++
+[source,scala]
+----
+// In Scala, a protected member is only accessible from subclasses of
+//   the class in which the member is defined.
+//
+// In Java such accesses are also possible from other classes in
+//   the same package.
+package p {
+  class Super {
+    protected def f() { println("f") }
+  }
+
+  class Sub extends Super {
+    f()
+  }
+
+  class Other {
+    (new Super).f()  // error: f is not accessible
+  }
+}
+
+----
+
+* *Public members*
++
+*Every member not labeled private or protected is public.*
++
+--
+** There is no explicit modifier for public members.
+** Such members can be accessed from anywhere.
+--
+
+* *Scope of protection*
++
+Access modifiers in Scala can be augmented with qualifiers.
++
+--
+** A modifier of the form *private[X]* or *protected[X]* means that access is private or protected “up to” X, where X designates some *enclosing package*, *class* or *singleton object*.
+
+** Qualified access modifiers give you very finegrained control over visibility.
+
+*** In particular they enable you to express Java’s accessibility notions such as *package private*, *package protected*, or *private up to outermost class*, which are not directly expressible with simple modifiers in Scala.
+*** But they also let you express accessibility rules that cannot be expressed in Java.
+--
++
+[source,scala]
+----
+package bobsrockets
+
+package navigation {
+  private[bobsrockets] class Navigator {
+
+    protected[navigation] def useStarChart() {}
+
+    class LegOfJourney {
+      private[Navigator] val distance = 100
+    }
+
+    private[this] var speed = 200
+  }
+}
+
+package launch {
+
+  import navigation._
+
+  object Vehicle {
+    private[launch] val guide = new Navigator
+  }
+}
+----
++
+.Effects of private qualifiers on LegOfJourney.distance
+[cols="1,1"]
+!===
+|_no access modifier_
+|public access
+
+|private[bobsrockets]
+|access within outer package
+
+|private[navigation]
+|same as package visibility in Java
+
+|private[Navigator]
+|same as private in Java
+
+|private[LegOfJourney]
+|same as private in Scala
+
+|private[this]
+a|
+access only from same object
+
+Such a definition is called *object-private*.
+
+Marking a member private[this] is a guarantee that it will not be seen from other objects of the same class.
+
+[source,scala]
+----
+val other = new Navigator
+other.speed // this line would not compile
+----
+!===
+
+* *Visibility and companion objects*
++
+In Java, static members and instance members belong to the same class, so access modifiers apply uniformly to them. 
++
+--
+** You have already seen that *in Scala there are no static members; instead you can have a companion object* that contains members that exist only once.
+
+** Scala’s access rules privilege companion objects and classes when it comes to private or protected accesses.
++
+A class shares all its access rights with its companion object and vice versa.
++
+In particular, an object can access all private members of its companion class, just as a class can access all private members of its companion object.
+--
++
+One exception where the similarity between Scala and Java breaks down concerns *protected static* members.
++
+--
+** A protected static member of a Java class C can be accessed in all subclasses of C.
+
+** By contrast, *a protected member in a companion object makes no sense*, as singleton objects don’t have any subclasses.
+--
+
+=== Package objects
+
+Any kind of definition that you can put inside a class, you can also put at the top level of a package.
+
+* If you have some helper method you’d like to be in scope for an entire package, go ahead and put it right at the top level of the package.
+* To do so, put the definitions in a *package object*.
+* Each package is allowed to have one package object.
+* Any definitions placed in a package object are considered members of the package itself.
+* Package objects are compiled to class files named *package.class* that are the located in the directory of the package that they augment.
++
+It’s useful to keep the same convention for source files named *package.scala*. 
++
+[source,scala]
+----
+// File in breaks/package.scala
+//
+// It's a package object, not a package.
+// The contents of the curly braces can include any definitions you like.
+package object breaks {
+  def breakable(op: => Unit) {
+    try {
+      op
+    } catch {
+      case _: BreakException =>
+    }
+  }
+
+  def break() {
+    throw new BreakException()
+  }
+
+  final case class BreakException() extends Exception()
+}
+----
++
+[source,scala]
+----
+// File in Main.scala
+object Main {
+  def main(args: Array[String]) {
+    import java.io._
+    import breaks._
+
+    val in = new BufferedReader(new InputStreamReader(System.in))
+    breakable {
+      while (true) {
+        println("? ")
+        if (in.readLine() == "") break
+      }
+    }
+  }
+}
+----
++
+[source,console]
+----
+$ tree .
+.
+├── Main.scala
+└── breaks
+    └── package.scala
+
+1 directory, 2 files
+$ scalac **/*.scala
+$ tree .
+.
+├── Main.scala
+└── breaks
+    ├── package$.class
+    ├── package$BreakException$.class
+    ├── package$BreakException.class
+    ├── package.class
+    └── package.scala
+
+1 directory, 6 files
+$ scala Main.scala
+?
+
+----
+
+== Assertions and Unit Testing
+
+Two important ways to check that the behavior of the software you write is as you expect are *assertions* and *unit tests*.
+
+=== Assertions
+
+*Assertions* in Scala are written as calls of a predefined method `assert`.
+
+* The expression `assert(condition)` throws an `AssertionError` if condition does not hold.
+**  The expression `assert(condition, explanation)` tests condition, and, if it does not hold, throws an `AssertionError` that contains the given `explanation`.
++
+The type of `explanation` is `Any`, so you can pass any object as the explanation. The `assert` method will call `toString` on it to get a string explanation to place inside the `AssertionError`.
+
+* Assertions (and ensuring checks) can be enabled and disabled using the JVM’s `-ea` and `-da` command-line flags.
++
+When enabled, each assertion serves as a little test that uses the actual data encountered as the software runs.
+
+=== Unit testing in Scala
+
+You have many options for unit testing in Scala, from established Java tools, such as JUnit and TestNG, to new tools written in Scala, such as *ScalaTest*, specs, and ScalaCheck. In the remainder of this chapter, we’ll give you a quick tour of these tools.
+
+== Case Classes and Pattern Matching
+
+If you have programmed in a functional language before, then you will probably recognize pattern matching.
+
+*Case classes* are Scala’s way to allow *pattern matching* on objects without requiring a large amount of boilerplate.
+
+In the common case, all you need to do is add a single `case` keyword to each class that you want to be pattern matchable.
+
+* *Case classes*
++
+Classes with a `case` modifier are called *case classes*.
++
+[source,scala]
+----
+// source: Notification.scala
+abstract class Notification
+
+case class SMS(caller: String, message: String) extends Notification
+
+case class Email(sender: String, title: String, body: String) extends Notification
+
+case class VoiceRecording(contactName: String, link: String) extends Notification
+----
++
+[source,scala]
+----
+// $ scalac Notification.scala && javap -p SMS.class
+Compiled from "Notification.scala"
+public class SMS extends Notification implements scala.Product,scala.Serializable {
+  // all arguments in the parameter list of a case class
+  //   implicitly get a val prefix
+  private final java.lang.String caller;
+  private final java.lang.String message;
+
+  public static scala.Option<scala.Tuple2<java.lang.String, java.lang.String>> unapply(SMS);
+
+  // factory method with the name of the class
+  public static SMS apply(java.lang.String, java.lang.String);
+
+  public static scala.Function1<scala.Tuple2<java.lang.String, java.lang.String>, SMS> tupled();
+  public static scala.Function1<java.lang.String, scala.Function1<java.lang.String, SMS>> curried();
+
+  // all arguments in the parameter list are maintained as
+  //   fields supports uniform access principle
+  public java.lang.String caller();
+  public java.lang.String message();
+
+  // copy method to make a new instance of the class
+  public SMS copy(java.lang.String, java.lang.String);
+
+  public java.lang.String copy$default$1();
+  public java.lang.String copy$default$2();
+  public java.lang.String productPrefix();
+  public int productArity();
+  public java.lang.Object productElement(int);
+  public scala.collection.Iterator<java.lang.Object> productIterator();
+  public boolean canEqual(java.lang.Object);
+
+  // toString, hashCode, and equals
+  public int hashCode();
+  public java.lang.String toString();
+  public boolean equals(java.lang.Object);
+
+  public SMS(java.lang.String, java.lang.String);
+}
+----
+
+Using the modifier makes the Scala compiler add some syntactic conveniences to your class.
+
+* First, it adds *a factory method with the name of the class*.
++
+[source,scala]
+----
+scala> val sms = SMS("bob", "hello world!")
+sms: SMS = SMS(bob,hello world!)
+----
+
+* The second syntactic convenience is that *all arguments in the parameter list of a case class implicitly get a `val` prefix*, so they are maintained as fields:
++
+[source,scala]
+----
+scala> sms.caller
+res0: String = bob
+
+scala> sms.message
+res1: String = hello world!
+----
+
+* Third, the compiler adds “natural” implementations of methods `toString`, `hashCode`, and `equals` to your class.
++
+They will print, hash, and compare a whole tree consisting of the class and (recursively) all its arguments.
++
+Since == in Scala always delegates to equals, this means that elements of case classes are always compared structurally:
++
+[source,scala]
+----
+scala> val sms2 = SMS("bob", "hello world!")
+sms2: SMS = SMS(bob,hello world!)
+
+scala> sms == sms2
+res2: Boolean = true
+----
+
+* Finally, the compiler adds a `copy` method to your class for making modified copies.
++
+This method is useful for making a new instance of the class that is the same as another one except that one or two attributes are different.
++
+The method works by using *named and default parameters*.
++
+You specify the changes you’d like to make by using named parameters.
++
+For any parameter you don’t specify, the value from the old object is used. 
++
+[source,scala]
+----
+scala> val sms3 = sms.copy(caller="alice")
+sms3: SMS = SMS(alice,hello world!)
+
+scala> sms == sms3
+res3: Boolean = false
+----
+
+* *Pattern matching*
++
+*match* corresponds to *switch* in Java, but it’s written after the selector expression. I.e., it’s:
++
+[source,scala]
+----
+selector match { alternatives }
+----
++
+instead of:
++
+[source,scala]
+----
+switch (selector) { alternatives }
+----
++
+Pattern matching is a mechanism for *checking a value against a pattern*.
++
+A successful match can also *deconstruct a value into its constituent parts*. 
++
+[source,scala]
+----
+def showNotification(notification: Notification): String = {
+  notification match {
+    case SMS("012-12345", message) =>
+      s"You sent an SMS to Mayor Hotline! Message: $message"
+    case SMS(number, message) =>
+      s"You got an SMS from $number! Message: $message"
+    case Email(sender, title, _) =>
+      s"You got an email from $sender with title: $title"
+    case _ => s"You got an unkown message!"
+  }
+}
+
+val notifications = Seq(
+  Email("virus@2019-n.cov", "Drinks tonight?", "I'm free after 5!"),
+  SMS("021-12345", "Mayor: Are you hungry?"),
+  SMS("12345", "404: NotFound."),
+  VoiceRecording("Alice", "voicerecording.org/id/123"),
+  ) 
+
+notifications.map(showNotification).foreach(println)
+
+// Output:
+// You got an email from virus@2019-n.cov with title: Drinks tonight?
+// You got an SMS from 021-12345! Message: Mayor: Are you hungry?
+// You got an SMS from 12345! Message: 404: NotFound.
+// You got an unkown message!
+----
++
+* A pattern match includes a sequence of *_alternatives_*, each starting with the keyword `case`.
++
+Each alternative includes a *_pattern_* and one or more expressions, which will be evaluated if the pattern matches.
++
+An arrow symbol +++=>+++ separates the pattern from the expressions.
+
+* A match expression is evaluated by trying each of the patterns in the order they are written.
++
+The first pattern that matches is selected, and the part following the arrow is selected and executed.
++
+A *constant pattern* like "021-12345" matches values that are equal to the constant with respect to ==.
++
+A *variable pattern* like "message", "title"  matches every value. The variable then refers to that value in the right hand side of the case clause.
+
+=== Kinds of patterns
+
+==== Wildcard patterns
+
+The wildcard pattern (_) matches any object whatsoever. You have already seen it used as a default, catch-all alternative, like this:
+
+[source,scala]
+----
+notification match {
+  case SMS("012-12345", message) =>
+    s"You sent an SMS to Mayor Hotline! Message: $message"
+  case _ => s"You got an unkown message!"
+}
+----
+
+==== Constant patterns
+
+A *constant* pattern matches only itself. Any _literal_ may be used as a constant. Also, any _val_ or _singleton object_ can be used as a constant. 
+
+[source,scala]
+----
+def describe(x: Any) = x match {
+  case 5 => "five"
+  case true => "truth"
+  case "hello" => "hi!"
+  case Nil => "the empty list"
+  case _ => "something else"
+}
+----
+
+==== Variable patterns
+
+A variable pattern matches any object, just like a wildcard. Unlike a wildcard, Scala binds the variable to whatever the object is. You can then use this variable to act on the object further. 
+
+[source,scala]
+----
+expr match {
+  case 0 => "zero"
+  case somethingElse => "not zero: "+ somethingElse
+}
+----
+
+.Variable or constant?
+[NOTE]
+====
+[source,scala]
+----
+scala> import math.{E, Pi}
+import math.{E, Pi}
+
+scala> E match {
+     | case Pi => "strange match? Pi = " + Pi
+     | case _ => "OK"
+     | }
+res0: String = OK
+----
+
+[source,scala]
+----
+scala> val pi = Pi
+pi: Double = 3.141592653589793
+
+scala> E match {
+     | case pi => "strange math? Pi = " + pi
+     | }
+res1: String = strange math? Pi = 2.718281828459045
+----
+
+[source,scala]
+----
+scala> E match {
+     | case pi => "strange math? Pi = " + pi
+     | case _ => "OK"
+     | }
+<console>:15: warning: patterns after a variable pattern cannot match (SLS 8.1.1)
+       case pi => "strange math? Pi = " + pi
+            ^
+<console>:16: warning: unreachable code due to variable pattern 'pi' on line 15
+       case _ => "OK"
+                 ^
+<console>:16: warning: unreachable code
+       case _ => "OK"
+                 ^
+res3: String = strange math? Pi = 2.718281828459045
+----
+
+[source,scala]
+----
+// back-tick syntax for identifiers:
+// 1. treat a lowercase identifier as a constant in a pattern match
+// 2. treat a keyword as an ordinary identifier, 
+//    e.g., writing Thread.`yield`() treats yield as an identifier rather than a keyword.
+scala> E match {
+     | case `pi` => "strange math? Pi = " + pi
+     | case _ => "OK"
+     | }
+res4: String = OK
+----
+====
+
+==== Constructor patterns
+
+These extra patterns mean that Scala patterns support *deep matches*. Such patterns not only check the top-level object supplied, but also check the contents of the object against further patterns. Since the extra patterns can themselves be constructor patterns, you can use them to check arbitrarily deep into an object.
+
+[source,scala]
+----
+abstract class Geometry
+
+case class Point(x: Int, y: Int) extends Geometry
+
+case class Line(p1: Point, p2: Point) extends Geometry
+
+val p1 = Point(1, 2)
+val p2 = Point(3, 45)
+val line = Line(p1, p2)
+
+val slope = line match {
+  case Line(Point(x1, y1), Point(x2, y2)) => (y2 - y1) * 1.0 / (x2 - x1)
+}
+
+println(s"The slope of line ${line} is ${slope}.")
+----
+
+==== Sequence patterns
+
+You can match against sequence types like `List` or `Array` just like you match against case classes. Use the same syntax, but now you can specify any number of elements within the pattern.
+
+[source,scala]
+----
+// A sequence pattern with a fixed length.
+expr match {
+  case List(0, _, _) => println("found it")
+  case _ =>
+}
+----
+
+If you want to match against a sequence without specifying how long it can be, you can specify `_*` as the last element of the pattern.
+
+[source,scala]
+----
+// A sequence pattern with an arbitrary length.
+expr match {
+  case List(0, _*) => println("found it")
+  case _ =>
+}
+----
+
+==== Tuple patterns
+
+You can match against tuples, too. A pattern like (a, b, c) matches an arbitrary 3-tuple. 
+
+[source,scala]
+----
+expr match {
+  case (a, b, c)  =>  println("matched "+ a + b + c)
+  case _ =>
+}
+----
+
+==== Typed patterns
+
+You can use a typed pattern as a convenient replacement for type tests and type casts.
+
+[source,scala]
+----
+def generalSize(x: Any) = x match {
+  case s: String => s.length
+  case m: Map[_, _] => m.size
+  case _ => -1
+}
+----
+
+An equivalent but more long-winded way that achieves the effect of a match against a typed pattern employs a type test followed by a type cast. Scala uses a different syntax than Java for these. To test whether an expression expr has type String, say, you write:
+
+[source,scala]
+----
+expr.isInstanceOf[String]
+----
+
+To cast the same expression to type String, you use:
+
+[source,scala]
+----
+expr.asInstanceOf[String]
+----
+
+[source,scala]
+----
+// Using isInstanceOf and asInstanceOf (poor style).
+def generalSize2(x: Any) = {
+  if (x.isInstanceOf[String]) {
+    val s = x.asInstanceOf[String]
+    s.length
+  } else if (x.isInstanceOf[Map[_, _]]) {
+    val m = x.asInstanceOf[Map[_, _]]
+    m.size
+  } else {
+    -1
+  }
+}
+----
+
+* *Type erasure*
++
+Can you also test for a map with specific element types?
++
+[source,scala]
+----
+scala> def isIntIntMap(x: Any) = x match {
+     | case m: Map[Int, Int] => true
+     | case _ => false
+     | }
+<console>:12: warning: non-variable type argument Int in type pattern  \
+scala.collection.immutable.Map[Int,Int] (the underlying of Map[Int,Int]) is unchecked \
+since it is eliminated by erasure
+       case m: Map[Int, Int] => true
+               ^
+isIntIntMap: (x: Any)Boolean
+----
+
+Scala uses the erasure model of generics, just like Java does.
+
+* This means that no information about type arguments is maintained at runtime.
+* Consequently, there is no way to determine at runtime whether a given Map object has been created with two Int arguments, rather than with arguments of different types.
++
+All the system can do is determine that a value is a Map of some arbitrary type parameters. 
++
+[source,scala]
+----
+scala> isIntIntMap(Map(1 -> 1))
+res0: Boolean = true
+
+scala> isIntIntMap(Map("abc" -> "abc"))
+res1: Boolean = true
+----
+
+The only exception to the erasure rule is arrays, because they are handled specially in Java as well as in Scala. The element type of an array is stored with the array value, so you can pattern match on it.
+
+[source,scala]
+----
+scala> def isStringArray(x: Any) = x match {
+     | case a: Array[String] => "yes"
+     | case _ => "no"
+     | }
+isStringArray: (x: Any)String
+
+scala> val as = Array("abc")
+as: Array[String] = Array(abc)
+
+scala> isStringArray(as)
+res2: String = yes
+
+scala> val ai = Array(1, 2, 3, 4, 5)
+ai: Array[Int] = Array(1, 2, 3, 4, 5)
+
+scala> isStringArray(ai)
+res3: String = no
+----
+
+==== Variable binding
+
+In addition to the standalone variable patterns, you can also add a variable to any other pattern.
+
+You simply write the variable name, an at sign (`@`), and then the pattern.
+
+* This gives you a variable-binding pattern.
+* The meaning of such a pattern is to perform the pattern match as normal, and if the pattern succeeds, set the variable to the matched object just as with a simple variable pattern.
++
+[source,scala]
+----
+// a pattern with a variable binding (via the @ sign).
+expr match {
+  case UnOp("abs", e @ UnOp("abs", _)) => e
+  case _ =>
+}
+----
+
+=== Pattern guards
+
+A *pattern guard* comes after a pattern and starts with an `if`.
+
+* The guard can be an arbitrary boolean expression, which typically refers to variables in the pattern.* If a pattern guard is present, the match succeeds only if the guard evaluates to true.
+
+[source,scala]
+----
+// match only positive integers
+case n: Int if 0 < n => ...
+
+// match only strings starting with the letter ‘a’
+case s: String if s(0) == 'a' => ...
+----
+
+=== Sealed classes
+
+A *sealed class* cannot have any new subclasses added except the ones in the same file.
+
+* This is very useful for pattern matching, because it means you only need to worry about the subclasses you already know about.
+* What’s more, you get better compiler support as well.
+** If you match against case classes that inherit from a sealed class, the compiler will flag missing combinations of patterns with a warning message.
+* Therefore, if you write a hierarchy of classes intended to be pattern matched, you should consider sealing them. Simply put the sealed keyword in front of the class at the top of the hierarchy. 
+
+[source,scala]
+----
+// source: Notification.scala
+sealed abstract class Notification
+
+case class SMS(caller: String, message: String) extends Notification
+
+case class Email(sender: String, title: String, body: String) extends Notification
+
+case class VoiceRecording(contactName: String, link: String) extends Notification
+
+def showNotification(notification: Notification): String = {
+  // warning: match may not be exhaustive.
+  // It would fail on the following input: VoiceRecording(_, _)
+  //   notification match {
+  //   ^
+  // one warning found
+  notification match {
+    case SMS("012-12345", message) =>
+      s"You sent an SMS to Mayor Hotline! Message: $message"
+    case Email(sender, title, _) =>
+      s"You got an email from $sender with title: $title"
+    // case _ => s"You got an unkown message!" // "catch all" case.
+  }
+}
+----
+
+=== The Option type
+
+Scala has a standard type named `Option` for optional values. Such a value can be of two forms.
+
+* It can be of the form `Some(x)` where `x` is the actual value.
+* Or it can be the `None` object, which represents a missing value.
++
+[source,scala]
+----
+scala> val capitals = Map("Japan" -> "Tokyo", "West Korea" -> "평양")
+capitals: scala.collection.immutable.Map[String,String] = Map(Japan -> Tokyo, West Korea -> 평양)
+
+scala> capitals.get("West Korea")
+res6: Option[String] = Some(평양)
+
+scala> capitals("West Korea")
+res5: String = 평양
+
+scala> capitals.get("PRC.")
+res7: Option[String] = None
+
+scala> capitals("PRC.")
+java.util.NoSuchElementException: key not found: PRC.
+  at scala.collection.immutable.Map$Map2.apply(Map.scala:227)
+  ... 28 elided
+----
+
+=== Patterns everywhere
+
+Patterns are allowed in many parts of Scala, not just in standalone `match` expressions. 
+
+==== Patterns in variable definitions
+
+[source,scala]
+----
+scala> val myTuple = ("12345", "Mayor Hotline")
+myTuple: (String, String) = (12345,Mayor Hotline)
+
+scala> val (number, string) = myTuple
+number: String = 12345
+string: String = Mayor Hotline
+
+scala> case class Point(x: Int, y: Int)
+defined class Point
+
+scala> val p = Point(12, 345)
+p: Point = Point(12,345)
+
+scala> val Point(x, y) = p
+x: Int = 12
+y: Int = 345
+
+scala> case class Line(p1: Point, p2: Point)
+defined class Line
+
+scala> val myLine = Line(Point(1, 2), Point(3, 45))
+myLine: Line = Line(Point(1,2),Point(3,45))
+
+scala> val Line(Point(x1, y1), Point(x2, y2)) = myLine
+x1: Int = 1
+y1: Int = 2
+x2: Int = 3
+y2: Int = 45
+----
+
+==== Case sequences as partial functions
+
+A sequence of cases (i.e., alternatives) in curly braces can be used anywhere a function literal can be used.
+
+* Essentially, a case sequence is a function literal, only more general.
+* Instead of having a single entry point and list of parameters, a case sequence has multiple entry points, each with their own list of parameters.
+* Each case is an entry point to the function, and the parameters are specified with the pattern.
+* The body of each entry point is the right-hand side of the case.
++
+[source,scala]
+----
+// Option[Int] => Int
+scala> val withDefault: Option[Int] => Int = {
+     | case Some(x) => x
+     | case None => 0
+     | }
+withDefault: Option[Int] => Int = $Lambda$1658/0x0000000801246000@24c7f52b
+
+scala> withDefault(Some(10))
+res0: Int = 10
+
+scala> withDefault(None)
+res1: Int = 0
+----
+
+One other generalization is worth noting: a sequence of cases gives you a partial function. If you apply such a function on a value it does not support, it will generate a runtime exception.
+
+[source,scala]
+----
+scala> val second: List[Int] => Int = {
+     | case x :: y :: _ => y
+     | }
+<console>:11: warning: match may not be exhaustive.
+It would fail on the following inputs: List(_), Nil
+       val second: List[Int] => Int = {
+                                      ^
+second: List[Int] => Int = $Lambda$1684/0x0000000801248000@1e65f2d9
+
+scala> second(List(12, 3, 45))
+res2: Int = 3
+
+scala> second(List())
+scala.MatchError: List() (of class scala.collection.immutable.Nil$)
+  at .$anonfun$second$1(<console>:11)
+  at .$anonfun$second$1$adapted(<console>:11)
+  ... 28 elided
+----
+
+Here is the second function again, this time written with a *partial function type*:
+
+[source,scala]
+----
+scala> val second: PartialFunction[List[Int], Int] = {
+     | case x :: y :: _ => y
+     | }
+second: PartialFunction[List[Int],Int] = <function1>
+
+scala> second.isDefinedAt(List(12, 3, 45))
+res5: Boolean = true
+
+scala> second.isDefinedAt(List())
+res6: Boolean = false
+----
