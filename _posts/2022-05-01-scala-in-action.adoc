@@ -387,7 +387,204 @@ Hello: -244
 World: -8
 ----
 
-=== Functional Objects
+== Basic Types and Operations
+
+=== Some basic types
+
+Collectively, types `Byte`, `Short`, `Int`, `Long`, and `Char` are called integral types. The integral types plus `Float` and `Double` are called numeric types.
+
+Other than `String`, which resides in package `java.lang`, all of the types are members of package scala.
+
+[%header,cols="^2,8"]
+|===
+|Value Type
+|Range
+
+|Byte
+|8-bit signed two’s complement integer (-27 to 27 - 1, inclusive)
+
+|Short
+|16-bit signed two’s complement integer (-215 to 215 - 1, inclusive)
+
+|Int
+|32-bit signed two’s complement integer (-231 to 231 - 1, inclusive)
+
+|Long
+|64-bit signed two’s complement integer (-263 to 263 - 1, inclusive)
+
+|Char
+|16-bit unsigned Unicode character (0 to 216 - 1, inclusive)
+
+|String
+|a sequence of Chars
+
+|Float
+|32-bit IEEE 754 single-precision float
+
+|Double
+|64-bit IEEE 754 double-precision float
+
+|Boolean
+|true or false
+|===
+
+=== Operators are methods
+
+Scala provides a rich set of operators for its basic types.
+
+These operators are actually just a nice syntax for ordinary method calls.
+
+* For example, `1 + 2` really means the same thing as `(1).+(2)`.
++
+In other words, class `Int` contains a method named `+` that takes an `Int` and returns an `Int` result.
++
+This `+` method is invoked when you add two Ints:
++
+[source,scala]
+----
+scala> val sum = 2 + 2
+sum: Int = 4
+
+scala> val sumMore = (2).+(2)
+sumMore: Int = 4
+----
++
+In fact, `Int` contains several *overloaded* `+` methods that take different parameter types.
++
+[source,scala]
+----
+scala> val longSum = 2 + 2L
+longSum: Long = 4
+
+scala> (2).+(2L)
+res2: Long = 4
+
+scala> val longSumMore = (2).+(2L)
+longSumMore: Long = 4
+----
+
+The `+` symbol is an *operator*—an *infix operator* to be specific.
+
+* Operator notation is not limited to methods like `+` that look like operators in other languages.
+* You can use _any_ method in operator notation. 
++
+[source,scala]
+----
+scala> val s = "Hello, world!"
+s: String = Hello, world!
+
+scala> s indexOf 'o' // Scala invokes s.indexOf('o')
+res4: Int = 4
+----
+
+.Any method can be an operator
+[IMPORTANT]
+====
+In Scala operators are not special language syntax: any method can be an operator.
+
+What makes a method an operator is how you use it.
+
+* When you write `s.indexOf('o')`, indexOf is *not an operator*.
+* But when you write `s indexOf 'o'`, indexOf *is an operator*, because you're using it in *operator notation*.
+====
+
+The *infix* operation notation, which means the method to invoke sits betwwen the object and the parameter or parameters you wish to pass to the method, as "2 + 2". Scala also has two other operation notations: *prefix* and *postfix*.
+
+In contrast to the infix operator notation—in which operators take two operands, one to the left and the other to the right—*prefix and postfix operators are unary*: they take just one operand.
+
+* In prefix notation, the operand is to the right of the operator.
++
+Some examples of prefix operators are `-2.0`, `!found`, and `~0xFF`.
++
+As with the infix operators, these prefix operators are a shorthand way of invoking methods.
++
+In this case, however, the name of the method has "unary_" prepended to the operator character.
++
+For instance, Scala will transform the expression `-2.0` into the method invocation `(2.0).unary_-`. 
++
+[source,scala]
+----
+scala> -2.0
+res5: Double = -2.0
+
+scala> (2.0).unary_-
+res6: Double = -2.0
+----
++
+The only identifiers that can be used as prefix operators are `+`, `-`, `!`, and `~`.
+
+* *Postfix operators are methods that take no arguments*, when they are invoked without a dot or parentheses.
++
+In Scala, you can leave off empty parentheses on method calls.
++
+The convention is that you include parentheses if the method has *side effects*, such as `println()`,
++
+ but you can leave them off if the method has *no side effects*, such as `toLowerCase` invoked on a String:
++
+[source,scala]
+----
+scala> val s = "Hello, world!"
+s: String = Hello, world!
+
+scala> s.toLowerCase
+res10: String = hello, world!
+
+scala> s toLowerCase
+<console>:13: warning: postfix operator toLowerCase should be enabled
+by making the implicit value scala.language.postfixOps visible.
+This can be achieved by adding the import clause 'import scala.language.postfixOps'
+or by setting the compiler option -language:postfixOps.
+See the Scaladoc for value scala.language.postfixOps for a discussion
+why the feature should be explicitly enabled.
+       s toLowerCase
+         ^
+res11: String = hello, world!
+----
+
+A simple MyInt type like Int:
+
+[source,scala]
+----
+class MyInt(v: Int) {
+  private val value = v
+
+  def + (x: MyInt) = MyInt(value + x.value)
+
+  def + (x: Int) = MyInt(value + x)
+
+  def unary_-() = MyInt(-value)
+
+  override def equals(x: Any) = x match {
+    case MyInt(v) => value == v
+    case _ => false
+  }
+
+  override def hashCode() = value.hashCode
+
+  override def toString() = s"$v"
+}
+
+object MyInt {
+  def apply(v: Int) = new MyInt(v)
+  def unapply(v: Int): Option[Int] = Some(v)
+}
+
+implicit def covertInttoMyInt(x: Int) = MyInt(x)
+
+val x1 = MyInt(2)
+val nums = Seq(
+  MyInt(2),
+  x1 + x1,
+  x1 + 2,
+  2 + x1,
+  - x1,
+  )
+
+println(nums.mkString("(", ", ", ")"))
+// (2, 4, 4, 4, -2)
+----
+
+== Functional Objects
 
 [source,scala]
 ----
@@ -2348,7 +2545,7 @@ One difference is especially important: *the interpretation of `super`*.
 * With multiple inheritance, the method called by a super call can be determined right where the call appears.
 * With traits, the method called is determined by a *linearization* of the classes and traits that are mixed into a class.
 
-== To trait, or not to trait?
+=== To trait, or not to trait?
 
 Whenever you implement a reusable collection of behavior, you will have to decide whether you want to use a trait or an abstract class.
 
