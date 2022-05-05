@@ -4476,6 +4476,500 @@ This inference scheme suggests the following library design principle:
 > That way, the method's correct instance type can be inferred from the non-function arguments, and that type can in turn be used to type check the function argument.
 > The net effect is that users of the method will be able to give less type information and write function literals in more compact ways.
 
+== Collections
+
+=== Sequences
+
+* *Lists*
++
+[source,scala]
+----
+// Lists support fast addition and removal of items to the beginning of the list, but
+//   they do not provide fast access to arbitrary indexes because the implementation
+//   must iterate through the list linearly.
+scala> val colors = List("red", "blue", "green")
+colors: List[String] = List(red, blue, green)
+
+scala> colors.head
+res0: String = red
+
+scala> colors.tail
+res1: List[String] = List(blue, green)
+----
+
+* *Arrays*
++
+[source,scala]
+----
+// Arrays allow you to hold a sequence of elements and efficiently access an element
+//   at an arbitrary position, both to get or update the element, with a zero-based index. 
+scala> val fiveInts = new Array[Int](5)
+fiveInts: Array[Int] = Array(0, 0, 0, 0, 0)
+
+scala> val fiveToOne = Array(5, 4, 3, 2, 1)
+fiveToOne: Array[Int] = Array(5, 4, 3, 2, 1)
+
+scala> fiveInts(0) = fiveToOne(4)
+
+scala> fiveInts
+res3: Array[Int] = Array(1, 0, 0, 0, 0)
+----
+
+* *List buffers*
++
+[source,scala]
+----
+// Class List provides fast access to the head of the list, but not the end. Thus, when
+//   you need to build a list by appending to the end, you should consider building the
+//   list backwards by prepending elements to the front, then when you're done, calling
+//   reverse to get the elements in the order you need.
+//
+// Another alternative, which avoids the reverse operation, is to use a `ListBuffer`.
+//   A ListBuffer is a mutable object (contained in `package scala.collection.mutable`), which
+//   can help you build lists more efficiently when you need to append.
+//
+// ListBuffer provides constant time append and prepend operations.
+//   You append elements with the `+=` operator,
+//   and prepend them with the `+=:` operator.
+//
+// When you're done building, you can obtain a List by invoking `toList` on the ListBuffer.
+scala> import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.ListBuffer
+
+scala> val buf = new ListBuffer[Int]
+buf: scala.collection.mutable.ListBuffer[Int] = ListBuffer()
+
+scala> buf += 1
+res0: buf.type = ListBuffer(1)
+
+scala> buf += 2
+res1: buf.type = ListBuffer(1, 2)
+
+scala> 3 +=: buf
+res2: buf.type = ListBuffer(3, 1, 2)
+
+scala> 45 +=: buf
+res3: buf.type = ListBuffer(45, 3, 1, 2)
+
+scala> buf.toList
+res4: List[Int] = List(45, 3, 1, 2)
+----
+
+* *Array buffers*
++
+[source,scala]
+----
+// An ArrayBuffer is like an array, except that you can additionally add and remove elements
+//   from the beginning and end of the sequence.
+// All Array operations are available, though they are a little slower due to a layer of wrapping
+//   in the implementation.
+// The new addition and removal operations are constant time on average, but occasionally require
+//   linear time due to the implementation needing to allocate a new array to hold the buffer's contents.
+scala> import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.ArrayBuffer
+
+scala> val buf = new ArrayBuffer[Int]()
+buf: scala.collection.mutable.ArrayBuffer[Int] = ArrayBuffer()
+
+scala> buf += 3
+res4: buf.type = ArrayBuffer(3)
+
+scala> buf += 5
+res5: buf.type = ArrayBuffer(3, 5)
+
+scala> buf += 1
+res6: buf.type = ArrayBuffer(3, 5, 1)
+
+scala> buf -= 5
+res7: buf.type = ArrayBuffer(3, 1)
+----
+
+=== Sets and maps
+
+* *Default map and set definitions in `Predef`.*
++
+[source,scala]
+----
+// The `type` keyword is used in `Predef` to define `Set` and `Map` as aliases
+//   for the longer fully qualified names of the immutable set and map traits.
+// The `val`s named `Set` and `Map` are initialized to refer to the singleton objects
+//   for the immutable `Set` and `Map`.
+// So `Map` is the same as `Predef.Map`, which is defined to be
+//   the same as `scala.collection.immutable.Map`.
+// This holds both for the Map type and Map object.
+object Predef {
+  type Map[A, +B] = collection.immutable.Map[A, B]
+  type Set[A] = collection.immutable.Set[A]
+  val Map = collection.immutable.Map
+  val Set = collection.immutable.Set
+  // ...
+}
+----
+
+* *Using sets*
++
+[source,scala]
+----
+scala> import scala.collection.mutable
+import scala.collection.mutable
+
+scala> val text = "See Spot run. Run, Spot. Run!"
+text: String = See Spot run. Run, Spot. Run!
+
+scala> val wordsArray = text.split("[ !,.]+")
+wordsArray: Array[String] = Array(See, Spot, run, Run, Spot, Run)
+
+scala> val words = mutable.Set.empty[String]
+words: scala.collection.mutable.Set[String] = Set()
+
+scala> wordsArray.foreach(words += _)
+
+scala> words
+res1: scala.collection.mutable.Set[String] = Set(Run, Spot, run, See)
+----
++
+.Common operations for sets
+[%header,cols="1,1a"]
+|===
+|What it is
+|What it does
+
+|val nums = Set(1, 2, 3)
+|
+Creates an immutable set
+
+(nums.toString returns Set(1, 2, 3))
+
+|nums + 5
+|
+Adds an element
+
+(returns Set(1, 2, 3, 5))
+
+|nums - 3
+|
+Removes an element
+
+(returns Set(1, 2))
+
+|nums ++ List(5, 6)
+|
+Adds multiple elements
+
+(returns Set(1, 2, 3, 5, 6))
+
+|nums \-- List(1, 2)
+|
+Removes multiple elements
+
+(returns Set(3))
+
+|nums & Set(1, 3, 5, 7)
+|
+Takes the intersection of two sets
+
+(returns Set(1, 3))
+
+|nums.size
+|
+Returns the size of the set
+
+(returns 3)
+
+|nums.contains(3)
+|
+Checks for inclusion
+
+(returns true)
+
+|import scala.collection.mutable
+|Makes the mutable collections easy to access
+
+|val words = mutable.Set.empty[String]
+|
+Creates an empty, mutable set
+
+(words.toString returns Set())
+
+|words += "the"
+|
+Adds an element
+
+(words.toString returns Set(the))
+
+|words -= "the"
+|
+Removes an element, if it exists
+(words.toString returns Set())
+
+|words ++= List("do", "re", "mi")
+|
+Adds multiple elements
+
+(words.toString returns Set(do, re, mi))
+
+|words --= List("do", "re")
+|
+Removes multiple elements
+
+(words.toString returns Set(mi))
+
+|words.clear
+|
+Removes all elements
+
+(words.toString returns Set())
+|===
+
+* *Using maps*
++
+[source,scala]
+----
+scala> import scala.collection.mutable
+import scala.collection.mutable
+
+scala> val map = mutable.Map.empty[String, Int]
+map: scala.collection.mutable.Map[String,Int] = Map()
+
+scala> map("hello") = 1
+
+scala> map("there") = 2
+
+scala> map("hello")
+res3: Int = 1
+
+scala> val wordsCount = mutable.Map.empty[String, Int]
+wordsCount: scala.collection.mutable.Map[String,Int] = Map()
+
+scala> wordsArray.foreach(w => if (wordsCount.contains(w))  wordsCount(w) += 1 else wordsCount(w) = 1)
+
+scala> wordsCount
+res4: scala.collection.mutable.Map[String,Int] = Map(See -> 1, Spot -> 2, Run -> 2, run -> 1)
+----
++
+.Common operations for maps
+[%header, cols="1,1a"]
+|===
+|What it is
+|What it does
+
+|val nums = Map("i" \-> 1, "ii" \-> 2)
+|
+Creates an immutable map
+
+(nums.toString returns Map(i \-> 1, ii \-> 2))
+
+|nums + ("vi" \-> 6)
+|
+Adds an entry
+
+(returns Map(i \-> 1, ii -> 2, vi \-> 6))
+
+|nums - "ii"
+|
+Removes an entry
+
+(returns Map(i \-> 1))
+
+|nums ++ List("iii" \-> 3, "v" \-> 5)
+|
+Adds multiple entries
+
+(returns Map(i \-> 1, ii \-> 2, iii \-> 3, v \-> 5))
+
+|nums \-- List("i", "ii")
+|
+Removes multiple entries
+
+(returns Map())
+
+|nums.size
+|
+Returns the size of the map
+
+(returns 2)
+
+|nums.contains("ii")
+|
+Checks for inclusion
+
+(returns true)
+
+|nums("ii")
+|
+Retrieves the value at a specified key
+
+(returns 2)
+
+|nums.keys
+|
+Returns the keys
+
+(returns an Iteratable over the strings "i" and "ii")
+
+|nums.keySet
+|
+Returns the keys as a set
+
+(returns Set(i, ii))
+
+|nums.values
+|
+Returns the values
+
+(returns an Iterable over the integers 1 and 2)
+
+|nums.isEmpty
+|
+Indicates whether the map is empty
+
+(returns false)
+
+|import scala.collection.mutable
+|Makes the mutable collections easy to access
+
+|val words = mutable.Map.empty[String, Int]
+|Creates an empty, mutable map
+
+|words += ("one" \-> 1)
+|
+Adds a map entry from "one" to 1
+(words.toString returns Map(one -> 1))
+
+|words -= "one"
+|
+Removes a map entry, if it exists
+(words.toString returns Map())
+
+|words ++= List("one" \-> 1, "two" \-> 2, "three" \-> 3)
+|
+Adds multiple map entries
+
+(words.toString returns Map(one \-> 1, two \-> 2, three \-> 3))
+
+|words --= List("one", "two")
+|
+Removes multiple objects
+
+(words.toString returns Map(three \-> 3))
+|===
+
+* *Default sets and maps*
++
+.Default immutable set implementations
+[%header,cols="1,9"]
+|===
+|Number of elements
+|Implementation
+
+|0
+|scala.collection.immutable.EmptySet
+
+|1
+|scala.collection.immutable.Set1
+
+|2
+|scala.collection.immutable.Set2
+
+|3
+|scala.collection.immutable.Set3
+
+|4
+|scala.collection.immutable.Set4
+
+|5 or more
+|scala.collection.immutable.HashSet
+|===
++
+.Default immutable map implementations
+[%header,cols="1,9"]
+|===
+|Number of elements
+|Implementation
+
+|0
+|scala.collection.immutable.EmptyMap
+
+|1
+|scala.collection.immutable.Map1
+
+|2
+|scala.collection.immutable.Map2
+
+|3
+|scala.collection.immutable.Map3
+
+|4
+|scala.collection.immutable.Map4
+
+|5 or more
+|scala.collection.immutable.HashMap
+|===
+
+* *Sorted sets and maps*
++
+On occasion you may need a set or map whose iterator returns elements in a particular order.
++
+For this purpose, the Scala collections library provides traits *SortedSet* and *SortedMap*.
++
+These traits are implemented by classes *TreeSet* and *TreeMap*, which use a *red-black tree* to keep elements (in the case of TreeSet) or keys (in the case of TreeMap) in order.
++
+The order is determined by the *Ordered* trait, which the element type of the set, or key type of the map, must either mix in or be implicitly convertible to.
++
+[source,scala]
+----
+scala> import scala.collection.immutable.TreeSet
+import scala.collection.immutable.TreeSet
+
+scala> val ts = TreeSet(3,2,4,5,1)
+ts: scala.collection.immutable.TreeSet[Int] = TreeSet(1, 2, 3, 4, 5)
+
+scala> import scala.collection.immutable.TreeMap
+import scala.collection.immutable.TreeMap
+
+scala> var tm = TreeMap(3 -> "2020", 2 -> "2019", 4 -> "2021", 5 -> "2022", 1 -> "covid-19")
+tm: scala.collection.immutable.TreeMap[Int,String] = Map(1 -> covid-19, 2 -> 2019, 3 -> 2020, 4 -> 2021, 5 -> 2022)
+
+scala> tm.values
+res4: Iterable[String] = TreeMap(covid-19, 2019, 2020, 2021, 2022)
+----
++
+[source,scala]
+----
+scala> import scala.collection.mutable.TreeSet
+import scala.collection.mutable.TreeSet
+
+scala> val ts = TreeSet.empty[String]
+ts: scala.collection.mutable.TreeSet[String] = TreeSet()
+
+scala> ts += "2019"
+res7: ts.type = TreeSet(2019)
+
+scala> ts += "covid-19"
+res9: ts.type = TreeSet(2019, covid-19)
+
+scala> ts += "2022"
+res10: ts.type = TreeSet(2019, 2022, covid-19)
+
+scala> ts += "2021"
+res11: ts.type = TreeSet(2019, 2021, 2022, covid-19)
+
+scala> ts += "2020"
+res12: ts.type = TreeSet(2019, 2020, 2021, 2022, covid-19)
+
+scala> ts.toSet
+res13: scala.collection.immutable.Set[String] = Set(2020, 2022, 2019, 2021, covid-19)
+----
+
+[source,scala]
+----
+----
+[source,scala]
+----
+----
+[source,scala]
+----
+----
 [source,scala]
 ----
 ----
