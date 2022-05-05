@@ -4303,14 +4303,188 @@ def reverseLeft[T](xs: List[T]) =
   (List[T]() /: xs) {(ys, y) => y :: ys}
 ----
 
+==== Sorting lists: `sortWith`
+
 [source,scala]
 ----
+scala> List(1, 4, 3, 2, 5).sortWith(_ < _)
+res21: List[Int] = List(1, 2, 3, 4, 5)
+----
+
+=== Methods of the List object
+
+[source,scala]
+----
+// Creating lists from their elements: `List.apply`
+scala> List(1, 2, 3, 4, 5)
+res0: List[Int] = List(1, 2, 3, 4, 5)
+
+scala> List.apply(1, 2, 3, 4, 5)
+res1: List[Int] = List(1, 2, 3, 4, 5)
+
+// Creating a range of numbers: `List.range`
+scala> List.range(1, 9)
+res0: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8)
+
+scala> List.range(1, 9, 1)
+res1: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8)
+
+scala> List.range(1, 9, 2)
+res2: List[Int] = List(1, 3, 5, 7)
+
+scala> List.range(9, -1, -2)
+res3: List[Int] = List(9, 7, 5, 3, 1)
+
+// Creating uniform lists: `List.fill`
+scala> List.fill(5)('a')
+res4: List[Char] = List(a, a, a, a, a)
+
+scala> List.fill(5)("hello")
+res5: List[String] = List(hello, hello, hello, hello, hello)
+
+scala> List.fill(2, 3)('b')
+res7: List[List[Char]] = List(List(b, b, b), List(b, b, b))
+
+// Tabulating a function: `List.tabulate`
+scala> List.tabulate(3)(n => n * n)
+res0: List[Int] = List(0, 1, 4)
+
+scala> List.tabulate(3, 3)(_ * _)
+res1: List[List[Int]] = List(List(0, 0, 0), List(0, 1, 2), List(0, 2, 4))
+
+// Concatenating multiple lists: `List.concat`
+scala> List.concat(List('a', 'b'), List('c'))
+res2: List[Char] = List(a, b, c)
+
+scala> List.concat(List('a', 'b'), List('c'), List())
+res3: List[Char] = List(a, b, c)
+
+scala> List.concat()
+res4: List[Nothing] = List()
+----
+
+=== Understanding Scala’s type inference algorithm
+
+[source,scala]
+----
+def msort[T](less: (T, T) => Boolean)(xs: List[T]): List[T] = {
+
+  def merge(xs: List[T], ys: List[T]): List[T] = {
+    (xs, ys) match {
+      case (Nil, _) => ys
+      case (_, Nil) => xs
+      case (x :: xs1, y :: ys1) => {
+        if (less(x, y)) x :: merge(xs1, ys)
+        else y :: merge(xs, ys1)
+      }
+    }
+  }
+
+  val seq = xs.length / 2
+  if (seq == 0) xs
+  else {
+    val (ys, zs) = xs.splitAt(seq)
+    merge(msort(less)(ys), msort(less)(zs))
+  }
+}
 ----
 
 [source,scala]
 ----
+scala> val nums = List(1, 5, 4, 2, 3)
+nums: List[Int] = List(1, 5, 4, 2, 3)
+
+// a longer form of comparison function with named parameters and explicit types
+scala> msort((x: Int, y: Int) => x < y)(nums)
+res1: List[Int] = List(1, 2, 3, 4, 5)
+
+scala> nums.sortWith((x: Int, y: Int) => x < y)
+res2: List[Int] = List(1, 2, 3, 4, 5)
 ----
 
+[source,scala]
+----
+// a concise form, `(_ > _)`, where named parameters are replaced by underscores
+scala> nums.sortWith(_ < _)
+res3: List[Int] = List(1, 2, 3, 4, 5)
+
+scala> msort(_ < _)(nums)
+<console>:14: error: missing parameter type for expanded function ((x$1: <error>, x$2) => x$1.$less(x$2))
+       msort(_ < _)(nums)
+             ^
+----
+
+.Type inference in Scala is flow based.
+[IMPORTANT]
+====
+* In a method application `m(args)`,
++
+the inferencer first *checks whether the method* `m` has a *known type*. If it has, that type is used to infer the expected type of the arguments.
++
+For instance, in `nums.sortWith(_ > \_)`, the type of `nums` is `List[Int]`, hence `sortWith` is known to be a method that takes an argument of type `(Int, Int) \=> Boolean` and produces a result of type `List[Int]`.
++
+Since the parameter types of the function arguments are thus known, they need not be written explicitly. With what it knows about `sortWith`, the inferencer can deduce that `(_ > _)` should expand to `((x: Int, y: Int) \=> x > y)` where `x` and `y` are some arbitrary fresh names.
++
+* Now consider the second case, `msort(_ > _)(nums)`.
++
+The type of `msort` is a *curried*, *polymorphic* method type that takes an argument of type `(T, T) \=> Boolean` to a function from `List[T]` to `List[T]` where `T` is some as-yet *unknown type*.
++
+The `msort` method needs to be instantiated with a type parameter before it can be applied to its arguments.
++
+Because the precise instance type of `msort` in the application is not yet known, it cannot be used to infer the type of its first argument.
+
+* The type inferencer changes its strategy in this case; it first type *checks method arguments* to determine the proper instance type of the method.
++
+However, when tasked to type check the shorthand function literal, `(_ > _)`, it fails because it has no information about the types of the implicit function parameters that are indicated by underscores.
+====
+
+* One way to resolve the problem is to *pass an explicit type parameter to msort*, as in:
++
+[source,scala]
+----
+scala> msort[Int](_ < _)(nums)
+res6: List[Int] = List(1, 2, 3, 4, 5)
+----
++
+Because the correct instance type of `msort` is now known, it can be used to infer the type of the arguments.
+
+* Another possible solution is to *rewrite the `msort` method* so that its parameters are swapped:
++
+[source,scala]
+----
+// What has happened is that the inferencer used the known type of the first parameter `nums` 
+// to determine the type parameter of `msortSwapped`.
+// Once the precise type of `msortSwapped` was known, it could be used in turn to infer the
+//   type of the second parameter, `(_ > _)`.
+//
+// Generally, when tasked to infer the type parameters of a polymorphic method, the type inferencer
+//    consults the types of all value arguments in the first parameter list but no arguments beyond that.
+//  Since `msortSwapped` is a curried method with two parameter lists, the second argument (i.e., the function value) did not need to be consulted to determine the type parameter of the method.
+
+def msortSwapped[T](xs: List[T])(less: (T, T) => Boolean): List[T] = msort(less)(xs)
+----
++
+[source,scala]
+----
+scala> msortSwapped(nums)(_ < _)
+res1: List[Int] = List(1, 2, 3, 4, 5)
+----
+
+This inference scheme suggests the following library design principle:
+
+> *When designing a polymorphic method that takes some non-function arguments and a function argument, place the function argument last in a curried parameter list by its own*.
+> That way, the method's correct instance type can be inferred from the non-function arguments, and that type can in turn be used to type check the function argument.
+> The net effect is that users of the method will be able to give less type information and write function literals in more compact ways.
+
+[source,scala]
+----
+----
+[source,scala]
+----
+----
+[source,scala]
+----
+----
 [source,scala]
 ----
 ----
