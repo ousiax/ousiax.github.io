@@ -4961,23 +4961,155 @@ scala> ts.toSet
 res13: scala.collection.immutable.Set[String] = Set(2020, 2022, 2019, 2021, covid-19)
 ----
 
+== Stateful Objects
+
+=== What makes an object stateful?
+
+You can observe the principal difference between a purely functional object and a stateful one even without looking at the object's implementation.
+
+* When you invoke a method or dereference a field on some *purely functional object*, you will always get the same result.
++
+[source,scala]
+----
+// `cs.head` will always return 'a'
+val cs = List("a", "b", "c")
+----
+
+* For a *stateful object*, on the other hand, the result of a method call or field access may depend on what operations were previously performed on the object.
++
+[source,scala]
+----
+class BankAccount {
+  private var bal: Int = 0
+
+  def balance: Int = bal
+
+  def deposit(amount: Int) {
+    require(amount > 0)
+    bal += amount
+  }
+
+  def withdraw(amount: Int): Boolean =
+    if (amount > bal) false
+    else {
+      bal -= amount
+      true
+    }
+}
+----
++
+[source,scala]
+----
+scala> val account = new BankAccount
+account: BankAccount = BankAccount@a77a465
+
+scala> account.deposit(100)
+
+scala> account.withdraw(80)
+res1: Boolean = true
+
+scala> account.withdraw(80)
+res2: Boolean = false
+----
+
+=== Reassignable variables and properties
+
+You can perform two fundamental operations on a reassignable variable: *get* its value or *set* it to a new value.
+
+* In libraries such as JavaBeans, these operations are often encapsulated in separate *getter* and *setter* methods, which need to be defined explicitly.
+
+* In Scala, every var that is a *non-private member of some object implicitly defines a getter and a setter method* with it. The getter of a var `x` is just named `x`, while its setter is named `x_=`.
++
+[source,scala]
+----
+// A class with public vars.
+//
+// The field is always marked `private[this]`, which means it can be accessed only from
+//    the object that contains it.
+// The getter and setter, on the other hand, get the same visibility as the original `var`.
+//   If the var definition is `public`, so are its getter and setter,
+//    if it is `protected` they are also `protected`, and so on.
+class Time {
+  var hour = 12
+  var minute = 0
+}
+// $ javap -p Time.class
+// Compiled from "Time.scala"
+// public class Time {
+//   private int hour;
+//   private int minute;
+//   public int hour();
+//   public void hour_$eq(int);
+//   public int minute();
+//   public void minute_$eq(int);
+//   public Time();
+// }
+----
+
+* An interesting aspect about this expansion of vars into getters and setters is that *you can also choose to define a getter and a setter directly* instead of defining a var.
++
+[source,scala]
+----
+// How public vars are expanded into getter and setter methods.
+//
+// Scala's convention of always interpreting a variable as
+//    a pair of setter and getter methods gives you in effect
+//     the same capabilities as C# properties without
+class Time {
+  private[this] var h = 12
+  private[this] var m = 0
+
+  def hour: Int = h
+  def hour_=(x: Int) { h = x }
+
+  def minute: Int = m
+  def minute_=(x: Int) { m = x }
+}
+----
++
+[source,scala]
+----
+// Defining getter and setter methods directly.
+class Time {
+  private[this] var h = 12
+  private[this] var m = 0
+
+  def hour: Int = h
+  def hour_=(x: Int) {
+    require(0 <= h && h < 24)
+    h = x
+  }
+
+  def minute: Int = m
+  def minute_=(x: Int) {
+    require(0 <= h && h < 60)
+    m = x 
+  }
+}
+----
+
+* It is also possible, and sometimes useful, to *define a getter and a setter without an associated field*. 
++
 [source,scala]
 ----
 ----
++
 [source,scala]
 ----
-----
-[source,scala]
-----
-----
-[source,scala]
-----
-----
-[source,scala]
-----
-----
-[source,scala]
-----
+scala> val t = new Thermometer
+t: Thermometer = 32.0F/0.0C
+
+scala> t.celsius = 100
+t.celsius: Float = 100.0
+
+scala> t
+res1: Thermometer = 212.0F/100.0C
+
+scala> t.fahrenheit = -40
+t.fahrenheit: Float = -40.0
+
+scala> t
+res2: Thermometer = -40.0F/-40.0C
 ----
 [source,scala]
 ----
