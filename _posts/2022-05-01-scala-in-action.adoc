@@ -5123,7 +5123,8 @@ A *functional queue* is a data structure with three operations:
 * *head*
 +
 returns the first element of the queue
-* * tail*
+
+* *tail*
 +
 returns a queue without its first element
 
@@ -5192,7 +5193,7 @@ class Queue[T](
 
   override def toString() = {
     val ls = leading.mkString("Queue(", ", ", "")
-    val ts = if (tailing.isEmpty) ")" else tailing.mkString(",", ", ", ")")
+    val ts = if (tailing.isEmpty) ")" else tailing.reverse.mkString(",", ", ", ")")
     ls + ts
   }
 }
@@ -5513,45 +5514,187 @@ class Cell[+T](init: T) {
   // error: covariant type T occurs in contravariant position in type T of value x
   // def set(x :T) { current = x }
   //
+  // Correcting the variance error by adding a lower bound.
+  //
   // The syntax "U >: T", defines `T` as the lower bound for `U`.
   //   As a result, `U` is required to be a supertype of `T`.
   // The parameter to `set` is now of type `U` instead of `T`.
   def set[U >: T](x: U): Cell[U] = new Cell[U](x)
+
+  override def toString() = current.toString
 }
 ----
 
 [source,scala]
 ----
-scala> val nums = new Cell(123.45)
-nums: Cell[Double] = Cell@6334a8ab
+scala> var nums = new Cell[Any](1.2345)
+nums: Cell[Any] = 1.2345
 
-scala> val nums = new Cell[Any](123.45)
-nums: Cell[Any] = Cell@69ca15d7
+scala> nums = nums.set("the Mayor Hotline")
+nums: Cell[Any] = the Mayor Hotline
+----
 
-scala> val name = nums.set("the Mayor Hotline")
-name: Cell[Any] = Cell@466b7ca
+=== Contravariance
 
-scala> name.get
-res5: Any = the Mayor Hotline
+[source,scala]
+----
+// A contravariant output channel.
+trait OutputChannel[-T] {
+  def write(x: T)
+}
+----
 
-scala> nums.get
-res6: Any = 123.45
+Here, `OutputChannel` is defined to be *contravariant* in T. So an output channel of AnyRefs, say, is a subtype of an output channel of Strings.
+
+This reasoning points to a general principle in type system design:
+
+> it is safe to assume that a type T is a subtype of a type U if you can substitute a value of type T wherever a value of type U is required.
+
+.Liskov Substitution Principle:
+[NOTE]
+====
+> if T supports the same operations as U and all of T’s operations require less and provide more than the corresponding operations in U.
+====
+
+Sometimes *covariance and contravariance are mixed* in the same type.
+
+* A prominent example is Scala’s function traits.
++
+For instance, whenever you write the function type `A \=> B`, Scala expands this to `Function1[A, B]`.
++
+The Function1 in the standard library uses both covariance and contravariance: the Function1 trait is *contravariant in the function argument type S* and *covariant in the result type T*.
++
+[source,scala]
+----
+// Covariance and contravariance of Function1s.
+trait Function1[-S, +T] {
+  def apply(x: S): T
+}
+----
+
+=== Object private data
+
+[source,scala]
+----
+// An optimized functional queue.
+//
+// What’s different with respect to the previous version is that now `leading` and `trailing` are
+// reassignable variables, and `mirror` performs the reverse copy from `trailing` to `leading` as
+// a side-effect on the current queue instead of returning a new queue.
+// This side-effect is purely internal to the implementation of the `Queue` operation;
+// since `leading` and `trailing` are private variables, the effect is not visible to clients of `Queue`.
+class Queue[+T] private (
+  private[this] var leading: List[T],
+  private[this] var trailing: List[T]
+){
+
+  private def mirror() =
+    if (leading.isEmpty) {
+      while (!trailing.isEmpty) {
+        leading = trailing.head :: leading
+        trailing = trailing.tail
+      }
+    }
+
+  def head: T = {
+    mirror()
+    leading.head
+  }
+
+  def tail: Queue[T] = {
+    mirror()
+    new Queue(leading.tail, trailing)
+  }
+
+  def enqueue[U >: T](x: U) =
+    new Queue[U](leading, x :: trailing)
+}
 ----
 
 [source,scala]
 ----
+// Another optimized functional queue.
+trait Queue[+T] {
+  def head: T
+
+  def tail: Queue[T]
+
+  def enqueue[U >: T](x: U): Queue[U]
+}
+
+object Queue {
+  def apply[T](elms: T*): Queue[T] = new QueueImpl[T](List[T](elms: _*), Nil)
+
+  private class QueueImpl[T](ls: List[T], ts: List[T]) extends Queue[T] {
+    private[this] var leading = ls
+    private[this] var tailing = ts
+
+    private def mirror() {
+      if (leading.isEmpty) {
+        while(!tailing.isEmpty) {
+          leading = tailing.head :: leading
+          tailing = tailing.tail
+        }
+      }
+    }
+
+    def head: T = {
+      mirror()
+      leading.head
+    }
+
+    def tail: Queue[T] = {
+      mirror()
+      new QueueImpl(leading.tail, tailing)
+    }
+
+    // def enqueue(x: T): Queue[T] = new QueueImpl(leading, x :: tailing)
+    def enqueue[U >: T](x: U): Queue[U] =  new QueueImpl(leading, x :: tailing)
+
+    override def toString() = {
+      val ls = leading.mkString("Queue(", ", ", "")
+      val ts = if (tailing.isEmpty) ")"
+      else if (leading.isEmpty) tailing.reverse.mkString("", ", ", ")")
+      else tailing.reverse.mkString(", ", ", ", ")")
+      ls + ts
+    }
+  }
+}
 ----
 
 [source,scala]
 ----
-----
+trait Fruit
 
-[source,scala]
-----
-----
+class Apple extends Fruit {
+  override def toString = "Apple"
+}
 
-[source,scala]
-----
+class Pear extends Fruit {
+  override def toString = "Pear"
+}
+
+class Banana extends Fruit {
+  override def toString = "Banana"
+}
+
+scala> var qs = Queue[Fruit]() :: Nil
+qs: List[Queue[Fruit]] = List(Queue())
+
+scala> qs = qs.head.enqueue(new Apple) :: qs
+qs: List[Queue[Fruit]] = List(Queue(Apple), Queue())
+
+scala> qs = qs.head.enqueue(new Pear) :: qs
+qs: List[Queue[Fruit]] = List(Queue(Apple, Pear), Queue(Apple), Queue())
+
+scala> qs = qs.head.enqueue(new Banana) :: qs
+qs: List[Queue[Fruit]] = List(Queue(Apple, Pear, Banana), Queue(Apple, Pear), Queue(Apple), Queue())
+
+scala> qs.foreach(println)
+Queue(Apple, Pear, Banana)
+Queue(Apple, Pear)
+Queue(Apple)
+Queue()
 ----
 
 [source,scala]
