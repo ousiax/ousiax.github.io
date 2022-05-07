@@ -5701,6 +5701,7 @@ Queue()
 
 [source,scala]
 ----
+// A merge sort function with an upper bound.
 def orderedMergeSort[T <: Ordered[T]](xs: List[T]): List[T] = {
   def merge(xs: List[T], ys: List[T]): List[T] = {
     (xs, ys) match {
@@ -5738,7 +5739,346 @@ val hotline = orderedMergeSort(nums).mkString
 println(hotline)
 ----
 
+== Abstract Members
+
+A member of a class or trait is *abstract* if the member does not have a complete definition in the class. Abstract members are intended to be implemented in subclasses of the class in which they are declared. 
+
+=== A quick tour of abstract members
+
+[source,scala]
+----
+trait Abstract {
+  type T
+  def transform(x: T): T
+  val initial: T
+  var current: T
+}
+----
+
+[source,scala]
+----
+class Concrete extends Abstract {
+  type T = String
+  def transform(x: String) = x + x
+  val initial = "hi"
+  var current = initial
+}
+----
+
+=== Type members
+
+The term *abstract type* in Scala means a type declared (with the “**type**” keyword) to be a member of a class or trait, without specifying a definition.
+
+=== Abstract vals
+
+An abstract val declaration has a form like:
+
+[source,scala]
+----
+val initial: String
+----
+
+It gives a name and type for a val, but not its value. This value has to be provided by a concrete val definition in a subclass.
+
+You use an abstract val declaration in a class when you do not know the correct value in the class, but you do know that the variable will have an unchangeable value in each instance of the class.
+
+[source,scala]
+----
+// Overriding abstract vals and parameterless methods.
+abstract class Fruit {
+  val v: String // ‘v’ for value
+  def m: String // ‘m’ for method
+}
+
+abstract class Apple extends Fruit {
+  val v: String
+  val m: String // OK to override a ‘def’ with a ‘val’
+}
+
+abstract class BadApple extends Fruit {
+  def v: String // ERROR: cannot override a ‘val’ with a ‘def’
+  def m: String
+}
+----
+
+=== Abstract vars
+
+Like an abstract val, an abstract var declares just a name and a type, but not an initial value, that declared as members of classes come equipped with *getter* and *setter* methods.
+
+[source,scala]
+----
+// Declaring abstract vars.
+//
+// How abstract vars are expanded into getters and setters.
+// trait AbstractTime {
+//   def hour: Int			// getter for ‘hour’
+//   def hour_=(x: Int) 	// setter for ‘hour’
+//   def minute: Int 		// getter for ‘minute’
+//   def minute_=(x: Int) 	// setter for ‘minute’
+// }
+//
+// $ javap -p AbstractTime
+// public interface AbstractTime {
+//   public abstract int hour();
+//   public abstract void hour_$eq(int);
+//   public abstract int minute();
+//   public abstract void minute_$eq(int);
+// }
+trait AbstractTime {
+  var hour: Int
+  var minute: Int
+}
+
+class Time(private var h: Int, private var m: Int) extends AbstractTime {
+  def hour = h
+  def hour_=(x: Int) { h = x }
+
+  def minute = m
+  def minute_=(x: Int) { m = x }
+}
+----
+
+=== Initializing abstract vals
+
+* A *class parameter* argument is evaluated *before* it is passed to the class constructor (unless the parameter is by-name).
++
+[source,scala]
+----
+class NotZeroClass(val num: Int) {
+  require(num != 0, "num could't be zero.")
+}
+
+// OK
+new NotZeroClass(10){
+}
+----
+
+* An *implementing val definition* in a subclass, by contrast, is evaluated only *after* the superclass has been initialized.
++
+[source,scala]
+----
+trait RationalTrait {
+  val numerVal: Int
+  val denomVal: Int
+  require(denomVal != 0, "denomVal couldn't be zero.")
+}
+
+// java.lang.IllegalArgumentException: requirement failed: denomVal couldn't be zero.
+//
+// This expression yields an instance of an *anonymous class* that mixes in the trait
+//  and is defined by the body. 
+//
+// The anonymous class is initialized after the `RationalTrait`.
+new RationalTrait {
+  val numerVal = 1
+  val denomVal = 3
+}
+
+// The subclass is initialized after the `RationalTrait`.
+class RationalClass(numer: Int, denom: Int) extends RationalTrait {
+  val numerVal = numer
+  val denomVal = denom
+}
+
+// java.lang.IllegalArgumentException: requirement failed: denomVal couldn't be zero.
+new RationalClass(1, 3)
+----
++
+[source,scala]
+----
+class RationalClass(numer: Int, denom: Int) {
+  val numerVal = numer
+  val denomVal = denom
+  require(denomVal != 0, "denomVal couldn't be zero.")
+}
+
+// OK
+new RationalClass(1, 3)}
+----
+
+==== Pre-initialized fields
+
+* The *pre-initialized fields*, lets you initialize a field of a subclass before the superclass is called.
++
+[source,scala]
+----
+//  Pre-initialized fields in an anonymous class expression.
+new {
+  val numerVal = 1
+  val denomVal = 3
+} with RationalTrait
+----
+
+* Pre-initialized fields are not restricted to anonymous classes; they can also be used in objects or named subclasses.
++
+[source,scala]
+----
+//  Pre-initialized fields in an object expression.
+object oneThirds extends {
+  val numerVal = 1
+  val denomVal = 3
+} with RationalTrait
+
+//  Pre-initialized fields in an named subclass expression.
+class RationalClass (numer: Int, denom: Int) extends {
+  val numerVal = numer
+  val denomVal = denom
+} with RationalTrait
+
+// OK
+new RationalClass(1, 3)
+----
+
+* Because pre-initialized fields are initialized before the superclass constructor is called, their initializers cannot refer to the object that’s being constructed.
++
+[source,scala]
+----
+new {
+  val numerVal = 1
+  // error: value numerVal is not a member of AnyRef{abstract trait RationalTrait extends AnyRef}
+  val denomVal = this.numerVal + 2
+} with RationalTrait
+----
+
+==== Lazy vals
+
+If you prefix a val definition with a *lazy* modifier, the initializing expression on the right-hand side will only be evaluated the first time the val is used, never evaluated more than once.
+
+[source,scala]
+----
+object Demo {
+  val x = { println("initializing x"); "done" }
+}
+
+scala> Demo
+initializing x
+res0: Demo.type = Demo$@2262d6d5
+
+scala> Demo.x
+res1: String = done
+----
+
+[source,scala]
+----
+object Demo {
+  lazy val x = { println("initializing x"); "done" }
+}
+
+scala> Demo
+res2: Demo.type = Demo$@54c11750
+
+scala> Demo.x
+initializing x
+res3: String = done
+----
+
+.Lazy functional languages
+[NOTE]
+====
+Scala is by no means the first language to have exploited the perfect match of lazy definitions and functional code.
+
+In fact, there is a category of “lazy functional programming languages” in which every value and parameter is initialized lazily.
+
+The best known member of this class of languages is *Haskell*.
+====
+
+=== Abstract types 
+
+[source,scala]
+----
+class Food
+abstract class Animal {
+  def eat(food: Food)
+}
+
+class Grass extends Food
+// error: class Cow needs to be abstract, since method eat
+//   in class Animal of type (food: Food)Unit is not defined
+class Cow extends Animal {
+  // error: method eat overrides nothing.
+  override def eat(food: Grass) {} // not complie
+}
+----
+
+[source,scala]
+----
+class Food
+abstract class Animal {
+  def eat(food: Food)
+}
+
+class Grass extends Food
+class Cow extends Animal {
+  override def eat(food: Grass) {}  // not complie
+}                                   // but if it dit ...
+
+class Fish extends Food
+
+val bessy: Animal = new Cow
+bessy.eat(new Fish)                 // ...you cloud feed fish to cows.
+----
+
+[source,scala]
+----
+// generics: type parameterization
+class Food
+abstract class Animal[+T <: Food] {
+  def eat[U >: T](food: U)
+}
+
+class Grass extends Food
+class Cow extends Animal[Grass] {
+  override def eat[Grass](food: Grass) {}
+}
+
+class Fish extends Food
+
+val bessy: Animal[Food] = new Cow
+bessy.eat(new Grass) // OK
+
+bessy.eat(new Fish)   // ...you could feed fish to cows.
+----
+
+[source,scala]
+----
+// What you need to do instead is apply some more precise modeling.
+// Animals do eat Food, but what kind of Food each Animal eats depends on the Animal. 
+class Food
+abstract class Animal {
+  // Modeling suitable food with an abstract type.
+  type F <: Food
+  def eat(food: F)
+}
+
+class Grass extends Food
+class Cow extends Animal {
+  type F = Grass
+  override def eat(food: Grass) {}
+}
+
+class Fish extends Food
+
+val bessy: Animal = new Cow
+// val bessy = new Cow
+
+// you should feed grass to cows.
+// error: type mismatch;
+//  found   : this.Grass
+//  required: this.bessy.F
+bessy.eat(new Grass)
+
+// ???
+----
+
 [source,scala]
 ----
 ----
-
+[source,scala]
+----
+----
+[source,scala]
+----
+----
+[source,scala]
+----
+----
