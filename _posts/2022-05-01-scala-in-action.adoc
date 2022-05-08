@@ -6574,12 +6574,88 @@ def max[T](x: T, y: T)(implicit orderer: T => Ordered[T]): T = if (x > y) x else
 def max[T <% Ordered[T]](x: T, y: T): T = if (x > y) x else y
 ----
 
+=== Debugging implicits
+
+When you are debugging a program, it can sometimes help to see what implicit conversions the compiler is inserting. The *-Xprint:typer* option to the compiler is useful for this. If you run scalac with this option, then the compiler will show you what your code looks like after all implicit conversions have been added by the type checker.
+
 [source,scala]
 ----
+// Max.scala
+class MyInt(val value: Int) {
+  override def toString = s"MyInt($value)"
+}
+
+object MyInt {
+  def apply(value: Int) = new MyInt(value)
+}
+
+class OrderedMyInt(x: MyInt) extends Ordered[MyInt] {
+  override def compare(y: MyInt) = x.value - y.value
+}
+
+object Main {
+  implicit def myInt2Ordered(x: MyInt) = new OrderedMyInt(x)
+
+  def max[T](x: T, y: T)(implicit orderer: T => Ordered[T]): T = if (x > y) x else y
+
+  def main(args: Array[String]) {
+    val m1 = MyInt(1)
+    val m2 = MyInt(1)
+    max(m1, m2)
+  }
+}
 ----
 
 [source,scala]
 ----
+[[syntax trees at end of                     typer]] // Max.scala
+package <empty> {
+  class MyInt extends scala.AnyRef {
+    <paramaccessor> private[this] val value: Int = _;
+    <stable> <accessor> <paramaccessor> def value: Int = MyInt.this.value;
+    def <init>(value: Int): MyInt = {
+      MyInt.super.<init>();
+      ()
+    };
+    override def toString: String = scala.StringContext.apply("MyInt(", ")").s(MyInt.this.value)
+  };
+  object MyInt extends scala.AnyRef {
+    def <init>(): MyInt.type = {
+      MyInt.super.<init>();
+      ()
+    };
+    def apply(value: Int): MyInt = new MyInt(value)
+  };
+  class OrderedMyInt extends AnyRef with Ordered[MyInt] {
+    <paramaccessor> private[this] val x: MyInt = _;
+    def <init>(x: MyInt): OrderedMyInt = {
+      OrderedMyInt.super.<init>();
+      ()
+    };
+    override def compare(y: MyInt): Int = OrderedMyInt.this.x.value.-(y.value)
+  };
+  object Main extends scala.AnyRef {
+    def <init>(): Main.type = {
+      Main.super.<init>();
+      ()
+    };
+    implicit def myInt2Ordered(x: MyInt): OrderedMyInt = new OrderedMyInt(x);
+    def max[T](x: T, y: T)(implicit orderer: T => Ordered[T]): T = if (orderer.apply(x).>(y))
+      x
+    else
+      y;
+    def main(args: Array[String]): Unit = {
+      val m1: MyInt = MyInt.apply(1);
+      val m2: MyInt = MyInt.apply(1);
+      {
+        Main.this.max[MyInt](m1, m2)({
+          ((x: MyInt) => Main.this.myInt2Ordered(x))
+        });
+        ()
+      }
+    }
+  }
+}
 ----
 
 [source,scala]
