@@ -6272,25 +6272,23 @@ Implicit definitions are those that the compiler is allowed to insert into a pro
 
 For example, if `x + y` does not type check, then the compiler might change it to `convert(x) + y`, where convert is some available *implicit conversion*.
 
-* *Marking Rule*: Only definitions marked `implicit` are available.
+* *Marking* Rule: Only definitions marked `implicit` are available.
 +
---
 ** The `implicit` keyword is used to mark which declarations the compiler may use as implicits.
 ** You can use it to mark any variable, function, or object definition.
---
 +
 [source,scala]
 ----
 implicit def intToString(x: Int) = x.toString
 ----
 
-* *Scope Rule*: An inserted implicit conversion must be in scope as a *single identifier*, or be associated with the source or target type of the conversion.
+* *Scope* Rule: An inserted implicit conversion must be in scope as a *single identifier*, or be associated with the source or target type of the conversion.
 +
 There’s one exception to the “single identifier” rule. The compiler will also look for implicit definitions in the *companion object* of the source or expected target types of the conversion.
 
-* *One-at-a-time Rule*: Only one implicit is tried.
+* *One-at-a-time* Rule: Only one implicit is tried.
 
-* *Explicits-First Rule*: Whenever code type checks as it is written, no implicits are attempted.
+* *Explicits-First* Rule: Whenever code type checks as it is written, no implicits are attempted.
 
 === Implicit conversion to an expected type
 
@@ -6319,51 +6317,251 @@ i: Int = 3
 
 === Converting the receiver
 
+Implicit conversions also apply to the receiver of a method call, the object on which the method is invoked. This kind of implicit conversion has two main uses.
+
+* First, receiver conversions allow smoother integration of a new class into an existing class hierarchy.
+* And second, they support writing domain specific languages (DSLs) within the language.
+
+*Interoperating with new types*
+
+* ->
++
 [source,scala]
 ----
+class MyInt(val value: Int) {
+  def + (that: MyInt) = new MyInt(value + that.value) 
+  override def toString = s"MyInt(${value})"
+}
+
+object MyInt {
+  def apply(x: Int) = new MyInt(x)
+}
 ----
++
+[source,scala]
+----
+scala> val m2 = MyInt(2)
+m2: MyInt = MyInt(2)
+
+scala> m2 + m2
+res3: MyInt = MyInt(4)
+
+scala> m2 + 2
+<console>:13: error: type mismatch;
+ found   : Int(2)
+ required: MyInt
+
+scala> 2 + m2
+<console>:13: error: overloaded method value + with alternatives:
+----
++
+[source,scala]
+----
+scala> implicit def int2MyInt(x: Int) = new MyInt(x)
+<console>:12: warning: implicit conversion method int2MyInt should be enabled
+                    ^
+scala> m2 + 2 // compiler: m2 + int2MyInt(2)
+res7: MyInt = MyInt(4)
+
+scala> 2 + m2 // compiler: int2MyInt(2) + m2
+res8: MyInt = MyInt(4)
+----
+
+*Simulating new syntax*
+
+* ->
++
+[source,scala]
+----
+scala> val m1 = Map(1 -> "one", 2 -> "two")
+m1: scala.collection.immutable.Map[Int,String] = Map(1 -> one, 2 -> two)
+
+scala> val m2 = Map((1, "one"), (2, "two"))
+m2: scala.collection.immutable.Map[Int,String] = Map(1 -> one, 2 -> two)
+
+scala> val k1 = new ArrowAssoc(1)
+k1: ArrowAssoc[Int] = scala.Predef$ArrowAssoc@1
+
+scala> val k2 = new ArrowAssoc(2)
+k2: ArrowAssoc[Int] = scala.Predef$ArrowAssoc@2
+
+scala> k1 -> "one"
+res14: (Int, String) = (1,one)
+
+scala> k2 -> "two"
+res15: (Int, String) = (2,two)
+
+scala> val m3 = Map(k1 -> "one", k2 -> "two")
+m3: scala.collection.immutable.Map[Int,String] = Map(1 -> one, 2 -> two)
+
+scala> m1 == m2
+res16: Boolean = true
+
+scala> m2 == m3
+res17: Boolean = true
+----
+
+=== Implicit parameters
+
+The compiler will sometimes replace:
+
+*  *someCall(a) with someCall(a)(b)*,
+*  or *new SomeClass(a) with new SomeClass(a)(b)*,
++
+thereby adding a missing parameter list to complete a function call.
+
+* It is the entire last *curried parameter list* that’s supplied, not just the last parameter.
++
+[source,scala]
+----
+class PreferredPrompt(val preference: String)
+
+object Greeter {
+  // The last parameter list is marked implicit, which means it can be supplied implicitly.
+  def greet(name: String)(implicit prompt: PreferredPrompt) {
+    println("Welcome, "+ name +". The system is ready.")
+    println(prompt.preference)
+  }
+}
+
+// But you can still provide the prompt explicitly,
+val bobsPrompt = new PreferredPrompt("relax> ")
+Greeter.greet("Bob")(bobsPrompt)
+// Welcome, Bob. The system is ready.
+// relax>
+----
++
+[source,scala]
+----
+// To let the compiler supply the parameter implicitly, you must first define a variable of
+// the expected type, which in this case is `PreferredPrompt`.
+object JoesPrefs {
+  // Note that the val itself is marked implicit.
+  // If it wasn’t, the compiler would not use it to supply the missing parameter list.
+  implicit val prompt = new PreferredPrompt("Yes, master> ")
+}
+
+// It will also not use it if it isn’t in scope as a single identifier.
+import JoesPrefs._
+
+Greeter.greet("Joe")
+// Welcome, Joe. The system is ready.
+// Yes, master>
+----
+
+* Note that 8the implicit keyword applies to an entire parameter list*, not to individual parameters.
++
+[source,scala]
+----
+class PreferredPrompt(val preference: String)
+class PreferredDrink(val preference: String)
+
+object Greeter {
+  def greet(name: String)(implicit prompt: PreferredPrompt, drink: PreferredDrink) {
+    println("Welcome, "+ name +". The system is ready.")
+    print("But while you work, ")
+    println("why not enjoy a cup of "+ drink.preference +"?")
+    println(prompt.preference)
+  } 
+}
+
+object JoesPrefs {
+  implicit val prompt = new PreferredPrompt("Yes, master> ")
+  implicit val drink = new PreferredDrink("tea")
+}
+----
++
+[source,scala]
+----
+scala> Greeter.greet("Joe")
+<console>:13: error: could not find implicit value for parameter prompt: PreferredPrompt
+       Greeter.greet("Joe")
+                    ^
+
+scala> import JoesPrefs._
+import JoesPrefs._
+
+scala> Greeter.greet("Joe")(prompt, drink)
+Welcome, Joe. The system is ready.
+But while you work, why not enjoy a cup of tea?
+Yes, master>
+
+scala> Greeter.greet("Joe")
+Welcome, Joe. The system is ready.
+But while you work, why not enjoy a cup of tea?
+Yes, master>
+----
+
+* The *compiler selects implicit parameters by matching types* of parameters against types of values in scope.
++
+[source,scala]
+----
+scala> def greet(implicit text: String) { println(text) }
+greet: (implicit text: String)Unit
+
+scala> implicit val abcd = "Hello world!"
+abcd: String = Hello world!
+
+scala> greet
+Hello world!
+
+scala> implicit val text = "Hello world!"
+text: String = Hello world!
+
+scala> greet
+<console>:15: error: ambiguous implicit values:
+ both value abcd of type => String
+ and value text of type => String
+----
++
+[source,scala]
+----
+class MyInt(val value: Int) {
+  override def toString = s"MyInt($value)"
+}
+
+object MyInt {
+  def apply(value: Int) = new MyInt(value)
+}
+
+// A function with an upper bound.
+def orderedMax[T <: Ordered[T]](x: T, y: T) = if (x > y) x else y
+
+val m1 = MyInt(1)
+val m2 = MyInt(2)
+
+// error: inferred type arguments [this.MyInt] do not conform to method orderedMax's type parameter bounds [T <: Ordered[T]]
+println(s"orderedMax($m1, $m2) is ${orderedMax(m1, m2)}")
+
+class OrderedMyInt(x: MyInt) extends Ordered[MyInt] {
+  override def compare(y: MyInt) = x.value - y.value
+}
+
+implicit def myInt2Ordered(x: MyInt) = new OrderedMyInt(x)
+
+// A function with an implicit parameter.
+def max[T](x: T, y: T)(implicit orderer: T => Ordered[T]): T = if (orderer(x) > y) x else y
+
+println(s"max($m1, $m2) is ${max(m1, m2)}")
+// max(MyInt(1), MyInt(2)) is MyInt(2)
+----
+
+
+
+
 
 [source,scala]
 ----
 ----
-
 [source,scala]
 ----
 ----
-
 [source,scala]
 ----
 ----
-
 [source,scala]
 ----
 ----
-
 [source,scala]
 ----
 ----
-
-[source,scala]
-----
-----
-
-[source,scala]
-----
-----
-
-[source,scala]
-----
-----
-
-[source,scala]
-----
-----
-
-[source,scala]
-----
-----
-
-[source,scala]
-----
-----
-
