@@ -6046,39 +6046,234 @@ bessy.eat(new Fish)   // ...you could feed fish to cows.
 class Food
 abstract class Animal {
   // Modeling suitable food with an abstract type.
-  type F <: Food
-  def eat(food: F)
+  type Feed <: Food
+  def eat(food: Feed)
 }
 
 class Grass extends Food
 class Cow extends Animal {
-  type F = Grass
+  type Feed = Grass
   override def eat(food: Grass) {}
 }
 
 class Fish extends Food
 
-val bessy: Animal = new Cow
-// val bessy = new Cow
+// A refinement type that make animal that eats grass.
+val bessy: Animal { type Feed = Grass } = new Cow
+// you could feed grass to cows.
+bessy.eat(new Grass) // OK
 
-// you should feed grass to cows.
+// error: type mismatch;
+//  found   : this.Fish
+//  required: this.bessy.Feed
+//     (which expands to)  this.Grass
+bessy.eat(new Fish)
+----
+
+=== Path-dependent types
+
+[source,scala]
+----
+val buggy: Animal = new Cow
 // error: type mismatch;
 //  found   : this.Grass
-//  required: this.bessy.F
-bessy.eat(new Grass)
-
-// ???
+//  required: this.buggy.Feed
+buggy.eat(new Grass)
 ----
 
+A type like `this.buggy.Feed` is called a *path-dependent type*.
+
+* The word “path” here means a *reference to an object*.
+* It could be a single name, such as this.bessy, or a longer access path, such as farm.barn.bessy.SuitableFood, where each of farm, barn, and bessy are variables (or singleton object names) that refer to objects.
+* As the term “path-dependent type” says, the type depends on the path: in general, *different paths give rise to different types*.
+* A path-dependent type resembles the syntax for an inner class type in Java, but there is a crucial difference: *a path-dependent type names an outer object, whereas an inner class type names an outer class.*
+
+** In Scala, the '```.```' syntax is reserved for objects, and the inner class is addressed using the expression `Outer#Inner` instead of Java's `Outer.Inner`. .
+
+** As in Java, *inner class instances hold a reference to an enclosing outer class instance*. This allows an inner class, for example, to access members of its outer class.
++
+Thus *you can’t instantiate an inner class without in some way specifying an outer class instance*.
++
+*** One way to do this is to instantiate the inner class inside the body of the outer class.
++
+In this case, the current outer class instance (referenced from this) will be used.
+*** Another way is to use a path-dependent type. 
++
+[source,scala]
+----
+class Outer {
+  class Inner
+
+  def test(x: Inner) {}
+
+  def test() {
+    test(new this.Inner)
+  }
+}
+----
++
+[source,scala]
+----
+scala> val o1 = new Outer
+o1: Outer = Outer@37493666
+
+scala> val o2 = new Outer
+o2: Outer = Outer@5e6c3555
+
+scala> o1.test()
+
+scala> o1.test(new o1.Inner)
+
+scala> o1.test(new o2.Inner)
+<console>:14: error: type mismatch;
+ found   : o2.Inner
+ required: o1.Inner
+       o1.test(new o2.Inner)
+               ^
+
+scala> o1.test(new Outer#Inner)
+<console>:14: error: Outer is not a legal prefix for a constructor
+       o1.test(new Outer#Inner)
+                         ^
+
+scala> o1.test(new Outer.Inner)
+<console>:13: error: not found: value Outer
+       o1.test(new Outer.Inner)
+                   ^
+
+scala> val oi1: Outer#Inner = new o1.Inner
+oi1: Outer#Inner = Outer$Inner@f268df
+
+scala> o1.test(oi1)
+<console>:14: error: type mismatch;
+ found   : Outer#Inner
+ required: o1.Inner
+       o1.test(oi1)
+               ^
+----
+
+=== Structural subtyping
+
+When a class inherits from another, the first class is said to be a nominal subtype of the other one. It’s a *nominal subtype* because each type has a name, and the names are explicitly declared to have a subtyping relationship. Scala additionally supports *structural subtyping*, where you get a subtyping rela- tionship simply because two types have the same members. To get structural subtyping in Scala, use Scala’s *refinement types*.
+
+.refinement types
+[NOTE]
+====
+A type formed by supplying a base type a number of members inside curly braces. The members in the curly braces refine the types that are present in the base type. For example, the type of “animal that eats grass” is `Animal { type Feed = Grass }`.
+====
+
+[source,scala]
+----
+trait Food
+trait Animal {
+  type Feed >: Food
+  def eat(f: Feed)
+}
+----
+
+[source,scala]
+----
+class Grass extends Food
+
+// define a Pasture class that can contain animals that eat grass
+class Pasture {
+  // animals that eats grass
+  // The members in the curly braces further specify— or refine, if
+  //   you will—the types of members from the base class.
+  var animals: List[Animal { type Feed = Grass }] = Nil
+}
+----
+
+[source,scala]
+----
+def using[T <: { def close(): Unit }](res: T)(op: => Unit) {
+  try {
+    op
+    } finally {
+      // warning: reflective access of structural type member method close should be enabled
+      // by making the implicit value scala.language.reflectiveCalls visible.
+      // This can be achieved by adding the import clause 'import scala.language.reflectiveCalls'
+      // or by setting the compiler option -language:reflectiveCalls.        
+      import scala.language.reflectiveCalls
+
+      res.close()
+    }
+}
+
+import java.io.PrintWriter
+import java.util.Date
+
+val writer = new PrintWriter("date.txt")
+using(writer) {
+  writer.println(new Date)
+}
+----
+
 [source,scala]
 ----
 ----
+
 [source,scala]
 ----
 ----
+
 [source,scala]
 ----
 ----
+
 [source,scala]
 ----
 ----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
+[source,scala]
+----
+----
+
