@@ -6696,17 +6696,101 @@ Traversable
       EmptyMap, Map1, Map2, Map3, Map4
 ----
 
+== Extractors
+
+An *extractor* in Scala is an object that has a method called *unapply* as one of its members.
+
+** The purpose of that unapply method is to match a value and take it apart.
+** Often, the extractor object also defines a dual method *apply* for building values, but this is not required.
++
 [source,scala]
 ----
+// The EMail string extractor object.
+object EMail {
+  // The injection method (optional)
+  def apply(user: String, domain: String) = user +"@"+ domain
+
+  // The extraction method (mandatory)
+  def unapply(str: String): Option[(String, String)] = {
+    val parts = str split "@"
+    if (parts.length == 2) Some(parts(0), parts(1)) else None
+  }
+}
 ----
++
+To make this more explicit, you could also let EMail inherit from Scala’s function type, like this:
++
+[source,scala]
+----
+object EMail extends ((String, String) => String) { ... }
+// $ scalap EMail
+// object EMail extends scala.AnyRef with scala.Function2[scala.Predef.String, scala.Predef.String, scala.Predef.String] {
+//   def this() = { /* compiled code */ }
+//   def apply(user: scala.Predef.String, domain: scala.Predef.String): java.lang.String = { /* compiled code */ }
+//   def unapply(str: scala.Predef.String): scala.Option[scala.Tuple2[scala.Predef.String, scala.Predef.String]] = { /* compiled code */ }
+// }
+----
++
+[NOTE]
+====
+The *(String, String) \=> String* portion of the previous object declaration means the same as *Function2[String, String, String]*, which declares an abstract *apply* method that EMail implements.
+====
+
+Now, whenever *pattern matching* encounters a pattern referring to an extractor object, it invokes the extractor’s unapply method on the selector expression. For instance, executing the code:
 
 [source,scala]
 ----
+selectorString match { case EMail(user, domain) => ... }
 ----
+
+would lead to the call:
 
 [source,scala]
 ----
+EMail.unapply(selectorString)
 ----
+
+In object EMail, the apply method is called an *injection*, because it takes some arguments and yields an element of a given set (in our case: the set of strings that are email addresses). The unapply method is called an *extraction*, because it takes an element of the same set and extracts some of its parts (in our case: the user and domain substrings).
+
+* Injections and extractions are often grouped together in one object, because then you can use the object’s name for both a constructor and a pattern, which simulates the convention for pattern matching with case classes.
+
+* However, it is also possible to define an extraction in an object without a corresponding injection. The object itself is called an *extractor*, regardless of whether or not it has an apply method.
+
+* If an injection method is included, it should be the dual to the extraction method.
++
+For instance, a call of:
++
+[source,scala]
+----
+EMail.unapply(EMail.apply(user, domain))
+----
++
+should return:
++
+[source,scala]
+----
+Some(user, domain)
+----
++
+i.e., the same sequence of arguments wrapped in a Some. 
+
+To return just *one pattern element*, the unapply method simply wraps the element itself in a Some. 
+
+[source,scala]
+----
+object Twice {
+  def apply(s: String) = s + s
+
+  def unapply(s: String) = {
+    val len = s.length / 2
+    val half = s.substring(0, len)
+    if (half == s.substring(len)) Some(half) else None
+  }
+}
+----
+
+Scala lets you define a different extraction method named *unapplySeq* specifically for vararg matching.
+
 [source,scala]
 ----
 ----
