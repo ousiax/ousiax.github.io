@@ -847,9 +847,9 @@ Sets the space (in bytes) allocated to the permanent generation that triggers a 
 +
 This option was deprecated in JDK 8 and superseded by the *-XX:MetaspaceSize* option. 
 
-== Apache Maven
+== Maven
 
-Apache Maven is a software project management and comprehension tool based on the concept of a project object model (POM).
+Apache *Maven* is a software project management and comprehension tool based on the concept of a project object model (POM).
 
 === The Build Lifecycle
 
@@ -1009,17 +1009,285 @@ The next section documents the directory layout expected by Maven and the direct
 |Project's readme
 |===
 
-===  Apache Maven Help Plugin
+=== Configuring Plug-ins
+
+In Maven, there are two kinds of plugins, build and reporting:
+
+* *Build plugins* are executed during the build and configured in the `<build/>` element.
+* *Reporting plugins* are executed during the site generation and configured in the `<reporting/>` element.
+
+All plugins should have minimal required information: *groupId*, *artifactId* and *version*.
+
+Maven plugins (build and reporting) are configured by specifying a `<configuration>` element where the child elements of the `<configuration>` element are mapped to fields, or setters, inside your *Mojo*.
+
+Remember that a plug-in consists of one or more Mojos where a Mojo maps to a goal.
+
+For example, you have a Mojo that performs a query against a particular URL, with a specified timeout and list of options. The Mojo might look like the following:
+
+[source,java]
+----
+/**
+ * @goal query
+ */
+public class MyQueryMojo extends AbstractMojo {
+    @Parameter(property = "query.url", required = true)
+    private String url;
+
+    @Parameter(property = "timeout", required = false, defaultValue = "50")
+    private int timeout;
+
+    @Parameter(property = "options")
+    private String[] options;
+
+    public void execute() throws MojoExecutionException {
+        // ...
+    }
+}
+----
+
+To configure the Mojo from your POM with the desired URL, timeout and options you might have something like the following:
+
+[source,xml]
+----
+<project>
+  ...
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-myquery-plugin</artifactId>
+        <version>1.0</version>
+        <configuration>
+          <url>http://www.foobar.com/query</url>
+          <timeout>10</timeout>
+          <options>
+            <option>one</option>
+            <option>two</option>
+            <option>three</option>
+          </options>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+    ...
+</project>
+----
+
+The elements in the configuration match the names of the fields in the Mojo.
+
+For Mojos that are intended to be executed directly from the CLI, their parameters usually provide a means to be configured via *system properties* instead of a <configuration> section in the POM.
+
+The plugin documentation for those parameters will list an expression that denotes the system properties for the configuration.
+
+In the Mojo above, the parameter url is associated with the expression _${query.url}_, meaning its value can be specified by the system property query.url as shown below:
+
+[source,sh]
+----
+mvn myquery:query -Dquery.url=http://maven.apache.org
+----
+
+*Help Goal*
+
+Most Maven plugins have a help goal that prints a description of the plugin and its parameters and types. For instance, to see help for the _javadoc_ goal, type:
+
+[source,sh]
+----
+mvn javadoc:help -Ddetail -Dgoal=javadoc
+----
+
+*Configuring Parameters*
+
+* *Mapping Simple Objects*
++
+[source,xml]
+----
+<configuration>
+  <myString>a string</myString>
+  <myBoolean>true</myBoolean>
+  <myInteger>10</myInteger>
+  <myDouble>1.0</myDouble>
+  <myFile>c:\temp</myFile>
+  <myURL>http://maven.apache.org</myURL>
+</configuration>
+----
+
+* *Mapping Complex Objects*
++
+[source,xml]
+----
+<configuration>
+  <person>
+    <firstName>Jason</firstName>
+    <lastName>van Zyl</lastName>
+  </person>
+</configuration>
+----
++
+[source,xml]
+----
+<configuration>
+  <person implementation="com.mycompany.mojo.query.SuperPerson">
+    <firstName>Jason</firstName>
+    <lastName>van Zyl</lastName>
+  </person>
+</configuration>
+----
+
+* *Mapping Collections*
+** *Mapping Lists*
++
+[source,java]
+----
+public class MyAnimalMojo extends AbstractMojo {
+    @Parameter(property = "animals")
+    private List animals;
+
+    public void execute() throws MojoExecutionException {
+        ...
+    }
+}
+----
++
+[source,xml]
+----
+<configuration>
+  <animals>
+    <animal>cat</animal>
+    <animal>dog</animal>
+    <animal>aardvark</animal>
+  </animals>
+</configuration>
+----
+** *Mapping Properties*
++
+[source,java]
+----
+    @Parameter(property = "myProperties")
+    private Properties myProperties
+----
++
+[source,xml]
+----
+<configuration>
+  <myProperties>
+    <property>
+      <name>propertyName1</name>
+      <value>propertyValue1</value>
+    </property>
+    <property>
+      <name>propertyName2</name>
+      <value>propertyValue2</value>
+    </property>
+  </myProperties>
+</configuration>
+----
+
+*Configuring Build Plugins*
+
+* *Using the `<executions>` Tag*
++
+[source,xml]
+----
+<build>
+  <plugins>
+    <plugin>
+      <artifactId>maven-myquery-plugin</artifactId>
+      <version>1.0</version>
+      <executions>
+        <execution>
+          <id>execution1</id>
+          <phase>test</phase>
+          <configuration>
+            ...
+          </configuration>
+          <goals>
+            <goal>query</goal>
+          </goals>
+        </execution>
+        <execution>
+          <id>execution2</id>
+          <configuration>
+            ...
+          </configuration>
+          <goals>
+            <goal>query</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
+----
++
+--
+** The first execution with id "execution1" binds this configuration to the *test* phase.
+** The second execution does not have a _<phase>_ tag, have a default phase binding.
+** If the goal has a default phase binding then it will execute in that phase.
+** But if the goal is not bound to any lifecycle phase then it simply won't be executed during the build lifecycle.
+
+[NOTE]
+====
+Note that while execution id's have to be unique among all executions of a single plugin within a POM, they don't have to be unique across an inheritance hierarchy of POMs.
+
+Executions of the same id from different POMs are merged.
+
+The same applies to executions that are defined by profiles.
+====
+--
+
+* *Using the `<dependencies>` Tag*
++
+You could configure the dependencies of the Build plugins, commonly to use a more recent dependency version.
++
+For instance, the Maven Antrun Plugin version 1.2 uses Ant version 1.6.5, if you want to use the latest Ant version when running this plugin, you need to add <dependencies> element like the following:
++
+[source,xml]
+----
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-antrun-plugin</artifactId>
+  <version>1.2</version>
+    ...
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.ant</groupId>
+      <artifactId>ant</artifactId>
+      <version>1.7.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.ant</groupId>
+      <artifactId>ant-launcher</artifactId>
+      <version>1.7.1</version>
+    </dependency>
+  </dependencies>
+</plugin>
+----
+
+* *Using the `<inherited>` Tag In Build Plugins*
++
+[source,xml]
+----
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-antrun-plugin</artifactId>
+  <version>1.2</version>
+  <inherited>false</inherited>
+    ...
+</plugin>
+----
+
+=== Maven Help Plugin
 
 * The *help:active-profiles* Goal
 +
-The active-profiles goal is used to discover which profiles have been applied to the projects currently being built. For each project in the build session, it will output a list of profiles which have been applied to that project, along with the source of the profile (POM, settings.xml or profiles.xml).
+The active-profiles goal is used to discover which profiles have been applied to the projects currently being built.
++
+For each project in the build session, it will output a list of profiles which have been applied to that project, along with the source of the profile (*POM*, *settings.xml* or *profiles.xml*).
 +
 You can execute this goal using the following command:
 +
 [source,sh]
 # mvn help:active-profiles
-
++
 NOTE: you could also use the output parameter to redirect output to a file.
 
 * The *help:all-profiles* Goal
@@ -1035,7 +1303,11 @@ NOTE: you could also use the output parameter to redirect output to a file.
 
 * The *help:describe* Goal
 +
-The describe goal is used to discover information about Maven plugins. Given either a plugin or a groupId, an artifactId and optionally a version, the goal will lookup that plugin and output details about it. If the user also specifies which goal to describe, the describe goal will limit output to the details of that goal, including parameters.
+The describe goal is used to discover information about Maven plugins.
++
+Given either a plugin or a groupId, an artifactId and optionally a version, the goal will lookup that plugin and output details about it.
++
+If the user also specifies which goal to describe, the describe goal will limit output to the details of that goal, including parameters.
 +
 You can execute this goal using the following command:
 +
@@ -1048,7 +1320,11 @@ Refer to Configuring Describe Goal for more information about its configuration.
 
 * The *help:effective-pom* Goal
 +
-The effective-pom goal is used to make visible the POM that results from the application of interpolation, inheritance and active profiles. It provides a useful way of removing the guesswork about just what ends up in the POM that Maven uses to build your project. It will iterate over all projects in the current build session, printing the effective POM for each.
+The effective-pom goal is used to make visible the POM that results from the application of interpolation, inheritance and active profiles.
++
+It provides a useful way of removing the guesswork about just what ends up in the POM that Maven uses to build your project.
++
+It will iterate over all projects in the current build session, printing the effective POM for each.
 +
 You can execute this goal using the following command:
 +    
@@ -1059,7 +1335,9 @@ NOTE: you could also use the output parameter to redirect output to a file.
 
 * The *help:effective-settings* Goal
 +
-The effective-settings goal is used to view the settings that Maven actually uses to run the build. These settings are a result of merging the global file with the user's file, with the user's file taking precedence.
+The effective-settings goal is used to view the settings that Maven actually uses to run the build.
++
+These settings are a result of merging the global file with the user's file, with the user's file taking precedence.
 +
 You can execute this goal using the following command:
 +
