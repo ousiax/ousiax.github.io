@@ -1,0 +1,416 @@
+= What Is PostgreSQL
+:page-layout: post
+:page-categories: ['database']
+:page-tags: ['database', 'postgresql']
+:page-date: 2022-05-20 09:36:40 +0800
+:page-revdate: 2022-05-20 09:36:40 +0800
+:toc:
+:sectnums:
+
+== What Is PostgreSQL?
+
+PostgreSQL is an object-relational database management system (ORDBMS) based on https://dsf.berkeley.edu/postgres.html[POSTGRES, Version 4.2], developed at the University of California at Berkeley Computer Science Department. POSTGRES pioneered many concepts that only became available in some commercial database systems much later.
+
+PostgreSQL is an open-source descendant of this original Berkeley code. It supports a large part of the SQL standard and offers many modern features:
+
+* complex queries
+* foreign keys
+* triggers
+* updatable views
+* transactional integrity
+* multiversion concurrency control
+
+Also, PostgreSQL can be extended by the user in many ways, for example by adding new
+
+* data types
+* functions
+* operators
+* aggregate functions
+* index methods
+* procedural languages
+
+== Installation from Docker
+
+=== start a postgres instance
+
+[source,console]
+----
+$ docker run --name some-postgres -e POSTGRES_PASSWORD=mysecretpassword -d postgres
+----
+
+=== ... or via psql
+
+[source,console]
+----
+$ docker run -it --rm --network some-network postgres psql -h some-postgres -U postgres
+psql (9.5.0)
+Type "help" for help.
+
+postgres=# SELECT 1;
+ ?column? 
+----------
+        1
+(1 row)
+----
+
+=== ... via https://github.com/docker/compose[docker-compose]
+
+.compose.yaml
+[source,yaml]
+----
+services:
+  database:
+    image: postgres:14
+    restart: on-failure
+      # The PostgreSQL image uses several environment variables which are easy to miss.
+      # The only variable required is POSTGRES_PASSWORD, the rest are optional.
+      #
+      # Warning: the Docker specific variables will only have an effect if you start
+      # the container with a data directory that is empty; any pre-existing database
+      # will be left untouched on container startup.
+    environment:
+      # This environment variable is required for you to use the PostgreSQL image.
+      # It must not be empty or undefined. This environment variable sets the superuser
+      # password for PostgreSQL.
+      # The default superuser is defined by the POSTGRES_USER environment variable.
+      #
+      # Note 1: The PostgreSQL image sets up trust authentication locally so you may notice
+      # a password is not required when connecting from localhost (inside the same container).
+      # However, a password will be required if connecting from a different host/container.
+      #
+      # Note 2: This variable defines the superuser password in the PostgreSQL instance, as
+      # set by the initdb script during initial container startup. It has no effect on the
+      # PGPASSWORD environment variable that may be used by the psql client at runtime, as
+      # described at https://www.postgresql.org/docs/current/libpq-envars.html.
+      # PGPASSWORD, if used, will be specified as a separate environment variable.
+      #
+      POSTGRES_PASSWORD: postgres
+
+      # This optional environment variable is used in conjunction with POSTGRES_PASSWORD to
+      # set a user and its password. This variable will create the specified user with
+      # superuser power and a database with the same name. If it is not specified, then the
+      # default user of `postgres` will be used.
+      #
+      # Be aware that if this parameter is specified, PostgreSQL will still show The files
+      # belonging to this database system will be owned by user "postgres" during initialization.
+      # This refers to the Linux system user (from /etc/passwd in the image) that the postgres
+      # daemon runs as, and as such is unrelated to the POSTGRES_USER option.
+      POSTGRES_USER: postgres
+
+      # This optional environment variable can be used to define a different name for the
+      # default database that is created when the image is first started. If it is not
+      # specified, then the value of `POSTGRES_USER` will be used.
+      POSTGRES_DB: postgres
+
+      # This optional variable can be used to define another location - like a subdirectory - for
+      # the database files. The default is /var/lib/postgresql/data. If the data volume you're
+      # using is a filesystem mountpoint (like with GCE persistent disks) or remote folder that
+      # cannot be chowned to the postgres user (like some NFS mounts), Postgres initdb recommends
+      # a subdirectory be created to contain the data.
+      #
+      # For example:
+      #
+      # $ docker run -d \
+      # 	--name some-postgres \
+      # 	-e POSTGRES_PASSWORD=mysecretpassword \
+      # 	-e PGDATA=/var/lib/postgresql/data/pgdata \
+      # 	-v /custom/mount:/var/lib/postgresql/data \
+      # 	postgres
+      #
+      # This is an environment variable that is not Docker specific. Because the variable is used by
+      # the postgres server binary (see the PostgreSQL docs), the entrypoint script takes it into account.
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    volumes: []
+      # If you would like to do additional initialization in an image derived from this one,
+      # add one or more *.sql, *.sql.gz, or *.sh scripts
+      # under /docker-entrypoint-initdb.d (creating the directory if necessary). After the
+      # entrypoint calls initdb to create the default postgres user and database, it will run
+      # any *.sql files, run any executable *.sh scripts, and source any non-executable *.sh
+      # scripts found in that directory to do further initialization before starting the service.
+      #
+      # Warning: scripts in /docker-entrypoint-initdb.d are only run if you start the container
+      # with a data directory that is empty; any pre-existing database will be left untouched on
+      # container startup. One common problem is that if one of your /docker-entrypoint-initdb.d
+      # scripts fails (which will cause the entrypoint script to exit) and your orchestrator
+      # restarts the container with the already initialized data directory, it will not continue
+      # on with your scripts.
+      #
+      # These initialization files will be executed in sorted name order as defined by the current
+      # locale, which defaults to en_US.utf8. Any *.sql files will be executed by POSTGRES_USER,
+      # which defaults to the postgres superuser. It is recommended that any psql commands that are
+      # run inside of a *.sh script be executed as POSTGRES_USER by using
+      # the --username "$POSTGRES_USER" flag. This user will be able to connect without a password
+      # due to the presence of trust authentication for Unix socket connections made inside the container.
+      #
+      # - ./init.sql:/docker-entrypoint-initdb.d/1-init.sql
+      # - ./data.sql:/docker-entrypoint-initdb.d/2-data.sql
+----
+
+[source,console]
+----
+$ docker-compose config
+services:
+  database:
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    image: postgres:14
+    restart: on-failure
+    volumes: []
+version: '3.9'
+
+$ docker-compose up -d
+Creating network "pg_default" with the default driver
+Creating pg_database_1 ... done
+
+$ docker-compose exec database psql -U postgres
+psql (14.2 (Debian 14.2-1.pgdg110+1))
+Type "help" for help.
+
+postgres=#
+----
+
+== Clusters, Databases, Tables, Rows, Columns
+
+PostgreSQL is a *relational database management system* (RDBMS). That means it is a system for managing data stored in *relations*. Relation is essentially a mathematical term for *table*. The notion of storing data in tables is so commonplace today that it might seem inherently obvious, but there are a number of other ways of organizing databases. Files and directories on Unix-like operating systems form an example of a hierarchical database. A more modern development is the object-oriented database.
+
+Each table is a named collection of *rows*. Each row of a given table has the same set of named *columns*, and each column is of a specific data type. Whereas columns have a fixed order in each row, it is important to remember that SQL does not guarantee the order of the rows within the table in any way (although they can be explicitly sorted for display).
+
+Tables are grouped into *databases*, and a collection of databases managed by a single PostgreSQL server instance constitutes a *database cluster*.
+
+> Databases are called “catalogs” in the SQL standard.
+
+== Schemas
+
+A PostgreSQL database cluster contains one or more named databases. Roles and a few other object types are shared across the entire cluster. A client connection to the server can only access data in a single database, the one specified in the connection request.
+
+A database contains one or more named *schemas*, which in turn contain tables. Schemas also contain other kinds of named objects, including data types, functions, and operators. The same object name can be used in different schemas without conflict; for example, both schema1 and myschema can contain tables named mytable. Unlike databases, schemas are not rigidly separated: a user can access objects in any of the schemas in the database they are connected to, if they have privileges to do so.
+
+There are several reasons why one might want to use schemas:
+
+* To allow many users to use one database without interfering with each other.
+
+* To organize database objects into logical groups to make them more manageable.
+
+* Third-party applications can be put into separate schemas so they do not collide with the names of other objects.
+
+Schemas are analogous to directories at the operating system level, except that schemas cannot be nested.
+
+=== Creating a Schema
+
+To create a schema, use the CREATE SCHEMA command. Give the schema a name of your choice. For example:
+
+[source,sql]
+CREATE SCHEMA myschema;
+
+To create or access objects in a schema, write a *qualified name* consisting of the schema name and table name separated by a dot:
+
+[source,sql]
+schema.table
+
+Actually, the even more general syntax
+
+[source,sql]
+database.schema.table
+
+can be used too, but at present this is just for pro forma compliance with the SQL standard. If you write a database name, it must be the same as the database you are connected to.
+
+To drop a schema if it's empty (all objects in it have been dropped), use:
+
+[source,sql]
+DROP SCHEMA myschema;
+
+To drop a schema including all contained objects, use:
+
+[source,sql]
+DROP SCHEMA myschema CASCADE;
+
+Schema names beginning with *pg_* are reserved for system purposes and cannot be created by users.
+
+=== The Public Schema
+
+By default tables (and other objects) are automatically put into a schema named “public”. Every new database contains such a schema. Thus, the following are equivalent:
+
+[source,sql]
+CREATE TABLE products ( ... );
+
+and:
+
+[source,sql]
+CREATE TABLE public.products ( ... );
+
+=== The Schema Search Path
+
+Qualified names are tedious to write, and it's often best not to wire a particular schema name into applications anyway. Therefore tables are often referred to by *unqualified names*, which consist of just the table name. The system determines which table is meant by following a *search path*, which is a list of schemas to look in. The first matching table in the search path is taken to be the one wanted. If there is no match in the search path, an error is reported, even if matching table names exist in other schemas in the database.
+
+The first schema named in the search path is called the *current schema*. Aside from being the first schema searched, it is also the schema in which new tables will be created if the CREATE TABLE command does not specify a schema name.
+
+To show the current search path, use the following command:
+
+[source,sql]
+SHOW search_path;
+
+In the default setup this returns:
+
+[source,text]
+----
+ search_path
+--------------
+ "$user", public
+----
+
+The first element specifies that a schema with the same name as the current user is to be searched. If no such schema exists, the entry is ignored. The second element refers to the public schema that we have seen already.
+
+*The first schema in the search path that exists is the default location for creating new objects.* That is the reason that by default objects are created in the public schema. When objects are referenced in any other context without schema qualification (table modification, data modification, or query commands) the search path is traversed until a matching object is found. Therefore, in the default configuration, any unqualified access again can only refer to the public schema.
+
+To put our new schema in the path, we use:
+
+[source,sql]
+SET search_path TO myschema,public;
+
+=== Schemas and Privileges
+
+By default, users cannot access any objects in schemas they do not own. To allow that, the owner of the schema must grant the *USAGE* privilege on the schema. To allow users to make use of the objects in the schema, additional privileges might need to be granted, as appropriate for the object.
+
+A user can also be allowed to create objects in someone else's schema. To allow that, the *CREATE* privilege on the schema needs to be granted. Note that by default, everyone has *CREATE* and *USAGE* privileges on the schema *public*. This allows all users that are able to connect to a given database to create objects in its *public* schema. 
+
+=== The System Catalog Schema
+
+In addition to public and user-created schemas, each database contains a *pg_catalog* schema, which contains the system tables and all the built-in data types, functions, and operators. pg_catalog is always effectively part of the search path. If it is not named explicitly in the path then it is implicitly searched before searching the path's schemas. This ensures that built-in names will always be findable. However, you can explicitly place pg_catalog at the end of your search path if you prefer to have user-defined names override built-in names.
+
+Since system table names begin with *pg_*, it is best to avoid such names to ensure that you won't suffer a conflict if some future version defines a system table named the same as your table. (With the default search path, an unqualified reference to your table name would then be resolved as the system table instead.) System tables will continue to follow the convention of having names beginning with *pg_*, so that they will not conflict with unqualified user-table names so long as users avoid the *pg_* prefix.
+
+=== Portability
+
+In the SQL standard, the notion of objects in the same schema being owned by different users does not exist. Moreover, some implementations do not allow you to create schemas that have a different name than their owner. In fact, the concepts of schema and user are nearly equivalent in a database system that implements only the basic schema support specified in the standard. Therefore, many users consider qualified names to really consist of *user_name.table_name*. This is how PostgreSQL will effectively behave if you create a per-user schema for every user.
+
+Also, there is no concept of a *public* schema in the SQL standard. For maximum conformance to the standard, you should not use the public schema.
+
+Of course, some SQL database systems might not implement schemas at all, or provide namespace support by allowing (possibly limited) cross-database access. If you need to work with those systems, then maximum portability would be achieved by not using schemas at all.
+
+== Tablespaces
+
+Tablespaces in PostgreSQL allow database administrators to define locations in the file system where the files representing database objects can be stored. Once created, a tablespace can be referred to by name when creating database objects.
+
+By using tablespaces, an administrator can control the *disk layout* of a PostgreSQL installation. This is useful in at least two ways.
+
+First, if the partition or volume on which the cluster was initialized runs out of space and cannot be extended, a tablespace can be created on a different partition and used until the system can be reconfigured.
+
+Second, tablespaces allow an administrator to use knowledge of the usage pattern of database objects to optimize performance. For example, an index which is very heavily used can be placed on a very fast, highly available disk, such as an expensive solid state device. At the same time a table storing archived data which is rarely used or not performance critical could be stored on a less expensive, slower disk system.
+
+== Database Roles
+
+PostgreSQL manages database access permissions using the concept of *roles*. A role can be thought of as either a database user, or a group of database users, depending on how the role is set up. Roles can own database objects (for example, tables and functions) and can assign privileges on those objects to other roles to control who has access to which objects. Furthermore, it is possible to grant membership in a role to another role, thus allowing the member role to use privileges assigned to another role.
+
+The concept of roles subsumes the concepts of “users” and “groups”. In PostgreSQL versions before 8.1, users and groups were distinct kinds of entities, but now there are only roles. Any role can act as a user, a group, or both.
+
+=== Database Roles
+
+Database roles are conceptually completely separate from operating system users. In practice it might be convenient to maintain a correspondence, but this is not required. Database roles are global across a database cluster installation (and not per individual database). To create a role use the *CREATE ROLE* SQL command:
+
+[source,sql]
+CREATE ROLE name;
+
+To remove an existing role, use the analogous *DROP ROLE* command:
+
+[source,sql]
+DROP ROLE name;
+
+To determine the set of existing roles, examine the pg_roles system catalog, for example
+
+[source,sql]
+SELECT rolname FROM pg_roles;
+
+The psql program's *\du* meta-command is also useful for listing the existing roles.
+
+n order to bootstrap the database system, a freshly initialized system always contains one predefined role. This role is always a “superuser”, and by default (unless altered when running initdb) it will have the same name as the operating system user that initialized the database cluster. Customarily, this role will be named *postgres*. In order to create more roles you first have to connect as this initial role.
+
+Every connection to the database server is made using the name of some particular role, and this role determines the initial access privileges for commands issued in that connection. The role name to use for a particular database connection is indicated by the client that is initiating the connection request in an application-specific fashion. For example, the psql program uses the *-U* command line option to indicate the role to connect as. Many applications assume the name of the current operating system user by default (including *createuser* and *psql*). Therefore it is often convenient to maintain a naming correspondence between roles and operating system users.
+
+=== Role Attributes
+
+A database role can have a number of attributes that define its privileges and interact with the client authentication system.
+
+*login privilege*
+
+Only roles that have the *LOGIN* attribute can be used as the initial role name for a database connection. A role with the *LOGIN* attribute can be considered the same as a “**database user**”. To create a role with login privilege, use either:
+
+[source,sql]
+----
+CREATE ROLE name LOGIN;
+CREATE USER name;
+----
+
+(*CREATE USER* is equivalent to *CREATE ROLE* except that *CREATE USER* includes *LOGIN* by default, while *CREATE ROLE* does not.)
+
+*superuser status*
+
+A database superuser bypasses all permission checks, except the right to log in. This is a dangerous privilege and should not be used carelessly; it is best to do most of your work as a role that is not a superuser. To create a new database superuser, use *CREATE ROLE name SUPERUSER*. You must do this as a role that is already a superuser.
+
+*database creation*
+
+A role must be explicitly given permission to create databases (except for superusers, since those bypass all permission checks). To create such a role, use *CREATE ROLE name CREATEDB*.
+
+*role creation*
+
+A role must be explicitly given permission to create more roles (except for superusers, since those bypass all permission checks). To create such a role, use *CREATE ROLE name CREATEROLE*. A role with *CREATEROLE* privilege can alter and drop other roles, too, as well as grant or revoke membership in them. However, to create, alter, drop, or change membership of a superuser role, superuser status is required; *CREATEROLE* is insufficient for that.
+
+*initiating replication*
+
+A role must explicitly be given permission to initiate streaming replication (except for superusers, since those bypass all permission checks). A role used for streaming replication must have *LOGIN* permission as well. To create such a role, use *CREATE ROLE name REPLICATION LOGIN*.
+
+*password*
+
+A password is only significant if the client authentication method requires the user to supply a password when connecting to the database. The password and md5 authentication methods make use of passwords. Database passwords are separate from operating system passwords. Specify a password upon role creation with *CREATE ROLE name PASSWORD 'string'*.
+
+A role's attributes can be modified after creation with *ALTER ROLE*. See the reference pages for the CREATE ROLE and ALTER ROLE commands for details.
+
+[TIP]
+====
+It is good practice to create a role that has the *CREATEDB* and *CREATEROLE* privileges, but is not a superuser, and then use this role for all routine management of databases and roles. This approach avoids the dangers of operating as a superuser for tasks that do not really require it.
+====
+
+=== Role Membership
+
+It is frequently convenient to group users together to ease management of privileges: that way, privileges can be granted to, or revoked from, a group as a whole. In PostgreSQL this is done by creating a role that represents the group, and then granting membership in the group role to individual user roles.
+
+To set up a group role, first create the role:
+
+[source,sql]
+CREATE ROLE name;
+
+Typically a role being used as a group would not have the *LOGIN* attribute, though you can set it if you wish.
+
+Once the group role exists, you can add and remove members using the *GRANT* and *REVOKE* commands:
+
+[source,sql]
+----
+GRANT group_role TO role1, ... ;
+REVOKE group_role FROM role1, ... ;
+----
+
+You can grant membership to other group roles, too (since there isn't really any distinction between group roles and non-group roles). The database will not let you set up circular membership loops. Also, it is not permitted to grant membership in a role to *PUBLIC*.
+
+The members of a group role can use the privileges of the role in two ways. First, every member of a group can explicitly do *SET ROLE* to temporarily “become” the group role. In this state, the database session has access to the privileges of the group role rather than the original login role, and any database objects created are considered owned by the group role not the login role. Second, member roles that have the *INHERIT* attribute automatically have use of the privileges of roles of which they are members, including any privileges inherited by those roles. As an example, suppose we have done:
+
+[source,sql]
+----
+CREATE ROLE joe LOGIN INHERIT;
+CREATE ROLE admin NOINHERIT;
+CREATE ROLE wheel NOINHERIT;
+GRANT admin TO joe;
+GRANT wheel TO admin;
+----
+
+=== Predefined Roles
+
+PostgreSQL provides a set of predefined roles that provide access to certain, commonly needed, privileged capabilities and information. Administrators (including roles that have the CREATEROLE privilege) can GRANT these roles to users and/or other roles in their environment, providing those users with access to the specified capabilities and information.
+
+see also: https://www.postgresql.org/docs/14/predefined-roles.html
+
+== References
+
+* https://hub.docker.com/_/postgres/
