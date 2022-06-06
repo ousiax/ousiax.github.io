@@ -1,0 +1,193 @@
+= How to run docker on remote host on Windows
+:page-layout: post
+:page-categories: ['docker']
+:page-tags: ['docker']
+:page-date: 2022-06-06 14:02:24 +0800
+:page-revdate: 2022-06-06 14:02:24 +0800
+:toc:
+:sectnums:
+
+I have a Linux VM running on my Windows desktop. This post will explain how to access the docker server at Linux on Windows.
+
+== Set *dockerd* to listen on mutliple hosts.
+
+. Configure docker daemon.json to support mutliple hosts. 
++
+[source,json,highlight="10"]
+----
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },  
+  "data-root": "/var/lib/docker",
+  "storage-driver": "overlay2",
+  "registry-mirrors": ["https://docker.mirrors.ustc.edu.cn/"],
+  "hosts": ["fd://", "tcp://0.0.0.0:25010"]
+}
+----
++
+The `"hosts": ["fd://", "tcp://0.0.0.0:25010"]` will make the `dockerd` listen on `tcp://*:25010` and `unix:///run/docker.sock`.
+
+. Edit the `docker.service` with `sudo systemctl edit docker.service` to reset the `ExecStart` as below:
++
+[source,console]
+----
+$ sudo systemctl edit docker.service
+----
++
+[source,ini,highlight="4,5,6,23"]
+----
+### Editing /etc/systemd/system/docker.service.d/override.conf
+### Anything between here and the comment below will become the new contents of the file
+
+[Service]    
+ExecStart=
+ExecStart=/usr/bin/dockerd
+
+### Lines below this comment will be discarded
+
+### /lib/systemd/system/docker.service
+# [Unit]
+# Description=Docker Application Container Engine
+# Documentation=https://docs.docker.com
+# After=network-online.target firewalld.service containerd.service
+# Wants=network-online.target
+# Requires=docker.socket containerd.service
+# 
+# [Service]
+# Type=notify
+# # the default is not to use systemd for cgroups because the delegate issues still
+# # exists and systemd currently does not support the cgroup feature set required
+# # for containers run by docker
+# ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+...
+----
+
+. Run `sudo systemctl daemon-reload` to reload the systemd manager configuration.
++
+[source,console]
+----
+$ sudo systemctl daemon-reload
+----
+
+. Run `sudo systemctl restart docker` to restart `docker.server`.
++
+[source,console,highlight="20,19"]
+----
+$ sudo systemctl restart docker.service
+
+$ sudo systemctl status docker.service 
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+    Drop-In: /etc/systemd/system/docker.service.d
+             └─override.conf
+     Active: active (running) since Mon 2022-06-06 14:29:53 CST; 34s ago
+TriggeredBy: ● docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 11127 (dockerd)
+      Tasks: 73
+     Memory: 71.8M
+        CPU: 4.616s
+     CGroup: /system.slice/docker.service
+             ├─11127 /usr/bin/dockerd
+...
+
+... level=info msg="API listen on /run/docker.sock"
+... level=info msg="API listen on [::]:25010"
+...
+----
++
+[source,console,highlight="7-10"]
+----
+$ docker info
+Client:
+...
+
+Server:
+
+WARNING: API is accessible on http://0.0.0.0:25010 without encryption.
+         Access to the remote API is equivalent to root access on the host. Refer
+         to the 'Docker daemon attack surface' section in the documentation for
+         more information: https://docs.docker.com/go/attack-surface/
+----
+
+. Test the above settings.
++
+[source,cosnole]
+----
+$ docker ps
+CONTAINER ID   IMAGE               COMMAND                  CREATED       STATUS                   PORTS                                                 NAMES
+07a6bab1b0c4   daprio/dapr:1.7.4   "./placement"            6 hours ago   Up 4 minutes             0.0.0.0:50005->50005/tcp, :::50005->50005/tcp         dapr_placement
+...
+
+$ docker --host tcp://localhost:25010 ps
+CONTAINER ID   IMAGE               COMMAND                  CREATED       STATUS                   PORTS                                                 NAMES
+07a6bab1b0c4   daprio/dapr:1.7.4   "./placement"            6 hours ago   Up 5 minutes             0.0.0.0:50005->50005/tcp, :::50005->50005/tcp         dapr_placement
+...
+----
++
+So far, so good. Next, let configure the *docker-cli* on Windows desktop.
+
+== Set *docker-cli* on Windows desktop.
+
+. To install Docker CLI, run the following command from the command line or from PowerShell:
++
+[source,powershell]
+----
+> choco install docker-cli
+----
+
+[NOTE]
+====
+You can also make another approach to install `docker-cli` on Windows. 
+
+For more information about _chocolatey_, see also https://docs.chocolatey.org/en-us/getting-started.
+
+You can also use chocolatey to install `docker-compose` on Windows:
+
+[source,powershell]
+----
+> choco install docker-compose
+----
+====
+
+. Configure `DOCKER_HOST` environment variables.
++
+[source,powershell]
+----
+> docker ps
+error during connect: This error may indicate that the docker daemon is not running.: Get "http://%2F%2F.%2Fpipe%2Fdocker_engine/v1.24/containers/json": open //./pipe/docker_engine: The system cannot find the file specified.
+----
++
+On Windows desktop, we need specify the `--host` option explicitly:
++
+[source,powershell]
+----
+> docker --host tcp://192.168.91.128:25010 ps
+CONTAINER ID   IMAGE               COMMAND                  CREATED       STATUS                    PORTS
+                     NAMES
+07a6bab1b0c4   daprio/dapr:1.7.4   "./placement"            6 hours ago   Up 21 minutes             0.0.0.0:50005->50005/tcp, :::50005->50005/tcp         dapr_placement
+...
+----
++
+Howevery, we can also set the `DOCKER_HOST` environment variable with Powershell.
++
+[source,powershell]
+----
+> $Env:DOCKER_HOST = "tcp://192.168.91.128:25010"
+> docker ps
+CONTAINER ID   IMAGE               COMMAND                  CREATED       STATUS                    PORTS
+                     NAMES
+07a6bab1b0c4   daprio/dapr:1.7.4   "./placement"            6 hours ago   Up 27 minutes             0.0.0.0:50005->50005/tcp, :::50005->50005/tcp         dapr_placement
+...
+----
++
+Or edit the system environment variables:
++
+** Press "Windows + R" to open the Run window, type "sysdm.cpl" in the text box and press Enter to open System Properties.
+
+** Go to the "Advanced" tab and select "Environment Variables".
+
+** The Environment Variables panel appears on the screen. You can observe two types of variables and set them according to your needs.
