@@ -2,6 +2,7 @@
 layout: post
 title: Golang Learning Notes 
 date: 2020-04-07 09:24:39 +0800
+revdate: 2022-06-13 08:49:20+08:00
 categories: ['go']
 tags: ['go']
 ---
@@ -973,6 +974,56 @@ var u uint = uint(f)
 i := 42
 f := float64(i)
 u := uint(f)
+```
+
+### Type parameters
+
+Go functions can be written to work on multiple types using type parameters. The type parameters of a function appear between brackets, before the function's arguments. 
+
+```go
+func Index[T comparable](s []T, x T) int
+```
+
+This declaration means that `s` is a slice of any type `T` that fulfills the built-in constraint `comparable`. `x` is also a value of the same type.
+
+`comparable` is a useful constraint that makes it possible to use the `==` and `!=` operators on values of the type. 
+
+```go
+func main() {
+	si := []int{10, 20, 15, -10}
+	fmt.Println(Index(si, 15))
+
+	ss := []string{"foo", "bar", "baz"}
+	fmt.Println(Index(ss, "buz"))
+}
+// Output:
+// 2
+// -1
+
+// Index returns the index of x in s, or -1 if not found.
+func Index[T comparable](s []T, x T) int {
+	for i, v := range s {
+		// v and x are type T, which has the comparable
+		// constraint, so we can use == here.
+		if x == v {
+			return i
+		}
+	}
+	return -1
+}
+```
+
+### Generics
+
+In addition to *generic functions*, Go also supports generic types. A type can be parameterized with a type parameter, which could be useful for implementing *generic data structures*. 
+
+```go
+// List represents a singly-linked list that holds
+// values of any type.
+type List[T any] struct {
+	next *List[T]
+	val  T
+}
 ```
 
 ## Initialization 
