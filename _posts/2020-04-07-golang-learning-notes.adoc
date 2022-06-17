@@ -835,6 +835,10 @@ There is a handy exception, though. When the value is addressable, the language 
 
 === Interfaces
 
+An interface type defines a _type set_. A variable of interface type can store a value of any type that is in the type set of the interface. Such a type is said to _implement the interface_. The value of an uninitialized variable of interface type is `nil`.
+
+An interface type is specified by a list of _interface elements_. An interface element is either a _method_ or a _type element_, where a type element is a union of one or more type terms. A _type term_ is either a single type or a single _underlying type_. 
+
 Interfaces in Go provide a way to specify the behavior of an object: if something can do _this_, then it can be used _here_.
 
 *Interfaces are implemented implicitly*
@@ -865,35 +869,35 @@ There is no explicit declaration of intent, no "implements" keyword.
 +
 [,go]
 ----
-  type I interface {
-  	M()
-  }
+type I interface {
+	M()
+}
 
-  type T struct{}
+type T struct{}
 
-  func (t *T) M() {
-  	if t == nil {
-  		fmt.Println("<nil>")
-  		return
-  	}
-  }
+func (t *T) M() {
+	if t == nil {
+		fmt.Println("<nil>")
+		return
+	}
+}
 
-  func main() {
-  	var i I
-  	var t *T
-  	i = t
-  	i.M()
-  	fmt.Printf("(%v, %T)\n", i, i)
+func main() {
+	var i I
+	var t *T
+	i = t
+	i.M()
+	fmt.Printf("(%v, %T)\n", i, i)
 
-  	i = &T{}
-  	i.M()
-  	fmt.Printf("(%v, %T)\n", i, i)
+	i = &T{}
+	i.M()
+	fmt.Printf("(%v, %T)\n", i, i)
 
-  	// Output:
-  	// <nil>
-  	// (<nil>, *main.T)
-  	// (&{}, *main.T)
-  }
+	// Output:
+	// <nil>
+	// (<nil>, *main.T)
+	// (&{}, *main.T)
+}
 ----
 
 *Nil interface values*
@@ -903,11 +907,11 @@ There is no explicit declaration of intent, no "implements" keyword.
 +
 [,go]
 ----
-  var i I
-  fmt.Printf("(%v, %T)\n", i, i)
-  i.M()
-  // (<nil>, <nil>)
-  // panic: runtime error: invalid memory address or nil pointer dereference
+var i I
+fmt.Printf("(%v, %T)\n", i, i)
+i.M()
+// (<nil>, <nil>)
+// panic: runtime error: invalid memory address or nil pointer dereference
 ----
 
 *The empty interface*
@@ -916,11 +920,12 @@ There is no explicit declaration of intent, no "implements" keyword.
 +
 [,go]
 ----
-  interface{}
+interface{}
 ----
 
 * An empty interface may hold values of any type. (Every type implements at least zero methods.)
 * Empty interfaces are used by code that handles values of unknown type.
+* For convenience, the predeclared type `any` is an alias for the empty interface.
 +
 [,console]
 ----
@@ -932,6 +937,61 @@ type any = interface{}
     ways.
 
 func recover() any
+----
+
+*General interfaces*
+
+* In their most general form, an interface element may also be an arbitrary type term `T`, or a term of the form `~T` specifying the underlying type `T`, or a union of terms `t1|t2|…|tn`.
+* By construction, an interface's type set never contains an interface type.
++
+[,go]
+----
+// An interface representing only the type int.
+type I0 interface {
+	int
+}
+
+// An interface representing all types with underlying type int.
+type I1 interface {
+	~int
+}
+
+// An interface representing all types with underlying type int that implement the String method.
+type I2 interface {
+	~int
+	String() string
+}
+
+// An interface representing an empty type set: there is no type that is both an int and a string.
+type I3 interface {
+	int
+	string
+}
+----
+
+* In a term of the form `~T`, the underlying type of `T` must be itself, and `T` cannot be an interface.
++
+[,go]
+----
+type MyInt int
+
+type MyI interface {
+	~[]byte  // the underlying type of []byte is itself
+	~MyInt   // illegal: the underlying type of MyInt is not MyInt
+	~error   // illegal: error is an interface
+}
+----
+
+* Union elements denote unions of type sets:
++
+[,go]
+----
+// The Float interface represents all floating-point types
+// (including any named types whose underlying types are
+// either float32 or float64).
+type Float interface {
+	~float32 | ~float64
+}
 ----
 
 *Generality*
@@ -1254,12 +1314,39 @@ type List[T any] struct {
 	val  T
 }
 
+func (head *List[T]) append(vals ...T) {
+	var a = func(val T) {
+		tail := head
+		for tail.next != nil {
+			tail = tail.next
+		}
+		tail.next = &List[T]{val: val}
+	}
+	for _, val := range vals {
+		a(val)
+	}
+}
+
+func (head *List[T]) String() string {
+	var b strings.Builder
+	node := head
+	for node != nil {
+		fmt.Fprintf(&b, "%v", node.val)
+		node = node.next
+		if node != nil {
+			fmt.Fprint(&b, " -> ")
+		}
+	}
+	return b.String()
+}
 
 func main() {
-	n := List[int]{val: 20}
-	fmt.Println(n.val)
+	list := &List[int]{val: 20}
+	list.append(30, 40, 50)
+	list.append(60)
+	fmt.Printf("%v\n", list)
 	// Output:
-	// 20
+	// 20 -> 30 -> 40 -> 50 -> 60
 }
 ----
 
