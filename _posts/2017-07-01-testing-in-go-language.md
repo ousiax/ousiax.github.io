@@ -526,3 +526,4 @@ The third purpose of an example is hands-on experimentation. The **godoc** serve
 1. [testing](https://golang.org/pkg/testing/) - The Go Programming Language
 1. [TableDrivenTests](https://github.com/golang/go/wiki/TableDrivenTests) · golang/go Wiki
 1. [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) - The Go Blog
+1. [The cover story](https://go.dev/blog/cover) - The Go Programming Language
