@@ -1,0 +1,121 @@
+= The Trouble with Distributed Systems
+:page-layout: post
+:page-categories: ['distribute system']
+:page-tags: ['distribute system', 'fault', 'partial failure']
+:page-date: 2022-08-08 16:37:38 +0800
+:page-revdate: 2022-08-08 16:37:38 +0800
+:sectnums:
+:toc:
+
+== Faults and Partial Failures
+
+When you are *_writing a program on a single computer_*, it normally behaves in a fairly *_predictable_* way: either it works or it doesn’t. Buggy software may give the appearance that the computer is sometimes “having a bad day” (a problem that is often fixed by a reboot), but that is mostly just a consequence of badly written software.
+
+There is no fundamental reason why software on a single computer should be flaky: when the hardware is working correctly, the same operation always produces the
+same result (it is *_deterministic_*). If there is a hardware problem (e.g., memory corruption or a loose connector), the consequence is usually a total system failure (e.g., kernel panic, “blue screen of death,” failure to start up). An individual computer with good software is usually either fully functional or entirely broken, but not something in between.
+
+This is a deliberate choice in the design of computers: if an internal fault occurs, we prefer a computer to crash completely rather than returning a wrong result, because wrong results are difficult and confusing to deal with. Thus, computers hide the fuzzy physical reality on which they are implemented and present an idealized system model that operates with mathematical perfection. A CPU instruction always does the same thing; if you write some data to memory or disk, that data remains intact and doesn’t get randomly corrupted. This design goal of always-correct computation goes all the way back to the very first digital computer.
+
+When you are *_writing software that runs on several computers_*, connected by a network, the situation is fundamentally different. In distributed systems, we are no longer operating in an idealized system model—we have no choice but to confront the messy reality of the physical world. And in the physical world, a remarkably wide
+range of things can go wrong, as illustrated by this anecdote:
+
+> In my limited experience I’ve dealt with long-lived network partitions in a single data center (DC), PDU [power distribution unit] failures, switch failures, accidental power cycles of whole racks, whole-DC backbone failures, whole-DC power failures, and a hypoglycemic driver smashing his Ford pickup truck into a DC’s HVAC [heating, ventilation, and air conditioning] system. And I’m not even an ops guy.
+>
+> —Coda Hale
+
+In a *_distributed system_*, there may well be some parts of the system that are broken in some *_unpredictable_* way, even though other parts of the system are working fine. This is known as a *_partial failure_*. The difficulty is that partial failures are *_nondeterministic_*: if you try to do anything involving multiple nodes and the network, it may sometimes work and sometimes unpredictably fail. As we shall see, you may not even know whether something succeeded or not, as the time it takes for a message to travel across a network is also nondeterministic!
+
+This nondeterminism and possibility of partial failures is what makes distributed systems hard to work with.
+
+== Unreliable Networks
+
+A *_shared-nothing system_* is a bunch of machines connected by a network. The network is the only way those machines can communicate—we assume that each machine has its own memory and disk, and one machine cannot access another machine’s memory or disk (except by making requests to a service over the network).
+
+The internet and most internal networks in datacenters (often Ethernet) are *_asynchronous packet networks_*. In this kind of network, one node can send a message (a packet) to another node, but the network gives no guarantees as to when it will arrive, or whether it will arrive at all. If you send a request and expect a response, many things could go wrong:
+
+1. Your request may have been lost (perhaps someone unplugged a network cable).
+
+2. Your request may be waiting in a queue and will be delivered later (perhaps the network or the recipient is overloaded).
+
+3. The remote node may have failed (perhaps it crashed or it was powered down).
+
+4. The remote node may have temporarily stopped responding (perhaps it is experiencing a long garbage collection pause), but it will start responding again later.
+
+5. The remote node may have processed your request, but the response has been lost on the network (perhaps a network switch has been misconfigured).
+
+6. The remote node may have processed your request, but the response has been delayed and will be delivered later (perhaps the network or your own machine is overloaded).
+
+The sender can’t even tell whether the packet was delivered: the only option is for the recipient to send a response message, which may in turn be lost or delayed. These issues are indistinguishable in an asynchronous network: the only information you have is that you haven’t received a response yet. If you send a request to another node and don’t receive a response, it is impossible to tell why.
+
+The usual way of handling this issue is a *_timeout_*: after some time you give up waiting and assume that the response is not going to arrive. However, when a timeout occurs, you still don’t know whether the remote node got your request or not (and if the request is still queued somewhere, it may still be delivered to the recipient, even if the sender has given up on it).
+
+Handling *_network faults_* doesn’t necessarily mean *_tolerating_* them: if your network is normally fairly reliable, a valid approach may be to simply show an error message to users while your network is experiencing problems. However, you do need to know how your software reacts to network problems and ensure that the system can recover from them. It may make sense to deliberately trigger network problems and test the system’s response (this is the idea behind *_Chaos Monkey_*).
+
+If a timeout is the only sure way of detecting a fault, then how long should the timeout be? There is unfortunately no simple answer.
+
+A long timeout means a long wait until a node is declared dead (and during this time, users may have to wait or see error messages). A short timeout detects faults faster, but carries a higher risk of incorrectly declaring a node dead when in fact it has only suffered a temporary slowdown (e.g., due to a load spike on the node or the network).
+
+We have to assume that *_network congestion_*, *_queueing_*, and *_unbounded delays_* will happen. Consequently, there’s no “correct” value for timeouts—they need to be determined experimentally.
+
+== Unreliable Clocks
+
+Clocks and time are important. Applications depend on clocks in various ways to answer questions like the following:
+
+1. Has this request timed out yet?
+
+2. What’s the 99th percentile response time of this service?
+
+3. How many queries per second did this service handle on average in the last five minutes?
+
+4. How long did the user spend on our site?
+
+5. When was this article published?
+
+6. At what date and time should the reminder email be sent?
+
+7. When does this cache entry expire?
+
+8. What is the timestamp on this error message in the log file?
+
+In a distributed system, time is a tricky business, because communication is not instantaneous: it takes time for a message to travel across the network from one
+machine to another. The time when a message is received is always later than the time when it is sent, but due to variable delays in the network, we don’t know how
+much later. This fact sometimes makes it difficult to determine the order in which things happened when multiple machines are involved.
+
+Moreover, each machine on the network has its own clock, which is an actual hardware device: usually a quartz crystal oscillator. These devices are not perfectly accurate, so each machine has its own notion of time, which may be slightly faster or slower than on other machines. It is possible to synchronize clocks to some degree: the most commonly used mechanism is the Network Time Protocol (NTP), which allows the computer clock to be adjusted according to the time reported by a group of
+servers. The servers in turn get their time from a more accurate time source, such as a GPS receiver.
+
+=== Monotonic Versus Time-of-Day Clocks
+
+Modern computers have at least two different kinds of clocks: a *_time-of-day clock_* and a *_monotonic clock_*. Although they both measure time, it is important to distinguish the two, since they serve different purposes.
+
+==== Time-of-day clocks
+
+A time-of-day clock does what you intuitively expect of a clock: it returns the current date and time according to some calendar (also known as *_wall-clock time_*). For example, `clock_gettime(CLOCK_REALTIME)` on Linuxv and `System.currentTimeMillis()` in Java return the number of seconds (or milliseconds) since the epoch: midnight UTC on January 1, 1970, according to the Gregorian calendar, not counting leap seconds. Some systems use other dates as their reference point.
+
+Time-of-day clocks are usually synchronized with *_NTP_*, which means that a timestamp from one machine (ideally) means the same as a timestamp on another machine. However, time-of-day clocks also have various oddities. In particular, if the local clock is too far ahead of the NTP server, it may be forcibly reset and appear to *_jump back to a previous point in time_*. These jumps, as well as the fact that they often ignore leap seconds, make time-of-day clocks unsuitable for measuring elapsed time.
+
+=== Monotonic clocks
+
+A monotonic clock is suitable for measuring a *_duration_* (time interval), such as a timeout or a service’s response time: `clock_gettime(CLOCK_MONOTONIC)` on Linux and `System.nanoTime()` in Java are monotonic clocks, for example. The name comes from the fact that they are guaranteed to always move forward (whereas a time-of-day clock may jump back in time).
+
+On a server with multiple CPU sockets, there may be a separate *_timer per CPU_*, which is not necessarily synchronized with other CPUs. Operating systems compensate for any discrepancy and try to present a monotonic view of the clock to application threads, even as they are scheduled across different CPUs. However, it is wise to take this guarantee of monotonicity with a pinch of salt.
+
+NTP may adjust the frequency at which the monotonic clock moves forward (this is known as slewing the clock) if it detects that the computer’s local quartz is moving faster or slower than the NTP server. By default, *_NTP allows the clock rate to be speeded up or slowed down by up to 0.05%, but NTP cannot cause the monotonic clock to jump forward or backward._* The resolution of monotonic clocks is usually quite good: on most systems they can measure time intervals in microseconds or less.
+
+In a distributed system, using a monotonic clock for measuring elapsed time (e.g., timeouts) is usually fine, because it doesn’t assume any synchronization between different nodes’ clocks and is not sensitive to slight inaccuracies of measurement.
+
+==== Process Pauses
+
+* Many programming language runtimes (such as the Java Virtual Machine) have a garbage collector (GC) that occasionally needs to stop all running threads. These “*_stop-the-world_*” GC pauses have sometimes been known to last for several minutes!
+
+* In virtualized environments, a virtual machine can be *_suspended_* (pausing the execution of all processes and saving the contents of memory to disk) and *_resumed_* (restoring the contents of memory and continuing execution). This pause can occur at any time in a process’s execution and can last for an arbitrary length of time. This feature is sometimes used for *_live migration of virtual machines_* from one host to another without a reboot, in which case the length of the pause depends on the rate at which processes are writing to memory.
+
+* On end-user devices such as laptops, execution may also be suspended and resumed arbitrarily, e.g., when the user closes the lid of their laptop.
+
+* When the operating system *_context-switches to another thread_*, or when the *_hypervisor switches to a different virtual machine_* (when running in a virtual machine), the currently running thread can be paused at any arbitrary point in the code. In the case of a virtual machine, the CPU time spent in other virtual machines is known as steal time. If the machine is under heavy load—i.e., if there is a long queue of threads waiting to run—it may take some time before the paused thread gets to run again.
+
+* If the application performs synchronous disk access, a thread may be paused waiting for a *_slow disk I/O operation_* to complete. In many languages, disk access can happen surprisingly, even if the code doesn’t explicitly mention file access—for example, the Java classloader lazily loads class files when they are first used, which could happen at any time in the program execution. I/O pauses and GC pauses may even conspire to combine their delays. If the disk is actually a network filesystem or network block device (such as Amazon’s EBS), the I/O latency is further subject to the variability of network delays.
+
+* If the operating system is configured to allow swapping to disk (*_paging_*), a simple memory access may result in a *_page fault_* that requires a page from disk to be loaded into memory. The thread is paused while this slow I/O operation takes place. If memory pressure is high, this may in turn require a different page to be swapped out to disk. In extreme circumstances, the operating system may spend most of its time swapping pages in and out of memory and getting little actual work done (this is known as thrashing). To avoid this problem, paging is often disabled on server machines (if you would rather kill a process to free up memory than risk thrashing).
+
+* A Unix process can be paused by sending it the `SIGSTOP` signal, for example by pressing Ctrl-Z in a shell. This signal immediately stops the process from getting any more CPU cycles until it is resumed with `SIGCONT`, at which point it continues running where it left off. Even if your environment does not normally use `SIGSTOP`, it might be sent accidentally by an operations engineer.
