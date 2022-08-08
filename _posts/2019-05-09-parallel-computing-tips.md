@@ -3,7 +3,7 @@ layout: post
 title: 并行计算-笔记
 date: 2019-05-09 17:27:03 +0800
 categories: ['programming']
-tags: ['programming']
+tags: ['programming', 'parallelism']
 ---
 
 ```none
