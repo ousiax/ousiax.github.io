@@ -168,3 +168,132 @@ If a consumer falls so far behind that the messages it requires are older than w
 With AMQP- and JMS-style message brokers, processing and acknowledging messages is a destructive operation, since it causes the messages to be deleted on the broker. On the other hand, in a log-based message broker, consuming messages is more like reading from a file: it is a read-only operation that does not change the log.
 
 This aspect makes log-based messaging more like the batch processes, where derived data is clearly separated from input data through a repeatable transformation process. It allows more experimentation and easier recovery from errors and bugs, making it a good tool for integrating dataflows within an organization.
+
+== Databases and Streams
+
+We have drawn some comparisons between message brokers and databases. Even though they have traditionally been considered separate categories of tools, we saw that *_log-based message brokers_* have been successful in taking ideas from databases and applying them to messaging. We can also go in reverse: take ideas from messaging and streams, and apply them to databases.
+
+In fact, a *_replication log_* is a stream of database write events, produced by the leader as it processes transactions. The followers apply that stream of writes to their own copy of the database and thus end up with an accurate copy of the same data. The events in the replication log describe the data changes that occurred.
+
+The *_state machine replication_* principle with *_total order_* broadcast, which states: if every event represents a write to the database, and every replica processes the same events in the same order, then the replicas will all end up in the same final state. It’s just another case of event streams.
+
+=== Keeping Systems in Sync
+
+There is no single system that can satisfy all data storage, querying, and processing needs, and most nontrivial applications need to combine several different technologies in order to satisfy their requirements: for example, using an *_OLTP database to serve user requests_*, a *_cache to speed up common requests_*, a *_full-text index to handle search queries_*, and a *_data warehouse for analytics_*. Each of these has its own copy of the data, stored in its own representation that is optimized for its own purposes.
+
+As the same or related data appears in several different places, they need to be *_kept in sync_* with one another: if an item is updated in the database, it also needs to be updated in the cache, search indexes, and data warehouse. With data warehouses this synchronization is usually performed by ETL processes, often by taking a full copy of a database, transforming it, and bulk-loading it into the data warehouse—in other words, a batch process. Similarly, search indexes, recommendation systems, and other derived data systems might be created using batch processes.
+
+If periodic full database dumps are too slow, an alternative that is sometimes used is *_dual writes_*, in which the application code explicitly writes to each of the systems when data changes: for example, first writing to the database, then updating the search index, then invalidating the cache entries (or even performing those writes concurrently).
+
+However, dual writes have some serious problems, one of which is a *_race condition_*.
+
+image::/assets/stream-processing/Figure_11-4_dual_write_race_condition.png[,75%,75%]
+
+Another problem with dual writes is that one of the writes may fail while the other succeeds. This is a *_fault-tolerance_* problem rather than a concurrency problem, but it also has the effect of the two systems becoming inconsistent with each other. Ensuring that they either both succeed or both fail is a case of the *_atomic commit_* problem, which is expensive to solve.
+
+=== Change Data Capture
+
+The problem with most databases’ *_replication logs_* is that they have long been considered to be an internal implementation detail of the database, not a public API. Clients are supposed to query the database through its data model and query language, not parse the replication logs and try to extract data from them.
+
+For decades, many databases simply did not have a documented way of getting the log of changes written to them. For this reason it was difficult to take all the changes made in a database and replicate them to a different storage technology such as a search index, cache, or data warehouse.
+
+More recently, there has been growing interest in *_change data capture_* (CDC), which is the process of observing all data changes written to a database and extracting them in a form in which they can be replicated to other systems. CDC is especially interesting if changes are made available as a *_stream_*, immediately as they are written.
+
+image::/assets/stream-processing/Figure_11-5_change-data-capture.png[,75%,75%]
+
+==== Implementing change data capture
+
+We can call the log consumers *_derived data systems_*: the data stored in the search index and the data warehouse is just another view onto the data in the system of record. Change data capture is a mechanism for ensuring that all changes made to the system of record are also reflected in the derived data systems so that the derived systems have an accurate copy of the data.
+
+Essentially, change data capture makes one database the *_leader_* (the one from which the changes are captured), and turns the others into *_followers_*. A *_log-based message broker_* is well suited for transporting the change events from the source database, since it preserves the *_ordering of messages_*.
+
+Database triggers can be used to implement change data capture by registering triggers that observe all changes to data tables and add corresponding entries to a changelog table. However, they tend to be fragile and have significant performance overheads. Parsing the *_replication log_* can be a more robust approach, although it also comes with challenges, such as handling schema changes.
+
+LinkedIn’s Databus, Facebook’s Wormhole, and Yahoo!’s Sherpa use this idea at large scale. Bottled Water implements CDC for PostgreSQL using an API that decodes the *_write-ahead log_*, Maxwell and Debezium do something similar for MySQL by parsing the *_binlog_*, Mongoriver reads the MongoDB *_oplog_*, and GoldenGate provides similar facilities for Oracle.
+
+==== Log compaction
+
+The principle of *_log compaction_* in the context of *_log-structured storage engines_* is simple: the storage engine periodically looks for log records with the same key, throws away any duplicates, and keeps only the most recent update for each key. This compaction and merging process runs in the background.
+
+In a log-structured storage engine, an update with a special null value (a *_tombstone_*) indicates that a key was deleted, and causes it to be removed during log compaction. But as long as a key is not overwritten or deleted, it stays in the log forever. The disk space required for such a compacted log depends only on the current contents of the database, not the number of writes that have ever occurred in the database. If the same key is frequently overwritten, previous values will eventually be garbage collected, and only the latest value will be retained.
+
+The same idea works in the context of *_log-based message brokers_* and change data capture. If the CDC system is set up such that every change has a primary key, and every update for a key replaces the previous value for that key, then it’s sufficient to keep just the most recent write for a particular key.
+
+This feature is supported by Apache *_Kafka_*. It allows the message broker to be used for durable storage, not just for transient messaging.
+
+==== API support for change streams
+
+Increasingly, databases are beginning to support change streams as a first-class interface, rather than the typical retrofitted and reverse-engineered CDC efforts. For example, RethinkDB allows queries to subscribe to notifications when the results of a query change, Firebase and CouchDB provide data synchronization based on a change feed that is also made available to applications, and Meteor uses the MongoDB oplog to subscribe to data changes and update the user interface.
+
+*_Kafka Connect_* is an effort to integrate change data capture tools for a wide range of database systems with Kafka. Once the stream of change events is in Kafka, it can be used to update derived data systems such as search indexes, and also feed into stream processing systems.
+
+=== Event Sourcing
+
+Similarly to change data capture, *_event sourcing_* involves storing all changes to the application state as a log of change events. The biggest difference is that event sourcing applies the idea at a different level of abstraction:
+
+* In change data capture, the application uses the database in a *_mutable_* way, updating and deleting records at will. The log of changes is extracted from the database at a *_low level_* (e.g., by parsing the replication log), which ensures that the order of writes extracted from the database matches the order in which they were actually written, avoiding the race condition. The application writing to the database does not need to be aware that CDC is occurring.
+
+* In event sourcing, the application logic is explicitly built on the basis of *_immutable_* events that are written to an event log. In this case, the event store is *_appendonly_*, and updates or deletes are discouraged or prohibited. Events are designed to reflect things that happened at the *_application level_*, rather than low-level state changes.
+
+Event sourcing is a powerful technique for data modeling: from an application point of view it is more meaningful to record the user’s actions as immutable events, rather than recording the effect of those actions on a mutable database. Event sourcing makes it easier to *_evolve applications_* over time, helps with debugging by making it easier to understand after the fact why something happened, and guards against application bugs.
+
+==== Deriving current state from the event log
+
+An event log by itself is not very useful, because users generally expect to see the current state of a system, not the history of modifications. For example, on a shopping website, users expect to be able to see the current contents of their cart, not an append-only list of all the changes they have ever made to their cart.
+
+Thus, applications that use event sourcing need to take the log of events (representing the data *_written_* to the system) and transform it into application state that is suitable for showing to a user (the way in which data is *_read_* from the system). This transformation can use arbitrary logic, but it should be *_deterministic_* so that you can run it again and derive the same application state from the event log.
+
+Applications that use event sourcing typically have some mechanism for storing *_snapshots_* of the current state that is derived from the log of events, so they don’t need to repeatedly reprocess the full log. However, this is only a performance optimization to speed up reads and recovery from crashes; the intention is that the system is able to store all raw events forever and reprocess the full event log whenever required.
+
+==== Commands and events
+
+The event sourcing philosophy is careful to distinguish between *_events_* and *_commands_*. When a request from a user first arrives, it is initially a command: at this
+point it may still fail, for example because some integrity condition is violated. The application must first validate that it can execute the command. If the validation is successful and the command is accepted, it becomes an event, which is durable and immutable.
+
+For example, if a user tries to register a particular username, or reserve a seat on an airplane or in a theater, then the application needs to check that the username or seat is not already taken. When that check has succeeded, the application can generate an event to indicate that a particular username was registered by a particular user ID, or that a particular seat has been reserved for a particular customer.
+
+At the point when the event is generated, it becomes a *_fact_*. Even if the customer later decides to change or cancel the reservation, the fact remains true that they formerly held a reservation for a particular seat, and the change or cancellation is a separate event that is added later.
+
+=== State, Streams, and Immutability
+
+We normally think of databases as storing the current state of the application—this representation is optimized for reads, and it is usually the most convenient for serving queries. The nature of state is that it changes, so databases support updating and deleting data as well as inserting it. How does this fit with immutability?
+
+No matter how the *_state_* changes, there was always a sequence of *_events_* that caused those changes. Even as things are done and undone, the *_fact_* remains true that those events occurred. The key idea is that *_mutable state_* and an append-only log of *_immutable events_* do not contradict each other: they are two sides of the same coin. The log of all changes, the *_changelog_*, represents the evolution of state over time.
+
+image::/assets/stream-processing/Figure_11-6_relationship-current-state-event-stream.png[,75%,75%]
+
+If you store the changelog durably, that simply has the effect of making the state *_reproducible_*. If you consider the log of events to be your system of record, and any mutable state as being derived from it, it becomes easier to reason about the flow of data through a system. As Pat Helland puts it:
+
+> Transaction logs record all the changes made to the database. High-speed appends are the only way to change the log. From this perspective, the contents of the database hold a caching of the latest record values in the logs. #The truth is the log.# The database is a cache of a subset of the log. That cached subset happens to be the latest value of each record and index value from the log.
+
+==== Advantages of immutable events
+
+Immutability in databases is an old idea. For example, accountants have been using immutability for centuries in financial bookkeeping. When a transaction occurs, it is recorded in an append-only *_ledger_*, which is essentially a log of events describing money, goods, or services that have changed hands. The accounts, such as profit and loss or the balance sheet, are derived from the transactions in the ledger by adding them up.
+
+If a mistake is made, accountants don’t erase or change the incorrect transaction in the ledger—instead, they add another transaction that *_compensates_* for the mistake, for example refunding an incorrect charge. The incorrect transaction still remains in the ledger forever, because it might be important for *_auditing_* reasons. If incorrect figures, derived from the incorrect ledger, have already been published, then the figures for the next accounting period include a correction. This process is entirely normal in accounting.
+
+Although such *_auditability_* is particularly important in financial systems, it is also beneficial for many other systems that are not subject to such strict regulation. If you accidentally deploy buggy code that writes bad data to a database, recovery is much harder if the code is able to destructively overwrite data.  With an append-only log of immutable events, it is much easier to diagnose what happened and recover from the problem.
+
+Immutable events also capture more information than just the current state. For example, on a shopping website, a customer may add an item to their cart and then remove it again. Although the second event cancels out the first event from the point of view of order fulfillment, it may be useful to know for *_analytics_* purposes that the customer was considering a particular item but then decided against it. Perhaps they will choose to buy it in the future, or perhaps they found a substitute. This information is recorded in an *_event log_*, but would be lost in a database that deletes items when they are removed from the cart.
+
+==== Deriving several views from the same event log
+
+Moreover, by separating mutable state from the immutable event log, you can derive several different read-oriented representations from the same log of events.
+
+Storing data is normally quite straightforward if you don’t have to worry about how it is going to be queried and accessed; many of the complexities of schema design, indexing, and storage engines are the result of wanting to support certain query and access patterns. For this reason, you gain a lot of flexibility by separating the form in which data is written from the form it is read, and by allowing several different read views. This idea is sometimes known as *_command query responsibility segregation_* (CQRS).
+
+==== Concurrency control
+
+The biggest downside of event sourcing and change data capture is that the consumers of the event log are usually *_asynchronous_*, so there is a possibility that a user may make a write to the log, then read from a log-derived view and find that their write has not yet been reflected in the read view.
+
+One solution would be to *_perform the updates of the read view synchronously_* with appending the event to the log. This requires a *_transaction_* to combine the writes into an *_atomic_* unit, so either you need to keep the event log and the read view in the same storage system, or you need a distributed transaction across the different systems.
+
+==== Limitations of immutability
+
+Many systems that don’t use an event-sourced model nevertheless rely on immutability: various databases internally use immutable data structures or multi-version data to support point-in-time snapshots. Version control systems such as Git, Mercurial, and Fossil also rely on immutable data to preserve version history of files.
+
+To what extent is it feasible to keep an immutable history of all changes forever? The answer depends on the amount of churn in the dataset. Some workloads mostly add data and rarely update or delete; they are easy to make immutable. Other workloads have a high rate of updates and deletes on a comparatively small dataset; in these cases, the immutable history may grow prohibitively large, fragmentation may become an issue, and the performance of compaction and garbage collection becomes crucial for operational robustness.
+
+Besides the performance reasons, there may also be circumstances in which you need data to be deleted for administrative reasons, in spite of all immutability. For example, privacy regulations may require deleting a user’s personal information after they close their account, data protection legislation may require erroneous information to be removed, or an accidental leak of sensitive information may need to be contained.
+
+Truly deleting data is surprisingly hard, since copies can live in many places: for example, storage engines, filesystems, and SSDs often write to a new location rather than overwriting in place, and backups are often deliberately immutable to prevent accidental deletion or corruption. Deletion is more a matter of “making it harder to retrieve the data” than actually “making it impossible to retrieve the data.”
