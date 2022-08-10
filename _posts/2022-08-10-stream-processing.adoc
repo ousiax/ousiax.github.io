@@ -1,0 +1,98 @@
+= Stream Processing
+:page-layout: post
+:page-categories: ['data']
+:page-tags: ['data', 'stream processing']
+:page-date: 2022-08-10 08:29:55 +0800
+:page-revdate: 2022-08-10 08:29:55 +0800
+:toc:
+:toclevels: 4
+:sectnums:
+
+In reality, a lot of data is *_unbounded_* because it arrives gradually over time: your users produced data yesterday and today, and they will continue to produce more data tomorrow. Unless you go out of business, this process never ends, and so the dataset is never “complete” in any meaningful way. Thus, *_batch processors_* must artificially divide the data into chunks of fixed duration: for example, processing a day’s worth of data at the end of every day, or processing an hour’s worth of data at the end of every hour.
+
+The problem with daily batch processes is that changes in the input are only reflected in the output a day later, which is too slow for many impatient users. To reduce the delay, we can run the processing more frequently—say, processing a second’s worth of data at the end of every second—or even continuously, abandoning the fixed time slices entirely and simply processing every event as it happens. That is the idea behind *_stream processing_*.
+
+== Transmitting Event Streams
+
+In the batch processing world, the inputs and outputs of a job are files (perhaps on a distributed filesystem). What does the streaming equivalent look like?
+
+When the input is a file (a sequence of bytes), the first processing step is usually to parse it into a sequence of records. In a stream processing context, a record is more commonly known as an *_event_*, but it is essentially the same thing: a small, selfcontained, immutable object containing the details of something that happened at some point in time. An event usually contains a timestamp indicating when it happened according to a time-of-day clock.
+
+In batch processing, a file is written once and then potentially read by multiple jobs. Analogously, in streaming terminology, an event is generated once by a *_producer_* (also known as a *_publisher_* or *_sender_*), and then potentially processed by multiple *_consumers_* (*_subscribers_* or *_recipients_*). In a filesystem, a filename identifies a set of related records; in a streaming system, related events are usually grouped together into a *_topic_* or *_stream_*.
+
+=== Messaging Systems
+
+A common approach for notifying consumers about new events is to use a *_messaging system_*: a producer sends a message containing the event, which is then pushed to consumers.
+
+Within this *_publish/subscribe_* model, different systems take a wide range of approaches, and there is no one right answer for all purposes. To differentiate the
+systems, it is particularly helpful to ask the following two questions:
+
+1. What happens if the *_producers send messages faster than the consumers_* can process them?
++
+Broadly speaking, there are three options: the system can *_drop_* messages, *_buffer_* messages in a queue, or apply *_backpressure_*.
++
+If messages are buffered in a queue, it is important to understand what happens as that queue grows. Does the system crash if the queue no longer fits in memory, or does it write messages to disk? If so, how does the disk access affect the performance of the messaging system?
+
+2. What happens if *_nodes crash_* or temporarily go offline—are any messages lost?
++
+As with databases, *_durability_* may require some combination of writing to disk and/or replication, which has a cost. If you can afford to sometimes lose messages, you can probably get higher throughput and lower latency on the same hardware.
+
+==== Direct messaging from producers to consumers
+
+A number of messaging systems use direct network communication between producers and consumers without going via intermediary nodes:
+
+* UDP multicast is widely used in the financial industry for streams such as stock market feeds, where low latency is important. Although UDP itself is unreliable, application-level protocols can recover lost packets (the producer must remember packets it has sent so that it can retransmit them on demand).
+
+* Brokerless messaging libraries such as *ZeroMQ* and nanomsg take a similar approach, implementing publish/subscribe messaging over TCP or IP multicast.
+
+==== Message brokers
+
+A widely used alternative is to send messages via a *_message broker_* (also known as a *_message queue_*), which is essentially a kind of database that is optimized for handling message streams. It runs as a server, with producers and consumers connecting to it as clients. Producers write messages to the broker, and consumers receive them by reading them from the broker.
+
+By centralizing the data in the broker, these systems can more easily *_tolerate clients_* that come and go (connect, disconnect, and crash), and the question of *_durability_* is moved to the broker instead. Some message brokers only keep messages in memory, while others (depending on configuration) write them to disk so that they are not lost in case of a broker crash. Faced with slow consumers, they generally allow *_unbounded queueing_* (as opposed to dropping messages or backpressure), although this choice may also depend on the configuration.
+
+A consequence of queueing is also that consumers are generally *_asynchronous_*: when a producer sends a message, it normally only waits for the broker to confirm that it has buffered the message and does not wait for the message to be processed by consumers. The delivery to consumers will happen at some undetermined future point in time—often within a fraction of a second, but sometimes significantly later if there is a queue backlog.
+
+==== Message brokers compared to databases
+
+Some message brokers can even participate in *_two-phase commit_* protocols using XA or JTA. This feature makes them quite similar in nature to databases, although there are still important practical differences between message brokers and databases:
+
+* Databases usually keep data until it is explicitly deleted, whereas most message brokers automatically delete a message when it has been successfully delivered to
+its consumers. Such message brokers are not suitable for *_long-term data storage_*.
+
+* Since they quickly delete messages, most message brokers assume that their working set is fairly small—i.e., the queues are short. If the broker needs to buffer a lot of messages because the consumers are slow (perhaps spilling messages to disk if they no longer fit in memory), each individual message takes longer to process, and the overall throughput may degrade.
+
+* Databases often support secondary indexes and various ways of searching for data, while message brokers often support some way of subscribing to a subset of topics matching some pattern. The mechanisms are different, but both are essentially ways for a client to select the portion of the data that it wants to know about.
+
+* When querying a database, the result is typically based on a point-in-time snapshot of the data; if another client subsequently writes something to the database that changes the query result, the first client does not find out that its prior result is now outdated (unless it repeats the query, or polls for changes). By contrast, message brokers do not support arbitrary queries, but they do notify clients when data changes (i.e., when new messages become available).
+
+This is the traditional view of message brokers, which is encapsulated in standards like *_JMS_* and *_AMQP_* and implemented in software like *RabbitMQ*, *ActiveMQ*, HornetQ, Qpid, TIBCO Enterprise Message Service, *IBM MQ*, Azure Service Bus, and Google Cloud Pub/Sub.
+
+==== Multiple consumers
+
+When multiple consumers read messages in the same topic, two main patterns of messaging are used, as illustrated in Figure 11-1:
+
+image::/assets/stream-processing/Figure_11-1_message_load_balancing_fan_out.png[,75%,75%]
+
+* *Load balancing*
++
+Each message is delivered to one of the consumers, so the consumers can share the work of processing the messages in the topic. The broker may assign messages to consumers arbitrarily. This pattern is useful when the messages are expensive to process, and so you want to be able to add consumers to parallelize the processing.
+
+* *Fan-out*
++
+Each message is delivered to all of the consumers. Fan-out allows several independent consumers to each “tune in” to the same broadcast of messages, without affecting each other—the streaming equivalent of having several different batch jobs that read the same input file.
+
+The two patterns can be combined: for example, *_two separate #groups of consumers# may each subscribe to a topic_*, such that each group collectively receives all messages, but *_within each group only one of the nodes receives each message_*.
+
+==== Acknowledgments and redelivery
+
+Consumers may crash at any time, so it could happen that a broker delivers a message to a consumer but the consumer never processes it, or only partially processes it before crashing. In order to ensure that the message is not lost, message brokers use *_acknowledgments_*: a client must explicitly tell the broker when it has finished processing a message so that the broker can remove it from the queue.
+
+If the connection to a client is closed or times out without the broker receiving an acknowledgment, it assumes that the message was not processed, and therefore it delivers the message again to another consumer. Note that it could happen that the message actually was fully processed, but the acknowledgment was lost in the network. Handling this case requires an *_atomic commit_* protocol.
+
+When combined with load balancing, this redelivery behavior has an interesting effect on *_the ordering of messages_*.
+
+image::/assets/stream-processing/Figure_11-2_consumer_crashes_order_of_message.png[,75%,75%]
+
+Even if the message broker otherwise tries to preserve the order of messages, the combination of load balancing with redelivery inevitably leads to messages being reordered. To avoid this issue, you can *_use a separate queue per consumer_* (i.e., not use the load balancing feature). Message reordering is not a problem if messages are completely independent of each other, but it can be important if there are *_causal dependencies between messages_*.
+
