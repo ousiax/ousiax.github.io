@@ -5,8 +5,9 @@
 :page-date: 2022-08-10 08:29:55 +0800
 :page-revdate: 2022-08-10 08:29:55 +0800
 :toc:
-:toclevels: 4
+:toclevels: 3
 :sectnums:
+:sectlevel: 3
 
 In reality, a lot of data is *_unbounded_* because it arrives gradually over time: your users produced data yesterday and today, and they will continue to produce more data tomorrow. Unless you go out of business, this process never ends, and so the dataset is never “complete” in any meaningful way. Thus, *_batch processors_* must artificially divide the data into chunks of fixed duration: for example, processing a day’s worth of data at the end of every day, or processing an hour’s worth of data at the end of every hour.
 
@@ -169,6 +170,20 @@ With AMQP- and JMS-style message brokers, processing and acknowledging messages 
 
 This aspect makes log-based messaging more like the batch processes, where derived data is clearly separated from input data through a repeatable transformation process. It allows more experimentation and easier recovery from errors and bugs, making it a good tool for integrating dataflows within an organization.
 
+=== AMQP/JMS-style message broker vs Log-based message broker
+
+* AMQP/JMS-style message broker
++
+The broker assigns individual messages to consumers, and consumers acknowledge individual messages when they have been successfully processed. Messages are deleted from the broker once they have been acknowledged. This approach is appropriate as an asynchronous form of RPC, for example in a task queue, where the exact order of message processing is not important and where there is no need to go back and read old messages again after they have been processed.
++
+** https://stackoverflow.com/questions/15150133/jms-and-amqp-rabbitmq
+
+* Log-based message broker
++
+The broker assigns all messages in a partition to the same consumer node, and always delivers messages in the same order. Parallelism is achieved through partitioning, and consumers track their progress by checkpointing the offset of the last message they have processed. The broker retains messages on disk, so it is possible to jump back and reread old messages if necessary.
++
+** https://www.simplilearn.com/kafka-vs-rabbitmq-article
+
 == Databases and Streams
 
 We have drawn some comparisons between message brokers and databases. Even though they have traditionally been considered separate categories of tools, we saw that *_log-based message brokers_* have been successful in taking ideas from databases and applying them to messaging. We can also go in reverse: take ideas from messaging and streams, and apply them to databases.
@@ -297,3 +312,111 @@ To what extent is it feasible to keep an immutable history of all changes foreve
 Besides the performance reasons, there may also be circumstances in which you need data to be deleted for administrative reasons, in spite of all immutability. For example, privacy regulations may require deleting a user’s personal information after they close their account, data protection legislation may require erroneous information to be removed, or an accidental leak of sensitive information may need to be contained.
 
 Truly deleting data is surprisingly hard, since copies can live in many places: for example, storage engines, filesystems, and SSDs often write to a new location rather than overwriting in place, and backups are often deliberately immutable to prevent accidental deletion or corruption. Deletion is more a matter of “making it harder to retrieve the data” than actually “making it impossible to retrieve the data.”
+
+== Processing Streams
+
+1. You can take the data in the events and write it to a database, cache, search index, or similar storage system, from where it can then be queried by other clients.
+
+2. You can push the events to users in some way, for example by sending email alerts or push notifications, or by streaming the events to a real-time dashboard where they are visualized. In this case, a human is the ultimate consumer of the stream.
+
+3. You can process one or more input streams to produce one or more output streams. Streams may go through a pipeline consisting of several such processing stages before they eventually end up at an output (option 1 or 2).
+
+A piece of code that processes streams like this is known as an *_operator_* or a *_job_*. It is closely related to the Unix processes and MapReduce jobs, and the pattern of *_dataflow_* is similar: a stream processor consumes input streams in a read-only fashion and writes its output to a different location in an append-only fashion.
+
+=== Uses of Stream Processing
+
+Stream processing has long been used for monitoring purposes, where an organization wants to be alerted if certain things happen.
+
+==== Complex event processing
+
+*_Complex event processing_* (CEP) is an approach developed in the 1990s for analyzing event streams, especially geared toward the kind of application that requires searching for certain event patterns. Similarly to the way that a regular expression allows you to search for certain patterns of characters in a string, CEP allows you to specify rules to search for certain patterns of events in a stream.
+
+CEP systems often use a high-level declarative query language like SQL, or a graphical user interface, to describe the patterns of events that should be detected. These queries are submitted to a processing engine that consumes the input streams and internally maintains a state machine that performs the required matching. When a match is found, the engine emits a *_complex event_* (hence the name) with the details of the event pattern that was detected.
+
+In these systems, the relationship between queries and data is reversed compared to normal databases. Usually, a database stores data persistently and treats queries as transient: when a query comes in, the database searches for data matching the query, and then forgets about the query when it has finished. CEP engines reverse these roles: queries are stored long-term, and events from the input streams continuously flow past them in search of a query that matches an event pattern.
+
+==== Stream analytics
+
+The boundary between CEP and *_stream analytics_* is blurry, but as a general rule, analytics tends to be less interested in finding specific event sequences and is more oriented toward *_aggregations_* and *_statistical_* metrics over a large number of events—for example:
+
+* Measuring the rate of some type of event (how often it occurs per *_time interval_*)
+* Calculating the rolling average of a value over some *_time period_*
+* Comparing current statistics to previous *_time intervals_* (e.g., to detect trends or to alert on metrics that are unusually high or low compared to the same time last week)
+
+Such statistics are usually computed over fixed time intervals—for example, you might want to know the average number of queries per second to a service over the last 5 minutes, and their 99th percentile response time during that period. Averaging over a few minutes smoothes out irrelevant fluctuations from one second to the next, while still giving you a timely picture of any changes in traffic pattern. The time interval over which you aggregate is known as a *_window_*.
+
+Stream analytics systems sometimes use *_probabilistic algorithms_*, such as Bloom filters for set membership, HyperLogLog for cardinality estimation, and various percentile estimation algorithms. Probabilistic algorithms produce approximate results, but have the advantage of requiring significantly less memory in the stream processor than exact algorithms. This use of approximation algorithms sometimes leads people to believe that stream processing systems are always lossy and inexact, but that is wrong: there is nothing inherently approximate about stream processing, and probabilistic algorithms are merely an optimization.
+
+Many open source distributed stream processing frameworks are designed with analytics in mind: for example, Apache *_Storm_*, *_Spark Streaming_*, *_Flink_*, Concord, Samza, and *_Kafka Streams_*. Hosted services include Google Cloud Dataflow and Azure Stream Analytics.
+
+==== Reasoning About Time
+
+Stream processors often need to deal with time, especially when used for analytics purposes, which frequently use time windows such as “the average over the last five minutes.” It might seem that the meaning of “the last five minutes” should be unambiguous and clear, but unfortunately the notion is surprisingly tricky.
+
+===== Event time versus processing time
+
+There are many reasons why processing may be delayed: queueing, network faults, a performance issue leading to contention in the message broker or processor, a restart of the stream consumer, or reprocessing of past events while recovering from a fault or after fixing a bug in the code.
+
+Moreover, message delays can also lead to unpredictable ordering of messages. For example, say a user first makes one web request (which is handled by web server A), and then a second request (which is handled by server B). A and B emit events describing the requests they handled, but B’s event reaches the message broker before A’s event does. Now stream processors will first see the B event and then the A event, even though they actually occurred in the opposite order.
+
+image::/assets/stream-processing/Figure_11-7_window_event_process_time.png[,75%,75%]
+
+==== Types of windows
+
+Once you know how the timestamp of an event should be determined, the next step is to decide how windows over time periods should be defined. The window can then be used for aggregations, for example to count events, or to calculate the average of values within the window. Several types of windows are in common use:
+
+* *Tumbling window*
++
+A tumbling window has a fixed length, and every event belongs to exactly one window. For example, if you have a 1-minute tumbling window, all the events with timestamps between 10:03:00 and 10:03:59 are grouped into one window, events between 10:04:00 and 10:04:59 into the next window, and so on. You could implement a 1-minute tumbling window by taking each event timestamp and rounding it down to the nearest minute to determine the window that it belongs to.
+
+* *Hopping window*
++
+A hopping window also has a fixed length, but allows windows to overlap in order to provide some smoothing. For example, a 5-minute window with a hop size of 1 minute would contain the events between 10:03:00 and 10:07:59, then the next window would cover events between 10:04:00 and 10:08:59, and so on. You can implement this hopping window by first calculating 1-minute tumbling windows, and then aggregating over several adjacent windows.
+
+* *Sliding window*
++
+A sliding window contains all the events that occur within some interval of each other. For example, a 5-minute sliding window would cover events at 10:03:39 and 10:08:12, because they are less than 5 minutes apart (note that tumbling and hopping 5-minute windows would not have put these two events in the same window, as they use fixed boundaries). A sliding window can be implemented by keeping a buffer of events sorted by time and removing old events when they expire from the window.
+
+* *Session window*
++
+Unlike the other window types, a session window has no fixed duration. Instead, it is defined by grouping together all events for the same user that occur closely together in time, and the window ends when the user has been inactive for some time (for example, if there have been no events for 30 minutes). Sessionization is a common requirement for website analytics.
+
+=== Stream Joins
+
+* Stream-stream join (window join)
++
+Both input streams consist of activity events, and the join operator searches for related events that occur within some window of time. For example, it may match two actions taken by the same user within 30 minutes of each other. The two join inputs may in fact be the same stream (a self-join) if you want to find related events within that one stream.
+
+* Stream-table join (stream enrichment)
++
+One input stream consists of activity events, while the other is a database changelog. The changelog keeps a local copy of the database up to date. For each activity event, the join operator queries the database and outputs an enriched activity event.
+
+* Table-table join (materialized view maintenance)
++
+Both input streams are database changelogs. In this case, every change on one side is joined with the latest state of the other side. The result is a stream of changes to the materialized view of the join between the two tables.
+
+=== Fault Tolerance
+
+==== Microbatching and checkpointing
+
+One solution is to break the stream into small blocks, and treat each block like a miniature batch process. This approach is called *_microbatching_*, and it is used in Spark Streaming. The batch size is typically around one second, which is the result of a performance compromise: smaller batches incur greater scheduling and coordination overhead, while larger batches mean a longer delay before results of the stream processor become visible.
+
+Microbatching also implicitly provides a tumbling window equal to the batch size (windowed by processing time, not event timestamps); any jobs that require larger windows need to explicitly carry over state from one microbatch to the next.
+
+A variant approach, used in Apache Flink, is to periodically generate rolling *_checkpoints_* of state and write them to durable storage. If a stream operator crashes, it can restart from its most recent checkpoint and discard any output generated between the last checkpoint and the crash. The checkpoints are triggered by barriers in the message stream, similar to the boundaries between microbatches, but without forcing a particular window size.
+
+Within the confines of the stream processing framework, the microbatching and checkpointing approaches provide the same *_exactly-once_* semantics as batch processing. However, as soon as output leaves the stream processor (for example, by writing to a database, sending messages to an external message broker, or sending emails), the framework is no longer able to discard the output of a failed batch. In this case, restarting a failed task causes the external *_side effect_* to happen twice, and microbatching or checkpointing alone is not sufficient to prevent this problem.
+
+==== Atomic commit revisited
+
+In order to give the appearance of exactly-once processing in the presence of faults, we need to ensure that all outputs and side effects of processing an event take effect if and only if the processing is successful. Those effects include any messages sent to downstream operators or external messaging systems (including email or push notifications), any database writes, any changes to operator state, and any acknowledgment of input messages (including moving the consumer offset forward in a log-based message broker).
+
+Those things either all need to happen atomically, or none of them must happen, but they should not go out of sync with each other.
+
+==== Idempotence
+
+Our goal is to discard the partial output of any failed tasks so that they can be safely retried without taking effect twice. Distributed transactions are one way of achieving that goal, but another way is to rely on *_idempotence_*.
+
+==== Rebuilding state after a failure
+
+Any stream process that requires state—for example, any windowed aggregations (such as counters, averages, and histograms) and any tables and indexes used for joins—must ensure that this state can be recovered after a failure.
