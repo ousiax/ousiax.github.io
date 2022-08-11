@@ -433,7 +433,147 @@ Our goal is to discard the partial output of any failed tasks so that they can b
 
 Any stream process that requires state—for example, any windowed aggregations (such as counters, averages, and histograms) and any tables and indexes used for joins—must ensure that this state can be recovered after a failure.
 
+== What Is Apache Kafka?
+
+Apache Kafka is an event streaming platform used to collect, process, store, and integrate data at scale. It has numerous use cases including distributed streaming, stream processing, data integration, and pub/sub messaging.
+
+image::https://images.contentful.com/gt6dp23g0g38/53UO4964r0e7kRVm0mcUUZ/f6f6d7b1b90e8e88a5be0d1845bdf950/what_is_kafka_and_how_does_it_work.png[,75%,75%]
+
+An *_event_* records the fact that "something happened" in the world or in your business. It is also called record or message. For example, a payment, a website click, or a temperature reading, along with a description of what happened. Conceptually, an event has a key, value, timestamp, and optional metadata headers.
+
+[source,text]
+----
+key: "Alice"
+value: "Made a payment of $200 to Bob"
+timestamp: "Jun. 25, 2020 at 2:06 p.m."
+----
+
+
+*_Event is usually fairly small, say less than a megabyte_* or so, and is normally represented in some structured format, say in JSON or an object serialized with Apache Avro™ or Protocol Buffers.
+
+Kafka is based on the abstraction of a distributed *_commit log_*. By splitting a log into *_partitions_*, Kafka is able to scale-out systems.
+
+*_Producers_* are those client applications that *_publish_* (write) events to Kafka, and *_consumers_* are those that *_subscribe_* to (read and process) these events.
+
+A *_topic_* is a log of events. Logs are easy to understand, because they are simple data structures with well-known semantics.
+
+* First, they are *_append only_*: When you write a new message into a log, it always goes on the end.
+* Second, they can only be read by seeking an arbitrary *_offset_* in the log, then by scanning sequential log entries.
+* Third, events in the log are *_immutable_*—once something has happened, it is exceedingly difficult to make it un-happen. 
+
+Kafka is composed of a network of machines called *_brokers_*. Each broker hosts some set of partitions and handles incoming requests to write new events to those partitions or read events from them.
+
+Topics are *_partitioned_*, meaning a topic is spread over a number of "buckets" located on different Kafka brokers.
+
+image:https://kafka.apache.org/images/streams-and-tables-p1_p4.png[,55%,55%]
+
+Having broken a topic up into partitions, we need a way of deciding which messages to write to which partitions.
+
+* If a message has no key, subsequent messages will be distributed round-robin among all the topic’s partitions.
++
+In this case, all partitions get an even share of the data, but we don’t preserve any kind of ordering of the input messages.
+
+* If the message does have a key, then the destination partition will be computed from a hash of the key.
++
+This allows Kafka to guarantee that messages having the same key always land in the same partition, and therefore are always in order.
+
+To make your data fault-tolerant and highly-available, the partitions of every *_topic can be replicated_*. A common production setting is a replication factor of 3, i.e., there will always be three copies of your data.
+
+=== The Producer
+
+* The *_producer sends data directly to the broker_* that is the leader for the partition without any intervening routing tier.
++
+To help the producer do this all Kafka nodes can answer a request for metadata about which servers are alive and where the leaders for the partitions of a topic are at any given time to allow the producer to appropriately direct its requests.
+
+* The *_client controls which partition it publishes messages to_*. This can be done at random, implementing a kind of *_random load balancing_*, or it can be done by some *_semantic partitioning_* function.
++
+We expose the interface for semantic partitioning by allowing the user to specify a key to partition by and using this to hash to a partition.
+
+* Batching is one of the big drivers of efficiency, and to enable batching the Kafka producer will attempt to accumulate data in memory and to send out larger batches in a single request asynchronously.
+
+=== The Consumer
+
+Messaging traditionally has two models: http://en.wikipedia.org/wiki/Message_queue[queuing] and http://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern[publish-subscribe].
+
+* In a queue, a pool of consumers may read from a server and each message goes to one of them;
+
+* In publish-subscribe the message is broadcast to all consumers.
+
+Kafka offers a single consumer abstraction that generalizes both of these—the *_consumer group_*.
+
+.A two server Kafka cluster hosting four partitions (P0-P3) with two consumer groups. Consumer group A has two consumer instances and group B has four.
+image::https://kafka.apache.org/images/consumer-groups.png[,45%,45%]
+
+Consumers label themselves with a consumer *_group name_*, and each message published to a topic is delivered to one consumer instance within each subscribing consumer group. Consumer instances can be in separate processes or on separate machines.
+
+If all the consumer instances have the same consumer group, then this works just like a traditional queue balancing load over the consumers.
+
+If all the consumer instances have different consumer groups, then this works like publish-subscribe and all messages are broadcast to all consumers.
+
+Kafka has stronger ordering guarantees than a traditional messaging system, too.
+
+A traditional queue retains messages in-order on the server, and if multiple consumers consume from the queue then the server hands out messages in the order they are stored.
+
+* However, although the server hands out messages in order, the messages are delivered asynchronously to consumers, so they may arrive out of order on different consumers.
+
+* This effectively means the ordering of the messages is lost in the presence of parallel consumption.
+
+* Messaging systems often work around this by having a notion of "exclusive consumer" that allows only one process to consume from a queue, but of course this means that there is no parallelism in processing. 
+
+Kafka does it better. By having a notion of parallelism—the partition—within the topics, Kafka is able to provide both ordering guarantees and load balancing over a pool of consumer processes.
+
+* This is achieved by assigning the partitions in the topic to the consumers in the consumer group so that *_each partition is consumed by exactly one consumer in the group_*.
+
+* By doing this we ensure that the consumer is the only reader of that partition and consumes the data in order.
+
+* Since there are many partitions this still balances the load over many consumer instances.
+
+* Note however that there cannot be more consumer instances than partitions.
+
+*_Kafka only provides a total order over messages within a partition._*
+
+* This combined with the ability to partition data by key is sufficient for the vast majority of applications.
+
+* However, if you require *_a total order over messages this can be achieved with a topic that has only one partition, though this will mean only one consumer process._*
+
+Push vs. pull
+
+* The Kafka consumer works by issuing "fetch" requests to the brokers leading the partitions it wants to consume.
++
+The *_consumer specifies its offset in the log_* with each request and receives back a chunk of log beginning from that position.
++
+The consumer thus has significant control over this position and can *_rewind_* it to re-consume data if need be. 
+
+=== Message Delivery Semantics
+
+In a distributed publish-subscribe messaging system, the computers that make up the system can always fail independently of one another. In the case of Kafka, an individual broker can crash, or a network failure can happen while the producer is sending a message to a topic. Depending on the action the producer takes to handle such a failure, you can get different semantics:
+
+* *At-least-once* semantics:
++
+If the producer receives an acknowledgement (*_ack_*) from the Kafka broker and _acks=all_, it means that the message has been written exactly once to the Kafka topic.
++
+However, if a producer ack times out or receives an error, it might *_retry_* sending the message assuming that the message was not written to the Kafka topic.
++
+If the broker had failed right before it sent the ack but after the message was successfully written to the Kafka topic, this retry leads to the message being written twice and hence delivered more than once to the end consumer. And everybody loves a cheerful giver, but this approach can lead to duplicated work and incorrect results.
+
+* *At-most-once* semantics:
++
+If the producer does *_not retry_* when an ack times out or returns an error, then the message might end up not being written to the Kafka topic, and hence not delivered to the consumer.
++
+In most cases it will be, but in order to avoid the possibility of duplication, we accept that sometimes messages will not get through.
+
+* *Exactly-once* semantics:
++
+Even if a producer retries sending a message, it leads to the message being delivered exactly once to the end consumer.
++
+Exactly-once semantics is the most desirable guarantee, but also a poorly understood one. Because it requires a *_cooperation_* between the messaging system itself and the application producing and consuming the messages.
++
+For instance, if after consuming a message successfully you rewind your Kafka consumer to a previous offset, you will receive all the messages from that offset to the latest one, all over again. This shows why the messaging system and the client application must cooperate to make exactly-once semantics happen.
 
 == References
 
 * Martin Kleppmann: Designing Data-Intensive Applications, O’Reilly, 2017.
+* What Is Apache Kafka?, https://developer.confluent.io/what-is-apache-kafka/
+* Apache Kafka, https://kafka.apache.org/documentation/
+* Apache Kafka, https://kafka.apache.org/08/documentation.html
+* Exactly-Once Semantics Are Possible: Here’s How Kafka Does It, https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/
