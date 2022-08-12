@@ -63,11 +63,30 @@ Let’s start with indexes for key-value data. This is not the only kind of data
 
 Key-value stores are quite similar to the dictionary type that you can find in most programming languages, and which is usually implemented as a hash map (hash table). Since we already have hash maps for our in-memory data structures, why not use them to index our data on disk?
 
-Let’s say our data storage consists only of appending to a file, as in the preceding example. Then the simplest possible indexing strategy is this: keep an in-memory hash map where every key is mapped to a byte offset in the data file—the location at which the value can be found. Whenever you append a new key-value pair to the file, you also update the hash map to reflect the offset of the data you just wrote (this works both for inserting new keys and for updating existing keys). When you want to look up a value, use the hash map to find the offset in the data file, seek to that location, and read the value.
+Let’s say our data storage consists only of appending to a file, as in the preceding example. Then the simplest possible indexing strategy is this: keep an *in-memory hash map* where every key is mapped to a byte offset in the data file—the location at which the value can be found.
 
-As described so far, we only ever append to a file—so how do we avoid eventually running out of disk space? A good solution is to *break the log into segments* of a certain size by closing a segment file when it reaches a certain size, and making subsequent writes to a new segment file. We can then perform *compaction* on these segments. Compaction means throwing away duplicate keys in the log, and keeping only the most recent update for each key.
+* Whenever you append a new key-value pair to the file, you also update the hash map to reflect the offset of the data you just wrote (this works both for inserting new keys and for updating existing keys).
 
-Moreover, since compaction often makes segments much smaller (assuming that a key is overwritten several times on average within one segment), we can also *merge* several segments together at the same time as performing the compaction. Segments are never modified after they have been written, so the merged segment is written to a new file. The merging and compaction of frozen segments can be done in a background thread, and while it is going on, we can still continue to serve read and write requests as normal, using the old segment files. After the merging process is complete, we switch read requests to using the new merged segment instead of the old segments—and then the old segment files can simply be deleted.
+* When you want to look up a value, use the hash map to find the offset in the data file, seek to that location, and read the value.
+
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-1_in-memory-hash-map.png[,55%,55%]
+
+As described so far, we only ever append to a file—so how do we avoid eventually running out of disk space?
+
+* A good solution is to *break the log into segments* of a certain size by closing a segment file when it reaches a certain size, and making subsequent writes to a new segment file.
+
+*  We can then perform *compaction* on these segments. Compaction means throwing away duplicate keys in the log, and keeping only the most recent update for each key.
++
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-2-compation-segment-log.png[,55%,55%]
+
+* Moreover, since compaction often makes segments much smaller (assuming that a key is overwritten several times on average within one segment), we can also *merge several segments together at the same time as performing the compaction*.
++
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-3-compation-segment-merge-index.png[,55%,55%]
++
+Segments are never modified after they have been written, so the merged segment is written to a new file.
+
+** The merging and compaction of frozen segments can be done in a background thread, and while it is going on, we can still continue to serve read and write requests as normal, using the old segment files.
+** After the merging process is complete, we switch read requests to using the new merged segment instead of the old segments—and then the old segment files can simply be deleted.
 
 *Each segment now has its own in-memory hash table, mapping keys to file offsets.* In order to find the value for a key, we first check the most recent segment’s hash map; if the key is not present we check the second-most-recent segment, and so on. The merging process keeps the number of segments small, so lookups don’t need to check many hash maps.
 
@@ -75,19 +94,31 @@ Moreover, since compaction often makes segments much smaller (assuming that a ke
 
 In each *log-structured* storage segment is a sequence of key-value pairs. These pairs appear in the order that they were written, and values later in the log take precedence over values for the same key earlier in the log. Apart from that, the order of key-value pairs in the file does not matter.
 
-Now we can make a simple change to the format of our segment files: we require that the sequence of key-value pairs is *sorted by key*. At first glance, that requirement seems to break our ability to use sequential writes, but we’ll get to that in a moment.
+Now we can make a simple change to the format of our segment files: we require that *_the sequence of key-value pairs is sorted by key*. At first glance, that requirement seems to break our ability to use sequential writes, but we’ll get to that in a moment.
 
 We call this format *Sorted String Table*, or *SSTable* for short. We also require that _each key only appears once within each merged segment file_ (the compaction process already ensures that). SSTables have several big advantages over log segments with hash indexes:
 
-1. Merging segments is simple and efficient, even if the files are bigger than the available memory. The approach is like the one used in the *mergesort algorithm*: you start reading the input files side by side, look at the first key in each file, copy the lowest key (according to the sort order) to the output file, and repeat. This produces a new merged segment file, also sorted by key.
+1. Merging segments is simple and efficient, even if the files are bigger than the available memory.
++
+The approach is like the one used in the *merge-sort algorithm*: you start reading the input files side by side, look at the first key in each file, copy the lowest key (according to the sort order) to the output file, and repeat. This produces a new merged segment file, also sorted by key.
 +
 When multiple segments contain the same key, we can keep the value from the most recent segment and discard the values in older segments.
++
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-4_merging-sstable-sgements.png[,55%,55%]
 
 2. In order to find a particular key in the file, you no longer need to keep an index of all the keys in memory. 
 +
-You still need an in-memory index to tell you the offsets for some of the keys, but it can be _sparse_: one key for every few kilobytes of segment file is sufficient, because a few kilobytes can be scanned very quickly.
+You still need an in-memory index to tell you the offsets for some of the keys, but it can be *_sparse_*: one key for every few kilobytes of segment file is sufficient, because a few kilobytes can be scanned very quickly.
++
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-5_sstable_sparse-in-memory-index.png[,55%,55%]
 
-3. Since read requests need to scan over several key-value pairs in the requested range anyway, it is possible to group those records into a block and compress it before writing it to disk. Each entry of the sparse in-memory index then points at the start of a compressed block. Besides saving disk space, compression also reduces the I/O bandwidth use.
+3. Since read requests need to scan over several key-value pairs in the requested range anyway,
+
+** it is possible to *_group those records into a block and compress_* it before writing it to disk.
+
+** Each entry of the *_sparse in-memory index_* then points at the start of a compressed block.
+
+** Besides saving disk space, compression also reduces the I/O bandwidth use.
 
 === Constructing and maintaining SSTables
 
@@ -121,17 +152,35 @@ Even though there are many subtleties, the basic idea of LSM-trees—keeping a c
 
 The log-structured indexes we have discussed so far are gaining acceptance, but they are not the most common type of index. The most widely used indexing structure is quite different: the *B-tree*.
 
-Like SSTables, B-trees keep key-value pairs sorted by key, which allows efficient key- value lookups and range queries. But that’s where the similarity ends: B-trees have a very different design philosophy.
+Like SSTables, B-trees keep key-value pairs sorted by key, which allows efficient *_key-value lookups_* and *_range queries_*. But that’s where the similarity ends: B-trees have a very different design philosophy.
 
-The log-structured indexes we saw earlier break the database down into variable-size *segments*, typically several megabytes or more in size, and always write a segment sequentially. By contrast, B-trees break the database down into fixed-size *blocks* or *pages*, traditionally 4 KB in size (sometimes bigger), and read or write one page at a time. This design corresponds more closely to the underlying hardware, as disks are also arranged in fixed-size blocks.
+The log-structured indexes we saw earlier break the database down into variable-size *segments*, typically several megabytes or more in size, and always write a segment sequentially.
 
-Each page can be identified using an address or location, which allows one page to refer to another—similar to a pointer, but *on disk* instead of in memory. 
+By contrast, B-trees break the database down into fixed-size *blocks* or *pages*, traditionally 4 KB in size (sometimes bigger), and read or write one page at a time.
 
-One page is designated as the *root* of the B-tree; whenever you want to look up a key in the index, you start here. The page contains several keys and references to child pages. Each child is responsible for a continuous range of keys, and the keys between the references indicate where the boundaries between those ranges lie. Eventually we get down to a page containing individual keys (a *leaf page*), which either contains the value for each key inline or contains references to the pages where the values can be found.
+* This design corresponds more closely to the underlying hardware, as disks are also arranged in fixed-size blocks.
 
-The number of references to child pages in one page of the B-tree is called the *branching factor*. In practice, the branching factor depends on the amount of space required to store the page references and the range boundaries, but typically it is several hundred.
+* Each page can be identified using an address or location, which allows one page to refer to another—similar to a pointer, but *on disk* instead of in memory. 
 
-If you want to update the value for an existing key in a B-tree, you search for the leaf page containing that key, change the value in that page, and write the page back to disk (any references to that page remain valid). If you want to add a new key, you need to find the page whose range encompasses the new key and add it to that page. If there isn’t enough free space in the page to accommodate the new key, it is _split_ into two half-full pages, and the parent page is updated to account for the new subdivision of key ranges.
+One page is designated as the *root* of the B-tree; whenever you want to look up a key in the index, you start here.
+
+* The page contains several keys and references to child pages.
+* Each child is responsible for a continuous range of keys, and the keys between the references indicate where the boundaries between those ranges lie.
+* Eventually we get down to a page containing individual keys (a *leaf page*), which either contains the value for each key inline or contains references to the pages where the values can be found.
+* The number of references to child pages in one page of the B-tree is called the *branching factor*.
++
+In practice, the branching factor depends on the amount of space required to store the page references and the range boundaries, but typically it is several hundred.
++
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-6_b-tree-index.png[,55%,55%]
+
+
+If you want to update the value for an existing key in a B-tree, you search for the leaf page containing that key, change the value in that page, and write the page back to disk (any references to that page remain valid).
+
+If you want to add a new key, you need to find the page whose range encompasses the new key and add it to that page.
+
+* If there isn’t enough free space in the page to accommodate the new key, it is _split_ into two half-full pages, and the parent page is updated to account for the new subdivision of key ranges.
++
+image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-7_b-tree-page-spliting.png[,55%,55%]
 
 This algorithm ensures that the tree remains *balanced*: a B-tree with n keys always has a depth of O(log n). Most databases can fit into a B-tree that is three or four levels deep, so you don’t need to follow many page references to find the page you are looking for. (A four-level tree of 4 KB pages with a branching factor of 500 can store up to 256 TB.)
 
