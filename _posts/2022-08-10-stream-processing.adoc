@@ -9,34 +9,34 @@
 :sectnums:
 :sectlevel: 3
 
-In reality, a lot of data is *_unbounded_* because it arrives gradually over time: your users produced data yesterday and today, and they will continue to produce more data tomorrow. Unless you go out of business, this process never ends, and so the dataset is never “complete” in any meaningful way. Thus, *_batch processors_* must artificially divide the data into chunks of fixed duration: for example, processing a day’s worth of data at the end of every day, or processing an hour’s worth of data at the end of every hour.
+In reality, a lot of data is *unbounded* because it arrives gradually over time: your users produced data yesterday and today, and they will continue to produce more data tomorrow. Unless you go out of business, this process never ends, and so the dataset is never “complete” in any meaningful way. Thus, *batch processors* must artificially divide the data into chunks of fixed duration: for example, processing a day’s worth of data at the end of every day, or processing an hour’s worth of data at the end of every hour.
 
-The problem with daily batch processes is that changes in the input are only reflected in the output a day later, which is too slow for many impatient users. To reduce the delay, we can run the processing more frequently—say, processing a second’s worth of data at the end of every second—or even continuously, abandoning the fixed time slices entirely and simply processing every event as it happens. That is the idea behind *_stream processing_*.
+The problem with daily batch processes is that changes in the input are only reflected in the output a day later, which is too slow for many impatient users. To reduce the delay, we can run the processing more frequently—say, processing a second’s worth of data at the end of every second—or even continuously, abandoning the fixed time slices entirely and simply processing every event as it happens. That is the idea behind *stream processing*.
 
 == Transmitting Event Streams
 
 In the batch processing world, the inputs and outputs of a job are files (perhaps on a distributed filesystem). What does the streaming equivalent look like?
 
-When the input is a file (a sequence of bytes), the first processing step is usually to parse it into a sequence of records. In a stream processing context, a record is more commonly known as an *_event_*, but it is essentially the same thing: a small, selfcontained, immutable object containing the details of something that happened at some point in time. An event usually contains a timestamp indicating when it happened according to a time-of-day clock.
+When the input is a file (a sequence of bytes), the first processing step is usually to parse it into a sequence of records. In a stream processing context, a record is more commonly known as an *event*, but it is essentially the same thing: a small, selfcontained, immutable object containing the details of something that happened at some point in time. An event usually contains a timestamp indicating when it happened according to a time-of-day clock.
 
-In batch processing, a file is written once and then potentially read by multiple jobs. Analogously, in streaming terminology, an event is generated once by a *_producer_* (also known as a *_publisher_* or *_sender_*), and then potentially processed by multiple *_consumers_* (*_subscribers_* or *_recipients_*). In a filesystem, a filename identifies a set of related records; in a streaming system, related events are usually grouped together into a *_topic_* or *_stream_*.
+In batch processing, a file is written once and then potentially read by multiple jobs. Analogously, in streaming terminology, an event is generated once by a *producer* (also known as a *publisher* or *sender*), and then potentially processed by multiple *consumers* (*subscribers* or *recipients*). In a filesystem, a filename identifies a set of related records; in a streaming system, related events are usually grouped together into a *topic* or *stream*.
 
 === Messaging Systems
 
-A common approach for notifying consumers about new events is to use a *_messaging system_*: a producer sends a message containing the event, which is then pushed to consumers.
+A common approach for notifying consumers about new events is to use a *messaging system*: a producer sends a message containing the event, which is then pushed to consumers.
 
-Within this *_publish/subscribe_* model, different systems take a wide range of approaches, and there is no one right answer for all purposes. To differentiate the
+Within this *publish/subscribe* model, different systems take a wide range of approaches, and there is no one right answer for all purposes. To differentiate the
 systems, it is particularly helpful to ask the following two questions:
 
-1. What happens if the *_producers send messages faster than the consumers_* can process them?
+1. What happens if the *producers send messages faster than the consumers* can process them?
 +
-Broadly speaking, there are three options: the system can *_drop_* messages, *_buffer_* messages in a queue, or apply *_backpressure_*.
+Broadly speaking, there are three options: the system can *drop* messages, *buffer* messages in a queue, or apply *backpressure*.
 +
 If messages are buffered in a queue, it is important to understand what happens as that queue grows. Does the system crash if the queue no longer fits in memory, or does it write messages to disk? If so, how does the disk access affect the performance of the messaging system?
 
-2. What happens if *_nodes crash_* or temporarily go offline—are any messages lost?
+2. What happens if *nodes crash* or temporarily go offline—are any messages lost?
 +
-As with databases, *_durability_* may require some combination of writing to disk and/or replication, which has a cost. If you can afford to sometimes lose messages, you can probably get higher throughput and lower latency on the same hardware.
+As with databases, *durability* may require some combination of writing to disk and/or replication, which has a cost. If you can afford to sometimes lose messages, you can probably get higher throughput and lower latency on the same hardware.
 
 ==== Direct messaging from producers to consumers
 
@@ -48,18 +48,18 @@ A number of messaging systems use direct network communication between producers
 
 ==== Message brokers
 
-A widely used alternative is to send messages via a *_message broker_* (also known as a *_message queue_*), which is essentially a kind of database that is optimized for handling message streams. It runs as a server, with producers and consumers connecting to it as clients. Producers write messages to the broker, and consumers receive them by reading them from the broker.
+A widely used alternative is to send messages via a *message broker* (also known as a *message queue*), which is essentially a kind of database that is optimized for handling message streams. It runs as a server, with producers and consumers connecting to it as clients. Producers write messages to the broker, and consumers receive them by reading them from the broker.
 
-By centralizing the data in the broker, these systems can more easily *_tolerate clients_* that come and go (connect, disconnect, and crash), and the question of *_durability_* is moved to the broker instead. Some message brokers only keep messages in memory, while others (depending on configuration) write them to disk so that they are not lost in case of a broker crash. Faced with slow consumers, they generally allow *_unbounded queueing_* (as opposed to dropping messages or backpressure), although this choice may also depend on the configuration.
+By centralizing the data in the broker, these systems can more easily *tolerate clients* that come and go (connect, disconnect, and crash), and the question of *durability* is moved to the broker instead. Some message brokers only keep messages in memory, while others (depending on configuration) write them to disk so that they are not lost in case of a broker crash. Faced with slow consumers, they generally allow *unbounded queueing* (as opposed to dropping messages or backpressure), although this choice may also depend on the configuration.
 
-A consequence of queueing is also that consumers are generally *_asynchronous_*: when a producer sends a message, it normally only waits for the broker to confirm that it has buffered the message and does not wait for the message to be processed by consumers. The delivery to consumers will happen at some undetermined future point in time—often within a fraction of a second, but sometimes significantly later if there is a queue backlog.
+A consequence of queueing is also that consumers are generally *asynchronous*: when a producer sends a message, it normally only waits for the broker to confirm that it has buffered the message and does not wait for the message to be processed by consumers. The delivery to consumers will happen at some undetermined future point in time—often within a fraction of a second, but sometimes significantly later if there is a queue backlog.
 
 ==== Message brokers compared to databases
 
-Some message brokers can even participate in *_two-phase commit_* protocols using XA or JTA. This feature makes them quite similar in nature to databases, although there are still important practical differences between message brokers and databases:
+Some message brokers can even participate in *two-phase commit* protocols using XA or JTA. This feature makes them quite similar in nature to databases, although there are still important practical differences between message brokers and databases:
 
 * Databases usually keep data until it is explicitly deleted, whereas most message brokers automatically delete a message when it has been successfully delivered to
-its consumers. Such message brokers are not suitable for *_long-term data storage_*.
+its consumers. Such message brokers are not suitable for *long-term data storage*.
 
 * Since they quickly delete messages, most message brokers assume that their working set is fairly small—i.e., the queues are short. If the broker needs to buffer a lot of messages because the consumers are slow (perhaps spilling messages to disk if they no longer fit in memory), each individual message takes longer to process, and the overall throughput may degrade.
 
@@ -67,7 +67,7 @@ its consumers. Such message brokers are not suitable for *_long-term data storag
 
 * When querying a database, the result is typically based on a point-in-time snapshot of the data; if another client subsequently writes something to the database that changes the query result, the first client does not find out that its prior result is now outdated (unless it repeats the query, or polls for changes). By contrast, message brokers do not support arbitrary queries, but they do notify clients when data changes (i.e., when new messages become available).
 
-This is the traditional view of message brokers, which is encapsulated in standards like *_JMS_* and *_AMQP_* and implemented in software like *RabbitMQ*, *ActiveMQ*, HornetQ, Qpid, TIBCO Enterprise Message Service, *IBM MQ*, Azure Service Bus, and Google Cloud Pub/Sub.
+This is the traditional view of message brokers, which is encapsulated in standards like *JMS* and *AMQP* and implemented in software like *RabbitMQ*, *ActiveMQ*, HornetQ, Qpid, TIBCO Enterprise Message Service, *IBM MQ*, Azure Service Bus, and Google Cloud Pub/Sub.
 
 ==== Multiple consumers
 
@@ -83,52 +83,52 @@ Each message is delivered to one of the consumers, so the consumers can share th
 +
 Each message is delivered to all of the consumers. Fan-out allows several independent consumers to each “tune in” to the same broadcast of messages, without affecting each other—the streaming equivalent of having several different batch jobs that read the same input file.
 
-The two patterns can be combined: for example, *_two separate #groups of consumers# may each subscribe to a topic_*, such that each group collectively receives all messages, but *_within each group only one of the nodes receives each message_*.
+The two patterns can be combined: for example, *two separate #groups of consumers# may each subscribe to a topic*, such that each group collectively receives all messages, but *within each group only one of the nodes receives each message*.
 
 ==== Acknowledgments and redelivery
 
-Consumers may crash at any time, so it could happen that a broker delivers a message to a consumer but the consumer never processes it, or only partially processes it before crashing. In order to ensure that the message is not lost, message brokers use *_acknowledgments_*: a client must explicitly tell the broker when it has finished processing a message so that the broker can remove it from the queue.
+Consumers may crash at any time, so it could happen that a broker delivers a message to a consumer but the consumer never processes it, or only partially processes it before crashing. In order to ensure that the message is not lost, message brokers use *acknowledgments*: a client must explicitly tell the broker when it has finished processing a message so that the broker can remove it from the queue.
 
-If the connection to a client is closed or times out without the broker receiving an acknowledgment, it assumes that the message was not processed, and therefore it delivers the message again to another consumer. Note that it could happen that the message actually was fully processed, but the acknowledgment was lost in the network. Handling this case requires an *_atomic commit_* protocol.
+If the connection to a client is closed or times out without the broker receiving an acknowledgment, it assumes that the message was not processed, and therefore it delivers the message again to another consumer. Note that it could happen that the message actually was fully processed, but the acknowledgment was lost in the network. Handling this case requires an *atomic commit* protocol.
 
-When combined with load balancing, this redelivery behavior has an interesting effect on *_the ordering of messages_*.
+When combined with load balancing, this redelivery behavior has an interesting effect on *the ordering of messages*.
 
 image::/assets/stream-processing/Figure_11-2_consumer_crashes_order_of_message.png[,75%,75%]
 
-Even if the message broker otherwise tries to preserve the order of messages, the combination of load balancing with redelivery inevitably leads to messages being reordered. To avoid this issue, you can *_use a separate queue per consumer_* (i.e., not use the load balancing feature). Message reordering is not a problem if messages are completely independent of each other, but it can be important if there are *_causal dependencies between messages_*.
+Even if the message broker otherwise tries to preserve the order of messages, the combination of load balancing with redelivery inevitably leads to messages being reordered. To avoid this issue, you can *use a separate queue per consumer* (i.e., not use the load balancing feature). Message reordering is not a problem if messages are completely independent of each other, but it can be important if there are *causal dependencies between messages*.
 
 === Partitioned Logs
 
-Sending a packet over a network or making a request to a network service is normally a transient operation that leaves no permanent trace. Although it is possible to record it permanently (using packet capture and logging), we normally don’t think of it that way. Even message brokers that durably write messages to disk quickly delete them again after they have been delivered to consumers, because they are built around a *_transient messaging_* mindset.
+Sending a packet over a network or making a request to a network service is normally a transient operation that leaves no permanent trace. Although it is possible to record it permanently (using packet capture and logging), we normally don’t think of it that way. Even message brokers that durably write messages to disk quickly delete them again after they have been delivered to consumers, because they are built around a *transient messaging* mindset.
 
-Databases and filesystems take the opposite approach: everything that is written to a database or file is normally expected to be *_permanently recorded_*, at least until someone explicitly chooses to delete it again.
+Databases and filesystems take the opposite approach: everything that is written to a database or file is normally expected to be *permanently recorded*, at least until someone explicitly chooses to delete it again.
 
-Why can we not have a hybrid, combining the durable storage approach of databases with the low-latency notification facilities of messaging? This is the idea behind *_logbased message brokers_*.
+Why can we not have a hybrid, combining the durable storage approach of databases with the low-latency notification facilities of messaging? This is the idea behind *logbased message brokers*.
 
 ==== Using logs for message storage
 
 A log is simply an append-only sequence of records on disk, e.g. log-structured storage engines and write-ahead logs.
 
-The same structure can be used to implement a message broker: a producer sends a message by appending it to the end of the log, and a consumer receives messages by reading the log sequentially. If a consumer reaches the end of the log, it waits for a notification that a new message has been appended. The Unix tool *_tail -f_*, which watches a file for data being appended, essentially works like this.
+The same structure can be used to implement a message broker: a producer sends a message by appending it to the end of the log, and a consumer receives messages by reading the log sequentially. If a consumer reaches the end of the log, it waits for a notification that a new message has been appended. The Unix tool *tail -f*, which watches a file for data being appended, essentially works like this.
 
-In order to scale to higher throughput than a single disk can offer, the log can be *_partitioned_*. Different partitions can then be hosted on different machines, making each partition a separate log that can be read and written independently from other partitions. A topic can then be defined as a group of partitions that all carry messages of the same type.
+In order to scale to higher throughput than a single disk can offer, the log can be *partitioned*. Different partitions can then be hosted on different machines, making each partition a separate log that can be read and written independently from other partitions. A topic can then be defined as a group of partitions that all carry messages of the same type.
 
-Within each partition, the broker assigns a monotonically increasing sequence number, or *_offset_*, to every message. Such a sequence number makes sense because a partition is append-only, so *_the messages within a partition are totally ordered_*. There is *_no ordering guarantee across different partitions_*.
+Within each partition, the broker assigns a monotonically increasing sequence number, or *offset*, to every message. Such a sequence number makes sense because a partition is append-only, so *the messages within a partition are totally ordered*. There is *no ordering guarantee across different partitions*.
 
 image::/assets/stream-processing/Figure_11-3_topic_partion_sequential.png[,75%,75%]
 
-Apache *Kafka*, Amazon Kinesis Streams, and Twitter’s DistributedLog are log-based message brokers that work like this. Google Cloud Pub/Sub is architecturally similar but exposes a JMS-style API rather than a log abstraction. Even though these message brokers write all messages to disk, they are able to *_achieve throughput of millions of messages per second by partitioning across multiple machines_*, and *_fault tolerance by replicating messages_*.
+Apache *Kafka*, Amazon Kinesis Streams, and Twitter’s DistributedLog are log-based message brokers that work like this. Google Cloud Pub/Sub is architecturally similar but exposes a JMS-style API rather than a log abstraction. Even though these message brokers write all messages to disk, they are able to *achieve throughput of millions of messages per second by partitioning across multiple machines*, and *fault tolerance by replicating messages*.
 
 ==== Logs compared to traditional messaging
 
-The log-based approach trivially supports *_fan-out_* messaging, because several consumers can independently read the log without affecting each other—reading a message does not delete it from the log. To achieve *_load balancing_* across a group of consumers, instead of assigning individual messages to consumer clients, the broker can assign entire partitions to nodes in the *_consumer group_*.
+The log-based approach trivially supports *fan-out* messaging, because several consumers can independently read the log without affecting each other—reading a message does not delete it from the log. To achieve *load balancing* across a group of consumers, instead of assigning individual messages to consumer clients, the broker can assign entire partitions to nodes in the *consumer group*.
 
-Each client then consumes all the messages in the partitions it has been assigned. Typically, when a consumer has been assigned a log partition, it *_reads the messages in the partition sequentially_*, in a straightforward *_single-threaded_* manner. This coarse grained load balancing approach has some downsides:
+Each client then consumes all the messages in the partitions it has been assigned. Typically, when a consumer has been assigned a log partition, it *reads the messages in the partition sequentially*, in a straightforward *single-threaded* manner. This coarse grained load balancing approach has some downsides:
 
 * The number of nodes sharing the work of consuming a topic can be at most the number of log partitions in that topic, because messages within the same partition
 are delivered to the same node.
 
-* If a single message is slow to process, it holds up the processing of subsequent messages in that partition (HOL, a form of *_head-of-line blocking_*).
+* If a single message is slow to process, it holds up the processing of subsequent messages in that partition (HOL, a form of *head-of-line blocking*).
 
 Thus, in situations where messages may be expensive to process and you want to parallelize processing on a message-by-message basis, and where message ordering is not so important, the JMS/AMQP style of message broker is preferable. On the other hand, in situations with high message throughput, where each message is fast to process and where message ordering is important, the log-based approach works very well.
 
@@ -136,7 +136,7 @@ Thus, in situations where messages may be expensive to process and you want to p
 ====
 It’s possible to create a load balancing scheme in which two consumers share the work of processing a partition by having both read the full set of messages, but one of them only considers messages with even-numbered offsets while the other deals with the odd-numbered offsets. Alternatively, you could spread message processing over a thread pool, but that approach complicates consumer offset management.
 
-In general, *_single-threaded processing of a partition is preferable, and parallelism can be increased by using more partitions._*
+In general, *single-threaded processing of a partition is preferable, and parallelism can be increased by using more partitions.*
 ====
 
 ==== Consumer offsets
@@ -144,17 +144,17 @@ In general, *_single-threaded processing of a partition is preferable, and paral
 Consuming a partition sequentially makes it easy to tell which messages have been processed: all messages with an offset less than a consumer’s current offset have
 already been processed, and all messages with a greater offset have not yet been seen.
 
-Thus, the broker does not need to track acknowledgments for every single message—it only needs to periodically record the *_consumer offsets_*. The reduced bookkeeping overhead and the opportunities for batching and pipelining in this approach help increase the throughput of log-based systems.
+Thus, the broker does not need to track acknowledgments for every single message—it only needs to periodically record the *consumer offsets*. The reduced bookkeeping overhead and the opportunities for batching and pipelining in this approach help increase the throughput of log-based systems.
 
-This offset is in fact very similar to the *_log sequence number_* that is commonly found in single-leader database replication. In database replication, the log sequence number allows a follower to reconnect to a leader after it has become disconnected, and resume replication without skipping any writes. Exactly the same principle is used here: the message broker behaves like a leader database, and the consumer like a follower.
+This offset is in fact very similar to the *log sequence number* that is commonly found in single-leader database replication. In database replication, the log sequence number allows a follower to reconnect to a leader after it has become disconnected, and resume replication without skipping any writes. Exactly the same principle is used here: the message broker behaves like a leader database, and the consumer like a follower.
 
 If a consumer node fails, another node in the consumer group is assigned the failed consumer’s partitions, and it starts consuming messages at the last recorded offset. If the consumer had processed subsequent messages but not yet recorded their offset, those messages will be processed a second time upon restart.
 
 ==== Disk space usage
 
-If you only ever append to the log, you will eventually run out of disk space. To reclaim disk space, the log is actually divided into *_segments_*, and from time to time old segments are deleted or moved to archive storage.
+If you only ever append to the log, you will eventually run out of disk space. To reclaim disk space, the log is actually divided into *segments*, and from time to time old segments are deleted or moved to archive storage.
 
-This means that if a slow consumer cannot keep up with the rate of messages, and it falls so far behind that its consumer offset points to a deleted segment, it will miss some of the messages. Effectively, the log implements a bounded-size buffer that discards old messages when it gets full, also known as a *_circular buffer_* or *_ring buffer_*. However, since that buffer is on disk, it can be quite large.
+This means that if a slow consumer cannot keep up with the rate of messages, and it falls so far behind that its consumer offset points to a deleted segment, it will miss some of the messages. Effectively, the log implements a bounded-size buffer that discards old messages when it gets full, also known as a *circular buffer* or *ring buffer*. However, since that buffer is on disk, it can be quite large.
 
 Let’s do a back-of-the-envelope calculation. At the time of writing, a typical large hard drive has a capacity of 6 TB and a sequential write throughput of 150 MB/s. If you are writing messages at the fastest possible rate, it takes about 11 hours to fill the drive. Thus, the disk can buffer 11 hours’ worth of messages, after which it will start overwriting old messages. This ratio remains the same, even if you use many hard drives and machines. In practice, deployments rarely use the full write bandwidth of the disk, so the log can typically keep a buffer of several days’ or even weeks’worth of messages.
 
@@ -162,7 +162,7 @@ Regardless of how long you retain messages, the throughput of a log remains more
 
 ==== When consumers cannot keep up with producers
 
-If a consumer falls so far behind that the messages it requires are older than what is retained on disk, it will not be able to read those messages—so the broker effectively drops old messages that go back further than the size of the buffer can accommodate. You can *_monitor_* how far a consumer is behind the head of the log, and raise an *_alert_* if it falls behind significantly. As the buffer is large, there is enough time for a *_human operator_* to fix the *_slow consumer_* and allow it to catch up before it starts missing messages.
+If a consumer falls so far behind that the messages it requires are older than what is retained on disk, it will not be able to read those messages—so the broker effectively drops old messages that go back further than the size of the buffer can accommodate. You can *monitor* how far a consumer is behind the head of the log, and raise an *alert* if it falls behind significantly. As the buffer is large, there is enough time for a *human operator* to fix the *slow consumer* and allow it to catch up before it starts missing messages.
 
 ==== Replaying old messages
 
@@ -186,122 +186,122 @@ The broker assigns all messages in a partition to the same consumer node, and al
 
 == Databases and Streams
 
-We have drawn some comparisons between message brokers and databases. Even though they have traditionally been considered separate categories of tools, we saw that *_log-based message brokers_* have been successful in taking ideas from databases and applying them to messaging. We can also go in reverse: take ideas from messaging and streams, and apply them to databases.
+We have drawn some comparisons between message brokers and databases. Even though they have traditionally been considered separate categories of tools, we saw that *log-based message brokers* have been successful in taking ideas from databases and applying them to messaging. We can also go in reverse: take ideas from messaging and streams, and apply them to databases.
 
-In fact, a *_replication log_* is a stream of database write events, produced by the leader as it processes transactions. The followers apply that stream of writes to their own copy of the database and thus end up with an accurate copy of the same data. The events in the replication log describe the data changes that occurred.
+In fact, a *replication log* is a stream of database write events, produced by the leader as it processes transactions. The followers apply that stream of writes to their own copy of the database and thus end up with an accurate copy of the same data. The events in the replication log describe the data changes that occurred.
 
-The *_state machine replication_* principle with *_total order_* broadcast, which states: if every event represents a write to the database, and every replica processes the same events in the same order, then the replicas will all end up in the same final state. It’s just another case of event streams.
+The *state machine replication* principle with *total order* broadcast, which states: if every event represents a write to the database, and every replica processes the same events in the same order, then the replicas will all end up in the same final state. It’s just another case of event streams.
 
 === Keeping Systems in Sync
 
-There is no single system that can satisfy all data storage, querying, and processing needs, and most nontrivial applications need to combine several different technologies in order to satisfy their requirements: for example, using an *_OLTP database to serve user requests_*, a *_cache to speed up common requests_*, a *_full-text index to handle search queries_*, and a *_data warehouse for analytics_*. Each of these has its own copy of the data, stored in its own representation that is optimized for its own purposes.
+There is no single system that can satisfy all data storage, querying, and processing needs, and most nontrivial applications need to combine several different technologies in order to satisfy their requirements: for example, using an *OLTP database to serve user requests*, a *cache to speed up common requests*, a *full-text index to handle search queries*, and a *data warehouse for analytics*. Each of these has its own copy of the data, stored in its own representation that is optimized for its own purposes.
 
-As the same or related data appears in several different places, they need to be *_kept in sync_* with one another: if an item is updated in the database, it also needs to be updated in the cache, search indexes, and data warehouse. With data warehouses this synchronization is usually performed by ETL processes, often by taking a full copy of a database, transforming it, and bulk-loading it into the data warehouse—in other words, a batch process. Similarly, search indexes, recommendation systems, and other derived data systems might be created using batch processes.
+As the same or related data appears in several different places, they need to be *kept in sync* with one another: if an item is updated in the database, it also needs to be updated in the cache, search indexes, and data warehouse. With data warehouses this synchronization is usually performed by ETL processes, often by taking a full copy of a database, transforming it, and bulk-loading it into the data warehouse—in other words, a batch process. Similarly, search indexes, recommendation systems, and other derived data systems might be created using batch processes.
 
-If periodic full database dumps are too slow, an alternative that is sometimes used is *_dual writes_*, in which the application code explicitly writes to each of the systems when data changes: for example, first writing to the database, then updating the search index, then invalidating the cache entries (or even performing those writes concurrently).
+If periodic full database dumps are too slow, an alternative that is sometimes used is *dual writes*, in which the application code explicitly writes to each of the systems when data changes: for example, first writing to the database, then updating the search index, then invalidating the cache entries (or even performing those writes concurrently).
 
-However, dual writes have some serious problems, one of which is a *_race condition_*.
+However, dual writes have some serious problems, one of which is a *race condition*.
 
 image::/assets/stream-processing/Figure_11-4_dual_write_race_condition.png[,75%,75%]
 
-Another problem with dual writes is that one of the writes may fail while the other succeeds. This is a *_fault-tolerance_* problem rather than a concurrency problem, but it also has the effect of the two systems becoming inconsistent with each other. Ensuring that they either both succeed or both fail is a case of the *_atomic commit_* problem, which is expensive to solve.
+Another problem with dual writes is that one of the writes may fail while the other succeeds. This is a *fault-tolerance* problem rather than a concurrency problem, but it also has the effect of the two systems becoming inconsistent with each other. Ensuring that they either both succeed or both fail is a case of the *atomic commit* problem, which is expensive to solve.
 
 === Change Data Capture
 
-The problem with most databases’ *_replication logs_* is that they have long been considered to be an internal implementation detail of the database, not a public API. Clients are supposed to query the database through its data model and query language, not parse the replication logs and try to extract data from them.
+The problem with most databases’ *replication logs* is that they have long been considered to be an internal implementation detail of the database, not a public API. Clients are supposed to query the database through its data model and query language, not parse the replication logs and try to extract data from them.
 
 For decades, many databases simply did not have a documented way of getting the log of changes written to them. For this reason it was difficult to take all the changes made in a database and replicate them to a different storage technology such as a search index, cache, or data warehouse.
 
-More recently, there has been growing interest in *_change data capture_* (CDC), which is the process of observing all data changes written to a database and extracting them in a form in which they can be replicated to other systems. CDC is especially interesting if changes are made available as a *_stream_*, immediately as they are written.
+More recently, there has been growing interest in *change data capture* (CDC), which is the process of observing all data changes written to a database and extracting them in a form in which they can be replicated to other systems. CDC is especially interesting if changes are made available as a *stream*, immediately as they are written.
 
 image::/assets/stream-processing/Figure_11-5_change-data-capture.png[,75%,75%]
 
 ==== Implementing change data capture
 
-We can call the log consumers *_derived data systems_*: the data stored in the search index and the data warehouse is just another view onto the data in the system of record. Change data capture is a mechanism for ensuring that all changes made to the system of record are also reflected in the derived data systems so that the derived systems have an accurate copy of the data.
+We can call the log consumers *derived data systems*: the data stored in the search index and the data warehouse is just another view onto the data in the system of record. Change data capture is a mechanism for ensuring that all changes made to the system of record are also reflected in the derived data systems so that the derived systems have an accurate copy of the data.
 
-Essentially, change data capture makes one database the *_leader_* (the one from which the changes are captured), and turns the others into *_followers_*. A *_log-based message broker_* is well suited for transporting the change events from the source database, since it preserves the *_ordering of messages_*.
+Essentially, change data capture makes one database the *leader* (the one from which the changes are captured), and turns the others into *followers*. A *log-based message broker* is well suited for transporting the change events from the source database, since it preserves the *ordering of messages*.
 
-Database triggers can be used to implement change data capture by registering triggers that observe all changes to data tables and add corresponding entries to a changelog table. However, they tend to be fragile and have significant performance overheads. Parsing the *_replication log_* can be a more robust approach, although it also comes with challenges, such as handling schema changes.
+Database triggers can be used to implement change data capture by registering triggers that observe all changes to data tables and add corresponding entries to a changelog table. However, they tend to be fragile and have significant performance overheads. Parsing the *replication log* can be a more robust approach, although it also comes with challenges, such as handling schema changes.
 
-LinkedIn’s Databus, Facebook’s Wormhole, and Yahoo!’s Sherpa use this idea at large scale. Bottled Water implements CDC for PostgreSQL using an API that decodes the *_write-ahead log_*, Maxwell and Debezium do something similar for MySQL by parsing the *_binlog_*, Mongoriver reads the MongoDB *_oplog_*, and GoldenGate provides similar facilities for Oracle.
+LinkedIn’s Databus, Facebook’s Wormhole, and Yahoo!’s Sherpa use this idea at large scale. Bottled Water implements CDC for PostgreSQL using an API that decodes the *write-ahead log*, Maxwell and Debezium do something similar for MySQL by parsing the *binlog*, Mongoriver reads the MongoDB *oplog*, and GoldenGate provides similar facilities for Oracle.
 
 ==== Log compaction
 
-The principle of *_log compaction_* in the context of *_log-structured storage engines_* is simple: the storage engine periodically looks for log records with the same key, throws away any duplicates, and keeps only the most recent update for each key. This compaction and merging process runs in the background.
+The principle of *log compaction* in the context of *log-structured storage engines* is simple: the storage engine periodically looks for log records with the same key, throws away any duplicates, and keeps only the most recent update for each key. This compaction and merging process runs in the background.
 
-In a log-structured storage engine, an update with a special null value (a *_tombstone_*) indicates that a key was deleted, and causes it to be removed during log compaction. But as long as a key is not overwritten or deleted, it stays in the log forever. The disk space required for such a compacted log depends only on the current contents of the database, not the number of writes that have ever occurred in the database. If the same key is frequently overwritten, previous values will eventually be garbage collected, and only the latest value will be retained.
+In a log-structured storage engine, an update with a special null value (a *tombstone*) indicates that a key was deleted, and causes it to be removed during log compaction. But as long as a key is not overwritten or deleted, it stays in the log forever. The disk space required for such a compacted log depends only on the current contents of the database, not the number of writes that have ever occurred in the database. If the same key is frequently overwritten, previous values will eventually be garbage collected, and only the latest value will be retained.
 
-The same idea works in the context of *_log-based message brokers_* and change data capture. If the CDC system is set up such that every change has a primary key, and every update for a key replaces the previous value for that key, then it’s sufficient to keep just the most recent write for a particular key.
+The same idea works in the context of *log-based message brokers* and change data capture. If the CDC system is set up such that every change has a primary key, and every update for a key replaces the previous value for that key, then it’s sufficient to keep just the most recent write for a particular key.
 
-This feature is supported by Apache *_Kafka_*. It allows the message broker to be used for durable storage, not just for transient messaging.
+This feature is supported by Apache *Kafka*. It allows the message broker to be used for durable storage, not just for transient messaging.
 
 ==== API support for change streams
 
 Increasingly, databases are beginning to support change streams as a first-class interface, rather than the typical retrofitted and reverse-engineered CDC efforts. For example, RethinkDB allows queries to subscribe to notifications when the results of a query change, Firebase and CouchDB provide data synchronization based on a change feed that is also made available to applications, and Meteor uses the MongoDB oplog to subscribe to data changes and update the user interface.
 
-*_Kafka Connect_* is an effort to integrate change data capture tools for a wide range of database systems with Kafka. Once the stream of change events is in Kafka, it can be used to update derived data systems such as search indexes, and also feed into stream processing systems.
+*Kafka Connect* is an effort to integrate change data capture tools for a wide range of database systems with Kafka. Once the stream of change events is in Kafka, it can be used to update derived data systems such as search indexes, and also feed into stream processing systems.
 
 === Event Sourcing
 
-Similarly to change data capture, *_event sourcing_* involves storing all changes to the application state as a log of change events. The biggest difference is that event sourcing applies the idea at a different level of abstraction:
+Similarly to change data capture, *event sourcing* involves storing all changes to the application state as a log of change events. The biggest difference is that event sourcing applies the idea at a different level of abstraction:
 
-* In change data capture, the application uses the database in a *_mutable_* way, updating and deleting records at will. The log of changes is extracted from the database at a *_low level_* (e.g., by parsing the replication log), which ensures that the order of writes extracted from the database matches the order in which they were actually written, avoiding the race condition. The application writing to the database does not need to be aware that CDC is occurring.
+* In change data capture, the application uses the database in a *mutable* way, updating and deleting records at will. The log of changes is extracted from the database at a *low level* (e.g., by parsing the replication log), which ensures that the order of writes extracted from the database matches the order in which they were actually written, avoiding the race condition. The application writing to the database does not need to be aware that CDC is occurring.
 
-* In event sourcing, the application logic is explicitly built on the basis of *_immutable_* events that are written to an event log. In this case, the event store is *_appendonly_*, and updates or deletes are discouraged or prohibited. Events are designed to reflect things that happened at the *_application level_*, rather than low-level state changes.
+* In event sourcing, the application logic is explicitly built on the basis of *immutable* events that are written to an event log. In this case, the event store is *appendonly*, and updates or deletes are discouraged or prohibited. Events are designed to reflect things that happened at the *application level*, rather than low-level state changes.
 
-Event sourcing is a powerful technique for data modeling: from an application point of view it is more meaningful to record the user’s actions as immutable events, rather than recording the effect of those actions on a mutable database. Event sourcing makes it easier to *_evolve applications_* over time, helps with debugging by making it easier to understand after the fact why something happened, and guards against application bugs.
+Event sourcing is a powerful technique for data modeling: from an application point of view it is more meaningful to record the user’s actions as immutable events, rather than recording the effect of those actions on a mutable database. Event sourcing makes it easier to *evolve applications* over time, helps with debugging by making it easier to understand after the fact why something happened, and guards against application bugs.
 
 ==== Deriving current state from the event log
 
 An event log by itself is not very useful, because users generally expect to see the current state of a system, not the history of modifications. For example, on a shopping website, users expect to be able to see the current contents of their cart, not an append-only list of all the changes they have ever made to their cart.
 
-Thus, applications that use event sourcing need to take the log of events (representing the data *_written_* to the system) and transform it into application state that is suitable for showing to a user (the way in which data is *_read_* from the system). This transformation can use arbitrary logic, but it should be *_deterministic_* so that you can run it again and derive the same application state from the event log.
+Thus, applications that use event sourcing need to take the log of events (representing the data *written* to the system) and transform it into application state that is suitable for showing to a user (the way in which data is *read* from the system). This transformation can use arbitrary logic, but it should be *deterministic* so that you can run it again and derive the same application state from the event log.
 
-Applications that use event sourcing typically have some mechanism for storing *_snapshots_* of the current state that is derived from the log of events, so they don’t need to repeatedly reprocess the full log. However, this is only a performance optimization to speed up reads and recovery from crashes; the intention is that the system is able to store all raw events forever and reprocess the full event log whenever required.
+Applications that use event sourcing typically have some mechanism for storing *snapshots* of the current state that is derived from the log of events, so they don’t need to repeatedly reprocess the full log. However, this is only a performance optimization to speed up reads and recovery from crashes; the intention is that the system is able to store all raw events forever and reprocess the full event log whenever required.
 
 ==== Commands and events
 
-The event sourcing philosophy is careful to distinguish between *_events_* and *_commands_*. When a request from a user first arrives, it is initially a command: at this
+The event sourcing philosophy is careful to distinguish between *events* and *commands*. When a request from a user first arrives, it is initially a command: at this
 point it may still fail, for example because some integrity condition is violated. The application must first validate that it can execute the command. If the validation is successful and the command is accepted, it becomes an event, which is durable and immutable.
 
 For example, if a user tries to register a particular username, or reserve a seat on an airplane or in a theater, then the application needs to check that the username or seat is not already taken. When that check has succeeded, the application can generate an event to indicate that a particular username was registered by a particular user ID, or that a particular seat has been reserved for a particular customer.
 
-At the point when the event is generated, it becomes a *_fact_*. Even if the customer later decides to change or cancel the reservation, the fact remains true that they formerly held a reservation for a particular seat, and the change or cancellation is a separate event that is added later.
+At the point when the event is generated, it becomes a *fact*. Even if the customer later decides to change or cancel the reservation, the fact remains true that they formerly held a reservation for a particular seat, and the change or cancellation is a separate event that is added later.
 
 === State, Streams, and Immutability
 
 We normally think of databases as storing the current state of the application—this representation is optimized for reads, and it is usually the most convenient for serving queries. The nature of state is that it changes, so databases support updating and deleting data as well as inserting it. How does this fit with immutability?
 
-No matter how the *_state_* changes, there was always a sequence of *_events_* that caused those changes. Even as things are done and undone, the *_fact_* remains true that those events occurred. The key idea is that *_mutable state_* and an append-only log of *_immutable events_* do not contradict each other: they are two sides of the same coin. The log of all changes, the *_changelog_*, represents the evolution of state over time.
+No matter how the *state* changes, there was always a sequence of *events* that caused those changes. Even as things are done and undone, the *fact* remains true that those events occurred. The key idea is that *mutable state* and an append-only log of *immutable events* do not contradict each other: they are two sides of the same coin. The log of all changes, the *changelog*, represents the evolution of state over time.
 
 image::/assets/stream-processing/Figure_11-6_relationship-current-state-event-stream.png[,75%,75%]
 
-If you store the changelog durably, that simply has the effect of making the state *_reproducible_*. If you consider the log of events to be your system of record, and any mutable state as being derived from it, it becomes easier to reason about the flow of data through a system. As Pat Helland puts it:
+If you store the changelog durably, that simply has the effect of making the state *reproducible*. If you consider the log of events to be your system of record, and any mutable state as being derived from it, it becomes easier to reason about the flow of data through a system. As Pat Helland puts it:
 
 > Transaction logs record all the changes made to the database. High-speed appends are the only way to change the log. From this perspective, the contents of the database hold a caching of the latest record values in the logs. #The truth is the log.# The database is a cache of a subset of the log. That cached subset happens to be the latest value of each record and index value from the log.
 
 ==== Advantages of immutable events
 
-Immutability in databases is an old idea. For example, accountants have been using immutability for centuries in financial bookkeeping. When a transaction occurs, it is recorded in an append-only *_ledger_*, which is essentially a log of events describing money, goods, or services that have changed hands. The accounts, such as profit and loss or the balance sheet, are derived from the transactions in the ledger by adding them up.
+Immutability in databases is an old idea. For example, accountants have been using immutability for centuries in financial bookkeeping. When a transaction occurs, it is recorded in an append-only *ledger*, which is essentially a log of events describing money, goods, or services that have changed hands. The accounts, such as profit and loss or the balance sheet, are derived from the transactions in the ledger by adding them up.
 
-If a mistake is made, accountants don’t erase or change the incorrect transaction in the ledger—instead, they add another transaction that *_compensates_* for the mistake, for example refunding an incorrect charge. The incorrect transaction still remains in the ledger forever, because it might be important for *_auditing_* reasons. If incorrect figures, derived from the incorrect ledger, have already been published, then the figures for the next accounting period include a correction. This process is entirely normal in accounting.
+If a mistake is made, accountants don’t erase or change the incorrect transaction in the ledger—instead, they add another transaction that *compensates* for the mistake, for example refunding an incorrect charge. The incorrect transaction still remains in the ledger forever, because it might be important for *auditing* reasons. If incorrect figures, derived from the incorrect ledger, have already been published, then the figures for the next accounting period include a correction. This process is entirely normal in accounting.
 
-Although such *_auditability_* is particularly important in financial systems, it is also beneficial for many other systems that are not subject to such strict regulation. If you accidentally deploy buggy code that writes bad data to a database, recovery is much harder if the code is able to destructively overwrite data.  With an append-only log of immutable events, it is much easier to diagnose what happened and recover from the problem.
+Although such *auditability* is particularly important in financial systems, it is also beneficial for many other systems that are not subject to such strict regulation. If you accidentally deploy buggy code that writes bad data to a database, recovery is much harder if the code is able to destructively overwrite data.  With an append-only log of immutable events, it is much easier to diagnose what happened and recover from the problem.
 
-Immutable events also capture more information than just the current state. For example, on a shopping website, a customer may add an item to their cart and then remove it again. Although the second event cancels out the first event from the point of view of order fulfillment, it may be useful to know for *_analytics_* purposes that the customer was considering a particular item but then decided against it. Perhaps they will choose to buy it in the future, or perhaps they found a substitute. This information is recorded in an *_event log_*, but would be lost in a database that deletes items when they are removed from the cart.
+Immutable events also capture more information than just the current state. For example, on a shopping website, a customer may add an item to their cart and then remove it again. Although the second event cancels out the first event from the point of view of order fulfillment, it may be useful to know for *analytics* purposes that the customer was considering a particular item but then decided against it. Perhaps they will choose to buy it in the future, or perhaps they found a substitute. This information is recorded in an *event log*, but would be lost in a database that deletes items when they are removed from the cart.
 
 ==== Deriving several views from the same event log
 
 Moreover, by separating mutable state from the immutable event log, you can derive several different read-oriented representations from the same log of events.
 
-Storing data is normally quite straightforward if you don’t have to worry about how it is going to be queried and accessed; many of the complexities of schema design, indexing, and storage engines are the result of wanting to support certain query and access patterns. For this reason, you gain a lot of flexibility by separating the form in which data is written from the form it is read, and by allowing several different read views. This idea is sometimes known as *_command query responsibility segregation_* (CQRS).
+Storing data is normally quite straightforward if you don’t have to worry about how it is going to be queried and accessed; many of the complexities of schema design, indexing, and storage engines are the result of wanting to support certain query and access patterns. For this reason, you gain a lot of flexibility by separating the form in which data is written from the form it is read, and by allowing several different read views. This idea is sometimes known as *command query responsibility segregation* (CQRS).
 
 ==== Concurrency control
 
-The biggest downside of event sourcing and change data capture is that the consumers of the event log are usually *_asynchronous_*, so there is a possibility that a user may make a write to the log, then read from a log-derived view and find that their write has not yet been reflected in the read view.
+The biggest downside of event sourcing and change data capture is that the consumers of the event log are usually *asynchronous*, so there is a possibility that a user may make a write to the log, then read from a log-derived view and find that their write has not yet been reflected in the read view.
 
-One solution would be to *_perform the updates of the read view synchronously_* with appending the event to the log. This requires a *_transaction_* to combine the writes into an *_atomic_* unit, so either you need to keep the event log and the read view in the same storage system, or you need a distributed transaction across the different systems.
+One solution would be to *perform the updates of the read view synchronously* with appending the event to the log. This requires a *transaction* to combine the writes into an *atomic* unit, so either you need to keep the event log and the read view in the same storage system, or you need a distributed transaction across the different systems.
 
 ==== Limitations of immutability
 
@@ -321,7 +321,7 @@ Truly deleting data is surprisingly hard, since copies can live in many places: 
 
 3. You can process one or more input streams to produce one or more output streams. Streams may go through a pipeline consisting of several such processing stages before they eventually end up at an output (option 1 or 2).
 
-A piece of code that processes streams like this is known as an *_operator_* or a *_job_*. It is closely related to the Unix processes and MapReduce jobs, and the pattern of *_dataflow_* is similar: a stream processor consumes input streams in a read-only fashion and writes its output to a different location in an append-only fashion.
+A piece of code that processes streams like this is known as an *operator* or a *job*. It is closely related to the Unix processes and MapReduce jobs, and the pattern of *dataflow* is similar: a stream processor consumes input streams in a read-only fashion and writes its output to a different location in an append-only fashion.
 
 === Uses of Stream Processing
 
@@ -329,25 +329,25 @@ Stream processing has long been used for monitoring purposes, where an organizat
 
 ==== Complex event processing
 
-*_Complex event processing_* (CEP) is an approach developed in the 1990s for analyzing event streams, especially geared toward the kind of application that requires searching for certain event patterns. Similarly to the way that a regular expression allows you to search for certain patterns of characters in a string, CEP allows you to specify rules to search for certain patterns of events in a stream.
+*Complex event processing* (CEP) is an approach developed in the 1990s for analyzing event streams, especially geared toward the kind of application that requires searching for certain event patterns. Similarly to the way that a regular expression allows you to search for certain patterns of characters in a string, CEP allows you to specify rules to search for certain patterns of events in a stream.
 
-CEP systems often use a high-level declarative query language like SQL, or a graphical user interface, to describe the patterns of events that should be detected. These queries are submitted to a processing engine that consumes the input streams and internally maintains a state machine that performs the required matching. When a match is found, the engine emits a *_complex event_* (hence the name) with the details of the event pattern that was detected.
+CEP systems often use a high-level declarative query language like SQL, or a graphical user interface, to describe the patterns of events that should be detected. These queries are submitted to a processing engine that consumes the input streams and internally maintains a state machine that performs the required matching. When a match is found, the engine emits a *complex event* (hence the name) with the details of the event pattern that was detected.
 
 In these systems, the relationship between queries and data is reversed compared to normal databases. Usually, a database stores data persistently and treats queries as transient: when a query comes in, the database searches for data matching the query, and then forgets about the query when it has finished. CEP engines reverse these roles: queries are stored long-term, and events from the input streams continuously flow past them in search of a query that matches an event pattern.
 
 ==== Stream analytics
 
-The boundary between CEP and *_stream analytics_* is blurry, but as a general rule, analytics tends to be less interested in finding specific event sequences and is more oriented toward *_aggregations_* and *_statistical_* metrics over a large number of events—for example:
+The boundary between CEP and *stream analytics* is blurry, but as a general rule, analytics tends to be less interested in finding specific event sequences and is more oriented toward *aggregations* and *statistical* metrics over a large number of events—for example:
 
-* Measuring the rate of some type of event (how often it occurs per *_time interval_*)
-* Calculating the rolling average of a value over some *_time period_*
-* Comparing current statistics to previous *_time intervals_* (e.g., to detect trends or to alert on metrics that are unusually high or low compared to the same time last week)
+* Measuring the rate of some type of event (how often it occurs per *time interval*)
+* Calculating the rolling average of a value over some *time period*
+* Comparing current statistics to previous *time intervals* (e.g., to detect trends or to alert on metrics that are unusually high or low compared to the same time last week)
 
-Such statistics are usually computed over fixed time intervals—for example, you might want to know the average number of queries per second to a service over the last 5 minutes, and their 99th percentile response time during that period. Averaging over a few minutes smoothes out irrelevant fluctuations from one second to the next, while still giving you a timely picture of any changes in traffic pattern. The time interval over which you aggregate is known as a *_window_*.
+Such statistics are usually computed over fixed time intervals—for example, you might want to know the average number of queries per second to a service over the last 5 minutes, and their 99th percentile response time during that period. Averaging over a few minutes smoothes out irrelevant fluctuations from one second to the next, while still giving you a timely picture of any changes in traffic pattern. The time interval over which you aggregate is known as a *window*.
 
-Stream analytics systems sometimes use *_probabilistic algorithms_*, such as Bloom filters for set membership, HyperLogLog for cardinality estimation, and various percentile estimation algorithms. Probabilistic algorithms produce approximate results, but have the advantage of requiring significantly less memory in the stream processor than exact algorithms. This use of approximation algorithms sometimes leads people to believe that stream processing systems are always lossy and inexact, but that is wrong: there is nothing inherently approximate about stream processing, and probabilistic algorithms are merely an optimization.
+Stream analytics systems sometimes use *probabilistic algorithms*, such as Bloom filters for set membership, HyperLogLog for cardinality estimation, and various percentile estimation algorithms. Probabilistic algorithms produce approximate results, but have the advantage of requiring significantly less memory in the stream processor than exact algorithms. This use of approximation algorithms sometimes leads people to believe that stream processing systems are always lossy and inexact, but that is wrong: there is nothing inherently approximate about stream processing, and probabilistic algorithms are merely an optimization.
 
-Many open source distributed stream processing frameworks are designed with analytics in mind: for example, Apache *_Storm_*, *_Spark Streaming_*, *_Flink_*, Concord, Samza, and *_Kafka Streams_*. Hosted services include Google Cloud Dataflow and Azure Stream Analytics.
+Many open source distributed stream processing frameworks are designed with analytics in mind: for example, Apache *Storm*, *Spark Streaming*, *Flink*, Concord, Samza, and *Kafka Streams*. Hosted services include Google Cloud Dataflow and Azure Stream Analytics.
 
 ==== Reasoning About Time
 
@@ -399,13 +399,13 @@ Both input streams are database changelogs. In this case, every change on one si
 
 ==== Microbatching and checkpointing
 
-One solution is to break the stream into small blocks, and treat each block like a miniature batch process. This approach is called *_microbatching_*, and it is used in Spark Streaming. The batch size is typically around one second, which is the result of a performance compromise: smaller batches incur greater scheduling and coordination overhead, while larger batches mean a longer delay before results of the stream processor become visible.
+One solution is to break the stream into small blocks, and treat each block like a miniature batch process. This approach is called *microbatching*, and it is used in Spark Streaming. The batch size is typically around one second, which is the result of a performance compromise: smaller batches incur greater scheduling and coordination overhead, while larger batches mean a longer delay before results of the stream processor become visible.
 
 Microbatching also implicitly provides a tumbling window equal to the batch size (windowed by processing time, not event timestamps); any jobs that require larger windows need to explicitly carry over state from one microbatch to the next.
 
-A variant approach, used in Apache Flink, is to periodically generate rolling *_checkpoints_* of state and write them to durable storage. If a stream operator crashes, it can restart from its most recent checkpoint and discard any output generated between the last checkpoint and the crash. The checkpoints are triggered by barriers in the message stream, similar to the boundaries between microbatches, but without forcing a particular window size.
+A variant approach, used in Apache Flink, is to periodically generate rolling *checkpoints* of state and write them to durable storage. If a stream operator crashes, it can restart from its most recent checkpoint and discard any output generated between the last checkpoint and the crash. The checkpoints are triggered by barriers in the message stream, similar to the boundaries between microbatches, but without forcing a particular window size.
 
-Within the confines of the stream processing framework, the microbatching and checkpointing approaches provide the same *_exactly-once_* semantics as batch processing. However, as soon as output leaves the stream processor (for example, by writing to a database, sending messages to an external message broker, or sending emails), the framework is no longer able to discard the output of a failed batch. In this case, restarting a failed task causes the external *_side effect_* to happen twice, and microbatching or checkpointing alone is not sufficient to prevent this problem.
+Within the confines of the stream processing framework, the microbatching and checkpointing approaches provide the same *exactly-once* semantics as batch processing. However, as soon as output leaves the stream processor (for example, by writing to a database, sending messages to an external message broker, or sending emails), the framework is no longer able to discard the output of a failed batch. In this case, restarting a failed task causes the external *side effect* to happen twice, and microbatching or checkpointing alone is not sufficient to prevent this problem.
 
 ==== Atomic commit revisited
 
@@ -427,7 +427,7 @@ On the other hand, derived data systems are often updated asynchronously, and so
 
 ==== Idempotence
 
-Our goal is to discard the partial output of any failed tasks so that they can be safely retried without taking effect twice. Distributed transactions are one way of achieving that goal, but another way is to rely on *_idempotence_*.
+Our goal is to discard the partial output of any failed tasks so that they can be safely retried without taking effect twice. Distributed transactions are one way of achieving that goal, but another way is to rely on *idempotence*.
 
 ==== Rebuilding state after a failure
 
@@ -439,7 +439,7 @@ Apache Kafka is an event streaming platform used to collect, process, store, and
 
 image::https://images.contentful.com/gt6dp23g0g38/53UO4964r0e7kRVm0mcUUZ/f6f6d7b1b90e8e88a5be0d1845bdf950/what_is_kafka_and_how_does_it_work.png[,75%,75%]
 
-An *_event_* records the fact that "something happened" in the world or in your business. It is also called record or message. For example, a payment, a website click, or a temperature reading, along with a description of what happened. Conceptually, an event has a key, value, timestamp, and optional metadata headers.
+An *event* records the fact that "something happened" in the world or in your business. It is also called record or message. For example, a payment, a website click, or a temperature reading, along with a description of what happened. Conceptually, an event has a key, value, timestamp, and optional metadata headers.
 
 [source,text]
 ----
@@ -449,21 +449,21 @@ timestamp: "Jun. 25, 2020 at 2:06 p.m."
 ----
 
 
-*_Event is usually fairly small, say less than a megabyte_* or so, and is normally represented in some structured format, say in JSON or an object serialized with Apache Avro™ or Protocol Buffers.
+*Event is usually fairly small, say less than a megabyte* or so, and is normally represented in some structured format, say in JSON or an object serialized with Apache Avro™ or Protocol Buffers.
 
-Kafka is based on the abstraction of a distributed *_commit log_*. By splitting a log into *_partitions_*, Kafka is able to scale-out systems.
+Kafka is based on the abstraction of a distributed *commit log*. By splitting a log into *partitions*, Kafka is able to scale-out systems.
 
-*_Producers_* are those client applications that *_publish_* (write) events to Kafka, and *_consumers_* are those that *_subscribe_* to (read and process) these events.
+*Producers* are those client applications that *publish* (write) events to Kafka, and *consumers* are those that *subscribe* to (read and process) these events.
 
-A *_topic_* is a log of events. Logs are easy to understand, because they are simple data structures with well-known semantics.
+A *topic* is a log of events. Logs are easy to understand, because they are simple data structures with well-known semantics.
 
-* First, they are *_append only_*: When you write a new message into a log, it always goes on the end.
-* Second, they can only be read by seeking an arbitrary *_offset_* in the log, then by scanning sequential log entries.
-* Third, events in the log are *_immutable_*—once something has happened, it is exceedingly difficult to make it un-happen. 
+* First, they are *append only*: When you write a new message into a log, it always goes on the end.
+* Second, they can only be read by seeking an arbitrary *offset* in the log, then by scanning sequential log entries.
+* Third, events in the log are *immutable*—once something has happened, it is exceedingly difficult to make it un-happen. 
 
-Kafka is composed of a network of machines called *_brokers_*. Each broker hosts some set of partitions and handles incoming requests to write new events to those partitions or read events from them.
+Kafka is composed of a network of machines called *brokers*. Each broker hosts some set of partitions and handles incoming requests to write new events to those partitions or read events from them.
 
-Topics are *_partitioned_*, meaning a topic is spread over a number of "buckets" located on different Kafka brokers.
+Topics are *partitioned*, meaning a topic is spread over a number of "buckets" located on different Kafka brokers.
 
 image:https://kafka.apache.org/images/streams-and-tables-p1_p4.png[,55%,55%]
 
@@ -477,15 +477,15 @@ In this case, all partitions get an even share of the data, but we don’t prese
 +
 This allows Kafka to guarantee that messages having the same key always land in the same partition, and therefore are always in order.
 
-To make your data fault-tolerant and highly-available, the partitions of every *_topic can be replicated_*. A common production setting is a replication factor of 3, i.e., there will always be three copies of your data.
+To make your data fault-tolerant and highly-available, the partitions of every *topic can be replicated*. A common production setting is a replication factor of 3, i.e., there will always be three copies of your data.
 
 === The Producer
 
-* The *_producer sends data directly to the broker_* that is the leader for the partition without any intervening routing tier.
+* The *producer sends data directly to the broker* that is the leader for the partition without any intervening routing tier.
 +
 To help the producer do this all Kafka nodes can answer a request for metadata about which servers are alive and where the leaders for the partitions of a topic are at any given time to allow the producer to appropriately direct its requests.
 
-* The *_client controls which partition it publishes messages to_*. This can be done at random, implementing a kind of *_random load balancing_*, or it can be done by some *_semantic partitioning_* function.
+* The *client controls which partition it publishes messages to*. This can be done at random, implementing a kind of *random load balancing*, or it can be done by some *semantic partitioning* function.
 +
 We expose the interface for semantic partitioning by allowing the user to specify a key to partition by and using this to hash to a partition.
 
@@ -499,12 +499,12 @@ Messaging traditionally has two models: http://en.wikipedia.org/wiki/Message_que
 
 * In publish-subscribe the message is broadcast to all consumers.
 
-Kafka offers a single consumer abstraction that generalizes both of these—the *_consumer group_*.
+Kafka offers a single consumer abstraction that generalizes both of these—the *consumer group*.
 
 .A two server Kafka cluster hosting four partitions (P0-P3) with two consumer groups. Consumer group A has two consumer instances and group B has four.
 image::https://kafka.apache.org/images/consumer-groups.png[,45%,45%]
 
-Consumers label themselves with a consumer *_group name_*, and each message published to a topic is delivered to one consumer instance within each subscribing consumer group. Consumer instances can be in separate processes or on separate machines.
+Consumers label themselves with a consumer *group name*, and each message published to a topic is delivered to one consumer instance within each subscribing consumer group. Consumer instances can be in separate processes or on separate machines.
 
 If all the consumer instances have the same consumer group, then this works just like a traditional queue balancing load over the consumers.
 
@@ -522,7 +522,7 @@ A traditional queue retains messages in-order on the server, and if multiple con
 
 Kafka does it better. By having a notion of parallelism—the partition—within the topics, Kafka is able to provide both ordering guarantees and load balancing over a pool of consumer processes.
 
-* This is achieved by assigning the partitions in the topic to the consumers in the consumer group so that *_each partition is consumed by exactly one consumer in the group_*.
+* This is achieved by assigning the partitions in the topic to the consumers in the consumer group so that *each partition is consumed by exactly one consumer in the group*.
 
 * By doing this we ensure that the consumer is the only reader of that partition and consumes the data in order.
 
@@ -530,19 +530,19 @@ Kafka does it better. By having a notion of parallelism—the partition—within
 
 * Note however that there cannot be more consumer instances than partitions.
 
-*_Kafka only provides a total order over messages within a partition._*
+*Kafka only provides a total order over messages within a partition.*
 
 * This combined with the ability to partition data by key is sufficient for the vast majority of applications.
 
-* However, if you require *_a total order over messages this can be achieved with a topic that has only one partition, though this will mean only one consumer process._*
+* However, if you require *a total order over messages this can be achieved with a topic that has only one partition, though this will mean only one consumer process.*
 
 Push vs. pull
 
 * The Kafka consumer works by issuing "fetch" requests to the brokers leading the partitions it wants to consume.
 +
-The *_consumer specifies its offset in the log_* with each request and receives back a chunk of log beginning from that position.
+The *consumer specifies its offset in the log* with each request and receives back a chunk of log beginning from that position.
 +
-The consumer thus has significant control over this position and can *_rewind_* it to re-consume data if need be. 
+The consumer thus has significant control over this position and can *rewind* it to re-consume data if need be. 
 
 === Message Delivery Semantics
 
@@ -550,15 +550,15 @@ In a distributed publish-subscribe messaging system, the computers that make up 
 
 * *At-least-once* semantics:
 +
-If the producer receives an acknowledgement (*_ack_*) from the Kafka broker and _acks=all_, it means that the message has been written exactly once to the Kafka topic.
+If the producer receives an acknowledgement (*ack*) from the Kafka broker and _acks=all_, it means that the message has been written exactly once to the Kafka topic.
 +
-However, if a producer ack times out or receives an error, it might *_retry_* sending the message assuming that the message was not written to the Kafka topic.
+However, if a producer ack times out or receives an error, it might *retry* sending the message assuming that the message was not written to the Kafka topic.
 +
 If the broker had failed right before it sent the ack but after the message was successfully written to the Kafka topic, this retry leads to the message being written twice and hence delivered more than once to the end consumer. And everybody loves a cheerful giver, but this approach can lead to duplicated work and incorrect results.
 
 * *At-most-once* semantics:
 +
-If the producer does *_not retry_* when an ack times out or returns an error, then the message might end up not being written to the Kafka topic, and hence not delivered to the consumer.
+If the producer does *not retry* when an ack times out or returns an error, then the message might end up not being written to the Kafka topic, and hence not delivered to the consumer.
 +
 In most cases it will be, but in order to avoid the possibility of duplication, we accept that sometimes messages will not get through.
 
@@ -566,7 +566,7 @@ In most cases it will be, but in order to avoid the possibility of duplication, 
 +
 Even if a producer retries sending a message, it leads to the message being delivered exactly once to the end consumer.
 +
-Exactly-once semantics is the most desirable guarantee, but also a poorly understood one. Because it requires a *_cooperation_* between the messaging system itself and the application producing and consuming the messages.
+Exactly-once semantics is the most desirable guarantee, but also a poorly understood one. Because it requires a *cooperation* between the messaging system itself and the application producing and consuming the messages.
 +
 For instance, if after consuming a message successfully you rewind your Kafka consumer to a previous offset, you will receive all the messages from that offset to the latest one, all over again. This shows why the messaging system and the client application must cooperate to make exactly-once semantics happen.
 
