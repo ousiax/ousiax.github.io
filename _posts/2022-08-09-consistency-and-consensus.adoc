@@ -32,7 +32,7 @@ The idea behind *linearizability* (also known as *atomic consistency*, *strong c
 
 In a linearizable system, as soon as one client successfully completes a write, all clients reading from the database must be able to see the value just written. Maintaining the illusion of a single copy of the data means guaranteeing that the value read is the most recent, up-to-date value, and doesn’t come from a stale cache or replica. In other words, linearizability is a *recency guarantee*.
 
-image::/assets/consistency-and-consensus/Figure_9-1_system_not_linearizability.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-1_system_not_linearizability.png[,75%,75%]
 
 === What Makes a System Linearizable?
 
@@ -40,7 +40,7 @@ The basic idea behind linearizability is simple: to make a system appear as if t
 
 Figure 9-2 shows three clients concurrently reading and writing the same key _x_ in a linearizable database. In the distributed systems literature, _x_ is called a *register*—in practice, it could be one key in a key-value store, one row in a relational database, or one document in a document database, for example.
 
-image::/assets/consistency-and-consensus/Figure_9-2_read_concurrent_with_a_write.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-2_read_concurrent_with_a_write.png[,75%,75%]
 
 For simplicity, Figure 9-2 shows only the requests from the clients’ point of view, not the internals of the database. Each bar is a request made by a client, where the start of a bar is the time when the request was sent, and the end of a bar is when the response was received by the client. Due to variable network delays, a client doesn’t know exactly when the database processed its request—it only knows that it must have happened sometime between the client sending the request and receiving the response.
 
@@ -60,11 +60,11 @@ In Figure 9-2, the value of _x_ is initially 0, and client C performs a write re
 
 However, that is not yet sufficient to fully describe linearizability: if reads that are concurrent with a write can return either the old or the new value, then readers could see a value *flip back and forth* between the old and the new value several times while a write is going on. That is not what we expect of a system that emulates a “single copy of the data.”
 
-image::/assets/consistency-and-consensus/Figure_9-3_read_after_write_new_value.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-3_read_after_write_new_value.png[,75%,75%]
 
 In a linearizable system we imagine that there must be some point in time (between the start and end of the write operation) at which the value of _x_ *atomically flips* from 0 to 1. Thus, if one client’s read returns the new value 1, all subsequent reads must also return the new value, even if the write operation has not yet completed.
 
-image::/assets/consistency-and-consensus/Figure_9-4_visualizing_points_in_time_linearizability.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-4_visualizing_points_in_time_linearizability.png[,75%,75%]
 
 In Figure 9-4 we add a third type of operation besides read and write:
 
@@ -110,7 +110,7 @@ For example, say you have a website where users can upload a photo, and a backgr
 +
 The image resizer needs to be explicitly instructed to perform a resizing job, and this instruction is sent from the web server to the resizer via a message queue. The web server doesn’t place the entire photo on the queue, since most message brokers are designed for small messages, and a photo may be several megabytes in size. Instead, the photo is first written to a file storage service, and once the write is complete, the instruction to the resizer is placed on the queue.
 +
-image::/assets/consistency-and-consensus/Figure_9-5_web_server_cross_channel_race_condition.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-5_web_server_cross_channel_race_condition.png[,75%,75%]
 +
 If the file storage service is linearizable, then this system should work fine. If it is not linearizable, there is the risk of a race condition: the message queue (steps 3 and 4 in Figure 9-5) might be faster than the internal replication inside the storage service. In this case, when the resizer fetches the image (step 5), it might see an old version of the image, or nothing at all. If it processes an old version of the image, the full-size and resized images in the file storage become permanently inconsistent.
 +
@@ -145,13 +145,13 @@ For systems with leaderless replication (Dynamo-style), people sometimes claim t
 +
 Intuitively, it seems as though strict quorum reads and writes should be linearizable in a Dynamo-style model. However, when we have variable network delays, it is possible to have race conditions.
 +
-image::/assets/consistency-and-consensus/Figure_9-6_nonlinearizable_strict_quorum.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-6_nonlinearizable_strict_quorum.png[,75%,75%]
 +
 In summary, it is safest to assume that a leaderless system with Dynamo-style replication does not provide linearizability.
 
 === The Cost of Linearizability
 
-image:/assets/consistency-and-consensus/Figure_9-7_network_faults_linearizability_availablity.png[,75%,75%]
+image:/assets/ddia/consistency-and-consensus/Figure_9-7_network_faults_linearizability_availablity.png[,75%,75%]
 
 ==== The CAP theorem
 
@@ -256,7 +256,7 @@ Although the three sequence number generators just described are inconsistent wi
 
 The use of Lamport timestamps is illustrated in Figure 9-8. Each node has a unique identifier, and each node keeps a counter of the number of operations it has processed. The Lamport timestamp is then simply a pair of *(counter, node ID)*. Two nodes may sometimes have the same counter value, but by including the node ID in the timestamp, each timestamp is made unique.
 
-image::/assets/consistency-and-consensus/Figure_9-8_lamport_timestamps.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-8_lamport_timestamps.png[,75%,75%]
 
 A Lamport timestamp bears no relationship to a physical time-of-day clock, but it provides total ordering: if you have two timestamps, the one with a greater counter value is the greater timestamp; if the counter values are the same, the one with the greater node ID is the greater timestamp.
 
@@ -366,7 +366,7 @@ A transaction commit must be irrevocable—you are not allowed to change your mi
 
 Two-phase commit is an algorithm for achieving atomic transaction commit across multiple nodes—i.e., to ensure that either all nodes commit or all nodes abort. It is a classic algorithm in distributed databases.
 
-image::/assets/consistency-and-consensus/Figure_9-9-two-phase-commit.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-9-two-phase-commit.png[,75%,75%]
 
 2PC uses a new component that does not normally appear in single-node transactions: a *coordinator* (also known as *transaction manager*). The coordinator is often implemented as a library within the same application process that is requesting the transaction (e.g., embedded in a Java EE container), but it can also be a separate process or service.
 
@@ -396,7 +396,7 @@ To understand why it works, we have to break down the process in a bit more deta
 
 If the coordinator fails before sending the prepare requests, a participant can safely abort the transaction. But once the participant has received a prepare request and voted “yes,” it can no longer abort unilaterally—it must wait to hear back from the coordinator whether the transaction was committed or aborted. If the coordinator crashes or the network fails at this point, the participant can do nothing but wait. A participant’s transaction in this state is called *in doubt* or *uncertain*.
 
-image::/assets/consistency-and-consensus/Figure_9-10_coordinator_crash.png[,75%,75%]
+image::/assets/ddia/consistency-and-consensus/Figure_9-10_coordinator_crash.png[,75%,75%]
 
 The only way 2PC can complete is by waiting for the coordinator to recover. This is why the coordinator must write its commit or abort decision to a transaction log on disk before sending commit or abort requests to participants: when the coordinator recovers, it determines the status of all in-doubt transactions by reading its transaction log. Any transactions that don’t have a commit record in the coordinator’s log are aborted. Thus, the commit point of 2PC comes down to a regular single-node atomic commit on the coordinator.
 
@@ -437,7 +437,7 @@ Informally, consensus means getting several nodes to agree on something. For exa
 
 The consensus problem is normally formalized as follows: one or more nodes may *propose* values, and the consensus algorithm *decides* on one of those values. In the seat-booking example, when several customers are concurrently trying to buy the last seat, each node handling a customer request may propose the ID of the customer it is serving, and the decision indicates which one of those customers got the seat.
 
-In this formalism, a consensus algorithm must satisfy the following properties [25]:xiii
+In this formalism, a consensus algorithm must satisfy the following properties:
 
 * *Uniform agreement*
 +
