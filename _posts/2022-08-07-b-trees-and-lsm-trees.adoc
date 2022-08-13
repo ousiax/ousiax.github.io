@@ -94,9 +94,9 @@ Segments are never modified after they have been written, so the merged segment 
 
 In each *log-structured* storage segment is a sequence of key-value pairs. These pairs appear in the order that they were written, and values later in the log take precedence over values for the same key earlier in the log. Apart from that, the order of key-value pairs in the file does not matter.
 
-Now we can make a simple change to the format of our segment files: we require that *_the sequence of key-value pairs is sorted by key*. At first glance, that requirement seems to break our ability to use sequential writes, but we’ll get to that in a moment.
+Now we can make a simple change to the format of our segment files: we require that *the sequence of key-value pairs is sorted by key*. At first glance, that requirement seems to break our ability to use sequential writes, but we’ll get to that in a moment.
 
-We call this format *Sorted String Table*, or *SSTable* for short. We also require that _each key only appears once within each merged segment file_ (the compaction process already ensures that). SSTables have several big advantages over log segments with hash indexes:
+We call this format *Sorted String Table*, or *SSTable* for short. We also require that each key only appears once within each merged segment file (the compaction process already ensures that). SSTables have several big advantages over log segments with hash indexes:
 
 1. Merging segments is simple and efficient, even if the files are bigger than the available memory.
 +
@@ -114,9 +114,9 @@ image::/assets/ddia/b-trees-and-lsm-trees/Figure_3-5_sstable_sparse-in-memory-in
 
 3. Since read requests need to scan over several key-value pairs in the requested range anyway,
 
-** it is possible to *_group those records into a block and compress_* it before writing it to disk.
+** it is possible to *group those records into a block and compress* it before writing it to disk.
 
-** Each entry of the *_sparse in-memory index_* then points at the start of a compressed block.
+** Each entry of the *sparse in-memory index* then points at the start of a compressed block.
 
 ** Besides saving disk space, compression also reduces the I/O bandwidth use.
 
@@ -152,7 +152,7 @@ Even though there are many subtleties, the basic idea of LSM-trees—keeping a c
 
 The log-structured indexes we have discussed so far are gaining acceptance, but they are not the most common type of index. The most widely used indexing structure is quite different: the *B-tree*.
 
-Like SSTables, B-trees keep key-value pairs sorted by key, which allows efficient *_key-value lookups_* and *_range queries_*. But that’s where the similarity ends: B-trees have a very different design philosophy.
+Like SSTables, B-trees keep key-value pairs sorted by key, which allows efficient *key-value lookups* and *range queries*. But that’s where the similarity ends: B-trees have a very different design philosophy.
 
 The log-structured indexes we saw earlier break the database down into variable-size *segments*, typically several megabytes or more in size, and always write a segment sequentially.
 
@@ -188,7 +188,7 @@ This algorithm ensures that the tree remains *balanced*: a B-tree with n keys al
 
 The basic underlying write operation of a B-tree is to overwrite a page on disk with new data. It is assumed that the overwrite does not change the location of the page; i.e., all references to that page remain intact when the page is overwritten. This is in stark contrast to log-structured indexes such as LSM-trees, which *only append to files* (and eventually delete obsolete files) but never *modify files in place*.
 
-In order to make the database resilient to crashes, it is common for B-tree implementations to include an additional data structure on disk: a *write-ahead log* (*WAL*, also known as a *redo* log). This is an append-only file to which every B-tree modification must be written before it can be applied to the pages of the tree itself. When the database comes back up after a crash, this log is used to restore the B-tree back to a consistent state.
+In order to make the database resilient to crashes, it is common for B-tree implementations to include an additional data structure on disk: a *write-ahead log* (*WAL*, also known as a *redo log*). This is an append-only file to which every B-tree modification must be written before it can be applied to the pages of the tree itself. When the database comes back up after a crash, this log is used to restore the B-tree back to a consistent state.
 
 An additional complication of updating pages in place is that careful concurrency control is required if multiple threads are going to access the B-tree at the same time —otherwise a thread may see the tree in an inconsistent state. This is typically done by protecting the tree’s data structures with *latches* (lightweight locks). Log- structured approaches are simpler in this regard, because they do all the merging in the background without interfering with incoming queries and atomically swap old segments for new segments from time to time.
 
