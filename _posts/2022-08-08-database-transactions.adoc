@@ -134,7 +134,7 @@ By preventing dirty writes, this isolation level avoids some kinds of concurrenc
 
 * However, read committed does not prevent the race condition between two counter increments. In this case, the second write happens after the first transaction has committed, so it’s not a dirty write. It’s still incorrect, but for a different reason.
 +
-image::/assets/database-transactions/Figure_7-1_race_condition_incrementing_counter.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-1_race_condition_incrementing_counter.png[,75%,75%]
 
 ==== Implementing read committed
 
@@ -150,7 +150,7 @@ wait until the *long-running transaction* has completed. This harms the response
 
 For that reason, most databases prevent dirty reads using the approach illustrated in Figure 7-4: for every object that is written, the database remembers both the *old committed value* and the *new value* set by the transaction that currently holds the write lock. While the transaction is ongoing, any other transactions that read the object are simply given the old value. Only when the new value is committed do transactions switch over to reading the new value.
 
-image::/assets/database-transactions/Figure_7-4_No_dirty_reads.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-4_No_dirty_reads.png[,75%,75%]
 
 === Snapshot Isolation and Repeatable Read
 
@@ -158,7 +158,7 @@ If you look superficially at read committed isolation, you could be forgiven for
 
 However, there are still plenty of ways in which you can have concurrency bugs when using this isolation level.
 
-image::/assets/database-transactions/Figure_7-6_Read_skew.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-6_Read_skew.png[,75%,75%]
 
 *Read skew* (or *nonrepeatable read*) is considered acceptable under read committed isolation: the account balances that Alice saw were indeed committed at the time when she read them.
 
@@ -174,7 +174,7 @@ To implement snapshot isolation, databases use a generalization of the mechanism
 
 *If a database only needed to provide read committed isolation, but not snapshot isolation, it would be sufficient to keep two versions of an object: the committed version and the overwritten-but-not-yet-committed version.* However, storage engines that support snapshot isolation typically use MVCC for their read committed isolation level as well. A typical approach is that read committed uses a separate snapshot for each query, while snapshot isolation uses the same snapshot for an entire transaction.
 
-image::/assets/database-transactions/Figure_7-7_snapshot_isolation_mvcc.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-7_snapshot_isolation_mvcc.png[,75%,75%]
 
 ==== Visibility rules for observing a consistent snapshot
 
@@ -294,7 +294,7 @@ On the other hand, the *last write wins* (LWW) conflict resolution method is pro
 
 In the previous sections we saw *dirty writes* and *lost updates*, two kinds of race conditions that can occur when different transactions concurrently try to write to the same objects. In order to avoid data corruption, those race conditions need to be prevented—either automatically by the database, or by manual safeguards such as using locks or atomic write operations.
 
-image::/assets/database-transactions/Figure_7-8_example_of_write_skew.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-8_example_of_write_skew.png[,75%,75%]
 
 In each transaction, your application first checks that two or more doctors are currently on call; if yes, it assumes it’s safe for one doctor to go off call. Since the database is using snapshot isolation, both checks return 2, so both transactions proceed to the next stage. Alice updates her own record to take herself off call, and Bob updates his own record likewise. Both transactions commit, and now no doctor is on call. *Your requirement of having at least one doctor on call has been violated.*
 
@@ -327,11 +327,12 @@ COMMIT;
 ==== Phantoms causing write skew
 
 All of these examples follow a similar pattern:
-1. A `SELECT` query checks whether some requirement is satisfied by searching for rows that match some search condition (there are at least two doctors on call, there are no existing bookings for that room at that time, the position on the board doesn’t already have another figure on it, the username isn’t already taken, there is still money in the account).
 
-2. Depending on the result of the first query, the application code decides how to continue (perhaps to go ahead with the operation, or perhaps to report an error to the user and abort).
+. A `SELECT` query checks whether some requirement is satisfied by searching for rows that match some search condition (there are at least two doctors on call, there are no existing bookings for that room at that time, the position on the board doesn’t already have another figure on it, the username isn’t already taken, there is still money in the account).
 
-3. If the application decides to go ahead, it makes a write (`INSERT`, `UPDATE`, or `DELETE`) to the database and commits the transaction. The effect of this write changes the precondition of the decision of step 2. In other words, if you were to repeat the `SELECT` query from step 1 after commiting the write, you would get a different result, because the write changed the set of rows matching the search condition (there is now one fewer doctor on call, the meeting room is now booked for that time, the position on the board is now taken by the figure that was moved, the username is now taken, there is now less money in the account).
+. Depending on the result of the first query, the application code decides how to continue (perhaps to go ahead with the operation, or perhaps to report an error to the user and abort).
+
+. If the application decides to go ahead, it makes a write (`INSERT`, `UPDATE`, or `DELETE`) to the database and commits the transaction. The effect of this write changes the precondition of the decision of step 2. In other words, if you were to repeat the `SELECT` query from step 1 after commiting the write, you would get a different result, because the write changed the set of rows matching the search condition (there is now one fewer doctor on call, the meeting room is now booked for that time, the position on the board is now taken by the figure that was moved, the username is now taken, there is now less money in the account).
 
 The steps may occur in a different order. For example, you could first make the write, then the `SELECT` query, and finally decide whether to abort or commit based on the result of the query.
 
@@ -401,7 +402,7 @@ In this *interactive style of transaction*, a lot of time is spent in network co
 
 For this reason, systems with *single-threaded serial transaction processing* don’t allow *interactive multi-statement transactions*. Instead, the application must submit the entire transaction code to the database ahead of time, as a *stored procedure*. The differences between these approaches is illustrated in Figure 7-9. Provided that all data required by a transaction is in memory, the stored procedure can execute very fast, without waiting for any network or disk I/O.
 
-image::/assets/database-transactions/Figure_7-9_interactive_transaction_stored_procedure.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-9_interactive_transaction_stored_procedure.png[,75%,75%]
 
 ==== Pros and cons of stored procedures
 
@@ -581,7 +582,7 @@ How does the database know if a query result might have changed? There are two c
 Recall that snapshot isolation is usually implemented by multi-version concurrency control (MVCC; see Figure 7-10). When a transaction reads from a consistent snapshot in an MVCC database, it ignores writes that were made by any other transactions that hadn’t yet committed at the time when the snapshot was taken. In
 Figure 7-10, transaction 43 sees Alice as having `on_call = true`, because transaction 42 (which modified Alice’s on-call status) is uncommitted. However, by the time transaction 43 wants to commit, transaction 42 has already committed. This means that the write that was ignored when reading from the consistent snapshot has now taken effect, and transaction 43’s premise is no longer true.
 
-image::/assets/database-transactions/Figure_7-10_detecting_outdated_premise_mvcc.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-10_detecting_outdated_premise_mvcc.png[,75%,75%]
 
 In order to prevent this anomaly, the database needs to track when a transaction ignores another transaction’s writes due to MVCC visibility rules. When the transaction wants to commit, the database checks whether any of the ignored writes have now been committed. If so, the transaction must be aborted.
 
@@ -591,7 +592,7 @@ Why wait until committing? Why not abort transaction 43 immediately when the sta
 
 The second case to consider is when another transaction modifies data after it has been read.
 
-image::/assets/database-transactions/Figure_7-11_ssi_detecting_modifies_another_reads.png[,75%,75%]
+image::/assets/ddia/database-transactions/Figure_7-11_ssi_detecting_modifies_another_reads.png[,75%,75%]
 
 In the context of *two-phase locking* we discussed *index-range locks*, which allow the database to lock access to all rows matching some search query, such as `WHERE shift_id = 1234`. We can use a similar technique here, except that SSI locks don’t block other transactions.
 
