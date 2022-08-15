@@ -47,6 +47,45 @@ $ docker logs mysql8
 2021-12-29T08:22:12.948002Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.27'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
 ----
 
+
+=== Using a custom MySQL configuration file
+
+[source,sh]
+----
+docker run \
+    --name some-mysql \
+    -v /my/custom:/etc/mysql/conf.d \ <1>
+    -v /my/own/datadir:/var/lib/mysql \ <2>
+    -e MYSQL_ROOT_PASSWORD=my-secret-pw \
+    -d \
+    mysql:tag
+----
+
+<1> The default configuration for MySQL can be found in `/etc/mysql/my.cnf`, which may `!includedir` additional directories such as `/etc/mysql/conf.d` or `/etc/mysql/mysql.conf.d`.
++
+If `/my/custom/config-file.cnf` is the path and name of your custom configuration file, you can start your mysql container like this (note that only the directory path of the custom config file is used in this command):
++
+This will start a new container `some-mysql` where the MySQL instance uses the combined startup settings from `/etc/mysql/my.cnf` and `/etc/mysql/conf.d/config-file.cnf`, with settings from the latter taking precedence.
+
+
+<2> The `-v /my/own/datadir:/var/lib/mysql` part of the command mounts the `/my/own/datadir` directory from the underlying host system as `/var/lib/mysql` inside the container, where MySQL by default will write its data files.
+
+=== Creating database dumps
+
+[source,sh]
+----
+docker exec some-mysql \
+    sh -c 'exec mysqldump --all-databases -uroot -p"$MYSQL_ROOT_PASSWORD"' > /some/path/on/your/host/all-databases.sql
+----
+
+=== Restoring data from dump files
+
+[source,sh]
+----
+docker exec -i some-mysql \
+    sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD"' < /some/path/on/your/host/all-databases.sql
+----
+
 === Connecting to and Disconnecting from the Server
 
 To connect to the server, you usually need to provide a MySQL user name when you invoke mysql and, most likely, a password. If the server runs on a machine other than the one where you log in, you must also specify a host name.
