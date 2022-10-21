@@ -161,7 +161,7 @@ This will show us all traffic from a host and isn't SSH traffic (assuming defaul
 tcpdump -vv src mars and not dst port 22
 ```
 
-Keep in mind that when you're building complex queries you minght have to group your options using single quotes. Single quotes are used in order to tell `tcpdump` to ignore certain special characters—in this case below the "()" brackets. The same technique can be used to group using other expressions such as `host`, `port`, `net`, etc.
+Keep in mind that when you're building complex queries you might have to group your options using single quotes. Single quotes are used in order to tell `tcpdump` to ignore certain special characters—in this case below the "()" brackets. The same technique can be used to group using other expressions such as `host`, `port`, `net`, etc.
 
 ```sh
 tcpdump 'src 10.0.2.4 and (dst port 3389 or 22)'
