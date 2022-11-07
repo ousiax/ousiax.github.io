@@ -273,7 +273,54 @@ tcpdump -vvAs0 port 123
 tcpdump port http or port ftp or port smtp or port imap or port pop3 or port telnet -lA | egrep -i -B5 'pass=|pwd=|log=|login=|user=|username=|pw=|passw=|passwd=|password=|pass:|user:|username:|password:|login:|pass |user ' 
 ```
 
-## 3. References
+## 3. Troubleshooting
+
+#### 3.1 bad udp cksum: issue with hardware offloading (offloading tx-checksumming)
+
+```console
+$ sudo tcpdump -s 1500 -i ens32 -nvv icmp or port tftp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 1500 bytes
+09:51:31.613595 IP (tos 0x0, ttl 64, id 16236, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.49586 > 10.170.108.237.69: [bad udp cksum 0x93e9 -> 0x7770!] TFTP, length 16, RRQ "/foo" netascii
+09:51:36.614757 IP (tos 0x0, ttl 64, id 16561, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.49586 > 10.170.108.237.69: [bad udp cksum 0x93e9 -> 0x7770!] TFTP, length 16, RRQ "/foo" netascii
+09:51:41.615174 IP (tos 0x0, ttl 64, id 17473, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.49586 > 10.170.108.237.69: [bad udp cksum 0x93e9 -> 0x7770!] TFTP, length 16, RRQ "/foo" netascii
+09:51:46.616206 IP (tos 0x0, ttl 64, id 17689, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.49586 > 10.170.108.237.69: [bad udp cksum 0x93e9 -> 0x7770!] TFTP, length 16, RRQ "/foo" netascii
+09:51:51.617006 IP (tos 0x0, ttl 64, id 18773, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.49586 > 10.170.108.237.69: [bad udp cksum 0x93e9 -> 0x7770!] TFTP, length 16, RRQ "/foo" netascii
+```
+
+After checking active NIC hardware offloading options you can see the obvious
+
+```console
+$ sudo ethtool -k eth0 | grep on
+rx-checksumming: on
+tx-checksumming: on
+scatter-gather: on
+generic-segmentation-offload: on
+generic-receive-offload: on
+rx-vlan-offload: on
+tx-vlan-offload: on
+```
+
+After disabling TCO (tcp offloading) for TX/RX on the NIC the problem is gone
+
+```console
+$ sudo ethtool -K eth0 tx off rx off
+```
+
+```console
+$ sudo tcpdump -s 1500 -i ens32 -nvv icmp or port tftp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 1500 bytes
+10:44:26.668116 IP (tos 0x0, ttl 64, id 10862, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.34984 > 10.170.108.237.69: [udp sum ok] TFTP, length 16, RRQ "/foo" netascii
+10:44:31.668327 IP (tos 0x0, ttl 64, id 11126, offset 0, flags [DF], proto UDP (17), length 44)
+    192.168.91.128.34984 > 10.170.108.237.69: [udp sum ok] TFTP, length 16, RRQ "/foo" netascii
+```
+
+## 4. References
 
 - [https://hackertarget.com/tcpdump-examples/](https://hackertarget.com/tcpdump-examples/)
 - [https://danielmiessler.com/study/tcpdump/](https://danielmiessler.com/study/tcpdump/)
