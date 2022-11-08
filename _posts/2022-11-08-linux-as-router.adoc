@@ -1,0 +1,309 @@
+= Linux as Router
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking']
+:page-date: 2022-11-08 10:24:40 +0800
+:page-revdate: 2022-11-08 10:24:40 +0800
+:toc:
+:sectnums:
+
+== Linux ip Command
+
+[source,man]
+----
+NAME
+       ip - show / manipulate routing, network devices, interfaces and tunnels
+
+SYNOPSIS
+       ip [ OPTIONS ] OBJECT { COMMAND | help }
+
+       ip [ -force ] -batch filename
+
+       OBJECT := { link | address | addrlabel | route | rule | neigh | ntable | tunnel | tuntap | maddress | mroute | mrule | monitor | xfrm | netns | l2tp |
+               tcp_metrics | token | macsec | vrf | mptcp }
+
+       OPTIONS := { -V[ersion] | -h[uman-readable] | -s[tatistics] | -d[etails] | -r[esolve] | -iec | -f[amily] { inet | inet6 | link } | -4 | -6 | -I | -D | -B |
+               -0 | -l[oops] { maximum-addr-flush-attempts } | -o[neline] | -rc[vbuf] [size] | -t[imestamp] | -ts[hort] | -n[etns] name | -N[umeric] | -a[ll] |
+               -c[olor] | -br[ief] | -j[son] | -p[retty] }
+
+EXAMPLES
+       ip addr
+           Shows addresses assigned to all network interfaces.
+
+       ip neigh
+           Shows the current neighbour table in kernel.
+
+       ip link set x up
+           Bring up interface x.
+
+       ip link set x down
+           Bring down interface x.
+
+       ip route
+           Show table routes.
+----
+
+.OBJECTS can be any one of the following and may be written in full or abbreviated form<<1>>
+[%header,cols='1,1,3']
+|===
+|Object
+|Abbreviated form
+|Purpose
+
+|link
+|l
+|Network device.
+
+|address
+|a addr
+|Protocol (IP or IPv6) address on a device.
+
+|addrlabel
+|addrl
+|Label configuration for protocol address selection.
+
+|neighbour
+|n neigh
+|ARP or NDISC cache entry.
+
+|route
+|r
+|Routing table entry.
+
+|rule
+|ru
+|Rule in routing policy database.
+
+|maddress
+|m maddr
+|Multicast address.
+
+|mroute
+|mr
+|Multicast routing cache entry.
+
+|tunnel
+|t
+|Tunnel over IP.
+
+|xfrm
+|x
+|Framework for IPsec protocol.
+|===
+
+.Deprecated Linux command and their replacement cheat sheet.
+[%header,cols="1,1"]
+|===
+|Old command (Deprecated)
+|New command
+
+|ifconfig -a
+|ip a
+
+|ifconfig enp6s0 down
+|ip link set enp6s0 down
+
+|ifconfig enp6s0 up
+|ip link set enp6s0 up
+
+|ifconfig enp6s0 192.168.2.24
+|ip addr add 192.168.2.24/24 dev enp6s0
+
+|ifconfig enp6s0 netmask 255.255.255.0
+|ip addr add 192.168.1.1/24 dev enp6s0
+
+|ifconfig enp6s0 mtu 9000
+|ip link set enp6s0 mtu 9000
+
+|ifconfig enp6s0:0 192.168.2.25
+|ip addr add 192.168.2.25/24 dev enp6s0
+
+|netstat
+|ss
+
+|netstat -tulpn
+|ss -tulpn
+
+|netstat -neopa
+|ss -neopa
+
+|netstat -g
+|ip maddr
+
+|route
+|ip r
+
+|route add -net 192.168.2.0 netmask 255.255.255.0 dev enp6s0
+|ip route add 192.168.2.0/24 dev enp6s0
+
+|route add default gw 192.168.2.254
+|ip route add default via 192.168.2.254
+
+|arp -a
+|ip neigh
+
+|arp -v
+|ip -s neigh
+
+|arp -s 192.168.2.33 1:2:3:4:5:6
+|ip neigh add 192.168.3.33 lladdr 1:2:3:4:5:6 dev enp6s0
+
+|arp -i enp6s0 -d 192.168.2.254
+|ip neigh del 192.168.2.254 dev wlp7s0
+|===
+
+=== ip route: Routing table management commands
+
+==== Show routing table
+
+[source,console]
+----
+$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+
+$ sudo route -n
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+0.0.0.0         192.168.91.2    0.0.0.0         UG    0      0        0 ens32
+192.168.91.0    0.0.0.0         255.255.255.0   U     0      0        0 ens32
+
+$ ip r l 192.168.91.0/24
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+----
+
+==== Delete a route
+
+[source,console]
+----
+$ sudo ip r del default 
+$ ip r
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+
+$ sudo ip r del 192.168.91.0/24
+$ ip r
+----
+
+=== Add a new route
+
+[source,sh]
+----
+# ip route add {NETWORK/MASK} via {GATEWAYIP}
+# ip route add {NETWORK/MASK} dev {DEVICE}
+# ## Add default route using ip ##
+# ip route add default {NETWORK/MASK} dev {DEVICE}
+# ip route add default {NETWORK/MASK} via {GATEWAYIP}
+----
+
+[source,console]
+----
+$ sudo ip r add default via 192.168.91.2 dev ens32
+$ ip r
+default via 192.168.91.2 dev ens32 
+
+$ sudo ip r add 192.168.91.0/24 dev ens32
+$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.91.0/24 dev ens32 scope link 
+----
+
+== Let a Linux as a router
+
+=== Update the default route to another Linux
+
+[source,sh]
+----
+$ ip r
+default via 192.168.91.2 dev ens32 onlink 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+
+$ sudo ip r del default 
+$ ip r
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+
+# set the default gateway to another Linux (192.168.91.137)
+$ sudo ip r add default via 192.168.91.137 dev ens32 
+$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+----
+
+=== Test networking with ping
+
+Open a terminal and run tcpdump to capture the network packet:
+
+[source,console]
+----
+$ sudo tcpdump -nv host 10.170.108.237
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+15:02:58.708055 IP (tos 0x0, ttl 64, id 61339, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 10.170.108.237: ICMP echo request, id 4621, seq 1, length 64
+15:02:59.715911 IP (tos 0x0, ttl 64, id 61408, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 10.170.108.237: ICMP echo request, id 4621, seq 2, length 64
+^C
+2 packets captured
+2 packets received by filter
+0 packets dropped by kernel
+----
+
+Run ping to test networking:
+
+[source,console]
+----
+$ ping -c 2 10.170.108.237
+PING 10.170.108.237 (10.170.108.237) 56(84) bytes of data.
+
+--- 10.170.108.237 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1008ms
+----
+
+Here, we see all the packet were lost. This is beacuse the target Linux host (192.168.91.137) should enable the ip forward feature as below.
+
+[source,sh]
+----
+$ sudo sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 0
+
+$ sudo sysctl -w net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+----
+
+Now let's run the ping at host (192.168.91.128) again:
+
+[source,sh]
+----
+$ ping -c 2 10.170.108.237
+PING 10.170.108.237 (10.170.108.237) 56(84) bytes of data.
+64 bytes from 10.170.108.237: icmp_seq=1 ttl=128 time=1.50 ms
+64 bytes from 10.170.108.237: icmp_seq=2 ttl=128 time=1.18 ms
+
+--- 10.170.108.237 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1003ms
+rtt min/avg/max/mdev = 1.175/1.338/1.501/0.163 ms
+----
+
+Show the gateway Linux host (192.168.91.137) route:
+
+[source,sh]
+----
+$ ip -d r
+unicast default via 192.168.91.2 dev ens34 proto boot scope global 
+unicast 192.168.91.0/24 dev ens34 proto kernel scope link src 192.168.91.131 
+unicast 192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.137 
+----
+
+Run the traceroute at the source host (192.168.91.128) to print the route trace:
+
+[source,sh]
+----
+$ sudo traceroute -I 10.170.108.237
+traceroute to 10.170.108.237 (10.170.108.237), 30 hops max, 60 byte packets
+ 1  192.168.91.131 (192.168.91.131)  2.323 ms  1.998 ms  1.781 ms
+ 2  192.168.91.2 (192.168.91.2)  1.636 ms  1.460 ms  1.162 ms
+ 3  10.170.108.237 (10.170.108.237)  3.304 ms  3.895 ms  6.811 ms
+----
+
+[bibliography]
+== References
+
+* [[[linux-ip-nixcraft,1]]] https://www.cyberciti.biz/faq/linux-ip-command-examples-usage-syntax/
