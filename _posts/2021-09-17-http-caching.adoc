@@ -1,8 +1,9 @@
 = HTTP Caching and Conditional Requests
 :page-layout: post
-:page-categories: []
-:page-tags: []
-:revdate: 2021-09-17 23:49:02 +0800
+:page-categories: ['http']
+:page-tags: ['http', 'caching']
+:page-date: 2021-09-17 23:49:02 +0800
+:page-revdate: Thu, 10 Nov 2022 11:16:15 +0800
 :toc:
 :sectnums:
 
@@ -42,7 +43,7 @@ Caching is a technique that stores a copy of a given resource and serves it back
 
 There are several kinds of caches: these can be grouped into two main categories: *private or shared caches*. A _shared cache_ is a cache that stores responses for reuse by more than one user. A _private cache_ is dedicated to a single user. This page will mostly talk about _browser and proxy caches_, but there are also _gateway caches_, _CDN_, _reverse proxy caches_ and _load balancers_ that are deployed on web servers for better reliability, performance and scaling of web sites and web applications.
 
-image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_cache_type.png[]
+image::/assets/http-caching/type-of-cache.png[Type of Cache,55%,55%]
 
 === Private browser caches
 
@@ -68,7 +69,7 @@ A cache entry might also consist of multiple stored responses differentiated by 
 
 == Controlling caching
 
-=== The `Cache-Control` header
+=== The Cache-Control header
 
 The {http_headers_cache-control}[Cache-Control] HTTP/1.1 general-header field is used to specify directives for caching mechanisms in both requests and responses. Use this header to define your caching policies with the variety of directives it provides.
 
@@ -121,7 +122,7 @@ When using the "must-revalidate" directive, the cache must verify the status of 
 Cache-Control: must-revalidate
 ----
 
-=== The `Pragma` header
+=== The Pragma header
 
 {http_headers_pragma}[Pragma] is an HTTP/1.0 header. `Pragma: no-cache` is like `Cache-Control: no-cache` in that it forces caches to submit the request to the origin server for validation, before releasing a cached copy. However, `Pragma` is not specified for HTTP responses and is therefore not a reliable replacement for the general HTTP/1.1 `Cache-Control` header.
 
@@ -133,13 +134,22 @@ Once a resource is stored in a cache, it could theoretically be served by the ca
 
 Here is an example of this process with a shared cache proxy:
 
-image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_staleness.png[]
+image::/assets/http-caching/HTTPStaleness.png[HTTP Staleness,55%,55%]
 
 The freshness lifetime is calculated based on several headers. If a "`Cache-Control: max-age=N`" header is specified, then the freshness lifetime is equal to `N`. If this header is not present, which is very often the case, it is checked if an {http_headers_expires}[Expires] header is present. If an Expires header exists, then its value minus the value of the {http_headers_date}[Date] header determines the freshness lifetime.
 
 === Heuristic freshness checking
 
 If an origin server does not explicitly specify freshness (e.g. using {http_headers_cache-control}[Cache-Control] or {http_headers_expires}[Expires] header) then a heuristic approach may be used.
+
+[source,console]
+----
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2021 22:22:22 GMT
+----
 
 In this case look for a {http_headers_last-modified}[Last-Modified] header. If this header is present, then the cache's freshness lifetime is equal to the value of the {http_headers_date}[Date] header minus the value of the {http_headers_last-modified}[Last-modified] header divided by `10`. The expiration time is computed as follows:
 
@@ -156,31 +166,74 @@ Web developers invented a technique that Steve Souders called https://www.steves
 
 This technique has an additional benefit: updating two cached resources at the same time will not lead to the situation where the out-dated version of one resource is used in combination with the new version of the other one. This is very important when web sites have CSS stylesheets or JS scripts that have mutual dependencies, i.e., they depend on each other because they refer to the same HTML elements.
 
-image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_revved_fix_typo.png[]
+image::/assets/http-caching/HTTPRevved.png[,55%,55%]
 
 === Cache validation
 
 When a cached document's expiration time has been reached, it is either validated or fetched again. Validation can only occur if the server provided either a _strong validator_ or a _weak validator_.
 
-Revalidation is triggered when the user presses the reload button. It is also triggered under normal browsing if the cached response includes the "`Cache-Control: must-revalidate`" header. Another factor is the cache validation preferences in the `Advanced->Cache` preferences panel. There is an option to force a validation each time a document is loaded.
+Revalidation is triggered when the user presses the reload button. It is also triggered under normal browsing if the cached response includes the "`Cache-Control: must-revalidate`" header.
 
 **ETags**
 
-The {http_headers_etag}[ETag] response header is an opaque-to-the-useragent value that can be used as a *strong validator*. That means that a HTTP user-agent, such as the browser, does not know what this string represents and can't predict what its value would be. If the {http_headers_etag}[ETag] header was part of the response for a resource, the client can issue an {http_headers_if-none-match}[If-None-Match] in the header of future requests  in order to validate the cached resource.
+The {http_headers_etag}[ETag] response header is an opaque-to-the-user-agent value that can be used as a *strong validator*. That means that a HTTP user-agent, such as the browser, does not know what this string represents and can't predict what its value would be. If the {http_headers_etag}[ETag] header was part of the response for a resource, the client can issue an {http_headers_if-none-match}[If-None-Match] in the header of future requests  in order to validate the cached resource.
+
+[source,console]
+----
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+ETag: "33a64df5"
+Cache-Control: max-age=3600
+----
+
+[source,console]
+----
+GET /index.html HTTP/1.1
+Host: example.com
+Accept: text/html
+If-None-Match: "33a64df5"
+----
 
 *Last-Modified*
 
 The {http_headers_last-modified}[Last-Modified] response header can be used as a *weak validator*. It is considered weak because it only has 1-second resolution. If the {http_headers_last-modified}[Last-Modified] header is present in a response, then the client can issue an {http_headers_if-modified-since}[If-Modified-Since] request header to validate the cached document.
 
+[source,console]
+----
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+Cache-Control: max-age=3600
+----
+
 When a validation request is made, the server can either ignore the validation request and respond with a normal {http_status_200}[200] OK, or it can return {http_status_304}[304] Not Modified (with an empty body) to instruct the browser to use its cached copy. The latter response can also include headers that update the expiration time of the cached document.
+
+[source,console]
+----
+GET /index.html HTTP/1.1
+Host: example.com
+Accept: text/html
+If-Modified-Since: Tue, 22 Feb 2022 22:00:00 GMT
+----
+
+[source,console]
+----
+HTTP/1.1 304 Not Modified
+Content-Type: text/html
+Date: Tue, 22 Feb 2022 23:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+Cache-Control: max-age=3600
+----
 
 == Varying responses
 
 The {http_headers_vary}[Vary] HTTP response header determines how to match future request headers to decide whether a cached response can be used, or if a fresh one must be requested from the origin server.
 
 When a cache receives a request that has a Vary header field, it must not use a cached response by default unless all header fields specified in the Vary header match in both the original (cached) request and the new request.
-
-image::https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching/http_vary.png[]
 
 This feature is commonly used to allow a resource to be cached in uncompressed and (various) compressed forms, and served appropriately to user agents based on the encodings that they support. For example, a server can set Vary: `Accept-Encoding` to ensure that a separate version of a resource is cached for all requests that specify support for a particular set of encodings, e.g. `Accept-Encoding: gzip,deflate,sdch`.
 
@@ -384,7 +437,7 @@ Expires: <http-date>
 
 [source,text]
 ----
-<http-date
+<http-date>
 ----
 
 An HTTP-date timestamp.
@@ -400,7 +453,7 @@ Expires: Wed, 21 Oct 2015 07:28:00 GMT
 
 The `Age` header contains the time in seconds the object has been in a proxy cache.
 
-The `Age` header is usually close to zero. If it is `Age: 0`, it was probably just fetched from the origin server; otherwise It is usually calculated as a difference between the proxy's current date and the [http_headers_date}[Date] general header included in the HTTP response. 
+The `Age` header is usually close to zero. If it is `Age: 0`, it was probably just fetched from the origin server; otherwise It is usually calculated as a difference between the proxy's current date and the {http_headers_date}[Date] general header included in the HTTP response. 
 
 === Date
 
@@ -460,8 +513,7 @@ NOTE: `Pragma` is not specified for HTTP responses and is therefore not a reliab
 
 The `Last-Modified` response HTTP header contains the date and time at which the origin server believes the resource was last modified. It is used as a validator to determine if a resource received or stored is the same. *Less accurate than an {http_headers_etag}[ETag] header, it is a fallback mechanism.* Conditional requests containing `If-Modified-Since` or `If-Unmodified-Since` headers make use of this field. 
 
-[source,text]
-[source,console,linenums,highlight='2,5,25,26,41,42,45,65,66']
+[source,console,highlight='2,5,25,26,41,42,45,65,66']
 ----
 $ curl -iI https://blog.codefarm.me/
 HTTP/2 200 
@@ -602,7 +654,7 @@ If-None-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"
 
 The server compares the client's `ETag` (sent with `If-None-Match`) with the `ETag` for its current version of the resource, and if both values match (that is, the resource has not changed), the server sends back a {http_status_304}[304] Not Modified status, without a body, which tells the client that the cached version of the response is still good to use (fresh). 
 
-[source,console,linenums,highlight='2,7,27,31']
+[source,console,highlight='2,7,27,31']
 ----
 $ curl -iI https://blog.codefarm.me/
 HTTP/2 200 
@@ -676,7 +728,7 @@ Entity tags uniquely representing the requested resources. They are a string of 
 
 The asterisk is a special value representing any resource.
 
-[source,console,linenums,highlight='2,3,8,26,27']
+[source,console,highlight='2,3,8,26,27']
 ----
 $ curl -iI https://blog.codefarm.me/ \
 > -H'If-Match: "614ac8ca-1c64"'
