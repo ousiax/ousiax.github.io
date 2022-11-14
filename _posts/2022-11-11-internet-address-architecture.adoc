@@ -262,3 +262,675 @@ Masks are used by routers and hosts to determine where the network/subnetwork po
 
 .An IP address can be combined with a subnet mask using a bitwise AND operation in order to form the network/subnetwork identifier (prefix) of the address used for routing. In this example, applying a mask of length 24 to the IPv4 address 128.32.1.14 gives the prefix 128.32.1.0/24.
 image::/assets/internet-address-architecture/ip-network-subnet.png[,75%,75%]
+
+=== Variable-Length Subnet Masks (VLSM)
+
+It is possible to use a different-length subnet mask applied to the same network number in different portions of the same site. Although doing this complicates address configuration management, it adds flexibility to the subnet structure because different subnetworks may be set up with different numbers of hosts. *Variable-length subnet masks* (VLSM) are now supported by most hosts, routers, and routing protocols.
+
+.VLSM can be used to partition a network number into subnetworks with a differing number of hosts on each subnet. Each router and host is configured with a subnet mask in addition to its IP address. Most software supports VLSM, except for some older routing protocols (e.g., RIP version 1).
+image::/assets/internet-address-architecture/vlsm.png[Variable-Length Subnet Masks,75%,75%]
+
+Recall that the number of hosts is constrained by the number of bits remaining in the IP address that are not used by the network/subnet number. For IPv4
+and a /24 prefix, this allows for 32 – 24 = 8 bits (256 hosts); for /25, half as many (128 hosts); and for /26, half further still (64 hosts).
+
+Note that each interface on each host and router depicted is now given both an IP address and a subnet mask, but the mask differs across the network topology.
+
+With an appropriate dynamic routing protocol running among the routers (e.g., OSPF, IS-IS, RIPv2), traffic is able to flow correctly among hosts at the same site or to/from the outside of the site across the Internet.
+
+Although it may not seem obvious, there is a common case where a subnetwork contains only two hosts. When routers are connected together by a point-to-point link requiring an IP address to be assigned at each end, it is common practice to use a /31 network prefix with IPv4, and it is now also a recommended practice to use a /127 prefix for IPv6 [RFC6164].
+
+=== Broadcast Address
+
+In each IPv4 subnetwork, a special address is reserved to be the *subnet broadcast address*. The subnet broadcast address is formed by setting the network/subnetwork portion of an IPv4 address to the appropriate value and all the bits in the Host field to 1.
+
+.The subnet broadcast address is formed by ORing the complement of the subnet mask with the IPv4 address. In this case of a /24 subnet mask, all of the remaining 32 – 24 = 8 bits are set to 1, giving a decimal value of 255 and the subnet broadcast address of 128.32.1.255.
+image::/assets/internet-address-architecture/subnet-broadcast-address.png[Subnet Broadcast Address,75%,75%]
+
+Historically, a datagram using this type of address as its destination has also been known as a *directed broadcast*. Such a broadcast can, at least theoretically, be routed through the Internet as a single datagram until reaching the target subnetwork, at which point it becomes a collection of broadcast datagrams that are delivered to all hosts on the subnetwork.
+
+In addition to the subnet broadcast address, the special-use address `255.255.255.255` is reserved as the *local net broadcast* (also called *limited broadcast*), which is never forwarded by routers.
+
+Note that although routers may not forward broadcasts, subnet broadcasts and local net broadcasts destined for the same network to which a computer is attached should be expected to work unless explicitly disabled by end hosts. Such broadcasts do not require action by a router; _link-layer broadcast_ mechanisms, if available, are used for supporting them.
+
+Broadcast addresses are typically used with protocols such as UDP/IP (Chapter 10) or ICMP because these protocols do not involve two-party conversations as in TCP/IP.
+
+IPv6 lacks any broadcast addresses; for places where broadcast addresses might be used in IPv4, IPv6 instead uses exclusively multicast addresses.
+
+._192.168.91.128_
+[source,sh]
+----
+$ sudo sysctl net.ipv4.icmp_echo_ignore_broadcasts
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+$ sudo sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=0
+net.ipv4.icmp_echo_ignore_broadcasts = 0
+----
+
+._192.168.91.137_
+[source,sh]
+----
+$ ping -b -c 2 192.168.91.255
+PING 192.168.91.255 (192.168.91.255) 56(84) bytes of data.
+64 bytes from 192.168.91.2: icmp_seq=1 ttl=128 time=0.208 ms
+64 bytes from 192.168.91.128: icmp_seq=1 ttl=64 time=0.956 ms (DUP!)
+64 bytes from 192.168.91.128: icmp_seq=1 ttl=64 time=0.963 ms (DUP!)
+64 bytes from 192.168.91.2: icmp_seq=2 ttl=128 time=0.146 ms
+
+$ ping -b -c2 255.255.255.255
+PING 255.255.255.255 (255.255.255.255) 56(84) bytes of data.
+64 bytes from 192.168.91.2: icmp_seq=1 ttl=128 time=0.304 ms
+64 bytes from 192.168.91.128: icmp_seq=1 ttl=64 time=0.320 ms (DUP!)
+64 bytes from 192.168.91.128: icmp_seq=1 ttl=64 time=0.320 ms (DUP!)
+64 bytes from 192.168.91.2: icmp_seq=2 ttl=128 time=0.235 ms
+----
+
+=== IPv6 Addresses and Interface Identifiers
+
+In addition to being longer than IPv4 addresses by a factor of 4, IPv6 addresses also have some additional structure. Special prefixes used with IPv6 addresses indicate the *scope* of an address. The scope of an IPv6 address refers to the portion of the network where it can be used.
+
+Important examples of scopes include *node-local* (the address can be used only for communication on the same computer), *link-local* (used only among nodes on the same network link or IPv6 prefix), or *global* (Internet-wide).
+
+In IPv6, most nodes have more than one address in use, often on the same network interface. Although this is supported in IPv4 as well, it is not nearly as common.
+
+Link-local IPv6 addresses (and some global IPv6 addresses) use *interface identifiers* (IIDs) as a basis for unicast IPv6 address assignment.
+
+IIDs are used as the low-order bits of an IPv6 address in all cases except where the address begins with the binary value 000, and as such they must be unique within the same network prefix.
+
+IIDs are ordinarily 64 bits long and are formed either directly from the underlying link-layer MAC address of a network interface using a *modified EUI-64 format* [EUI64], or by another process that randomizes the value in hopes of providing some degree of privacy against address tracking.
+
+In IEEE standards, EUI stands for *extended unique identifier*.
+
+* EUI-64 identifiers start with a _24-bit_ *Organizationally Unique Identifier* (OUI) followed by a _40-bit_ *extension identifier* assigned by the organization, which is identified by the first 24 bits.
+* The OUIs are maintained and allocated by the IEEE registration authority [IEEERA].
+* EUIs may be "universally administered" or "locally administered."
+* In the Internet context, such addresses are typically of the universally administered variety.
+
+Many IEEE standards-compliant network interfaces (e.g., Ethernet) have used shorter-format addresses (48-bit EUIs) for years. The only significant difference between the EUI-48 and EUI-64 formats is their length.
+
+.The EUI-48 and EUI-64 formats defined by the IEEE. These are used within IPv6 to form interface identifiers by inverting the u bit.
+image::/assets/internet-address-architecture/EUI-48-and-EUI-64-formats.png[EUI-48 and EUI-64 formats,75%,75%]
+
+The OUI is 24 bits long and occupies the first 3 bytes of both EUI-48 and EUI-64 addresses. The low-order 2 bits of the first bytes of these addresses are designated the `u` and `g` bits, respectively.
+
+* The `u` bit, when set, indicates that the address is locally administered.
+* The `g` bit, when set, indicates that the address is a group or multicast-type address.
+
+An EUI-64 can be formed from an EUI-48 by copying the 24-bit OUI value from the EUI-48 address to the EUI-64 address, placing the 16-bit value, hex FFFE in the fourth and fifth bytes of the EUI-64 address, and then copying the remaining organization-assigned bits.
+
+[source,sh]
+----
+$ ip a s ens32
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.137/24 brd 192.168.91.255 scope global dynamic ens32
+       valid_lft 1073sec preferred_lft 1073sec
+    inet6 fe80::20c:29ff:fe85:2607/64 scope link 
+       valid_lft forever preferred_lft forever
+
+----
+
+Here we can see how the Ethernet’s hardware address `00:0c:29:85:26:07` is mapped to an IPv6 address.
+
+* First, it is converted to EUI-64, forming the address `00:0c:29:ff:fe:85:26:07`.
+* Next, the _u_ bit is inverted, forming the IID value `02:0c:29:ff:fe:85:26:07`.
+* To complete the link-local IPv6 address, we use the reserved link-local prefix `fe80::/10`.
+* Together, these form the complete address, `fe80::20c:29ff:fe85:2607`.
+* The presence of `/64` is the standard length used for identifying the subnetwork/host portion of an IPv6 address derived from an IID as required by [RFC4291].
+
+== CIDR and Aggregation
+
+In the early 1990s, after the adoption of subnet addressing to ease one form of growing pains, the Internet started facing a serious set of scaling problems. Three particular issues were considered so important as to require immediate attention:
+
+1. By 1994, over half of all class B addresses had already been allocated. It was expected that the class B address space would be exhausted by about 1995.
+2. The 32-bit IPv4 address was thought to be inadequate to handle the size of the Internet anticipated by the early 2000s.
+3. The number of entries in the global routing table (one per network number), about 65,000 in 1995, was growing. As more and more class A, B, and C routing entries appeared, routing performance would suffer.
+
+These three issues were attacked by a group in the IETF called ROAD (for ROuting and ADdressing), starting in 1992. They considered problems 1 and 3 to be of immediate concern, and problem 2 as requiring a long-term solution. The short-term solution they proposed was to effectively remove the class breakdown of IP addresses and also promote the ability to aggregate hierarchically assigned IP addresses. These measures would help problems 1 and 3. IPv6 was envisioned to deal with problem 2.
+
+=== Prefixes
+
+In order to help relieve the pressure on the availability of IPv4 addresses (especially class B addresses), the classful addressing scheme was generalized using a scheme similar to VLSM, and the Internet routing system was extended to support *Classless Inter-Domain Routing* (CIDR) [RFC4632]. This provided a way to conveniently allocate contiguous address ranges that contained more than 255 hosts but fewer than 65,536. That is, something other than single class B or multiple class C network numbers could be allocated to sites.
+
+Using CIDR, any address range is not predefined as being part of a class but instead requires a mask similar to a subnet mask, sometimes called a *CIDR mask*. CIDR masks are not limited to a site but are instead visible to the global routing system. Thus, the core Internet routers must be able to interpret and process masks in addition to network numbers. This combination of numbers, called a *network prefix*, is used for both IPv4 and IPv6 address management.
+
+Eliminating the predefined separation of network and host number within an IP address makes finer-grain allocation of IP address ranges possible.
+
+* As with classful addressing, dividing the address spaces into chunks is most easily achieved by grouping numerically contiguous addresses for use as a type or for some particular special purpose.
+* Such groupings are now commonly expressed using a prefix of the address space.
+** An n-bit prefix is a predefined value for the first n bits of an address.
+** The value of n (the length of the prefix) is typically expressed as an integer in the range 0–32 for IPv4 and 0–128 for IPv6.
+** It is generally appended to the base IP address following a `/` character.
+
+.Examples of prefixes and their corresponding IPv4 or IPv6 address range
+[%header,cols="1,2,2"]
+|===
+|Prefix
+|Prefix (Binary)
+|Address Range
+
+|0.0.0.0/0
+|00000000 00000000 00000000 00000000
+|0.0.0.0–255.255.255.255
+
+|128.0.0.0/1
+|10000000 00000000 00000000 00000000
+|128.0.0.0–255.255.255.255
+
+|128.0.0.0/24
+|10000000 00000000 00000000 00000000
+|128.0.0.0–128.0.0.255
+
+|198.128.128.192/27
+|11000110 10000000 10000000 11000000
+|198.128.128.192–198.128.128.223
+
+|165.195.130.107/32
+|10100101 11000011 10000010 01101011
+|165.195.130.107
+
+|2001:db8::/32
+|0010000000000001 0000110110111000
+0000000000000000 0000000000000000
+0000000000000000 0000000000000000
+0000000000000000 0000000000000000
+|2001:db8::–2001:db8:ffff:ffff
+
+|===
+
+In the table, the bits defined and fixed by the prefix are highlighted. The remaining bits may be set to any combination of 0s and 1s, thereby covering the possible address range.
+
+* Clearly, a smaller prefix length corresponds to a larger number of possible addresses.
+* In addition, the earlier classful addressing approach is easily generalized by this scheme.
+** For example, the class `C` network number `192.125.3.0` can be written as the prefix `192.125.3.0/24` or `192.125.3/24`.
+** Classful `A` and `B` network numbers can be expressed using `/8` and `/16` prefix lengths, respectively.
+
+Removing the classful structure of IP addresses made it possible to allocate IP address blocks in a wider variety of sizes. Doing so, however, did not address the third concern from the list of problems; it did not help to reduce the number of routing table entries.
+
+A routing table entry tells a router where to send traffic.
+
+Essentially, the router inspects the destination IP address in an arriving datagram, finds a matching routing table entry, and from the entry extracts the "*next hop*" for the datagram.
+
+At the time, few techniques were known to dramatically reduce the number of routing table entries while maintaining shortest-path routes to all destinations in the Internet. The best-known approach was published in a study of hierarchical routing [KK77] in the late 1970s by Kleinrock and Kamoun. They observed that if the network topology were arranged as a *tree* and addresses were assigned in a way that was "sensitive" to this topology, very small routing tables could be used while still maintaining shortest-path routes to all destinations.
+
+.In a network with a tree topology, network addresses can be assigned in a special way so as to limit the amount of routing information (“state”) that needs to be stored in a router. If addresses are not assigned in this way (left side), shortest-path routes cannot be guaranteed without storing an amount of state proportional to the number of nodes to be reached. While assigning addresses in a way that is sensitive to the tree topology saves state, if the network topology changes, a reassignment of addresses is generally required.
+image::/assets/internet-address-architecture/a-network-with-tree-topology.png[A network with a tree topology,85%,85%]
+
+In this figure, circles represent routers and lines represent network links between them.
+
+* The root (top) of the tree on the left is the router labeled `19.12.4.8`. In order to know a next hop for every possible destination, it needs an entry for all the routers "below" it in the tree: `190.16.11.2`, `86.12.0.112`, `159.66.2.231`, `133.17.97.12`, `66.103.2.19`, `18.1.1.1`, `19.12.4.9`, and `203.44.23.198`. For any other destination, it simply routes to the cloud labeled "Other Parts of the Network." This results in a total of nine entries.
+
+* In contrast, the root of the right-hand tree is labeled `19.0.0.1` and requires only three entries in its routing table. Note that all of the routers on the left side of the right tree begin with the prefix `19.1` and all to the right begin with `19.2`. Thus, the table in router `19.0.0.1` need only show `19.1.0.1` as the next hop for any destination starting with `19.1`, whereas `19.2.0.1` is the next hop for any destination starting with `19.2`. Any other destination goes to the cloud labeled "Other Parts of the Network." This results in a total of three entries.
+
+In the Internet context, the hierarchical routing idea can be used in a specific way to reduce the number of Internet routing entries that would be required otherwise. This is accomplished by a procedure known as *route aggregation*. It works by joining multiple numerically adjacent IP prefixes into a single shorter prefix (called an *aggregate* or *summary*) that covers more address space.
+
+.In this example, the arrows indicate aggregation of two address prefixes to form one; the underlined prefixes are additions in each step. In the first step, 190.154.27.0/26 and 190.154.27.64.0/26 can be aggregated because they are numerically adjacent, but 190.154.27.192/26 cannot. With the addition of 190.154.27.128/26, they can all be aggregated together in two steps to form 190.154.27.0/24. With the final addition of the adjacent 190.154.26.0/24, the aggregate 190.154.26.0/23 is produced.
+image::/assets/internet-address-architecture/route-aggregation.png[Route Aggregation,75%,75%]
+
+== Special-Use Addresses
+
+Both the IPv4 and IPv6 address spaces include a few address ranges that are used for special purposes (and are therefore not used in assigning unicast addresses).
+
+For both IPv4 and IPv6, address ranges not designated as special, multicast, or reserved are available to be assigned for unicast use. Some unicast address space
+(prefixes `10/8`, `172.16/12`, and `192.168/16` for IPv4 and `fc00::/7` for IPv6) is reserved for building private networks. Addresses from these ranges can be used by cooperating hosts and routers within a site or organization, but not across the global Internet. Thus, these addresses are sometimes called *nonroutable addresses*. That is, they will not be routed by the public Internet.
+
+The management of private, nonroutable address space is entirely a local decision. The IPv4 private addresses are very common in home networks and for the internal networks of moderately sized and large enterprises. They are frequently used in combination with *network address translation* (NAT), which rewrites IP addresses inside IP datagrams as they enter the Internet.
+
+.IPv4 special-use addresses (defined January 2010)
+[%header,cols="2,12,1"]
+|===
+|Prefix
+|Special Use
+|Reference
+
+|0.0.0.0/8
+|Hosts on the local network. May be used only as a source IP address.
+|[RFC1122]
+
+|10.0.0.0/8
+|Address for private networks (intranets). Such addresses never appear on the public Internet.
+|[RFC1918]
+
+|127.0.0.0/8
+|Internet host loopback addresses (same computer). Typically only 127.0.0.1 is used.
+|[RFC1122]
+
+|169.254.0.0/16
+|"Link-local" addresses—used only on a single link and generally assigned automatically.
+|[RFC3927]
+
+|172.16.0.0/12
+|Address for private networks (intranets). Such addresses never appear on the public Internet.
+|[RFC1918]
+
+|192.0.0.0/24
+|IETF protocol assignments (IANA reserved).
+|[RFC5736]
+
+|192.0.2.0/24
+|TEST-NET-1 addresses approved for use in documentation. Such addresses never appear on the public Internet.
+|[RFC5737]
+
+|192.88.99.0/24
+|Used for 6to4 relays (anycast addresses).
+|[RFC3068]
+
+|192.168.0.0/16
+|Address for private networks (intranets). Such addresses never appear on the public Internet.
+|[RFC1918]
+
+|198.18.0.0/15
+|Used for benchmarks and performance testing.
+|[RFC2544]
+
+|198.51.100.0/24
+|TEST-NET-2. Approved for use in documentation.
+|[RFC5737]
+
+|203.0.113.0/24
+|TEST-NET-3. Approved for use in documentation.
+|[RFC5737]
+
+|224.0.0.0/4
+|IPv4 multicast addresses (formerly class D); used only as destination addresses.
+|[RFC5771]
+
+|240.0.0.0/4
+|Reserved space (formerly class E), except 255.255.255.255.
+|[RFC1112]
+
+|255.255.255.255/32
+|Local network (limited) broadcast address.
+|[RFC0919]
+[RFC0922]
+
+|===
+
+.IPv6 special-use addresses (defined April 2008)
+[%header,cols="2,8,1"]
+|===
+|Prefix
+|Special Use
+|Reference
+|::/0
+|Default route entry. Not used for addressing.
+|[RFC5156]
+
+|::/128
+|The unspecified address; may be used as a source IP address.
+|[RFC4291]
+
+|::1/128
+|The IPv6 host loopback address; not used in datagrams sent outside the local host.
+|[RFC4291]
+
+|::ffff:0:0/96
+|IPv4-mapped addresses. Such addresses never appear in packet headers. For internal host use only.
+|[RFC4291]
+
+|::{ipv4-address}/96
+|IPv4-compatible addresses. Deprecated; not to be used.
+|[RFC4291]
+
+|2001::/32
+|Teredo addresses.
+|[RFC4380]
+
+|2001:10::/28
+|Overlay Routable Cryptographic Hash Identifiers. Such addresses never appear on the public Internet.
+|[RFC4843]
+
+|2001:db8::/32
+|Address range used for documentation and for examples. Such addresses never appear on the public Internet.
+|[RFC3849]
+
+|2002::/16
+|6to4 addresses of 6to4 tunnel relays.
+|[RFC3056]
+
+|3ffe::/16
+|Used by 6bone experiments. Deprecated; not to be used.
+|[RFC3701]
+
+|5f00::/16
+|Used by 6bone experiments. Deprecated; not to be used.
+|[RFC3701]
+
+|fc00::/7
+|Unique, local unicast addresses; not used on the global Internet.
+|[RFC4193]
+
+|fe80::/10
+|Link-local unicast addresses.
+|[RFC4291]
+
+|ff00::/8
+|IPv6 multicast addresses; used only as destination addresses.
+|[RFC4291]
+
+|===
+
+=== Multicast Addresses
+
+Multicast addressing is supported by IPv4 and IPv6. An IP multicast address (also called *group* or *group address*) identifies a group of host interfaces, rather than a single one. Generally speaking, the group could span the entire Internet.
+
+The portion of the network that a single group covers is known as the groupi's *scope* [RFC2365]. Common scopes include *node-local* (same computer), *link-local* (same subnet), *site-local* (applicable to some site), *global* (entire Internet), and *administrative*.
+
+Administrative scoped addresses may be used in an area of the network that has been manually configured into routers. A site administrator may configure routers as admin-scope boundaries, meaning that multicast traffic of the associated group is not forwarded past the router. Note that the site-local and administrative scopes are available for use only with multicast addressing.
+
+Under software control, the protocol stack in each Internet host is able to join or leave a multicast group. When a host sends something to a group, it creates a datagram using one of its own (unicast) IP addresses as the source address and a multicast IP address as the destination. All hosts in scope that have joined the group should receive any datagrams sent to the group. The sender is not generally aware of the hosts receiving the datagram unless they explicitly reply. Indeed, the sender does not even know in general how many hosts are receiving its datagrams.
+
+=== IPv4 Multicast Addresses
+
+For IPv4, the class D space (`224.0.0.0`–`239.255.255.255`) with 28 bits free has been reserved for supporting multicast.
+
+The blocks of addresses up to `224.255.255.255` are allocated for the exclusive use of certain application protocols or organizations. These are allocated as the result of action by the IANA or by the IETF.
+
+The local network control block is limited to the local network of the sender; datagrams sent to those addresses are never forwarded by multicast routers. The All Hosts group (`224.0.0.1`) is one group in this block.
+
+The internetwork control block is similar to the local network control range but is intended for control traffic that needs to be routed off the local link. An example from this block is the Network Time Protocol (NTP) multicast group (`224.0.1.1`) [RFC5905].
+
+.Major sections of IPv4 class D address space used for supporting multicast
+[%header,cols="3,9,1"]
+|===
+|Range (Inclusive)
+|Special Use
+|Reference
+
+|224.0.0.0–224.0.0.255
+|Local network control; not forwarded
+|[RFC5771]
+
+|224.0.1.0–224.0.1.255
+|Internetwork control; forwarded normally
+|[RFC5771]
+
+|224.0.2.0–224.0.255.255
+|Ad hoc block I
+|[RFC5771]
+
+|224.1.0.0–224.1.255.255
+|Reserved
+|[RFC5771]
+
+|224.2.0.0–224.2.255.255
+|SDP/SAP
+|[RFC4566]
+
+|224.3.0.0–224.4.255.255
+|Ad hoc block II
+|[RFC5771]
+
+|224.5.0.0–224.255.255.255
+|Reserved
+|[IP4MA]
+
+|225.0.0.0–231.255.255.255
+|Reserved
+|[IP4MA]
+
+|232.0.0.0–232.255.255.255
+|Source-specific multicast (SSM)
+|[RFC4607]
+[RFC4608]
+
+|233.0.0.0–233.251.255.255
+|GLOP
+|[RFC3180]
+
+|233.252.0.0–233.255.255.255
+|Ad hoc block III 233.252.0.0/24 is reserved for documentation)
+|[RFC5771]
+
+|234.0.0.0–234.255.255.255
+235.0.0.0–238.255.255.255
+|Unicast-prefix-based IPv4 multicast addresses
+Reserved
+|[RFC6034]
+IP4MA]
+
+|239.0.0.0–239.255.255.255
+|Administrative scope
+|[RFC2365]
+
+|===
+
+=== IPv6 Multicast Addresses
+
+For IPv6, which is considerably more aggressive in its use of multicast, the prefix `ff00::/8` has been reserved for multicast addresses, and 112 bits are available for holding the group number.
+
+.The base IPv6 multicast address format includes 4 flag bits (0, reserved; R, contains rendezvous point; P, uses unicast prefix; T, is transient). The 4-bit Scope value indicates the scope of the multicast (global, local, etc.). The Group ID is encoded in the low-order 112 bits. If the P or R bit is set, an alternative format is used.
+image::/assets/internet-address-architecture/ipv6-multicast-address-format.png[IPv6 Multicast Address Format,75%,75%]
+
+.Values of the IPv6 Scope field
+[%header,cols="1,8",width=55%]
+|===
+|Value
+|Scope
+
+|0
+|Reserved
+
+|1
+|Interface-/machine-local
+
+|2
+|Link-/subnet-local
+
+|3
+|Reserved
+
+|4
+|Admin
+
+|5
+|Site-local
+
+|6–7
+|Unassigned
+
+|8
+|Organizational-local
+
+|9–d
+|Unassigned
+
+|e
+|Global
+
+|f
+|Reserved
+
+|===
+
+Many IPv6 multicast addresses allocated by the IANA for permanent use intentionally span multiple scopes. Each of these is defined with a certain offset relative to every scope (such addresses are called *scope-relative* or *variable-scope* for this reason). For example, the variable-scope multicast address `ff0x::101` is reserved for NTP servers by [IP6MA]. The `x` indicates variable scope.
+
+.Example permanent variable-scope IPv6 multicast address reservations for NTP (101)
+[%header,cols="1,5"]
+|===
+|Address
+|Meaning
+
+|ff01::101
+|All NTP servers on the same machine
+
+|ff02::101
+|All NTP servers on the same link/subnet
+
+|ff04::101
+|All NTP servers within some administratively defined scope
+
+|ff05::101
+|All NTP servers at the same site
+
+|ff08::101
+|All NTP servers at the same organization
+
+|ff0e::101
+|All NTP servers in the Internet
+
+|===
+
+As with IPv4, there are a number of reserved IPv6 multicast addresses. These addresses are grouped by scope, except for the variable-scope addresses mentioned before.
+
+.Reserved addresses within the IPv6 multicast address space
+[%header,cols="2,1,4,1"]
+|===
+|Address
+|Scope
+|Special Use
+|Reference
+
+|ff01::1
+|Node
+|All nodes
+|[RFC4291]
+
+|ff01::2
+|Node
+|All routers
+|[RFC4291]
+
+|ff01::fb
+|Node
+|mDNSv6
+|[IDChes]
+
+|ff02::1
+|Link
+|All nodes
+|[RFC4291]
+|ff02::2
+|Link
+|All routers
+|[RFC4291]
+
+|ff02::4
+|Link
+|DVMRP routers
+|[RFC1075]
+
+|ff02::5
+|Link
+|OSPFIGP
+|[RFC2328]
+
+|ff02::6
+|Link
+|OSPFIGP designated routers
+|[RFC2328]
+
+|ff02::9
+|Link
+|RIPng routers
+|[RFC2080]
+
+|ff02::a
+|Link
+|EIGRP routers
+|[EIGRP]
+
+|ff02::d
+|Link
+|PIM routers
+|[RFC5059]
+
+|ff02::16
+|Link
+|MLDv2-capable routers
+|[RFC3810]
+
+|ff02::6a
+|Link
+|All snoopers
+|[RFC4286]
+
+|ff02::6d
+|Link
+|LL-MANET-routers
+|[RFC5498]
+
+|ff02::fb
+|Link
+|mDNSv6
+|[IDChes]
+
+|ff02::1:2
+|Link
+|All DHCP agents
+|[RFC3315]
+
+|ff02::1:3
+|Link
+|LLMNR
+|[RFC4795]
+
+|ff02::1:ffxx:xxxx
+|Link
+|Solicited-node address range
+|[RFC4291]
+
+|ff05::2
+|Site
+|All routers
+|[RFC4291]
+
+|ff05::fb
+|Site
+|mDNSv6
+|[IDChes]
+
+|ff05::1:3
+|Site
+|All DHCP servers
+|[RFC3315]
+
+|ff0x::
+|Variable
+|Reserved
+|[RFC4291]
+
+|ff0x::fb
+|Variable
+|mDNSv6
+|[IDChes]
+
+|ff0x::101
+|Variable
+|NTP
+|[RFC5905]
+
+|ff0x::133
+|Variable
+|Aggregate Server Access Protocol
+|[RFC5352]
+
+|ff0x::18c
+|Variable
+|All ACs address (CAPWAP)
+|[RFC5415]
+
+|ff3x::/32
+|(Special)
+|SSM block
+|[RFC4607]
+
+|===
+
+=== Anycast Address
+
+An *anycast address* is a unicast IPv4 or IPv6 address that identifies a different host depending on where in the network it is used. This is accomplished by configuring Internet routers to advertise the same unicast routes from multiple locations in the Internet. Thus, an anycast address refers not to a single host in the Internet, but to the "most appropriate" or "closest" single host that is responding to the anycast address.
+
+Anycast addressing is used most frequently for finding a computer that provides a common service [RFC4786].
+
+== Allocation
+
+IP address space is *allocated*, usually in large chunks, by a collection of hierarchically organized *authorities*.
+
+The authorities are generally organizations that allocate address space to various owners—usually ISPs or other smaller authorities.
+
+Authorities are most often involved in allocating portions of the global unicast address space, but other types of addresses (multicast and special-use) are also sometimes allocated. The authorities can make allocations to users for an undetermined amount of time, or for a limited time (e.g., for running experiments).
+
+The top of the hierarchy is the IANA [IANA], which has wide-ranging responsibility for allocating IP addresses and other types of numbers used in the Internet protocols.
+
+== References
+
+. Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
