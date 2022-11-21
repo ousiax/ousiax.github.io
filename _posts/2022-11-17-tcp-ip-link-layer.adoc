@@ -510,11 +510,398 @@ port no	mac addr		is local?	ageing timer
   2	00:50:56:c0:00:08	no		   0.03
 ----
 
+== Wireless LANs—IEEE 802.11(Wi-Fi)
+
+One of the most popular technologies being used to access the Internet today is *_wireless fidelity_* (*Wi-Fi*), also known by its IEEE standard name 802.11, effectively a wireless version of Ethernet.
+
+.The IEEE 802.11 terminology for a wireless LAN. Access points (APs) can be connected using a distribution service (DS, a wireless or wired backbone) to form an extended WLAN (called an ESS). Stations include both APs and mobile devices communicating together that form a basic service set (BSS). Typically, an ESS has an assigned ESSID that functions as a name for the network.
+image::/assets/tcp-ip-link-layer/ieee-802-11-wlan.png[Architecture of an IEEE 802.11 network,45%,45%]
+
+The network includes a number of *_stations (STAs)_*. Typically stations are organized with a subset operating also as *_access points (APs)_*.
+
+An AP and its associated stations are called a *_basic service set (BSS)_*. The APs are generally connected to each other using a wired *_distribution service_* (called a *_DS_*, basically a "backbone"), forming an *_extended service set (ESS)_*. This setup is commonly termed *_infrastructure mode_*.
+
+The 802.11 standard also provides for an *_ad hoc mode_*. In this configuration there is no AP or DS; instead, direct station-to-station (peer-to-peer) communication takes place. In IEEE terminology, the STAs participating in an ad hoc network form an *_independent basic service set (IBSS)_*.
+
+A WLAN formed from a collection of BSSs and/or IBSSs is called a *_service set_*, identified by a *_service set identifier (SSID)_*.
+
+An *_extended service set identifier (ESSID)_* is an SSID that names a collection of connected BSSs and is essentially a name for the LAN that can be up to 32 characters long.
+
+=== 802.11 Frames
+
+There is one common overall frame format for 802.11 networks but multiple types of frames. Not all the fields are present in every type of frame.
+
+.The 802.11 basic data frame format (as of [802.11n-2009]). The MPDU format resembles that of Ethernet but has additional fields depending on the type of DS being used among access points, whether the frame is headed to the DS or from it, and if frames are being aggregated. The QoS Control field is used for special performance features, and the HT Control field is used for control of 802.11n’s “high-throughput” features.
+image::/assets/tcp-ip-link-layer/802.11-data-frame-format.png[802.11 basic data frame format,75%,75%]
+
+The frame shown includes a _preamble_ for synchronization, which depends on the particular variant of 802.11 being used.
+
+Next, the _Physical Layer Convergence Procedure (PLCP)_ header provides information about the specific physical layer in a somewhat PHY-independent way.
+
+* The PLCP portion of the frame is generally transmitted at a lower data rate than the rest of the frame.
+* This serves two purposes:
+** to improve the probability of correct delivery (lower speeds tend to have better error resistance)
+** and to provide compatibility with and protection from interference from legacy equipment that may operate in the same area at slower rates.
+
+The _MAC PDU (MPDU)_ corresponds to a frame similar to Ethernet, but with some additional fields.
+
+* At the head of the MPDU is the _Frame Control Word_, which includes a 2-bit _Type_ field identifying the frame type.
+
+* There are three types of frames: _management frames_, _control frames_, and _data frames_.
+
+==== Management Frames
+
+Management frames are used for creating, maintaining, and ending associations between stations and access points. They are also used to determine whether encryption is being used, what the name (SSID or ESSID) of the network is, what transmission rates are supported, and a common time base. These frames are used to provide the information necessary when a Wi-Fi interface "scans" for nearby access points.
+
+Scanning is the procedure by which a station discovers available networks and related configuration information.
+
+[source,console]
+----
+Linux# iwlist wlan0 scan
+wlan0 Scan completed :
+    Cell 01 - Address: 00:02:6F:20:B5:84
+        ESSID:"Grizzly-5354-Aries-802.11b/g"
+        Mode:Master
+        Channel:4
+            Frequency:2.427 GHz (Channel 4)
+        Quality=5/100 Signal level=47/100
+        Encryption key:on
+        IE: WPA Version 1
+            Group Cipher : TKIP
+            Pairwise Ciphers (2) : CCMP TKIP
+            Authentication Suites (1) : PSK
+        Bit Rates:1 Mb/s; 2 Mb/s; 5.5 Mb/s; 11 Mb/s;
+            6 Mb/s; 12 Mb/s; 24 Mb/s; 36 Mb/s; 9 Mb/s;
+            18 Mb/s; 48 Mb/s; 54 Mb/s
+        Extra:tsf=0000009d832ff037
+----
+
+Here we see the result of a hand-initiated scan using wireless interface _wlan0_.
+
+* An AP with MAC address _00:02:6F:20:B5:84_ is acting as a master (i.e., is acting as an AP in infrastructure mode).
+* It is broadcasting the _ESSID_ "Grizzly- 5354-Aries-802.11b/g" on channel 4 (2.427GHz).
+* The _quality_ and _signal_ level give indications of how well the scanning station is receiving a signal from the AP, although the meaning of these values varies among manufacturers.
+* WPA encryption is being used on this link,
+* and bit rates from 1Mb/s to 54Mb/s are available.
+* The _tsf_ (time sync function) value indicates the AP's notion of time, which is used for synchronizing various features such as power saving mode.
+
+[source,console]
+----
+PS C:\> netsh wlan show networks mode=bssid
+Interface name : Wi-Fi
+There are 1 networks currently visible.
+SSID 1 : BAOLAND
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP
+    BSSID 1                 : 9c:a6:15:6e:93:dd
+         Signal             : 60%
+         Radio type         : 802.11n
+         Channel            : 11
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+----
+
+==== Control Frames: RTS/CTS and ACKs
+
+Control frames are used to handle a form of _flow control_ as well as _acknowledgments_ for frames.
+
+Flow control helps ensure that a receiver can slow down a sender that is too fast.
+
+Acknowledgments help a sender know what frames have been received correctly.
+
+These concepts also apply to TCP at the transport layer.
+
+802.11 networks support optional _request-to-send_ (*RTS*)/_clear-to-send_ (*CTS*) moderation of transmission for flow control.
+
+* When these are enabled, prior to sending a data frame a station transmits an RTS frame, and when the recipient is willing to receive additional traffic, it responds with a CTS.
+* After the RTS/CTS exchange, the station has a window of time (identified in the CTS frame) to transmit data frames that are acknowledged when successfully received.
+* Such transmission coordination schemes are common in wireless networks and mimic the flow control signaling that has been used on wired serial lines for years (sometimes called _hardware flow control_).
+
+In wired Ethernet networks, the absence of a collision indicates that a frame has been received correctly with high probability.
+
+In wireless networks, there is a wider range of reasons a frame may not be delivered correctly, such as insufficient signal or interference.
+
+To help address this potential problem, 802.11 extends the 802.3 retransmission scheme with a _retransmission/acknowledgment_ (*ACK*) scheme.
+
+* An acknowledgment is expected to be received within a certain amount of time for each unicast frame sent (802.11a/b/g) or each group of frames sent (802.11n or 802.11e with "block ACKs").
+* Multicast and broadcast frames do not have associated ACKs to avoid "ACK implosion".
+* Failure to receive an ACK within the specified time results in retransmission of the frame(s).
+
+==== Data Frames, Fragmentation, and Aggregation
+
+Most frames seen on a busy network are data frames, which do what one would expect—carry data.
+
+Typically, there is a one-to-one relationship between 802.11 frames and the link-layer (LLC) frames made available to higher-layer protocols such as IP.
+
+However, 802.11 supports _frame fragmentation_, which can divideframes into multiple fragments. With the 802.11n specification, it also supports _frame aggregation_, which can be used to send multiple frames together with less overhead.
+
+=== Wi-Fi Security
+
+There has been considerable evolution in the security model for 802.11 networks.
+
+In its early days, 802.11 used an encryption method known as _wired equivalent privacy_ (*WEP*).
+
+* WEP was later shown to be so weak that some replacement was required.
+
+Industry responded with _Wi-Fi protected access_ (*WPA*), which replaced the way keys are used with encrypted blocks.
+
+* In WPA, a scheme called the _Temporal Key Integrity Protocol_ (TKIP) ensures, among other things, that each frame is encrypted with a different encryption key.
+* It also includes a message integrity check, called _Michael_, that fixed one of the major weaknesses in WEP.
+* WPA was created as a placeholder that could be used on fielded WEP-capable equipment by way of a firmware upgrade while the IEEE 802.11i standards group worked on a stronger standard that was ultimately absorbed into Clause 8 of [802.11-2007] and dubbed "*WPA2*" by industry.
+
+Both WEP and WPA use the _RC4_ encryption algorithm. WPA2 uses the _Advanced Encryption Standard_ (AES) algorithm.
+
+.Wi-Fi security has evolved from WEP, which was found to be insecure, to WPA, to the now-standard WPA2 collection of algorithms.
+[%header,cols="2,1,2,2"]
+|===
+|Name/Standard
+|Cipher
+|Key Stream Management
+|Authentication
+
+|WEP (pre-RSNA)
+|RC4
+|(WEP)
+|PSK, (802.1X/EAP)
+
+|WPA
+|RC4
+|TKIP
+|PSK, 802.1X/EAP
+
+|WPA2/802.11(i)
+|CCMP
+|CCMP, (TKIP)
+|PSK, 802.1X/EAP
+
+|===
+
+=== Wi-Fi Mesh (802.11s)
+
+The IEEE is working on the 802.11s standard, which covers Wi-Fi _mesh_ operation. With mesh operation, wireless stations can act as data-forwarding agents (like APs).
+
+The standard is not yet complete as of writing (mid-2011). The draft version of 802.11s defines the _Hybrid Wireless Routing Protocol_ (*HWRP*), based in part on the IETF standards for _Ad-Hoc On-Demand Distance Vector_ (*AODV*) routing [RFC3561] and the _Optimized Link State Routing_ (*OLSR*) protocol [RFC3626].
+
 == Point-to-Point Protocol (PPP)
 
 PPP stands for the *_Point-to-Point Protocol_* [RFC1661][RFC1662][RFC2153]. It is a popular method for carrying IP datagrams over serial links—from low-speed dial-up modems to high-speed optical links [RFC2615]. It is widely deployed by some DSL service providers, which also use it for assigning Internet system parameters (e.g., initial IP address and domain name server).
 
-PPP should be considered more of a collection of protocols than a single protocol. It supports a basic method to establish a link, called the *_Link Control Protocol (LCP)_*, as well as a family of NCPs, used to establish network-layer links for various kinds of protocols, including IPv4 and IPv6 and possibly non-IP protocols, after LCP has established the basic link. A number of related standards cover control of compression and encryption for PPP, and a number of authentication methods can be employed when a link is brought up.
+PPP should be considered more of a collection of protocols than a single protocol.
+
+* It supports a basic method to establish a link, called the *_Link Control Protocol (LCP)_*,
+
+* as well as a family of NCPs, used to establish network-layer links for various kinds of protocols,
++
+including IPv4 and IPv6 and possibly non-IP protocols, after LCP has established the basic link.
+
+* A number of related standards cover control of compression and encryption for PPP,
++
+and a number of authentication methods can be employed when a link is brought up.
+
+=== Link Control Protocol (LCP)
+
+The LCP portion of PPP is used to establish and maintain a low-level two-party communication path over a point-to-point link. PPP's operation therefore need be concerned only with two ends of a single link; it does not need to handle the problem of mediating access to a shared resource like the MAC-layer protocols of Ethernet and Wi-Fi.
+
+PPP generally, and LCP more specifically, imposes minimal requirements on the underlying point-to-point link. The link must support bidirectional operation (LCP uses acknowledgments) and operate either asynchronously or synchronously.
+
+Typically, LCP establishes a link using a simple bit-level framing format based on the _High-Level Data Link Control_ (*HDLC*) protocol.
+
+* HDLC was already a well-established framing format by the time PPP was designed [ISO3309] [ISO4335].
+* IBM modified it to form _Synchronous Data Link Control_ (*SDLC*), a protocol used as the link layer in its proprietary _System Network Architecture_ (*SNA*) protocol suite.
+* HDLC was also used as the basis for the _LLC_ standard in 802.2 and ultimately for PPP as well.
+
+.The PPP basic frame format was borrowed from HDLC. It provides a protocol identifier, payload area, and 2- or 4-byte FCS. Other fields may or may not be present, depending on compression options.
+image::/assets/tcp-ip-link-layer/ppp-hdlc-frame-format.png[PPP frame format,75%,75%]
+
+The PPP frame format, in the common case when HDLC-like framing is used, is surrounded by two 1-byte _Flag_ fields containing the fixed value _0x7E_. These fields are used by the two stations on the ends of the point-to-point link for finding the beginning and end of the frame.
+
+A small problem arises if the value _0x7E_ itself occurs inside the frame. This is handled in one of two ways, depending on whether PPP is operating over an asynchronous or a synchronous link.
+
+* For asynchronous links, PPP uses character stuffing (also called _byte stuffing_).
++
+If the flag character appears elsewhere in the frame, it is replaced with the 2-byte sequence _0x7D5E_ (_0x7D_ is known as the "PPP escape character").
++
+If the escape character itself appears in the frame, it is replaced with the 2-byte sequence _0x7D5D_.
++
+Thus, the receiver replaces _0x7D5E_ with _0x7E_ and _0x7D5D_ with _0x7D_ upon receipt.
+
+* On synchronous links (e.g., T1 lines, T3 lines), PPP uses _bit stuffing_.
+
+After the first _Flag_ field, PPP adopts the HDLC Address (_Addr_) and _Control_ fields.
+
+* In HDLC, the _Address_ field would specify which station is being addressed, but because PPP is concerned only with a single destination, this field is always defined to have the value _0xFF_ (all stations).
+
+* The _Control_ field in HDLC is used to indicate frame sequencing and retransmission behavior.
++
+As these link-layer reliability functions are not ordinarily implemented by PPP, the _Control_ field is set to the fixed value _0x03_.
+
+Because both the _Address_ and _Control_ fields are fixed constants in PPP, they are often omitted during transmission with an option called _Address and Control Field Compression (*ACFC*)_, which essentially eliminates the two fields.
+
+The _Protocol_ field of the PPP frame indicates the type of data being carried.
+
+* Many different types of protocols can be carried in a PPP frame.
+
+* The official list and the assigned number used in the _Protocol_ field are given by the "Point-to-Point Protocol Field Assignments" document.
+
+* In some circumstances the _Protocol_ field can be compressed to a single byte, if the _Protocol Field Compression (*PFC*)_ option is negotiated successfully during link establishment.
+
+The final portion of the PPP frame contains a 16-bit _FCS_ (a CRC16, with generator polynomial 10001000000100001) covering the entire frame except the FCS field itself and Flag bytes.
+
+==== LCP Operation
+
+LCP has a simple encapsulation beyond the basic PPP packet.
+
+.The LCP packet is a fairly general format capable of identifying the type of encapsulated data and its length. LCP frames are used primarily in establishing a PPP link, but this basic format also forms the basis of many of the various network control protocols.
+image::/assets/tcp-ip-link-layer/lcp-packet.png[LCP packet,75%,75%]
+
+The PPP Protocol field value for LCP is always _0xC021_, which is not eliminated using PFC, so as to minimize ambiguity.
+
+The _Ident_ field is a sequence number provided by the sender of LCP request frames and is incremented for each subsequent message.
+
+When forming a reply (_ACK_, _NACK_, or _REJECT_ response), this field is constructed by copying the value included in the request to the response packet. In this fashion, the requesting side can identify replies to the appropriate request by matching identifiers.
+
+The _Code_ field gives the type of operation being either requested or responded to: _configure-request (0x01)_, _configure-ACK (0x02)_, _configure-NACK (0x03)_, _configure-REJECT (0x04)_, _terminate-request (0x05)_, _terminate-ACK (0x06)_, _code-REJECT (0x07)_, _protocol-REJECT (0x08)_, _echo-request (0x09)_, _echo-reply (0x0A)_, _discard-request (0x0B)_, _identification (0x0C)_, and _time-remaining (0x0D)_.
+
+Generally, _ACK_ messages indicate acceptance of a set of options, and _NACK_ messages indicate a partial rejection with suggested alternatives. A _REJECT_ message rejects one or more options entirely. A rejected code indicates that one of the field values contained in a previous packet is unknown.
+
+The _Length_ field gives the length of the LCP packet in bytes and is not permitted to exceed the link's _maximum received unit (*MRU*)_, a form of maximum advised frame limit. Note that the Length field is part of the LCP protocol; the PPP protocol in general does not provide such a field.
+
+The main job of LCP is to bring up a point-to-point link to a minimal level.
+
+* Configure messages cause each end of the link to start the basic configuration procedure and establish agreed-upon options.
+* Termination messages are used to clear a link when complete.
+
+LCP also provides some additional features mentioned previously.
+
+* Echo Request/Reply messages may be exchanged anytime a link is active by LCP in order to verify operation of the peer.
+* The Discard Request message can be used for performance measurement; it instructs the peer to discard the packet without responding.
+* The Identification and Time-Remaining messages are used for administrative purposes: to know the type of the peer system and to indicate the amount of time allowed for the link to remain established (e.g., for administrative or security reasons).
+
+.LCP is used to establish a PPP link and agree upon options by each peer. The typical exchange involves a pair of configure requests and ACKs that contain the option list, an authentication exchange, data exchange (not pictured), and a termination exchange. Because PPP is such a general-purpose protocol with many parts, many other types of operations may occur between the establishment of a link and its termination.
+image::/assets/tcp-ip-link-layer/ppp-lcp-link-exchange.png[LCP is used to establish a PPP link and agree upon options by each peer,55%,55%]
+
+==== Network Control Protocols (NCPs)
+
+* For IPv4, the NCP is called the _IP Control Protocol (*IPCP*)_ [RFC1332].
+* For IPv6, the NCP is *_IPV6CP_* [RFC5072].
+
+Once LCP has completed its link establishment and authentication, each end of the link is in the Network state and may proceed to negotiate a network-layer association using zero or more NCPs (one, such as IPCP, is typical).
+
+* IPCP, the standard NCP for IPv4, can be used to establish IPv4 connectivity over a link and configure _Van Jacobson header compression (VJ compression)_ [RFC1144].
+
+* IPCP packets may be exchanged after the PPP state machine has reached the Network state.
+
+* IPCP packets use the same packet exchange mechanism and packet format as LCP, except the _Protocol_ field is set to _0x8021_, and the _Code_ field is limited to the range _0–7_.
++
+These values of the Code field correspond to the message types: _vendor-specific_ (see [RFC2153]), _configure-request_, _configure-ACK_, _configure-REJECT_, _terminate-request_, _terminate-ACK_, and _code-REJECT_.
+
+* IPCP can negotiate a number of options, including an _IP compression protocol (2)_, the _IPv4 address (3)_, and _Mobile IPv4 [RFC2290] (4)_.
++
+Other options are available for learning the location of primary and secondary domain name servers.
+
+IPV6CP uses the same packet exchange and format as LCP, except it has two different options: _interface-identifier_ and _IPv6-compression-protocol_.
+
+== Loopback
+
+Although it may seem surprising, in many cases clients may wish to communicate with servers on the same computer using Internet protocols such as TCP/IP.
+
+To enable this, most implementations support a network-layer *loopback* capability that typically takes the form of a virtual loopback network interface. It acts like a real network interface but is really a special piece of software provided by the operating system to enable TCP/IP and other communications on the same host computer.
+
+IPv4 addresses starting with _127_ are reserved for this, as is the IPv6 address _::1_.
+
+Traditionally, UNIX-like systems including Linux assign the IPv4 address of _127.0.0.1_ (_::1_ for IPv6) to the loopback interface and assign it the name _localhost_.
+
+An IP datagram sent to the loopback interface must not appear on any network.
+
+In Linux, the loopback interface is called _lo_.
+
+[source,console]
+----
+root@node-1:~# ip a s lo
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+----
+
+In Windows, the Microsoft Loopback Adapter is not installed by default, even though IP loopback is still supported. This adapter can be used for testing various network configurations even when a physical network interface is not available.
+
+To install it  run the program _hdwwiz_ from the command prompt and add the Microsoft KM-TEST Loopback Adapter manually.
+
+NOTE: The Microsoft Loopback Adapter was renamed in Windows 8 and Windows Server 2012. The new name is "Microsoft KM-TEST Loopback Adapter".
+
+[source,console]
+----
+PS C:\> ipconfig /all
+
+Ethernet adapter Ethernet 2:
+
+   Connection-specific DNS Suffix  . :
+   Description . . . . . . . . . . . : Microsoft KM-TEST Loopback Adapter
+   Physical Address. . . . . . . . . : 02-00-4C-4F-4F-50
+   DHCP Enabled. . . . . . . . . . . : Yes
+   Autoconfiguration Enabled . . . . : Yes
+   Link-local IPv6 Address . . . . . : fe80::12ba:71be:e45b:1870%54(Preferred)
+   Autoconfiguration IPv4 Address. . : 169.254.24.54(Preferred)
+   Subnet Mask . . . . . . . . . . . : 255.255.0.0
+   Default Gateway . . . . . . . . . :
+   DHCPv6 IAID . . . . . . . . . . . : 906100812
+   DHCPv6 Client DUID. . . . . . . . : 00-01-00-01-28-F5-57-C4-8C-C6-81-FE-82-C4
+   DNS Servers . . . . . . . . . . . : fec0:0:0:ffff::1%1
+                                       fec0:0:0:ffff::2%1
+                                       fec0:0:0:ffff::3%1
+   NetBIOS over Tcpip. . . . . . . . : Enabled
+----
+
+== MTU and Path MTU
+
+When two hosts on the same network are communicating with each other, it is the _maximum transmission unit_ (*MTU*) of the local link interconnecting them that has a direct effect on the size of datagrams.
+
+When two hosts communicate across multiple networks, each link can have a different MTU. The minimum MTU across the network path comprising all of the links is called the _path_ MTU.
+
+The path MTU between any two hosts need not be constant over time.
+
+* It depends on the path being used at any time, which can change if the routers or links in the network fail.
+* Also, paths are often not symmetric (i.e., the path from host A to B may not be the reverse of the path from B to A); hence the path MTU need not be the same in the two directions.
+
+== Tunneling Basics
+
+In some cases it is useful to establish a *virtual link* between one computer and another across the Internet or other network. VPNs, for example, offer this type of service. The method most commonly used to implement these types of services is called *tunneling*.
+
+Tunneling, generally speaking, is the idea of carrying lower-layer traffic in higher-layer (or equal-layer) packets.
+
+For example, IPv4 can be carried in an IPv4 or IPv6 packet; Ethernet can be carried in a UDP or IPv4 or IPv6 packet, and so on.
+
+Tunneling turns the idea of strict layering of protocols on its head and allows for the formation of *overlay networks* (i.e., networks where the "links" are really virtual links implemented in some other protocol instead of physical connections).
+
+There is a great variety of methods for tunneling packets of one protocol and/or layer over another. Three of the more common protocols used to establish tunnels include:
+
+* _Generic Routing Encapsulation_ (*GRE*) [RFC2784], 
+* the Microsoft proprietary _Point-to-Point Tunneling Protocol_ (*PPTP*) [RFC2637],
+* and the _Layer 2 Tunneling Protocol_ (*L2TP*) [RFC3931].
+
+.The basic GRE header is only 4 bytes but includes the option of a 16-bit checksum (of a type common to many Internet protocols). The header was later extended to include an identifier (Key field) common to multiple packets in a flow, and a Sequence Number, to help in resequencing packets that get out of order.
+image::/assets/tcp-ip-link-layer/tunneling-gre-header.png[GRE header,55%,55%]
+
+.The PPTP header is based on an older, nonstandard GRE header. It includes a sequence number, a cumulative packet acknowledgment number, and some identification information. Most of the fields in the first word are set to 0.
+image::/assets/tcp-ip-link-layer/tunneling-pptp-header.png[PPTP header,55%,55%]
+
+Although GRE forms the basis for and is used by PPTP, the two protocols serve somewhat different purposes.
+
+* GRE tunnels are typically used within the network infrastructure to carry traffic between ISPs
++
+or within an enterprise intranet to serve branch offices
++
+and are not necessarily encrypted, although GRE tunnels can be combined with IPsec.
+
+* PPTP, conversely, is most often used between users and their ISPs or corporate intranets and is encrypted (e.g., using MPPE).
+* PPTP essentially combines GRE with PPP, so GRE can provide the virtual point-to-point link upon which PPP operates.
+* GRE carries its traffic using IPv4 or IPv6 and as such is a layer 3 tunneling technology.
+* PPTP is more often used to carry layer 2 frames (such as Ethernet) so as to emulate a direct LAN (link-layer) connection.
+
 
 == References
 
