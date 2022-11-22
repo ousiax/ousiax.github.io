@@ -30,8 +30,108 @@ Byte Order:                      Little Endian
 Model name:                      Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
 ----
 
-.The IPv4 datagram. The header is of variable size, limited to fifteen 32-bit words (60 bytes) by the 4-bit IHL field. A typical IPv4 header contains 20 bytes (no options). The source and destination addresses are 32 bits long. Most of the second 32-bit word is used for the IPv4 fragmentation function. A header checksum helps ensure that the fields in the header are delivered correctly to the proper destination but does not protect the data.
+.The IPv4 datagram format.
 image::/assets/tcp-ip-internet-protocol/ipv4-datagram.png[IPv4 Datagram,55%,55%]
 
-.The IPv6 header is of fixed size (40 bytes) and contains 128-bit source and destination addresses. The Next Header field is used to indicate the presence and types of additional extension headers that follow the IPv6 header, forming a daisy chain of headers that may include special extensions or processing directives. Application data follows the header chain, usually immediately following a transport-layer header.
+* The header is of variable size, limited to fifteen 32-bit words (60 bytes) by the 4-bit _IHL_ field.
+* A typical IPv4 header contains 20 bytes (no options).
+* The source and destination addresses are 32 bits long.
+*  Most of the second 32-bit word is used for the IPv4 _fragmentation_ function.
+* A header _checksum_ helps ensure that the fields in the header are delivered correctly to the proper destination but does not protect the data.
+
+.The IPv6 datagram format.
 image::/assets/tcp-ip-internet-protocol/ipv6-datagram.png[IPv6 Datagram,55%,55%]
+
+* The IPv6 header is of fixed size (40 bytes) and contains 128-bit _source_ and _destination_ addresses.
+* The _Next Header_ field is used to indicate the presence and types of additional extension headers that follow the IPv6 header, forming a _daisy chain of headers_ that may include special extensions or processing directives.
+* Application data follows the header chain, usually immediately following a transport-layer header.
+
+=== IP Header Fields
+
+The first field (only 4 bits or one nibble wide) is the _Version_ field.
+
+* It contains the version number of the IP datagram: _4_ for IPv4 and _6_ for IPv6.
+* The headers for both IPv4 and IPv6 share the location of the _Version_ field but no others.
+* Thus, the two protocols are not directly interoperable—a host or router must handle either IPv4 or IPv6 (or both, called *_dual stack_*) separately.
+
+The _Internet Header Length (IHL)_ field is the number of 32-bit words in the IPv4 header, including any options.
+
+* Because this is also a 4-bit field, the IPv4 header is limited to a maximum of fifteen 32-bit words or 60 bytes.
++
+The normal value of this field (when no options are present) is 5.
+
+* There is no such field in IPv6 because the header length is fixed at 40 bytes.
+
+Following the header length, the original specification of IPv4 [RFC0791] specified a _Type of Service (ToS)_ byte, and IPv6 [RFC2460] specified the equivalent _Traffic Class_ byte.
+
+*  Use of these never became widespread, so eventually this 8-bit field was split into two smaller parts and redefined by a set of RFCs ([RFC3260] [RFC3168][RFC2474] and others).
+
+** The first 6 bits are now called the _Differentiated Services_ Field (_DS_ Field), and the last 2 bits are the _Explicit Congestion Notification_ (_ECN_) field or indicator bits.
+** These RFCs now apply to both IPv4 and IPv6.
+* These fields are used for special processing of the datagram when it is forwarded.
+
+The _Total Length_ field is the total length of the IPv4 datagram in bytes.
+
+* Using this field and the _IHL_ field, we know where the data portion of the datagram starts, and its length.
+
+* Because this is a 16-bit field, the maximum size of an IPv4 datagram (including header) is 65,535 bytes.
+
+* Although it is possible to send a 65,535-byte IP datagram, most link layers (such as Ethernet) are not able to carry one this large without fragmenting it (chopping it up) into smaller pieces.
++
+Furthermore, a host is not required to be able to receive an IPv4 datagram larger than _576_ bytes.
++
+In IPv6 a host must be able to process a datagram at least as large as the MTU of the link to which it is attached, and the minimum link MTU is _1280_ bytes.
++
+When an IPv4 datagram is fragmented into multiple smaller fragments, each of which itself is an independent IP datagram, the _Total Length_ field reflects the length of the particular fragment.
++
+In IPv6, fragmentation is not supported by the header, and the length is instead given by the _Payload Length_ field.
++
+This field measures the length of the IPv6 datagram not including the length of the header; extension headers, however, are included in the _Payload Length_ field.
+
+The _Identification_ field helps indentify each datagram sent by an IPv4 host.
+
+* To ensure that the fragments of one datagram are not confused with those of another, the sending host normally increments an internal counter by 1 each time a datagram is sent (from one of its IP addresses) and copies the value of the counter into the IPv4 _Identification_ field.
+
+* The _Identification_, _Flags_ and _Fragment Offset_ fields are most important for implementing fragmentation.
++
+In IPv6, this field shows up in the _Fragmentation extension header_.
+
+The _Time-to-Live_ field, or _TTL_, sets an upper limit on the number of routers through which a datagram can pass.
+
+* It is initialized by the sender to some value (_64_ is recommended [RFC1122], although _128_ or _255_ is not uncommon) and decremented by _1_ by every router that forwards the datagram.
+
+* When this field reaches _0_, the datagram is thrown away, and the sender is notified with an _ICMP_ message.
++
+This prevents packets from getting caught in the network forever should an unwanted routing loop occur.
+
+The _Protocol_ field in the IPv4 header contains a number indicating the type of data found in the payload portion of the datagram.
+
+* The most common values are _17_ (for UDP) and _6_ (for TCP).
+* This provides a demultiplexing feature so that the IP protocol can be used to carry payloads of more than one protocol type.
+* Although this field originally specified the _transport-layer protocol_ the datagram is encapsulating, it is now understood to identify the encapsulated protocol, which may or not be a transport protocol.
++
+For example, other encapsulations are possible, such as _IPv4-in-IPv4_ (value _4_).
+
+* The official list of the possible values of the Protocol field is given in the assigned numbers page [AN].
+
+The _Next Header_ field in the IPv6 header generalizes the _Protocol_ field from IPv4.
+
+* It is used to indicate the type of header following the IPv6 header.
+
+* This field may contain any values defined for the IPv4 _Protocol_ field, or any of the values associated with the IPv6 extension headers.
+
+The _Header Checksum_ field is calculated over the IPv4 header only.
+
+* This is important to understand because it means that the payload of the IPv4 datagram (e.g., TCP or UDP data) is not checked for correctness by the IP protocol. 
+* Perhaps surprisingly, the IPv6 header does not have any checksum field.
+
+Every IP datagram contains the _Source IP Address_ of the sender of the datagram and the _Destination IP Address_ of where the datagram is destined.
+
+* These are 32-bit values for IPv4 and 128-bit values for IPv6, and they usually identify a single interface on a computer, although multicast and broadcast addresses  violate this rule.
+
+== IP Forwarding
+
+Conceptually, IP forwarding is simple, especially for a host.
+
+* If the destination is directly connected to the host (e.g., a point-to-point link) or on a shared network (e.g., Ethernet), the IP datagram is sent directly to the destination—a router is not required or used.
+* Otherwise, the host sends the datagram to a single router (called the _default router_) and lets the router deliver the datagram to its destination.
