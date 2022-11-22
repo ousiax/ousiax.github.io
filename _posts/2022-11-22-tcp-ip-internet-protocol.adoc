@@ -135,3 +135,76 @@ Conceptually, IP forwarding is simple, especially for a host.
 
 * If the destination is directly connected to the host (e.g., a point-to-point link) or on a shared network (e.g., Ethernet), the IP datagram is sent directly to the destination—a router is not required or used.
 * Otherwise, the host sends the datagram to a single router (called the _default router_) and lets the router deliver the datagram to its destination.
+
+What differentiates a host from a router to IP is how IP datagrams are handled: a host never forwards datagrams it does not originate, whereas routers do.
+
+In our general scheme, the IP protocol can receive a datagram either 
+
+* from another protocol on the same machine (TCP, UDP, etc.) 
+* or from a network interface.
+
+The IP layer has some information in memory, usually called a *_routing table_* or *_forwarding table_*, which it searches each time it receives a datagram to send.
+ 
+When a datagram is received from a network interface, IP first checks if the _destination IP address_ is one of
+
+* its own IP addresses (i.e., one of the IP addresses associated with one of its network interfaces)
+* or some other address for which it should receive traffic such as an IP broadcast or multicast address.
++
+If so, the datagram is delivered to the protocol module specified by the _Protocol_ field in the IPv4 header or _Next Header_ field in the IPv6 header.
++
+If the datagram is not destined for one of the IP addresses being used locally by the IP module, then
+
+** (1) if the IP layer was configured to act as a router, the datagram is forwarded;
+** or (2) the datagram is silently discarded.
+** Under some circumstances (e.g., no route is known in case 1), an ICMP message may be sent back to the source indicating an error condition.
+
+=== Forwarding Table
+
+The IP protocol standards do not dictate the precise data required to be in a _forwarding table_, as this choice is left up to the implementer of the IP protocol.
+
+Nevertheless, several key pieces of information are generally required to implement the forwarding table for IP.
+
+* *Destination*: This contains a 32-bit field (or 128-bit field for IPv6) used for matching the result of a masking operation.
++
+The destination can be as simple as zero, for a _default route_ covering all destinations, or as long as the full length of an IP address, in the case of a _host route_ that describes only a single destination.
+
+* *Mask*: This contains a 32-bit field (128-bit field for IPv6) applied as a bitwise _AND_ mask to the destination IP address of a datagram being looked up in the _forwarding table_.
++
+The masked result is compared with the set of destinations in the _forwarding table entries_.
+
+* *Next-hop*: This contains the 32-bit IPv4 address or 128-bit IPv6 address of the next IP entity (_router_ or _host_) to which the datagram should be sent.
++
+The next-hop entity is typically on a network shared with the system performing the forwarding lookup, meaning the two share the same network prefix.
+
+* *Interface*: This contains an identifier used by the IP layer to reference the network interface that should be used to send the datagram to its next hop.
++
+For example, it could refer to a host's 802.11 wireless interface, a wired Ethernet interface, or a PPP interface associated with a serial port.
++
+If the forwarding system is also the sender of the IP datagram, this field is used in selecting which source IP address to use on the outgoing datagram.
++
+[source,console]
+----
+$ ip r
+default via 192.168.91.2 dev ens32 onlink 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+192.168.91.0/24 dev ens34 proto kernel scope link src 192.168.91.138 
+
+$ sudo route -n
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+0.0.0.0         192.168.91.2    0.0.0.0         UG    0      0        0 ens32
+172.17.0.0      0.0.0.0         255.255.0.0     U     0      0        0 docker0
+192.168.91.0    0.0.0.0         255.255.255.0   U     0      0        0 ens32
+192.168.91.0    0.0.0.0         255.255.255.0   U     0      0        0 ens34
+----
+
+IP forwarding is performed on a *_hop-by-hop_* basis.
+
+* The routers and hosts do not contain the complete forwarding path to any destination.
+
+* IP forwarding provides the IP address of only the next-hop entity to which the datagram is sent.
+
+* It is assumed that the next hop is really _closer_ to the destination than the forwarding system is, and that the next-hop router is directly connected to (i.e., shares a common network prefix with) the forwarding system.
+
+* It is also generally assumed that no _loops_ are constructed between the next hops so that a datagram does not circulate around the network until its _TTL_ or _hop limit_ expires.
