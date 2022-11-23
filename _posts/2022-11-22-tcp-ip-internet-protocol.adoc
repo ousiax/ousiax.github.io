@@ -198,6 +198,55 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 192.168.91.0    0.0.0.0         255.255.255.0   U     0      0        0 ens32
 192.168.91.0    0.0.0.0         255.255.255.0   U     0      0        0 ens34
 ----
++
+[source,console]
+----
+PS C:\> route print -4
+===========================================================================
+Interface List
+ 10...48 2a e3 94 1e 19 ......Intel(R) Ethernet Connection (10) I219-V
+  6...02 00 4c 4f 4f 50 ......Microsoft KM-TEST Loopback Adapter
+  5...8c c6 81 fe 82 c5 ......Microsoft Wi-Fi Direct Virtual Adapter
+  8...8e c6 81 fe 82 c4 ......Microsoft Wi-Fi Direct Virtual Adapter #2
+ 19...00 50 56 c0 00 01 ......VMware Virtual Ethernet Adapter for VMnet1
+  9...00 50 56 c0 00 08 ......VMware Virtual Ethernet Adapter for VMnet8
+ 13...8c c6 81 fe 82 c4 ......Intel(R) Wireless-AC 9560 160MHz
+  1...........................Software Loopback Interface 1
+===========================================================================
+
+IPv4 Route Table
+===========================================================================
+Network Destination        Netmask          Gateway       Interface  Metric
+          0.0.0.0          0.0.0.0   10.170.109.254    10.170.109.10     35
+     10.170.108.0    255.255.254.0         On-link     10.170.109.10    291
+    10.170.109.10  255.255.255.255         On-link     10.170.109.10    291
+   10.170.109.255  255.255.255.255         On-link     10.170.109.10    291
+        127.0.0.0        255.0.0.0         On-link         127.0.0.1    331
+        127.0.0.1  255.255.255.255         On-link         127.0.0.1    331
+  127.255.255.255  255.255.255.255         On-link         127.0.0.1    331
+      169.254.0.0      255.255.0.0         On-link     169.254.24.54    281
+    169.254.24.54  255.255.255.255         On-link     169.254.24.54    281
+  169.254.255.255  255.255.255.255         On-link     169.254.24.54    281
+     192.168.56.0    255.255.255.0         On-link      192.168.56.1    291
+     192.168.56.1  255.255.255.255         On-link      192.168.56.1    291
+   192.168.56.255  255.255.255.255         On-link      192.168.56.1    291
+     192.168.91.0    255.255.255.0         On-link      192.168.91.1    291
+     192.168.91.1  255.255.255.255         On-link      192.168.91.1    291
+   192.168.91.255  255.255.255.255         On-link      192.168.91.1    291
+        224.0.0.0        240.0.0.0         On-link         127.0.0.1    331
+        224.0.0.0        240.0.0.0         On-link      192.168.56.1    291
+        224.0.0.0        240.0.0.0         On-link      192.168.91.1    291
+        224.0.0.0        240.0.0.0         On-link     169.254.24.54    281
+        224.0.0.0        240.0.0.0         On-link     10.170.109.10    291
+  255.255.255.255  255.255.255.255         On-link         127.0.0.1    331
+  255.255.255.255  255.255.255.255         On-link      192.168.56.1    291
+  255.255.255.255  255.255.255.255         On-link      192.168.91.1    291
+  255.255.255.255  255.255.255.255         On-link     169.254.24.54    281
+  255.255.255.255  255.255.255.255         On-link     10.170.109.10    291
+===========================================================================
+Persistent Routes:
+  None
+----
 
 IP forwarding is performed on a *_hop-by-hop_* basis.
 
@@ -208,3 +257,188 @@ IP forwarding is performed on a *_hop-by-hop_* basis.
 * It is assumed that the next hop is really _closer_ to the destination than the forwarding system is, and that the next-hop router is directly connected to (i.e., shares a common network prefix with) the forwarding system.
 
 * It is also generally assumed that no _loops_ are constructed between the next hops so that a datagram does not circulate around the network until its _TTL_ or _hop limit_ expires.
+
+=== IP Forwarding Actions
+
+When the IP layer in a host or router needs to send an IP datagram to a next-hop router or host, it first examines the destination IP address (_D_) in the datagram.
+
+Using the value _D_, the following *_longest prefix match algorithm_* is executed on the forwarding table:
+
+. Search the table for all entries for which the following property holds: (_D ^ m~j~_) = _d~j~_,
++
+where _m~j~_ is the value of the mask field associated with the forwarding entry _e~j~_ having index _j_,
++
+and _d~j~_ is the value of the destination field associated with _e~j~_.
++
+If the destination IP address _D_ is bitwise _ANDed_ with the mask in each forwarding table entry (_m~j~_),
++
+and the result is compared against the destination in the same forwarding table entry (_d~j~_),
++
+the entry (_e~j~_ here) is a match for the destination IP address.
++
+When a match happens, the algorithm notes the entry index (_j_ here) and how many bits in the mask _m~j~_ were set to _1_, and the more bits set to _1_, the better the match.
+
+. The best matching entry _e~k~_ (i.e., the one with the largest number of _1_ bits in its mask _m~k~_) is selected, and its next-hop field _n~k~_ is used as the next-hop IP address in forwarding the datagram.
+
+If no matches in the forwarding table are found, the datagram is undeliverable.
+
+* If the undeliverable datagram was generated locally (on this host), a _host unreachable_ error is normally returned to the application that generated the datagram.
+* On a router, an _ICMP_ message is normally sent back to the host that sent the datagram.
+
+In some circumstances, more than one entry may match an equal number of _1_ bits.
+
+* This can happen, for example, when more than one default route is available (e.g., when attached to more than one ISP, called _multihoming_).
+* The end-system behavior in such cases is not set by standards and is instead specific to the operating system's protocol implementation.
+* A common behavior is for the system to simply choose the first match.
+* More sophisticated systems may attempt to _load-balance_ or _split traffic_ across the multiple routes.
+
+=== Direct delivery and indirect delivery
+
+Where all systems are using the same network prefix, is called _direct delivery_, and the other case is called _indirect delivery_.
+
+.Direct delivery and indirect delivery
+image::/assets/tcp-ip-internet-protocol/direct-delivery-and-indirect-delivery.png[Direct delivery and indirect delivery,55%,55%]
+
+* Direct delivery does not require the presence of a router—IP datagrams are encapsulated in a link-layer frame that directly identifies the source and destination.
+* Indirect delivery involves a router—data is forwarded to the router using the router's link-layer address as the destination link-layer address.
+
+* The router's IP address does not appear in the IP datagram (unless the router itself is the source or destination, or when source routing is used).
+
+In the following table, the destination IPv4 address _D_ (_10.0.0.9_) matches both the first and second forwarding table entries.
+
+* Because it matches the second entry better (_25_ bits instead of none), the _gateway_ or _next-hop_ address is _10.0.0.100_, the address _S_.
+* Thus, the gateway portion of the entry contains the address of the sending host's own network interface (no router is referenced), indicating that direct delivery is to be used to send the datagram.
+
+.The (unicast) IPv4 forwarding table at host _S_ contains only two entries.
+[%header,cols="1,1,1,1",width=90%]
+|===
+|Destination
+|Mask
+|Gateway (Next Hop)
+|Interface
+
+|0.0.0.0
+|0.0.0.0
+|10.0.0.1
+|10.0.0.100
+
+|10.0.0.0
+|255.255.255.128
+|10.0.0.100
+|10.0.0.100
+|===
+
+* Host _S_ is configured with IPv4 address and subnet mask _10.0.0.100/25_.
+* Datagrams destined for addresses in the range _10.0.0.1_ through _10.0.0.126_ use the second forwarding table entry and are sent using _direct delivery_.
+* All other datagrams use the first entry and are given to router _R_ with IPv4 address _10.0.0.1_.
+
+The datagram is encapsulated in a lower-layer frame destined for the target host _D_.
+
+* If the lower-layer address of the target host is unknown, the _ARP_ protocol (for IPv4) or _Neighbor Solicitation_ (for IPv6) operation may be invoked at this point to determine the correct lower-layer address, _D_.
+
+* Once known, the destination address in the datagram is _D_'s IPv4 address (10.0.0.9), and _D_ is placed in the Destination IP Address field in the lower-layer header.
+* The switch delivers the frame to _D_ based solely on the link-layer address _D_; it pays no attention to the IP addresses.
++
+[source,console]
+----
+$ ip n
+172.17.0.2 dev docker0 lladdr 02:42:ac:11:00:02 STALE
+192.168.91.254 dev ens32 lladdr 00:50:56:fc:89:96 STALE
+192.168.91.1 dev ens32 lladdr 00:50:56:c0:00:08 REACHABLE
+192.168.91.2 dev ens34 lladdr 00:50:56:e9:f6:27 STALE
+192.168.91.2 dev ens32 lladdr 00:50:56:e9:f6:27 STALE
+192.168.91.138 dev ens32  FAILED
+fe80::50c2:d6ef:87fb:1b7b dev ens34 lladdr 00:50:56:c0:00:08 STALE
+
+$ sudo arp -n
+Address                  HWtype  HWaddress           Flags Mask            Iface
+172.17.0.2               ether   02:42:ac:11:00:02   C                     docker0
+192.168.91.254           ether   00:50:56:fc:89:96   C                     ens32
+192.168.91.1             ether   00:50:56:c0:00:08   C                     ens32
+192.168.91.2             ether   00:50:56:e9:f6:27   C                     ens34
+192.168.91.2             ether   00:50:56:e9:f6:27   C                     ens32
+192.168.91.138                   (incomplete)                              ens32
+----
+
+.The (unicast) IPv4 forwarding table at router _R1_ contains only two entries.
+[%header,cols="4,4,4,4,2",width=90%]
+|===
+|Destination
+|Mask
+|Gateway (Next Hop)
+|Interface
+|Note
+
+|0.0.0.0
+|0.0.0.0
+|70.231.159.254
+|70.231.132.85
+|NAT
+
+|10.0.0.0
+|255.255.255.128
+|10.0.0.100
+|10.0.0.1
+|NAT
+|===
+
+* The forwarding table at _R1_ indicates that address translation should be performed for traffic.
+* The router has a private address on one side (_10.0.0.1_) and a public address on the other (_70.231.132.85_).
+* Address translation is used to make datagrams originating on the _10.0.0.0/25_ network appear to the Internet as though they had been sent from _70.231.132.85_.
+
+[source,console]
+----
+node-0:~$ ip r
+default via 192.168.91.2 dev ens32 onlink 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+192.168.91.0/24 dev ens34 proto kernel scope link src 192.168.91.138 
+
+node-0:~$ sudo ip r del default 
+
+node-0:~$ sudo ip r add default via 192.168.91.137 dev ens32 
+
+node-0:~$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+192.168.91.0/24 dev ens34 proto kernel scope link src 192.168.91.138 
+----
+
+[source,console]
+----
+node-1:~$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.56.0/24 dev ens36 proto kernel scope link src 192.168.56.128 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.137 
+192.168.91.0/24 dev ens34 proto kernel scope link src 192.168.91.131 
+192.168.91.0/24 dev ens33 proto kernel scope link src 192.168.91.129 
+
+node-1:~$ sudo sysctl net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+----
+
+[source,console]
+----
+PS C:\> ipconfig
+
+Wireless LAN adapter Wi-Fi:
+
+   Connection-specific DNS Suffix  . : xxxxxxxxx
+   Link-local IPv6 Address . . . . . : fe80::20b2:4f30:ed18:5956%13
+   IPv4 Address. . . . . . . . . . . : 10.170.109.10
+   Subnet Mask . . . . . . . . . . . : 255.255.254.0
+   Default Gateway . . . . . . . . . : 10.170.109.254
+----
+
+[source,console]
+----
+node-0:~$ sudo traceroute -I 10.170.109.10
+traceroute to 10.170.109.10 (10.170.109.10), 30 hops max, 60 byte packets
+ 1  node-1 (192.168.91.137)  0.256 ms  0.223 ms  0.252 ms
+ 2  192.168.91.2 (192.168.91.2)  0.269 ms  0.256 ms  0.235 ms
+ 3  10.170.109.10 (10.170.109.10)  0.727 ms  0.871 ms  1.175 ms
+----
+
+== References
+
+* Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
+
