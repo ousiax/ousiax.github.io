@@ -1,0 +1,236 @@
+= Oracle Database Architecture
+:page-layout: post
+:page-categories: ['database']
+:page-tags: ['database', 'oracle']
+:page-date: 2022-11-24 10:20:33 +0800
+:page-revdate: 2022-11-24 10:20:33 +0800
+:toc: preamble
+:sectnums:
+
+
+A *database server* is the key to information management.
+
+In general, a server reliably manages a large amount of data in a multiuser environment so that users can concurrently access the same data.
+
+A database server also prevents unauthorized access and provides efficient solutions for failure recovery.
+
+== Database and Instance
+
+An Oracle database server consists of a database and at least one *database instance*, commonly referred to as simply an *instance*.
+
+Because an instance and a database are so closely connected, the term *Oracle database* sometimes refers to both instance and database.
+
+In the strictest sense, the terms have the following meanings:
+
+* Database
++
+A database is a set of files, located on disk, that store user data.
++
+These data files can exist independently of a database instance.
++
+Starting in Oracle Database 21c, "database" refers specifically to the data files of a _multitenant container database_ (*CDB*), _pluggable database_ (*PDB*), or _application container_.
+
+* Database instance
++
+An instance is a named set of memory structures that manage database files.
++
+A database instance consists of a shared memory area, called the _system global area_ (*SGA*), and a set of background processes.
++
+An instance can exist independently of database files.
+
+=== Multitenant Architecture
+
+The *multitenant architecture* enables an Oracle database to be a CDB.
+
+Every Oracle database must contain or be able to be contained by another database.
+
+For example, a CDB contains PDBs, and an application container contains application PDBs.
+
+A PDB is contained by a CDB or application container, and an application container is contained by a CDB.
+
+Starting in Oracle Database 21c, a multitenant container database is the only supported architecture.
+
+In previous releases, Oracle supported non-container databases (non-CDBs).
+
+==== CDBs
+
+A *CDB* contains one or more user-created PDBs and application containers.
+
+At the physical level, a CDB is a set of files: control file, online redo log files, and data files.
+
+The database instance manages the files that make up the CDB.
+
+The following figure shows a CDB and an associated database instance. 
+
+.Database Instance and CDB
+image::https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/img/cncpt233.gif[Database Instance and CDB,45%,45%]
+
+==== PDBs
+
+A *PDB* is a portable collection of schemas, schema objects, and nonschema objects that appears to an application as a separate database.
+
+* At the physical level, each PDB has its own set of data files that store the data for the PDB.
+
+* The CDB includes all the data files for the PDBs contained within it, and a set of system data files that store metadata for the CDB itself.
+
+To move or archive a PDB, you can unplug it.
+
+* An unplugged PDB consists of the PDB data files and a metadata file.
+
+* An unplugged PDB is not usable until it is plugged in to a CDB.
+
+The following figure shows a CDB named _MYCDB_. 
+
+.PDBs in a CDB
+image::https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/img/cncpt352.png[PDBs in a CDB,45%,45%]
+
+Physically, _MYCDB_ is an Oracle database, in the sense of a set of data files associated with an instance.
+
+_MYCDB_ has one database instance, although multiple instances are possible in _Oracle Real Application Clusters_, and one set of database files.
+
+_MYCDB_ contains two PDBs: _hrpdb_ and _salespdb_. As shown in the above figure, these PDBs appear to their respective applications as separate, independent databases.
+
+An application has no knowledge of whether it is connecting to a CDB or PDB.
+
+To administer the CDB itself or any PDB within it, you can connect to the *CDB root*. The root is a collection of schemas, schema objects, and nonschema objects to which all PDBs and application containers belong. 
+
+==== Application Containers
+
+An *application container* is an optional, user-created container within a CDB that stores data and metadata for one or more applications.
+
+In this context, an application (also called the _master application definition_) is a named, versioned set of common data and metadata stored in the application root.
+
+For example, the application might include definitions of tables, views, user accounts, and PL/SQL packages that are common to a set of PDBs.
+
+In some ways, an application container functions as an application-specific CDB within a CDB.
+
+An application container, like the CDB itself, can include multiple application PDBs, and enables these PDBs to share metadata and data.
+
+At the physical level, an application container has its own set of data files, just like a PDB.
+
+For example, a SaaS deployment can use multiple application PDBs, each for a separate customer, which share application metadata and data.
+
+* For example, in the following figure, _sales_app_ is the application model in the application root.
+
+* The application PDB named _cust1_pdb_ contains sales data only for customer 1, whereas the application PDB named _cust2_pdb_ contains sales data only for customer 2.
+
+* Plugging, unplugging, cloning, and other PDB-level operations are available for individual customer PDBs. 
++
+.SaaS Use Case
+image::https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/img/cncpt389.png[SaaS Use Case,45%,45%]
+
+=== Sharding Architecture
+
+Oracle Sharding is a database scaling technique based on _horizontal partitioning of data across multiple PDBs_.
+
+* Applications perceive the pool of PDBs as a single logical database.
+
+* Key benefits of sharding for OLTP applications include linear scalability, fault containment, and geographical data distribution.
+
+In a sharding architecture, each CDB is hosted on a dedicated server with its own local resources: CPU, memory, flash, or disk.
+
+* You can designate a PDB as a *shard*.
+
+* PDB shards from different CDBs make up a single logical database, which is referred to as a *sharded database*. 
+
+Horizontal partitioning involves splitting a database table across shards so that each shard contains the table with the same columns but a different subset of rows. A table split up in this manner is also known as a *sharded table*.
+
+The following figure shows a sharded table horizontally partitioned across three shards, each of which is a PDB in a separate CDB.
+
+.Horizontal Partitioning of a Table Across Shards
+image::https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/img/admin_3v_134a.png[Horizontal Partitioning of a Table Across Shards,45%,45%]
+
+A use case is distributing customer account data across multiple CDBs.
+
+* For example, a customer with ID _28459361_ may look up his records.
++
+The customer request is routed through a _connection pool_, where _sharding directors_ (network listeners) direct the request to the appropriate PDB _shard_, which contains all the customer rows.
++
+.Oracle Sharding Architecture
+image::https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/img/admin_3v_143d.png[Oracle Sharding Architecture,45%,45%]
+
+=== Database Storage Structures
+
+A database can be considered from both a physical and logical perspective.
+
+* Physical data is data viewable at the operating system level.
++
+For example, operating system utilities such as the Linux _ls_ and _ps_ can list database files and processes.
+
+* Logical data such as a table is meaningful only for the database.
++
+A SQL statement can list the tables in an Oracle database, but an operating system utility cannot.
+
+The database has physical structures and logical structures.
+
+Because the physical and logical structures are separate, you can manage the physical storage of data without affecting access to logical storage structures.
+
+For example, renaming a physical database file does not rename the tables whose data is stored in this file.
+
+==== Physical Storage Structures
+
+The physical database structures are the files that store the data.
+
+When you execute a _CREATE DATABASE_ command, you create a CDB. The following files are created:
+
+* Data files
++
+Every CDB has one or more physical data files, which contain all the database data.
++
+The data of logical database structures, such as tables and indexes, is physically stored in the data files.
+
+* Control files
++
+Every CDB has a control file.
++
+A control file contains metadata specifying the physical structure of the database, including the database name and the names and locations of the database files.
+
+* Online redo log files
++
+Every CDB has an _online redo log_, which is a set of two or more online redo log files.
++
+An online redo log is made up of redo entries (also called redo log records), which record all changes made to data.
+
+When you execute a _CREATE PLUGGABLE DATABASE_ command within a CDB, you create a PDB.
+
+* The PDB contains a dedicated set of data files within the CDB.
+* A PDB does not have a separate, dedicated control file and online redo log: these files are shared by the PDBs.
+
+Many other files are important for the functioning of a CDB.
+
+* These include parameter files and networking files.
+* Backup files and archived redo log files are offline files important for backup and recovery.
+
+==== Logical Storage Structures
+
+Logical storage structures enable Oracle Database to have fine-grained control of disk space use.
+
+* Data blocks
++
+At the finest level of granularity, Oracle Database data is stored in data blocks.
++
+Other names for data blocks include Oracle blocks or pages.
++
+One data block corresponds to a specific number of bytes of physical space on disk. 
+
+* Extents
++
+An extent is a specific number of logically contiguous data blocks, obtained in a single allocation, used to store a specific type of information.
+
+* Segments
++
+A segment is a set of extents allocated for a user object (for example, a table or index), undo data, or temporary data.
+
+* Tablespaces
++
+A database is divided into logical storage units called tablespaces.
++
+A tablespace is the logical container for segments.
++
+Each tablespace consists of at least one data file.
+
+
+== References
+
+* https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/introduction-to-oracle-database.html
+* https://docs.oracle.com/en/database/oracle/oracle-database/21/cncpt/glossary.html
