@@ -438,6 +438,110 @@ traceroute to 10.170.109.10 (10.170.109.10), 30 hops max, 60 byte packets
  3  10.170.109.10 (10.170.109.10)  0.727 ms  0.871 ms  1.175 ms
 ----
 
+== Mobile IP
+
+*Mobile IP* is based on the idea that a host has a _home_ network but may visit other networks from time to time.
+
+* While at home, ordinary forwarding is performed.
+
+* When away from home, the host keeps the IP address it would ordinarily use at home, but some special _routing_ and _forwarding_ tricks are used to make the host appear to the network, and to the other systems with which it communicates, as though it is attached to its home network.
++
+The scheme depends on a special type of router called a _home agent_ that helps provide routing for mobile nodes.
+
+Most of the complexity in *MIPv6* involves signaling messages and how they are secured. These messages use various forms of the Mobility extension header (Next Header field value _135_, often just called the _mobility header_), so Mobile IP is, in effect, a special protocol of its own.
+
+=== The Basic Model for IP Mobility: Bidirectional Tunneling
+
+The following figure shows the entities involved in making _MIPv6_ work. Much of the terminology also applies to _MIPv4_ [RFC5944].
+
+* A host that might move is called a _mobile node_ (MN), and the hosts with which it is communicating are called _correspondent nodes_ (CNs).
+
+* The MN is given an IP address chosen from the network prefix used in its _home network_. This address is known as its _home address_ (HoA).
++
+When it travels to a _visited network_, it is given an additional address, called its _care-of-address_ (CoA).
+
+* In the basic model, whenever a CN communicates with an MN, the traffic is routed through the MN's _home agent_ (HA).
++
+HAs are a special type of router deployed in the network infrastructure like other important systems (e.g., routers and Web servers).
+
+* The association between an MN's HoA and its CoA is called a _binding_ for the MN.
+
+.Mobile IP supports the ability of nodes to change their point of network attachment and keep network connections operating. The mobile node’s home agent helps to forward traffic for mobiles it serves and also plays a role in route optimization, which can substantially improve routing performance by allowing mobile and correspondent nodes to communicate directly.
+image::/assets/tcp-ip-internet-protocol/mobile-ip-model.png[Basic MIPV6 Model,55%,55%]
+
+The basic model works in cases where an MN's CNs do not engage in the MIPv6 protocol. This model is also used for network mobility (called _NEMO_ [RFC3963]), when an entire network is mobile.
+
+* When the MN (or mobile network router) attaches to a new point in the network, it receives its CoA and sends a _binding update_ message to its HA. The HA responds with a _binding acknowledgment_.
+
+* Assuming that all goes well, traffic between the MN and CNs is thereafter routed through the MN's HA using a two-way form of IPv6 packet tunneling[RFC2473] called _bidirectional tunneling_.
++
+These messages are ordinarily protected using _IPsec_ with the _Encapsulating Security Payload_ (ESP).
++
+Doing so ensures that an HA is not fooled into accepting a binding update from a fake MN.
+
+== Host Processing of IP Datagrams
+
+Although routers do not ordinarily have to consider which IP addresses to place in the _Source IP Address_ and _Destination IP Address_ fields of the packets they forward, hosts must consider both.
+
+* Applications such as Web browsers may attempt to make connections to a named host or server that can have multiple addresses.
+
+* The client system making such connections may also have multiple addresses.
+
+=== Host Models
+
+Although it may appear to be a straightforward decision to determine whether a received unicast datagram matches one of a host's IP addresses and should be processed, this decision depends on the _host model_ of the receiving system [RFC1122] and is most relevant for multihomed hosts.
+
+There are two host models, the *strong host model* and the *weak host model*.
+
+* In the _strong host model_, a datagram is accepted for delivery to the local protocol stack only if the IP address contained in the _Destination IP Address_ field matches one of those configured on the interface upon which the datagram arrived.
+
+* In systems implementing the _weak host model_, the opposite is true—a datagram carrying a destination address matching any of the local addresses may arrive on any interface and is processed by the receiving protocol stack, irrespective of the network interface upon which it arrived.
+
+Host models also apply to sending behavior. That is, a host using the strong host model sends datagrams from a particular interface only if one of the interface's configured addresses matches the _Source IP Address_ field in the datagram being sent.
+
+.Hosts may be connected by more than one interface. In such cases, they must decide which addresses to use for the _Source IP Address_ and _Destination IP Address_ fields of the packets they exchange. The addresses used result from a combination of each host's forwarding table, application of an address selection algorithm [RFC 3484], and whether hosts are operating using a _weak_ or _strong host model_.
+image::/assets/tcp-ip-internet-protocol/host-model.png[Host Model,45%,45%]
+
+* In this example, two hosts (A and B) are connected through the global Internet but also through a local network.
+* If host A is set up to conform to the _strong host model_, packets it receives destined for _203.0.113.1_ from the Internet or destined for _192.0.2.1_ from the local network are dropped.
+* This situation can arise, for example, if host B is configured to obey the _weak host model_.
+** It may choose to send packets to _192.0.2.1_ using the local network (e.g., because doing so may be cheaper or faster).
+** This situation seems unfortunate, as A receives what appear to be perfectly legitimate packets, yet drops them merely because it is operating according to the strong host model.
+
+The host model, for both sending and receiving behavior, can be configured in some operating systems.
+
+* In Windows (Vista and later), strong host behavior is the default for sending and receiving for IPv4 and IPv6.
+* In Linux, the IP behavior defaults to the weak host model.
+* BSD (including Mac OS X) uses the strong hostmodel.
+
+In Windows, the following commands can be used to configure weak host receive and send behavior, respectively:
+
+[source,bat]
+----
+C:\> netsh interface ipvX set interface <ifname> weakhostreceive=Yabled
+C:\> netsh interface ipvX set interface <ifname> weakhostsend=Yabled
+----
+
+For these commands, _<ifname>_ is replaced with the appropriate interface name; _X_ is replaced with either 4 or 6, depending on which version of IP is being configured; and _Y_ is replaced with either _en_ or _dis_, depending on whether weak behavior is to be enabled or disabled, respectively.
+
+[source,console]
+----
+netsh interface ipv4>show interfaces
+
+Idx     Met         MTU          State                Name
+---  ----------  ----------  ------------  ---------------------------
+  1          75  4294967295  connected     Loopback Pseudo-Interface 1
+ 13          35        1500  connected     Wi-Fi
+ 10           5        1500  disconnected  Ethernet
+
+netsh interface ipv4>show interfaces interface="Wi-Fi"
+
+Interface Wi-Fi Parameters
+----------------------------------------------
+Weak Host Sends                    : disabled
+Weak Host Receives                 : disabled
+----
+
 == References
 
 * Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
