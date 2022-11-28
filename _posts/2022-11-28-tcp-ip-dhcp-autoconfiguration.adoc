@@ -91,12 +91,10 @@ In most situations, clients are able to renew leases they wish to extend.
 
 === DHCP and BOOTP Message Format
 
-DHCP extends BOOTP, DHCP's predecessor. Compatibility is maintained between
-the protocols by defining the DHCP message format as an extension to BOOTP's
-in such a way that BOOTP clients can be served by DHCP servers, and BOOTP
-relay agents can be used to support DHCP use, even on networks
-where DHCP servers do not reside. The message format includes a fixed-length
-initial portion and a variable-length tail portion (see Figure 6-1).
+DHCP extends BOOTP, DHCP's predecessor. Compatibility is maintained between the protocols by defining the DHCP message format as an extension to BOOTP's in such a way that BOOTP clients can be served by DHCP servers, and BOOTP _relay agents_ can be used to support DHCP use, even on networks where DHCP servers do not reside.
+
+.The BOOTP message format, including field names from [RFC0951], [RFC1542], and [RFC2131]. The BOOTP message format is used to hold DHCP messages by appropriate assignment of options. In this way, BOOTP relay agents can process DHCP messages, and BOOTP clients can use DHCP servers. The _Server Name_ and _Boot File Name_ fields can be used to carry DHCP options if necessary.
+image::/assets/tcp-ip-dhcp-autoconfiguration/bootp-message-format.png[BOOTP Message Format,75%,75%]
 
 The message format is defined by BOOTP and DHCP in several RFCs ([RFC0951][RFC1542][RFC2131]).
 
@@ -122,9 +120,6 @@ Clients may set this bit in requests if they are unable or unwilling to process 
 +
 Setting the bit informs the server and relays that broadcast addressing should be used for replies.
 
-.The BOOTP message format, including field names from [RFC0951], [RFC1542], and [RFC2131]. The BOOTP message format is used to hold DHCP messages by appropriate assignment of options. In this way, BOOTP relay agents can process DHCP messages, and BOOTP clients can use DHCP servers. The _Server Name_ and _Boot File Name_ fields can be used to carry DHCP options if necessary.
-image::/assets/tcp-ip-dhcp-autoconfiguration/bootp-message-format.png[BOOTP Message Format,75%,75%]
-
 * The _Client IP Address (ciaddr)_ field includes a current IP address of the requestor, if known, and is _0_ otherwise.
 
 * The _Your IP Address (yiaddr)_ field is filled in by a server when providing an address to a requesting client.
@@ -145,6 +140,133 @@ These fields are not always filled in, but if they are, they contain 64 or 128 b
 =
 They can also be used instead to hold DHCP options if space is tight.
 
-* The final field, originally known as the Vendor Extensions field in BOOTP and fixed in length, is now known as the _Options_ field and is variable in length.
+* The final field, originally known as the _Vendor Extensions_ field in BOOTP and fixed in length, is now known as the _Options_ field and is variable in length.
 +
 As we shall see, options are used extensively with DHCP and are required to distinguish DHCP messages from legacy BOOTP messages.
+
+=== DHCP and BOOTP Options
+
+Given that DHCP extends BOOTP, any fields needed by DHCP that were not present when BOOTP was designed are carried as options.
+
+* Options take a standard format beginning with an 8-bit tag indicating the option type.
+
+* For some options, a fixed number of bytes following the tag contain the option value.
+
+* All others consist of the tag followed by 1 byte containing the length of the option value (not including the tag or length), followed by a variable number of bytes containing the option value itself.
+
+A large number of options are available with DHCP, some of which are also supported by BOOTP.
+
+* The current list is given by the BOOTP/DHCP parameters page.
+* The first 77 options, including the most common ones, are specified in [RFC2132].
+* Common options include _Pad (0)_, _Subnet Mask (1)_, _Router Address (3)_, _Domain Name Server (6)_, _Domain Name (15)_, _Requested IP Address (50)_, _Address Lease Time (51)_, _DHCP Message Type (53)_, _Server Identifier (54)_, _Parameter Request List (55)_, _DHCP Error Message (56)_, _Lease Renewal Time (58)_, _Lease Rebinding Time (59)_, _Client Identifier (61)_, _Domain Search List (119)_, and _End (255)_.
+
+The DHCP _Message Type option (53)_ is a 1-byte-long option that is always used with DHCP messages and has the following possible values: _DHCPDISCOVER (1)_, _DHCPOFFER (2)_, _DHCPREQUEST (3)_, _DHCPDECLINE (4)_, _DHCPACK (5)_, _DHCPNAK (6)_, _DHCPRELEASE (7)_, _DHCPINFORM (8)_, _DHCPFORCERENEW (9)_ [RFC3203], _DHCPLEASEQUERY (10)_, _DHCPLEASEUNASSIGNED (11)_, _DHCPLEASEUNKNOWN (12)_, and _DHCPLEASEACTIVE (13)_.
+
+=== DHCP Protocol Operation
+
+DHCP messages are essentially BOOTP messages with a special set of options.
+
+* When a new client attaches to a network, it first discovers what DHCP servers are available and what addresses they are offering.
+* It then decides which server to use and which address it desires and requests it from the offering server (while informing all the servers of its choice).
+* Unless the server has given away the address in the meantime, it responds by acknowledging the address allocation to the requesting client.
++
+.A typical DHCP exchange. A client discovers a set of servers and addresses they are offering using broadcast messages, requests the address it desires, and receives an acknowledgment from the selected server. The transaction ID (xid) allows requests and responses to be matched up, and the server ID (an option) indicates which server is providing and committing the provided address binding with the client. If the client already knows the address it desires, the protocol can be simplified to include use of only the REQUEST and ACK messages.
+image::/assets/tcp-ip-dhcp-autoconfiguration/dhcp-bootp-exchange.png[DHCP Exchange,55%,55%]
+
+* Requesting clients set the BOOTP _Op_ field to BOOTREQUEST and the first 4 bytes of the _Options_ field to the decimal values 99, 130, 83, and 99, respectively (the magic cookie value from [RFC2132]).
+
+* Messages from client to server are sent as UDP/IP datagrams containing a BOOTP BOOTREQUEST operation and an appropriate DHCP message type (usually DHCPDISCOVER or DHCPREQUEST).
++
+Such messages are sent from address _0.0.0.0_ (port _68_) to the limited broadcast address _255.255.255.255_ (port _67_).
+
+* Messages traveling in the other direction (from server to client) are sent from the IP address of the server and port _67_ to the IP local broadcast address and port _68_.
++
+[source,none]
+----
+17:29:33.209909 IP (tos 0x10, ttl 16, id 0, offset 0, flags [none], proto UDP (17), length 328)
+    192.168.91.254.67 > 192.168.91.130.68: BOOTP/DHCP, Reply, length 300, xid 0x3de5472b, Flags [none]
+          Your-IP 192.168.91.130
+          Server-IP 192.168.91.254
+          Client-Ethernet-Address 00:0c:29:85:26:07
+          Vendor-rfc1048 Extensions
+            Magic Cookie 0x63825363
+            DHCP-Message Option 53, length 1: Offer
+            Server-ID Option 54, length 4: 192.168.91.254
+            Lease-Time Option 51, length 4: 1800
+            Subnet-Mask Option 1, length 4: 255.255.255.0
+            BR Option 28, length 4: 192.168.91.255
+            Default-Gateway Option 3, length 4: 192.168.91.2
+            Domain-Name Option 15, length 11: "localdomain"
+            Domain-Name-Server Option 6, length 4: 192.168.91.2
+            Netbios-Name-Server Option 44, length 4: 192.168.91.2
+----
+
+It is also possible to induce a system to perform the release or acquisition of DHCP configuration information by hand. For example, in Windows the following command will release the data acquired using DHCP:
+
+[source,console]
+----
+C:\> ipconfig /release
+----
+
+and the following command will acquire it:
+
+[source,console]
+----
+C:\> ipconfig /renew
+----
+
+In Linux, the following commands can be used to achieve the same results:
+
+[source,console]
+----
+Linux# dhclient -r
+----
+
+to release a DHCP lease, and
+
+[source,console]
+----
+Linux# dhclient
+----
+
+to renew one.
+
+=== The DHCP State Machine
+
+The DHCP protocol operates a state machine at the clients and servers. The states dictate which types of messages the protocol is expecting to process next.
+
+.The DHCP client state machine. The boldface states and transitions are typical for a client first acquiring a leased address. The dashed line and INIT state are where the protocol begins.
+image::/assets/tcp-ip-dhcp-autoconfiguration/dhcp-client-states.png[DHCP client state machine,45%,45%]
+
+== Stateless Address Autoconfiguration (SLAAC)
+
+While most routers have their addresses configured manually, hosts can be assigned addresses manually, using an assignment protocol like DHCP, or automatically using some sort of algorithm.
+
+There are two forms of automatic assignment, depending on what type of address is being formed.
+
+* For addresses that are to be used only on a single link (link-local addresses), a host need only find some appropriate address not already in use on the link.
+
+* For addresses that are to be used for global connectivity, however, some portion of the address must generally be managed.
+
+There are mechanisms in both IPv4 and IPv6 for link-local address autoconfiguration, whereby a host determines its address(es) largely without help. This is called _stateless address autoconfiguration (SLAAC)_.
+
+=== Dynamic Configuration of IPv4 Link-Local Addresses
+
+In cases where a host without a manually configured address attaches to a network lacking a DHCP server, IP-based communication is unable to take place unless the host somehow generates an IP address to use.
+
+* [RFC3927] describes a mechanism whereby a host can automatically generate its own IPv4 address from the link-local range _169.254.1.1_ through _169.254.254.254_ using the 16-bit subnet mask _255.255.0.0_ (see [RFC5735]).
++
+This method is known as dynamic link-local address configuration or _Automatic Private IP Addressing (APIPA)_.
+
+* In essence, a host selects a random address in the range to use and checks to see if that address is already in use by some other system on the subnetwork.
++
+This check is implemented using _IPv4 ACD_.
+
+=== IPv6 SLAAC for Link-Local Addresses
+
+The goal of IPv6 SLAAC is to allow nodes to automatically (and autonomously) self-assign link-local IPv6 addresses. IPv6 SLAAC is described in [RFC4862]. It
+
+
+== References
+
+* Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
