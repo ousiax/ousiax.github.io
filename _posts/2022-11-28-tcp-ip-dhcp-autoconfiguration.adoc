@@ -1,0 +1,150 @@
+= TCP/IP: DHCP and Autoconfiguration
+:page-layout: post
+:page-categories: []
+:page-tags: []
+:page-date: 2022-11-28 08:54:54 +0800
+:page-revdate: 2022-11-28 08:54:54 +0800
+:toc: preamble
+:sectnums:
+
+To make use of the TCP/IP protocol suite, each host and router requires a certain amount of configuration information.
+
+* Every interface to be used with TCP/IP networking requires an
+
+** _IP address_,
+** _subnet mask_, and
+** _broadcast address_ (for IPv4).
+
+* To engage in communication beyond the local subnet, called _indirect delivery_, a system requires a _routing or forwarding table_ that indicates what router(s) are to be used for reaching various destinations.
+
+* To be able to use services such as the Web and e-mail, the _DNS_ is used to map user-friendly domain names to the IP addresses required by the lower-protocol layers.
+
+* To use _Mobile IP_, a system also needs to know how to find a _home agent_.
+
+All in all, having an _IP address_, _subnet mask_, and the IP address of a _DNS server_ and _router_ are the _bare essentials_ to get a system running on the Internet that is capable of using or providing popular services such as Web and e-mail.
+
+Beyond the bare essentials, there are numerous other bits of configuration information a host or router may require, depending on the types of services it uses or provides.
+
+* These may include the locations of _home agents_, _multicast routers_, _VPN gateways_, and _Session Initiation Protocol (SIP)/VoIP gateways_.
+
+== Dynamic Host Configuration Protocol (DHCP)
+
+DHCP [RFC2131] is a popular client/server protocol used to assign configuration information to hosts (and, less frequently, to routers).
+
+DHCP is very widely used, in both enterprises and home networks.
+
+* Even the most basic home router devices support embedded DHCP servers.
+
+* DHCP clients are incorporated into all common client operating systems and a large number of embedded devices such as network printers and VoIP phones.
++
+Such devices usually use DHCP to acquire their _IP address_, _subnet mask_, _router IP address_, and _DNS server IP address_.
+
+* Information pertaining to other services (e.g., SIP servers used with VoIP) may also be conveyed using DHCP.
+
+* DHCP was originally conceived for use with IPv4, IPv6 can also use a version of DHCP called DHCPv6 [RFC3315].
+
+The design of DHCP is based on an earlier protocol called the Internet _Bootstrap Protocol (BOOTP)_ [RFC0951][RFC1542], which is now effectively obsolete.
+
+* BOOTP provides limited configuration information to clients and does not have a mechanism to support changing that information after it has been provided.
+
+* DHCP extends the BOOTP model with the concept of _leases_ and can provide all information required for a host to operate.
++
+Leases allow clients to use the configuration information for an agreed-upon amount of time.
++
+A client may request to renew the lease and continue operations, subject to agreement from the DHCP server.
+
+BOOTP and DHCP are backward-compatible in the sense that BOOTP-only clients can make use of DHCP servers and DHCP clients can make use of BOOTP-only servers.
+
+* BOOTP, and therefore DHCP as well, is carried using UDP/IP. Clients use port _68_ and servers use port _67_.
+
+DHCP comprises two major parts: address management and delivery of configuration data.
+
+* Address management handles the dynamic allocation of IP addresses and provides address leases to clients.
+
+* Configuration data delivery includes the DHCP protocol's message formats and state machines.
+
+A DHCP server can be configured to provide three levels of address allocation: _automatic allocation_, _dynamic allocation_, and _manual allocation_.
+
+* The most commonly used method is _dynamic allocation_, whereby a client is given a revocable IP address from a pool (usually a predefined range) of addresses configured at the server.
+
+* In _automatic allocation_, the same method is used but the address is never revoked.
+
+* In _manual allocation_, the DHCP protocol is used to convey the address, but the address is fixed for the requesting client (i.e., it is not part of an allocatable pool maintained by the server).
+
+* In this last mode, DHCP acts like BOOTP.
+
+The differences among the three have to do with whether the addresses assigned are based on the identity of the client and whether such addresses are subject to being revoked or changed.
+
+=== Address Pools and Leases
+
+In dynamic allocation, a DHCP client requests the allocation of an IP address.
+
+The server responds with one address selected from a pool of available addresses.
+
+Typically, the pool is a contiguous range of IP addresses allocated specifically for DHCP's use.
+
+The address given to the client is allocated for only a specific amount of time, called the _lease duration_.
+
+The client is permitted to use the IP address until the lease expires, although it may request extension of the lease as required.
+
+In most situations, clients are able to renew leases they wish to extend.
+
+=== DHCP and BOOTP Message Format
+
+DHCP extends BOOTP, DHCP's predecessor. Compatibility is maintained between
+the protocols by defining the DHCP message format as an extension to BOOTP's
+in such a way that BOOTP clients can be served by DHCP servers, and BOOTP
+relay agents can be used to support DHCP use, even on networks
+where DHCP servers do not reside. The message format includes a fixed-length
+initial portion and a variable-length tail portion (see Figure 6-1).
+
+The message format is defined by BOOTP and DHCP in several RFCs ([RFC0951][RFC1542][RFC2131]).
+
+* The _Op (Operation)_ field identifies the message as either a request (_1_) or a reply (_2_).
+
+* The _HW Type (htype)_ field is assigned based on values used with ARP and defined in the corresponding IANA ARP parameters page [IARP], with the value _1 (Ethernet)_ being very common.
+
+* The _HW Len (hlen)_ field gives the number of bytes used to hold the hardware (MAC) address and is commonly _6_ for Ethernet-like networks.
+
+* The _Hops_ field is used to store the number of relays through which the message has traveled.
++
+The sender of the message sets this value to _0_, and it is incremented at each relay.
+
+* The _Transaction ID_ is a (random) number chosen by the client and copied into responses by the server.
++
+It is used to match replies with requests.
+
+* The _Secs_ field is set by the client with the number of seconds that have elapsed since the first attempt to establish or renew an address.
+
+* The _Flags_ field currently contains only a single defined bit called the _broadcast_ flag.
++
+Clients may set this bit in requests if they are unable or unwilling to process incoming unicast IP datagrams but can process incoming broadcast datagrams (e.g., because they do not yet have an IP address).
++
+Setting the bit informs the server and relays that broadcast addressing should be used for replies.
+
+.The BOOTP message format, including field names from [RFC0951], [RFC1542], and [RFC2131]. The BOOTP message format is used to hold DHCP messages by appropriate assignment of options. In this way, BOOTP relay agents can process DHCP messages, and BOOTP clients can use DHCP servers. The _Server Name_ and _Boot File Name_ fields can be used to carry DHCP options if necessary.
+image::/assets/tcp-ip-dhcp-autoconfiguration/bootp-message-format.png[BOOTP Message Format,75%,75%]
+
+* The _Client IP Address (ciaddr)_ field includes a current IP address of the requestor, if known, and is _0_ otherwise.
+
+* The _Your IP Address (yiaddr)_ field is filled in by a server when providing an address to a requesting client.
+
+* The _Next Server IP Address (siaddr)_ field gives the IP address of the next server to use for the client's bootstrap process (e.g., if the client needs to download an operating system image that may be accomplished from a server other than the DHCP server).
+
+* The _Gateway (or Relay) IP Address (giaddr)_ field is filled in by a DHCP or BOOTP relay with its address when forwarding DHCP (BOOTP) messages.
+
+* The _Client Hardware Address (chaddr)_ field holds a unique identifier of the client and can be used in various ways by the server, including arranging for the same IP address to be given each time a particular client makes an address request.
++
+This field has traditionally held the client's MAC address, which has been used as an identifier.
++
+Nowadays, the Client Identifier, an option is preferred for this use.
+
+* The remaining fields include the _Server Name (sname)_ and _Boot File Name (file)_ fields.
++
+These fields are not always filled in, but if they are, they contain 64 or 128 bytes, respectively, of ASCII characters indicating the name of the server or path to the boot file. Such strings are null-terminated, as in the C programming language.
+=
+They can also be used instead to hold DHCP options if space is tight.
+
+* The final field, originally known as the Vendor Extensions field in BOOTP and fixed in length, is now known as the _Options_ field and is variable in length.
++
+As we shall see, options are used extensively with DHCP and are required to distinguish DHCP messages from legacy BOOTP messages.
