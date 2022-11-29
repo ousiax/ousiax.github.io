@@ -238,6 +238,210 @@ The DHCP protocol operates a state machine at the clients and servers. The state
 .The DHCP client state machine. The boldface states and transitions are typical for a client first acquiring a leased address. The dashed line and INIT state are where the protocol begins.
 image::/assets/tcp-ip-dhcp-autoconfiguration/dhcp-client-states.png[DHCP client state machine,45%,45%]
 
+== DHCPv6
+
+Although the IPv4 and IPv6 DHCP protocols achieve conceptually similar goals, their respective protocol designs and deployment options differ.
+
+DHCPv6 [RFC3315] can be used in either a "_stateful_" mode, in which it works much like DHCPv4, or in a "_stateless_" mode in conjunction with stateless address autoconfiguration.
+
+In the stateless mode, IPv6 clients are assumed to selfconfigure their IPv6 addresses but require additional information (e.g., DNS server address) obtained using DHCPv6. Another option exists for deriving the location of a DNS server using ICMPv6 Router Advertisement messages.
+
+=== IPv6 Address Lifecycle
+
+IPv6 hosts usually operate with _multiple addresses per interface_, and each address has a set of timers indicating how long and for what purposes the corresponding address can be used.
+
+In IPv6, addresses are assigned with a _preferred lifetime_ and _valid lifetime_.
+
+These lifetimes are used to form timeouts that move an address from one state to another in an address’s state machine.
+
+.The lifecycle of an IPv6 address. Tentative addresses are used only for DAD until verified as unique. After that, they become preferred and can be used without restriction until an associated timeout changes their state to deprecated. Deprecated addresses are not to be used for initiating new connections and may not be used at all after the associated valid timeout expires.
+image::/assets/tcp-ip-dhcp-autoconfiguration/ipv6-address-lifecycle.png[IPv6 Address Lifecycle,55%,55%]
+
+* An address is in the preferred state when it is available for general use and is available as either a source or destination IPv6 address.
+
+* A preferred address becomes deprecated when its preferred timeout occurs.
++
+When it becomes deprecated, it may still be used for existing transport (e.g., TCP) connections but is not to be used for initiating new connections.
+
+* When an address is first selected for use, it enters a _tentative_ or _optimistic state_.
++
+When in the tentative state, it may be used only for the _IPv6 Neighbor Discovery protocol_. It is not used as a source or destination address for any other purposes. While in this state the address is being checked for duplication, to see if any other nodes on the same network are already using the address. The procedure for doing this is called _duplicate address detection (DAD)_.
++
+An alternative to conventional DAD is called _optimistic DAD_ [RFC4429], whereby a selected address is used for a limited set of purposes until DAD completes. Because an optimistic use of an address is really just a special set of rules for DAD, it is not a truly complete state itself. Optimistic addresses are treated as deprecated for most purposes. In particular, an address may be both optimistic and deprecated simultaneously, depending on the preferred and valid lifetimes.
+
+=== DHCPv6 Message Format
+
+DHCPv6 messages are encapsulated as UDP/IPv6 datagrams, with client port _546_ and server port _547_. Messages are sent using a _host's link-scoped source address_ to either relay agents or servers.
+
+There are two message formats, one used directly between a client and a server, and another when a relay is used.
+
+.The basic DHCPv6 message format (left) and relay agent message format (right). Most interesting information in DHCPv6 is carried in options.
+image::/assets/tcp-ip-dhcp-autoconfiguration/dhcpv6-message-format.png[DHCPv6 Message Format,75%,75%]
+
+The format on the right is used between a DHCPv6 relay agent and a DHCPv6 server.
+
+* The _Link Address_ field gives the global IPv6 address used by the server to identify the link on which the client is located.
+* The _Peer Address_ field contains the address of the relay agent or client from which the message to be relayed was received.
+* Note that relaying may be chained, so a relay may be relaying a message received from another relay.
+
+The message type for messages in the format on the left include typical DHCPstyle messages (REQUEST, REPLY, etc.), whereas the message types for messages in the format on the right include RELAY-FORW and RELAY-REPL, to indicate a message forwarded from a relay or destined to a relay, respectively. The Options field for the format on the right always includes a Relay Message option, which includes the complete message being forwarded by the relay. Other options may also be included.
+
+One of the differences between DHCPv4 and DHCPv6 is how DHCPv6 uses IPv6 multicast addressing.
+
+* Clients send requests to the All DHCP Relay Agents and Servers multicast address (_ff02::1:2_).
+* Source addresses are of link-local scope.
+
+In IPv6, there is no legacy BOOTP message format. The message semantics, however, are similar.
+
+.DHCPv6 message types, values, and defining standards. The approximately equivalent message types for DHCPv4 are given to the right.
+[%header,cols="1,1,1,1,1"]
+|===
+|DHCPv6 Message
+|DHCPv6 Value
+|Reference
+|DHCPv4 Message
+|Reference
+
+|SOLICIT
+|1
+|[RFC3315]
+|DISCOVER
+|[RFC2132]
+
+|ADVERTISE
+|2
+|[RFC3315]
+|OFFER
+|[RFC2132]
+
+|REQUEST
+|3
+|[RFC3315]
+|REQUEST
+|[RFC2132]
+
+|CONFIRM
+|4
+|[RFC3315]
+|REQUEST
+|[RFC2132]
+
+|RENEW
+|5
+|[RFC3315]
+|REQUEST
+|[RFC2132]
+
+|REBIND
+|6
+|[RFC3315]
+|DISCOVER
+|[RFC2132]
+
+|REPLY
+|7
+|[RFC3315]
+|ACK/NAK
+|[RFC2132]
+
+|RELEASE
+|8
+|[RFC3315]
+|RELEASE
+|[RFC2132]
+
+|DECLINE
+|9
+|[RFC3315]
+|DECLINE
+|[RFC2132]
+
+|RECONFIGURE
+|10
+|[RFC3315]
+|FORCERENEW
+|[RFC3203]
+
+|INFORMATION-REQUEST
+|11
+|[RFC3315]
+|INFORM
+|[RFC2132]
+
+|RELAY-FORW
+|12
+|[RFC3315]
+|N/A
+|
+
+|RELAY-REPL
+|13
+|[RFC3315]
+|N/A
+|
+
+|LEASEQUERY
+|14
+|[RFC5007]
+|LEASEQUERY
+|[RFC4388]
+
+|LEASEQUERY-REPLY
+|15
+|[RFC5007]
+|LEASE{UNASSIGNED,UNKNOWN,ACTIVE}
+|[RFC4388]
+
+|LEASEQUERY-DONE
+|16
+|[RFC5460]
+|LEASEQUERYDONE
+|[ID4LQ]
+
+|LEASEQUERY-DATA
+|17
+|[RFC5460]
+|N/A
+|
+
+|N/A
+|N/A
+|N/A
+|BULKLEASEQUERY
+|[ID4LQ]
+|===
+
+In DHCPv6, most interesting information, including addresses, lease times, location of services, and client and server identifiers, is carried in options. Two of the more important concepts used with these options are called the _Identity Association (IA)_ and the _DHCP Unique Identifier (DUID)_.
+
+=== Identity Association (IA)
+
+An *Identity Association (IA)* is an identifier used between a DHCP client and server to refer to a collection of addresses.
+
+* Each IA comprises an _IA identifier (IAID)_ and associated configuration information.
+
+* Each client interface that requests a DHCPv6-assigned address requires at least one IA.
+
+* Each IA can be associated with only a single interface.
+
+* The client chooses the IAID to uniquely identify each IA, and this value is then shared with the server.
+
+The configuration information associated with an IA includes one or more addresses and associated lease information (T1, T2, and total lease duration values).
+
+Each address in an IA has both a preferred and a valid lifetime [RFC4862], which define the address's lifecycle.
+
+The types of addresses requested may be regular addresses or _temporary addresses_ [RFC4941].
+
+* Temporary addresses are derived in part from random numbers to help improve privacy by frustrating the tracking of IPv6 hosts based on IPv6 addresses.
+
+* Temporary addresses are ordinarily assigned at the same time nontemporary addresses are assigned but are regenerated using a different random number more frequently.
+
+When responding to a request, a server assigns one or more addresses to a client's IA based on a set of _address assignment policies_ determined by the server's administrator.
+
+Generally, such policies depend on the link on which the request arrived, standard information about the client, and other information supplied by the client in DHCP options.
+
+.The format for a DHCPv6 IA for nontemporary addresses (left) and temporary addresses (right). Each option may include additional options describing particular IPv6 addresses and corresponding leases.
+image::/assets/tcp-ip-dhcp-autoconfiguration/dhcpv6-ia-format.png[DHCPv6 IA format,75%,75%]
+
 == Stateless Address Autoconfiguration (SLAAC)
 
 While most routers have their addresses configured manually, hosts can be assigned addresses manually, using an assignment protocol like DHCP, or automatically using some sort of algorithm.
