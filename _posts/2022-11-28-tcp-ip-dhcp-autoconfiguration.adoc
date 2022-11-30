@@ -6,6 +6,7 @@
 :page-revdate: 2022-11-28 08:54:54 +0800
 :toc: preamble
 :sectnums:
+:toclevels: 4
 
 To make use of the TCP/IP protocol suite, each host and router requires a certain amount of configuration information.
 
@@ -238,7 +239,7 @@ The DHCP protocol operates a state machine at the clients and servers. The state
 .The DHCP client state machine. The boldface states and transitions are typical for a client first acquiring a leased address. The dashed line and INIT state are where the protocol begins.
 image::/assets/tcp-ip-dhcp-autoconfiguration/dhcp-client-states.png[DHCP client state machine,45%,45%]
 
-== DHCPv6
+=== DHCPv6
 
 Although the IPv4 and IPv6 DHCP protocols achieve conceptually similar goals, their respective protocol designs and deployment options differ.
 
@@ -246,7 +247,7 @@ DHCPv6 [RFC3315] can be used in either a "_stateful_" mode, in which it works mu
 
 In the stateless mode, IPv6 clients are assumed to selfconfigure their IPv6 addresses but require additional information (e.g., DNS server address) obtained using DHCPv6. Another option exists for deriving the location of a DNS server using ICMPv6 Router Advertisement messages.
 
-=== IPv6 Address Lifecycle
+==== IPv6 Address Lifecycle
 
 IPv6 hosts usually operate with _multiple addresses per interface_, and each address has a set of timers indicating how long and for what purposes the corresponding address can be used.
 
@@ -269,7 +270,7 @@ When in the tentative state, it may be used only for the _IPv6 Neighbor Discover
 +
 An alternative to conventional DAD is called _optimistic DAD_ [RFC4429], whereby a selected address is used for a limited set of purposes until DAD completes. Because an optimistic use of an address is really just a special set of rules for DAD, it is not a truly complete state itself. Optimistic addresses are treated as deprecated for most purposes. In particular, an address may be both optimistic and deprecated simultaneously, depending on the preferred and valid lifetimes.
 
-=== DHCPv6 Message Format
+==== DHCPv6 Message Format
 
 DHCPv6 messages are encapsulated as UDP/IPv6 datagrams, with client port _546_ and server port _547_. Messages are sent using a _host's link-scoped source address_ to either relay agents or servers.
 
@@ -413,7 +414,7 @@ In IPv6, there is no legacy BOOTP message format. The message semantics, however
 
 In DHCPv6, most interesting information, including addresses, lease times, location of services, and client and server identifiers, is carried in options. Two of the more important concepts used with these options are called the _Identity Association (IA)_ and the _DHCP Unique Identifier (DUID)_.
 
-=== Identity Association (IA)
+==== Identity Association (IA)
 
 An *Identity Association (IA)* is an identifier used between a DHCP client and server to refer to a collection of addresses.
 
@@ -442,7 +443,7 @@ Generally, such policies depend on the link on which the request arrived, standa
 .The format for a DHCPv6 IA for nontemporary addresses (left) and temporary addresses (right). Each option may include additional options describing particular IPv6 addresses and corresponding leases.
 image::/assets/tcp-ip-dhcp-autoconfiguration/dhcpv6-ia-format.png[DHCPv6 IA format,75%,75%]
 
-=== DHCP Unique Identifier (DUID)
+==== DHCP Unique Identifier (DUID)
 
 A *DHCP Unique Identifier (DUID)* identifies a single DHCPv6 client or server and is designed to be persistent over time.
 
@@ -458,7 +459,7 @@ To satisfy these concerns simultaneously, [RFC3315] defines three different type
 . DUID-EN: a DUID based on enterprise number and vendor assignment
 . DUID-LL: a DUID based on link-layer address only
 
-=== Protocol Operation
+==== Protocol Operation
 
 The DHCPv6 protocol operates much like its DHCPv4 counterpart.
 
@@ -478,7 +479,54 @@ Any combination of the _M_ and _O_ bit fields is possible, although having _M_ o
 
 * Having _M_ off and _O_ on indicates that clients should use stateless DHCPv6 and obtain their addresses using stateless address autoconfiguration.
 
-// Typically, a client starting out first determines what link-local address
+.Basic operation of DHCPv6. A client determines whether or not to use DHCPv6 from information carried in ICMPv6 router advertisements. If used, DHCPv6 operations are similar to those in DHCPv4 but differ significantly in the details.
+image::/assets/tcp-ip-dhcp-autoconfiguration/dhcpv6-operations.png[DHCPv6 Operation,55%,55%]
+
+. Typically, a client starting out first determines what link-local address to use and performs an _ICMPv6 Router Discovery_ operation to determine if there is a router on the attached network.
+
+. A _router advertisement_ includes the _M_ and _O_ bit fields mentioned previously.
+
+. If DHCPv6 is in use, at least the _M_ bit field is set and the client multicasts the _DHCPSOLICIT_ message to find DHCPv6 servers.
+
+. A response comes in the form of one or more _DHCPADVERTISE_ messages, indicating the presence of at least one DHCPv6 server.
+
+These messages constitute two of the so-called _four-message exchange_ operations of DHCPv6.
+
+In cases where the location of a DHCPv6 server is already known or an address need not be allocated (e.g., stateless DHCPv6 or the Rapid Commit option is being used), the four-message exchange can be shortened to become a two-message exchange, in which case only the REQUEST and REPLY messages are used.
+
+A DHCPv6 server commits a binding formed from the combination of a DUID, IA type (temporary, nontemporary, or prefix), and IAID. The IAID is a 32-bit number chosen by the client.
+
+Each binding can have one or more leases, and one or more bindings can be manipulated using a single DHCPv6 transaction.
+
+* DAD for the client system’s link-local address is a _Neighbor Solicitation_ for its own IPv6 address.
++
+[source,console]
+----
+00:0c:29:85:26:11 > 33:33:ff:85:26:11, ethertype IPv6 (0x86dd), length 86: (hlim 255, next-header ICMPv6 (58) payload length: 32) :: > ff02::1:ff85:2611: [icmp6 sum ok] ICMP6, neighbor solicitation, length 32, who has fe80::20c:29ff:fe85:2611
+      unknown option (14), length 8 (1):
+        0x0000:  93d1 208a 5c73
+----
++
+The packet is sent to the corresponding solicited-node address _ff02::1:ff85:2611_. It optimistically assumes that this address is not otherwise in use on the link, so it continues on immediately with a _Router Solicitation (RS)_.
+
+* The _Router Solicitation_ induces a nearby router to provide a _Router Advertisement_.
++
+The solicitation message is sent to the _All Routers address_ (_ff02::2_). It induces each router on the network to respond with a _Router Advertisement (RA)_, which carries the important _M_ and _O_ bits the client requires to determine what to do next.
++
+[source,console]
+----
+00:0c:29:85:26:11 > 33:33:00:00:00:02, ethertype IPv6 (0x86dd), length 70: (hlim 255, next-header ICMPv6 (58) payload length: 16) fe80::20c:29ff:fe85:2611 > ff02::2: [icmp6 sum ok] ICMP6, router solicitation, length 16
+      source link-address option (1), length 8 (1): 00:0c:29:85:26:11
+        0x0000:  000c 2985 2611
+----
+
+=== Rapid Commit
+
+The DHCP _Rapid Commit_ option [RFC4039] allows a DHCP server to respond to the DHCPDISCOVER message with a DHCPACK, effectively skipping the DHCPREQUEST message and ultimately using a two-message exchange instead of a four-message exchange.
+
+The motivation for this option is to quickly configure hosts that may change their point of network attachment frequently (i.e., mobile hosts).
+
+When only a single DHCP server is available and addresses are plentiful, this option should be of no significant concern.
 
 == Stateless Address Autoconfiguration (SLAAC)
 
@@ -506,8 +554,86 @@ This check is implemented using _IPv4 ACD_.
 
 === IPv6 SLAAC for Link-Local Addresses
 
-The goal of IPv6 SLAAC is to allow nodes to automatically (and autonomously) self-assign link-local IPv6 addresses. IPv6 SLAAC is described in [RFC4862]. It
+The goal of IPv6 SLAAC is to allow nodes to automatically (and autonomously) self-assign link-local IPv6 addresses.
 
+IPv6 SLAAC is described in [RFC4862]. It involves three major steps: obtaining a link-local address, obtaining a global address using stateless autoconfiguration, and detecting whether the link-local address is already in use on the link.
+
+Stateless autoconfiguration can be used without routers, in which case only link-local addresses are assigned.
+
+When routers are present, a global address is formed using a combination of the prefix advertised by a router and locally generated information.
+
+SLAAC can also be used in conjunction with DHCPv6 (or manual address assignment) to allow a host to obtain information in addition to its address (called _stateless_ DHCPv6).
+
+Hosts that perform SLAAC can be used on the same network as those configured using stateful or stateless DHCPv6.
+
+Generally, stateful DHCPv6 is used when finer control is required in assigning address to hosts, but it is expected that stateless DHCPv6 in combination with SLAAC will be the most common deployment option.
+
+In IPv6, tentative (or optimistic) link-local addresses are selected using procedures specified in [RFC4291] and [RFC4941]. They apply only to multicast-capable networks and are assigned infinite preferred and valid lifetimes once established.
+
+To form the numeric address, a unique number is appended to the well-known link-local prefix _fe80::0_ (of appropriate length). This is accomplished by setting the right-most _N_ bits of the address to be equal to the (N-bit-long) number, the left-most bits equal to the 10-bit link-local prefix _1111111010_, and the rest to _0_. The resulting address is placed into the tentative (or optimistic) state and checked for duplicates.
+
+=== IPv6 Duplicate Address Detection (DAD)
+
+IPv6 DAD uses ICMPv6 _Neighbor Solicitation_ and _Neighbor Advertisement_ messages to determine if a particular (tentative or optimistic) IPv6 address is already in use on the attached link.
+
+If a duplicate address is discovered, the procedure causes the tentative address to not be used.
+
+If DAD succeeds, the tentative address transitions to the preferred state and can be used without restriction.
+
+DAD is performed as follows:
+
+* A node first joins the _All Nodes multicast address_ and the _Solicited-Node multicast address_ of the tentative address.
+
+* To check for use of an address duplicate, a node sends one or more ICMPv6 _Neighbor Solicitation_ messages.
++
+The source and destination IPv6 addresses of these messages are the unspecified address and _Solicited-Node address_ of the target address being checked, respectively.
++
+The _Target Address_ field is set to the address being checked (the tentative address).
+
+* If a _Neighbor Advertisement_ message is received in response, DAD has failed, and the address being checked is abandoned.
+
+[NOTE]
+====
+As a consequence of joining multicast groups, _MLD_ messages are sent, but their transmission is delayed by a random interval according to [RFC4862] to avoid congesting the network when many nodes simultaneously join the _All Hosts group_ (e.g., after a restoration of power). For DAD, these MLD messages are used to inform MLD-snooping switches to forward multicast traffic as necessary.
+====
+
+When an address has not yet successfully completed DAD, any received neighbor solicitations for it are treated in a special way, as this is indicative of some other host's intention to use the same address. If such messages are received, they are dropped, the current tentative address is abandoned, and DAD fails.
+
+If DAD fails, by receiving a similar neighbor solicitation from another node or a neighbor advertisement for the target address, the address is not assigned to an interface and does not become a preferred address. If the address is a link-local address being configured based on an interface identifier derived from a local MAC address, it is unlikely that the same procedure will ultimately produce a nonconflicting address, so the use of this address is abandoned and administrator input is required. If the address is based on a different form of interface identifier, IPv6 operations may be retried using another address based on an alternative tentative address.
+
+=== IPv6 SLAAC for Global Addresses
+
+Once a node has acquired a link-local address, it is likely to require one or more global addresses as well.
+
+Global addresses are formed using a process similar to that for link-local SLAAC but using a prefix provided by a router.
+
+* Such prefixes are carried in the _Prefix_ option of a router advertisement, and a flag indicates whether the prefix should be used in forming global addresses with SLAAC.
+* If so, the prefix is combined with an interface identifier (e.g., the same one used in forming a link-local address if the privacy extension is not being used) to form a global address.
+* The preferred and valid lifetimes of such addresses are also determined by information present in the _Prefix_ option.
+
+== PPP over Ethernet (PPPoE)
+
+For most LANs and some WAN connections, DHCP provides the most common method for configuring client systems.
+
+For WAN connections such as DSL, another method based on PPP is often used instead.
+
+* This method involves carrying PPP on Ethernet and is called _PPP over Ethernet_ (_PPPoE_).
+
+* PPPoE is used in cases where the WAN connection device (e.g., DSL modem) acts as a switch or bridge instead of a router.
+
+* PPP is preferred as a basis for establishing connectivity by some ISPs because it may provide finer-grain configuration control and audit logs than other configuration options such as DHCP.
+
+* To provide Internet connectivity, some device such as a user's PC must implement the IP routing and addressing functions.
++
+.A simplified view of DSL service using PPPoE as provided to a customer. The home PC implements the PPPoE protocol and authenticates the subscriber with the ISP. It may also act as a router, DHCP server, DNS server, and/or NAT device for the home LAN.
+image::/assets/tcp-ip-dhcp-autoconfiguration/pppoe-dsl-home-lan.png[PPPoE DSL,45%,45%]
+
+DSL provides a point-to-point digital link that can operate simultaneously with a conventional analog telephone line (called _plain old telephone service_ or _POTS_).
+
+* This simultaneous use of the customer's physical phone wires is accomplished using _frequency division multiplexing_—the DSL information is carried on higher frequencies than POTS.
+* A _filter_ is required when attaching conventional telephone handsets to avoid interference from the higher DSL frequencies.
+* The DSL modem effectively provides a bridged service to a PPP port on the ISP's _access concentrator_ (_AC_), which interconnects the customer's modem line and the ISP's networking equipment.
+* The modem and AC also support the PPPoE protocol, which the user has elected in this example to configure on a home PC attached to the DSL modem using a point-to-point Ethernet network (i.e., an Ethernet LAN using only a single cable).
 
 == References
 
