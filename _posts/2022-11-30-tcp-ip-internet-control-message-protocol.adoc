@@ -5,6 +5,7 @@
 :page-date: 2022-11-30 11:44:23 +0800
 :page-revdate: 2022-11-30 11:44:23 +0800
 :toc: preamble
+:toclevels: 4
 :sectnums:
 
 The IP protocol alone provides no direct way for an end system to learn the fate of IP packets that fail to make it to their destinations.
@@ -48,3 +49,646 @@ image::/assets/tcp-ip/internet-control-message-protocol/icmpv4-icmpv6-encapsulat
 
 .All ICMP messages begin with 8-bit Type and Code fields, followed by a 16-bit Checksum that covers the entire message. The type and code values are different for ICMPv4 and ICMPv6.
 image::/assets/tcp-ip/internet-control-message-protocol/icmp-message-format.png[ICMPv4 and ICMPv6 messages,45%,45%]
+
+== ICMP Messages
+
+ICMP messages are grouped into two major categories:
+
+* those messages relating to problems with delivering IP datagrams (called _error messages_),
+* and those related to information gathering and configuration (called _query_ or _informational messages_).
+
+=== ICMPv4 Messages
+
+For ICMPv4, the informational messages include
+
+* _Echo Request_ and _Echo Reply_ (types _8_ and _0_, respectively),
+* and _Router Advertisement_ and _Router Solicitation_ (types _9_ and _10_, respectively,
++
+together called _Router Discovery_).
+
+The most common error message types are
+
+* _Destination Unreachable_ (type _3_),
+* _Redirect_ (type _5_),
+* _Time Exceeded_ (type _11_),
+* and _Parameter Problem_ (type _12_).
+
+.The standard ICMPv4 message types, as determined by the Type field*
+[%header,cols="1,3,1,1,7"]
+|===
+|Type
+|Official Name
+|Reference
+|E/I
+|Use/Comment
+
+|0 (*) 
+|Echo Reply
+|[RFC0792]
+|I
+|Echo (ping) reply; returns data
+
+|3 (*)(+)
+|Destination Unreachable
+|[RFC0792]
+|E
+|Unreachable host/protocol
+
+|4
+|Source Quench
+|[RFC0792]
+|E
+|Indicates congestion (deprecated)
+
+|5 (*)
+|Redirect
+|[RFC0792]
+|E
+|Indicates alternate router should be used
+
+|8 (*)
+|Echo
+|[RFC0792]
+|I
+|Echo (ping) request (data optional)
+
+|9
+|Router Advertisement
+|[RFC1256]
+|I
+|Indicates router addresses/preferences
+
+|10
+|Router Solicitation
+|[RFC1256]
+|I
+|Requests Router Advertisement
+
+|11 (*)(+)
+|Time Exceeded
+|[RFC0792]
+|E
+|Resource exhausted (e.g., IPv4 TTL)
+
+|12 (*)(+)
+|Parameter Problem
+|[RFC0792]
+|E
+|Malformed packet or header
+
+|===
+
+TIP: Types marked with asterisks (*) are the most common. Those marked with a plus (+) may contain [RFC4884] extension objects. In the fourth column, E is for error messages and I indicates query/informational messages.
+
+.Common ICMPv4 message types that use code numbers in addition to 0. Although all of these message types are relatively common, only a few of the codes are commonly used.
+[%header,cols="1,1,7,9"]
+|===
+|Type
+|Code
+|Official Name
+|Use/Comment
+
+|3
+|0
+|Net Unreachable
+|No route (at all) to destination
+
+|3 (*)
+|1
+|Host Unreachable
+|Known but unreachable host
+
+|3
+|2
+|Protocol Unreachable
+|Unknown (transport) protocol
+
+|3 (*)
+|3
+|Port Unreachable
+|Unknown/unused (transport) port
+
+|3 (*)
+|4
+|Fragmentation Needed and Don’t
+Fragment Was Set (PTB message)
+|Needed fragmentation prohibited by DF
+bit; used by PMTUD [RFC1191]
+
+|3
+|5
+|Source Route Failed
+|Intermediary hop not reachable
+
+|3
+|6
+|Destination Network Unknown
+|Deprecated [RFC1812]
+
+|3
+|7
+|Destination Host Unknown
+|Destination does not exist
+
+|3
+|8
+|Source Host Isolated
+|Deprecated [RFC1812]
+
+|3
+|9
+|Communication with Destination
+Network Administratively
+Prohibited
+|Deprecated [RFC1812]
+
+|3
+|10
+|Communication with Destination
+Host Administratively Prohibited
+|Deprecated [RFC1812]
+
+|3
+|11
+|Destination Network Unreachable
+for Type of Service
+|Type of service not available (net)
+
+|3
+|12
+|Destination Host Unreachable for
+Type of Service
+|Type of service not available (host)
+
+|3
+|13
+|Communication Administratively
+Prohibited
+|Communication prohibited by filtering
+policy
+
+|3
+|14
+|Host Precedence Violation
+|Precedence disallowed for src/dest/port
+
+|3
+|15
+|Precedence Cutoff in Effect
+|Below minimum ToS [RFC1812]
+
+|5
+|0
+|Redirect Datagram for the Network
+(or Subnet)
+|Indicates alternate router
+
+|5 (*)
+|1
+|Redirect Datagram for the Host
+|Indicates alternate router (host)
+
+|5
+|2
+|Redirect Datagram for the Type of
+Service and Network
+|Indicates alternate router (ToS/net)
+
+|5
+|3
+|Redirect Datagram for the Type of
+Service and Host
+|Indicates alternate router (ToS/host)
+
+|9
+|0
+|Normal Router Advertisement
+|Router's address and configuration
+information
+
+|9
+|16
+|Does Not Route Common Traffic
+|With Mobile IP [RFC5944], router does not
+route ordinary packets
+
+|11 (*)
+|0
+|Time to Live Exceeded in Transit
+|Hop limit/TTL exceeded
+
+|11
+|1
+|Fragment Reassembly Time
+Exceeded
+|Not all fragments of datagram arrived
+before reassembly timer expired
+
+|12 (*)
+|0
+|Pointer Indicates the Error
+|Byte offset (pointer) indicates first problem
+field
+
+|12
+|1
+|Missing a Required Option
+|Deprecated/historic
+
+|12
+|2
+|Bad Length
+|Packet had invalid Total Length field
+
+|===
+
+=== ICMPv6 Messages
+
+Note that ICMPv6 is responsible not only for error and informational messages but also for a great deal of _IPv6 router and host configuration_.
+
+.In ICMPv6, error messages have message types from 0 to 127. Informational messages have message types from 128 to 255. The plus (+) notation indicates that the message may contain an extension structure. Reserved, unassigned, experimental, and deprecated values are not shown.
+[%header,cols="1,7,1,7"]
+|===
+|Type
+|Official Name
+|Reference
+|Description
+
+|1 (+)
+|Destination Unreachable
+|[RFC4443]
+|Unreachable host, port, protocol
+
+|2
+|Packet Too Big (PTB)
+|[RFC4443]
+|Fragmentation required
+
+|3 (+)
+|Time Exceeded
+|[RFC4443]
+|Hop limit exhausted or
+reassembly timed out
+
+|4
+|Parameter Problem
+|[RFC4443]
+|Malformed packet or header
+
+|100,101
+|Reserved for private experimentation
+|[RFC4443]
+|Reserved for experiments
+
+|127
+|Reserved for expansion of ICMPv6
+error messages
+|[RFC4443]
+|Hold for more error messages
+
+|128
+|Echo Request
+|[RFC4443]
+|ping request; may contain data
+
+|129
+|Echo Reply
+|[RFC4443]
+|ping response; returns data
+
+|130
+|Multicast Listener Query
+|[RFC2710]
+|Queries multicast subscribers
+(v1)
+
+|131
+|Multicast Listener Report
+|[RFC2710]
+|Multicast subscriber report (v1)
+
+|132
+|Multicast Listener Done
+|[RFC2710]
+|Multicast unsubscribe
+message (v1)
+
+|133
+|Router Solicitation (RS)
+|[RFC4861]
+|IPv6 RS with Mobile IPv6
+options
+
+|134
+|Router Advertisement (RA)
+|[RFC4861]
+|IPv6 RA with Mobile IPv6
+options
+
+|135
+|Neighbor Solicitation (NS)
+|[RFC4861]
+|IPv6 Neighbor Discovery
+(Solicit)
+
+|136
+|Neighbor Advertisement (NA)
+|[RFC4861]
+|IPv6 Neighbor Discovery
+(Advertisement)
+
+|137
+|Redirect Message
+|[RFC4861]
+|Use alternative next-hop router
+
+|141
+|Inverse Neighbor Discovery
+Solicitation Message
+|[RFC3122]
+|Inverse Neighbor Discovery
+request: requests IPv6 addresses
+given link-layer address
+
+|142
+|Inverse Neighbor Discovery
+Advertisement Message
+|[RFC3122]
+|Inverse Neighbor Discovery
+response: reports IPv6 addresses
+given link-layer address
+
+|143
+|Version 2 Multicast Listener Report
+|[RFC3810]
+|Multicast subscriber report (v2)
+
+|144
+|Home Agent Address Discovery
+Request Message
+|[RFC6275]
+|Requests Mobile IPv6 HA
+address; send by mobile node
+
+|145
+|Home Agent Address Discovery Reply
+Message
+|[RFC6275]
+|Contains MIPv6 HA address;
+sent by eligible HA on home
+network
+
+|146
+|Mobile Prefix Solicitation
+|[RFC6275]
+|Request home prefix while away
+
+|147
+|Mobile Prefix Advertisement
+|[RFC6275]
+|Provides prefix from HA to
+mobile
+
+|148
+|Certification Path Solicitation Message
+|[RFC3971]
+|Secure Neighbor Discovery
+(SEND) request for a
+certification path
+
+|149
+|Certification Path Advertisement
+Message
+|[RFC3971]
+|SEND response to certification
+path request
+
+|151
+|Multicast Router Advertisement
+|[RFC4286]
+|Provides address of multicast
+router
+
+|152
+|Multicast Router Solicitation
+|[RFC4286]
+|Requests address of multicast
+router
+
+|153
+|Multicast Router Termination
+|[RFC4286]
+|Done using multicast router
+
+|154
+|FMIPv6 Messages
+|[RFC5568]
+|MIPv6 fast handover messages
+
+|200,201
+|Reserved for private experimentation
+|[RFC4443]
+|Reserved for experiments
+
+|255
+|Reserved for expansion of ICMPv6
+informational messages
+|[RFC4443]
+|Hold for more informational
+messages
+
+|===
+
+.ICMPv6 standard message types (i.e., Destination Unreachable, Time Exceeded, and Parameter Problem)  with codes in addition to 0 assigned
+[%header,cols="1,1,7,7"]
+|===
+|Type
+|Code
+|Name
+|Use/Comment
+
+|1 
+|0
+|No Route to Destination
+|Route not present
+
+|1
+|1
+|Administratively Prohibited
+|Policy (e.g., firewall) prohibited
+
+|1
+|2
+|Beyond Scope of Source Address
+|Destination scope exceeds source's
+
+|1
+|3
+|Address Unreachable
+|Used if codes 0–2 are not appropriate
+
+|1
+|4
+|Port Unreachable
+|No transport entity listening on port
+
+|1
+|5
+|Source Address Failed
+|Policy Ingress/egress policy violation
+
+|1
+|6
+|Reject Route to Destination
+|Specific reject route to destination
+
+|3
+|0
+|Hop Limit Exceeded in Transit
+|Hop Limit field decremented to 0
+
+|3
+|1
+|Reassembly Time Exceeded
+|Unable to reassemble in limited time
+
+|4
+|0
+|Erroneous Header Field
+|Found General header processing error
+
+|4
+|1
+|Unrecognized Next Header
+|Unknown Next Header field value
+
+|4
+|2
+|Unrecognized IPv6 Option
+|Unknown Hop-by-Hop or Destination option
+
+|===
+
+=== Processing of ICMP Messages
+
+In ICMP, the processing of incoming messages varies from system to system.
+
+Generally speaking, the incoming informational requests are handled automatically by the operating system, and the error messages are delivered to user processes or to a transport protocol such as TCP [RFC5461]. The processes may choose to act on them or ignore them.
+
+Exceptions to this general rule include the Redirect message and the Destination Unreachable—Fragmentation Required messages.
+
+* The former results in an automatic update to the host's routing table,
+* whereas the latter is used in the path MTU discovery (PMTUD) mechanism, which is generally implemented by the transport-layer protocols such as TCP.
+
+In ICMPv6 the handling of messages has been tightened somewhat. The following rules are applied when processing incoming ICMPv6 messages [RFC4443]:
+
+. Unknown ICMPv6 error messages must be passed to the upper-layer process that produced the datagram causing the error (if possible).
+
+. Unknown ICMPv6 informational messages are dropped.
+
+. ICMPv6 error messages include as much of the original (_offending_) IPv6 datagram that caused the error as will fit without making the error message datagram exceed the minimum IPv6 MTU (1280 bytes).
+
+. When processing ICMPv6 error messages, the upper-layer protocol type is extracted from the original or _offending_ packet (contained in the body of the ICMPv6 error message) and used to select the appropriate upper-layer process.
++
+If this is not possible, the error message is silently dropped after any IPv6-layer processing.
+
+. There are special rules for handling errors.
+
+. An IPv6 node must limit the rate of ICMPv6 error messages it sends.
++
+There are a variety of ways of implementing the rate-limiting function, including the _token bucket_ approach mentioned.
+
+== ICMP Error Messages
+
+In particular, an ICMP error message is not to be sent in response to any of the following messages: another ICMP error message, datagrams with bad headers (e.g., bad checksum), IP-layer broadcast/multicast datagrams, datagrams encapsulated in link-layer broadcast or multicast frames, datagrams with an invalid or network zero source address, or any fragment other than the first.
+
+The reason for imposing these restrictions on the generation of ICMP errors is to limit the creation of so-called _broadcast storms_, a scenario in which the generation of a small number of messages creates an unwanted traffic cascade (e.g., by generating error responses in response to error responses, indefinitely).
+
+An ICMPv4 error message is never generated in response to:
+
+* An ICMPv4 error message. (An ICMPv4 error message may, however, be generated in response to an ICMPv4 query message.)
+* A datagram destined for an IPv4 broadcast address or an IPv4 multicast address (formerly known as a class D address).
+* A datagram sent as a link-layer broadcast.
+* A fragment other than the first.
+* A datagram whose source address does not define a single host.
++
+This means that the source address cannot be a zero address, a loopback address, a broadcast address, or a multicast address.
+
+An ICMPv6 error message is never generated in response to:
+
+* An ICMPv6 error message
+* An ICMPv6 Redirect message
+* A packet destined for an IPv6 multicast address, with two exceptions:
+** The Packet Too Big (PTB) message
+** The Parameter Problem message (code 2)
+* A packet sent as a link-layer multicast (with the exceptions noted previously)
+* A packet sent as a link-layer broadcast (with the exceptions noted previously)
+* A packet whose source address does not uniquely identify a single node.
++
+This means that the source address cannot be an unspecified address, an IPv6 multicast address, or any address known by the sender to be an anycast address.
+
+When an ICMP error message is sent, it contains
+
+* a copy of the full IP header from the _offending_ or _original_ datagram (i.e., the IP header of the datagram that caused the error to be generated, including any IP options),
+* plus any other data from the original datagram's IP payload area
+
+such that the generated IP/ ICMP datagram's size does not exceed a specific value.
+
+For IPv4 this value is _576_ bytes, and for IPv6 it is the IPv6 minimum MTU, which is at least _1280_ bytes.
+
+Including a portion of the payload from the original IP datagram lets the receiving ICMP module associate the message with
+
+* one particular _protocol_ (e.g., TCP or UDP) from the _Protocol_ or _Next Header_ field in the IP header
+* and one particular _user process_ (from the TCP or UDP port numbers that are in the TCP or UDP header contained in the first 8 bytes of the IP datagram payload area).
+
+=== Destination Unreachable (ICMPv4 Type 3, ICMPv6 Type 1) and Packet Too Big (ICMPv6 Type 2)
+
+In ICMPv6, as compared with IPv4, the Fragmentation Required message has been replaced by an entirely different type (type 2), but the usage is very similar to the corresponding ICMP Destination Unreachable message.
+
+==== ICMPv4 Host Unreachable (Code 1) and ICMPv6 Address Unreachable (Code 3)
+
+This form of the Destination Unreachable message is generated by a router or host when it is required to send an IP datagram to a host using direct delivery but for some reason cannot reach the destination.
+
+This situation may arise, for example, because the last-hop router is attempting to
+
+* send an _ARP_ request to a host that is either missing or down.
++
+[source,console]
+----
+root@node-0:~# tcpdump -tenv not tcp -i any
+ens34 B   ifindex 3 00:0c:29:8c:df:3f ethertype ARP (0x0806), length 66: Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.120 tell 192.168.91.128, length 46
+lo    In  ifindex 1 00:00:00:00:00:00 ethertype IPv4 (0x0800), length 132: (tos 0xc0, ttl 64, id 18662, offset 0, flags [none], proto ICMP (1), length 112)
+    192.168.91.128 > 192.168.91.128: ICMP host 192.168.91.120 unreachable, length 92
+	(tos 0x0, ttl 64, id 33177, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 192.168.91.120: ICMP echo request, id 60872, seq 1, length 64
+----
++
+[source,console]
+----
+x@node-0:~$ ping -c 1 192.168.91.120
+PING 192.168.91.120 (192.168.91.120) 56(84) bytes of data.
+From 192.168.91.128 icmp_seq=1 Destination Host Unreachable
+
+--- 192.168.91.120 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+----
+
+* For ICMPv6, this message can be the result of a failure in the _ND_ process.
++
+[source,console]
+----
+root@node-0:~# tcpdump -tenv ip6 -i any
+ens32 Out ifindex 2 00:0c:29:8c:df:3f ethertype IPv6 (0x86dd), length 92: (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe8c:df3f > ff02::1:ff8c:df50: [icmp6 sum ok] ICMP6, neighbor solicitation, length 32, who has fe80::20c:29ff:fe8c:df50
+	  source link-address option (1), length 8 (1): 00:0c:29:8c:df:3f
+lo    In  ifindex 1 00:00:00:00:00:00 ethertype IPv6 (0x86dd), length 172: (flowlabel 0xa61cc, hlim 64, next-header ICMPv6 (58) payload length: 112) fe80::20c:29ff:fe8c:df3f > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, destination unreachable, unreachable address fe80::20c:29ff:fe8c:df50
+----
++
+[source,console]
+----
+x@node-0:~$ ping -c 1 -6 fe80::20c:29ff:fe8c:df50
+PING fe80::20c:29ff:fe8c:df50(fe80::20c:29ff:fe8c:df50) 56 data bytes
+From fe80::20c:29ff:fe8c:df3f%ens32 icmp_seq=1 Destination unreachable: Address unreachable
+
+--- fe80::20c:29ff:fe8c:df50 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+----
