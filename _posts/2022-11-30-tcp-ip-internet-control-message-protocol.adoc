@@ -977,3 +977,85 @@ The only remaining popular ICMP query/informational messages are the Echo Reques
 Even the Router Discovery mechanism is not in wide use with IPv4, but its analog (part of Neighbor Discovery) in IPv6 is fundamental.
 
 In addition, ICMPv6 has been extended to support Mobile IPv6 and the discovery of multicast-capable routers.
+
+=== Echo Request/Reply (ping) (ICMPv4 Types 0/8, ICMPv6 Types 129/128)
+
+One of the most commonly used ICMP message pairs is Echo Request and Echo Response (or Reply).
+
+In ICMPv4 these are types 8 and 0, respectively, and in ICMPv6 they are types 128 and 129, respectively.
+
+ICMP Echo Request messages may be of nearly arbitrary size (limited by the ultimate size of the encapsulating IP datagram).
+
+With ICMP Echo Reply messages, the ICMP implementation is required to return any data received back to the sender, even if multiple IP fragments are involved.
+
+As with other ICMP query/informational messages, the server must echo the _Identifier_ and _Sequence Number_ fields back in the reply.
+
+.Format of the ICMPv4 and ICMPv6 Echo Request and Echo Reply messages. Any optional data included in a request must be returned in a reply. NATs use the _Identifier_ field to match requests with replies.
+image::/assets/tcp-ip/internet-control-message-protocol/icmp-echo-request-reply-message-format.png[Format of the ICMPv4 and ICMPv6 Echo Request and Echo Reply messages,45%,45%]
+
+Implementations of ping set the _Identifier_ field in the ICMP message to some number that the sending host can use to demultiplex returned responses.
+
+* In UNIX-based systems, for example, the process ID of the sending process is typically placed in the _Identifier_ field.
++
+This allows the ping application to identify the returned responses if there are multiple instances of ping running at the same time on the same host, because the ICMP protocol does not have the benefit of transport-layer port numbers.
+
+* This field is often known as the _Query Identifier_ field when referring to firewall behavior.
+
+When a new instance of the ping program is run, the _Sequence Number_ field starts with the value 0 and is increased by 1 every time a new Echo Request message is sent.
+
+* _ping_ prints the sequence number of each returned packet, allowing the user to see if packets are missing, reordered, or duplicated.
++
+Recall that IP (and consequently ICMP) is a _best-effort_ datagram delivery service, so any of these three conditions can occur.
++
+ICMP does, however, include a data checksum not provided by IP.
+
+The _ping_ program also typically includes a copy of the local time in the optional data area of outgoing echo requests.
+
+* This time, along with the rest of the contents of the data area, is returned in an Echo Response message.
+* The _ping_ program notes the current time when a response is received and subtracts the time in the reply from the current time, giving an estimate of the _RTT_ to reach the host that was _pinged_.
+* Because only the original sender's notion of the current time is used, this feature does not require any synchronization between the clocks at the sender and receiver.
+* A similar approach is used by the _traceroute_ tool for its _RTT_ measurements.
+
+[source,console]
+----
+x@node-1:~$ sysctl net.ipv4.icmp_echo_ignore_broadcasts 
+net.ipv4.icmp_echo_ignore_broadcasts = 0
+x@node-1:~$ ip a s ens32
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 900 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.130/24 brd 192.168.91.255 scope global dynamic ens32
+       valid_lft 1780sec preferred_lft 1780sec
+----
+
+[source,console]
+----
+x@node-0:~$ sudo ip neigh flush all
+
+x@node-0:~$ ping -c 2 -b 192.168.91.255
+WARNING: pinging broadcast address
+PING 192.168.91.255 (192.168.91.255) 56(84) bytes of data.
+64 bytes from 192.168.91.2: icmp_seq=1 ttl=128 time=0.449 ms
+64 bytes from 192.168.91.130: icmp_seq=1 ttl=64 time=0.480 ms
+64 bytes from 192.168.91.2: icmp_seq=2 ttl=128 time=0.436 ms
+
+--- 192.168.91.255 ping statistics ---
+2 packets transmitted, 2 received, +1 duplicates, 0% packet loss, time 1008ms
+rtt min/avg/max/mdev = 0.436/0.455/0.480/0.018 ms
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -tnv icmp
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 192.168.91.255: ICMP echo request, id 17779, seq 1, length 64
+IP (tos 0x0, ttl 128, id 17587, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.91.2 > 192.168.91.128: ICMP echo reply, id 17779, seq 1, length 64
+IP (tos 0x0, ttl 64, id 55593, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.91.130 > 192.168.91.128: ICMP echo reply, id 17779, seq 1, length 64
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 192.168.91.255: ICMP echo request, id 17779, seq 2, length 64
+IP (tos 0x0, ttl 128, id 17588, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.91.2 > 192.168.91.128: ICMP echo reply, id 17779, seq 2, length 64
+IP (tos 0x0, ttl 64, id 55720, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.91.130 > 192.168.91.128: ICMP echo reply, id 17779, seq 2, length 64
+----
