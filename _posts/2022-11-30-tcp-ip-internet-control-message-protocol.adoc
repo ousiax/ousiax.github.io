@@ -692,3 +692,274 @@ From fe80::20c:29ff:fe8c:df3f%ens32 icmp_seq=1 Destination unreachable: Address 
 --- fe80::20c:29ff:fe8c:df50 ping statistics ---
 1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
 ----
+
+==== ICMPv6 No Route to Destination (Code 0)
+
+This message refines the Host Unreachable message from ICMPv4 to differentiate those hosts not reachable because of failure of direct delivery and those that cannot be reached because no route is present.
+
+This message is generated only in cases where an arriving datagram must be forwarded without using direct delivery, but where no route entry exists to indicate what router to use as a next hop.
+
+[source,console]
+----
+root@node-1:~# sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 1
+root@node-1:~# ip r
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.130 
+root@node-1:~# tcpdump -env -t ip and not tcp -i ens32 
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), capture size 262144 bytes
+00:0c:29:8c:df:3f > 00:0c:29:85:26:07, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, id 7149, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 192.168.92.10: ICMP echo request, id 41837, seq 1, length 64
+00:0c:29:85:26:07 > 00:0c:29:8c:df:3f, ethertype IPv4 (0x0800), length 126: (tos 0xc0, ttl 64, id 37553, offset 0, flags [none], proto ICMP (1), length 112)
+    192.168.91.130 > 192.168.91.128: ICMP net 192.168.92.10 unreachable, length 92
+	(tos 0x0, ttl 64, id 7149, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 192.168.92.10: ICMP echo request, id 41837, seq 1, length 64
+----
+
+==== ICMPv4 Port Unreachable (Code 3) and ICMPv6 Port Unreachable (Code 4)
+
+The Port Unreachable message is generated when an incoming datagram is destined for an application that is not ready to receive it.
+
+This occurs most commonly in conjunction with UDP, when a message is sent to a port number that is not in use by any server process. If UDP receives a datagram and the destination port does not correspond to a port that some process has in use, UDP responds with an ICMP Port Unreachable message.
+
+[source,console]
+----
+x@node-0:~$ echo -n "hello" | nc -4u -w0 10.170.109.10 tftp
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -nvv icmp or port tftp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+09:55:42.158497 IP (tos 0x0, ttl 64, id 9924, offset 0, flags [DF], proto UDP (17), length 33)
+    192.168.91.128.37775 > 192.168.91.130.69: [udp sum ok] TFTP, length 5, tftp-#26725
+09:55:42.158719 IP (tos 0xc0, ttl 64, id 6641, offset 0, flags [none], proto ICMP (1), length 61)
+    192.168.91.130 > 192.168.91.128: ICMP 192.168.91.130 udp port 69 unreachable, length 41
+	IP (tos 0x0, ttl 64, id 9924, offset 0, flags [DF], proto UDP (17), length 33)
+    192.168.91.128.37775 > 192.168.91.130.69: [udp sum ok] TFTP, length 5, tftp-#26725
+----
+
+[source,console]
+----
+x@node-0:~$ echo -n "hello" | nc -6u -w0 fe80::20c:29ff:fe85:2607%ens32 tftp
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -nvvv -s 1500 icmp6 or port tftp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 1500 bytes
+10:12:51.993200 IP6 (flowlabel 0x9515e, hlim 64, next-header UDP (17) payload length: 13) fe80::20c:29ff:fe8c:df3f.42714 > fe80::20c:29ff:fe85:2607.69: [udp sum ok] TFTP, length 5, tftp-#26725
+10:12:51.993612 IP6 (flowlabel 0x7b8d5, hlim 64, next-header ICMPv6 (58) payload length: 61) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, destination unreachable, unreachable port, fe80::20c:29ff:fe85:2607 udp port 69
+----
+
+==== ICMPv4 PTB (Code 4)
+
+If an IPv4 router receives a datagram that it intends to forward, and if the datagram does not fit into the MTU in use on the selected outgoing network interface, the datagram must be fragmented.
+
+If the arriving datagram has the _Don't Fragment_ bit field set in its IP header, however, it is not forwarded but instead is dropped, and this ICMPv4 Destination Unreachable (PTB) message is generated.
+
+* Because the router sending this message knows the MTU of the next hop, it is able to include the MTU value in the error message it generates.
+
+* This message was originally intended to be used for network diagnostics but has since been used for path MTU discovery.
+
+PMTUD is used to determine an appropriate packet size to use when communicating with a particular host, on the assumption that avoiding packet fragmentation is desirable. It is used most commonly with TCP.
+
+[source,console]
+----
+x@node-1:~$ sudo sysctl net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+
+x@node-1:~$ ip link show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+
+x@node-1:~$ sudo ip link set ens32 mtu 900
+
+x@node-1:~$ ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 900 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.130/24 brd 192.168.91.255 scope global dynamic ens32
+       valid_lft 1511sec preferred_lft 1511sec
+----
+
+[source,console]
+----
+x@node-0:~$ ip r
+default via 192.168.91.130 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+x@node-0:~$ ping -c 1 -s 1000 -M do 10.170.109.10
+PING 10.170.109.10 (10.170.109.10) 1000(1028) bytes of data.
+From 192.168.91.130 icmp_seq=1 Frag needed and DF set (mtu = 900)
+
+--- 10.170.109.10 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -nvv -t icmp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto ICMP (1), length 1028)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 52044, seq 1, length 1008
+IP (tos 0xc0, ttl 64, id 58248, offset 0, flags [none], proto ICMP (1), length 576)
+    192.168.91.130 > 192.168.91.128: ICMP 10.170.109.10 unreachable - need to frag (mtu 900), length 556
+	IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto ICMP (1), length 1028)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 52044, seq 1, length 1008
+----
+
+[source,console]
+----
+x@node-0:~$ ping -c 1 -s 1000 -M do 10.170.109.10
+PING 10.170.109.10 (10.170.109.10) 1000(1028) bytes of data.
+ping: local error: message too long, mtu=900
+
+--- 10.170.109.10 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+x@node-0:~$ ip r show cache
+10.170.109.10 via 192.168.91.130 dev ens32 
+    cache expires 559sec mtu 900 
+
+x@node-0:~$ sudo ip r flush cache
+
+x@node-0:~$ ping -c 1 -s 1000 -M do 10.170.109.10
+PING 10.170.109.10 (10.170.109.10) 1000(1028) bytes of data.
+From 192.168.91.130 icmp_seq=1 Frag needed and DF set (mtu = 900)
+
+--- 10.170.109.10 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+----
+
+==== ICMPv6 PTB (Type 2, Code 0)
+
+In ICMPv6, a special message and type code combination is used to indicate that a packet is too large for the MTU of the next hop.
+
+This message is not a Destination Unreachable message. Recall that in IPv6, packet fragmentation is performed only by the sender of a datagram and that MTU discovery is always supposed to be used.
+
+==== ICMPv6 Beyond Scope of Source Address (Code 2)
+
+IPv6 uses addresses of different scopes.
+
+* Thus, it is possible to construct a packet with source and destination addresses of different scopes.
+* Furthermore, it is possible that the destination address may not be reachable within the same scope.
++
+For example, a packet with a source address using link-local scope may be destined for a globally scoped destination that requires traversal of more than one router.
+
+Because the source address is of insufficient scope, the packet is dropped by a router, and this form of ICMPv6 error is produced to indicate the problem.
+
+==== ICMPv6 Source Address Failed Ingress/Egress Policy (Code 5)
+
+Code 5 is a more refined version of code 1, to be used when a particular ingress or egress filtering policy is the reason for prohibiting the successful delivery of a datagram.
+
+This might be used, for example, when a host attempts to send traffic using a source IPv6 address from an unexpected network prefix [RFC3704].
+
+==== ICMPv6 Reject Route to Destination (Code 6)
+
+A _reject_ or _blocking route_ is a special routing or forwarding table entry, which indicates that matching packets should be dropped and an ICMPv6 Destination Unreachable Reject Route message should be generated.
+
+A similar type of entry called a _blackhole route_ also causes matching packets to be dropped, but usually without generating the Destination Unreachable message.
+
+=== Redirect (ICMPv4 Type 5, ICMPv6 Type 137)
+
+If a router receives a datagram from a host and can determine that it is not the correct next hop for the host to have used to deliver the datagram to its destination,
+
+* the router sends a Redirect message to the host
+* and sends the datagram on to the correct router (or host).
+
+That is, if it can determine that
+
+* there is a better next hop than itself for the given datagram,
+* it redirects the host to update its forwarding table so that future traffic for the same destination will be directed toward the new node.
+
+This facility provides a crude form of routing protocol by indicating to the IP forwarding function where to send its packets.
+
+.The host incorrectly sends a datagram via R2 toward its destination. R2 realizes the host’s mistake and sends the datagram to the proper router, R1. It also informs the host of the error by sending an ICMP Redirect message. The host is expected to adjust its forwarding tables so that future datagrams to the same destination go through R1 without bothering R2.
+image::/assets/tcp-ip/internet-control-message-protocol/icmp-redirect-message.png[ICMP Redirect message,45%,45%]
+
+The ICMP Redirect message includes the IP address of the router (or destination host, if it is reachable using direct delivery), a host should use as a next hop for
+the destination specified in the ICMP error message.
+
+.The ICMPv4 Redirect message includes the IPv4 address of the correct router to use as a next hop for the datagram included in the payload portion of the message. A host typically checks the IPv4 source address of the incoming Redirect message to verify that it is coming from the default router it is currently using.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv4-redirect-message-format.png[ICMPv4 Redirect Message Format,45%,45%]
+
+[source,console]
+----
+C:\>netstat -rn
+Network Destination        Netmask          Gateway       Interface  Metric
+          0.0.0.0          0.0.0.0   10.170.109.254    10.170.109.10     35
+
+C:\> route delete 0.0.0.0 &:: delete default
+C:\> route add 0.0.0.0 mask 0.0.0.0 10.170.109.112 &:: add new
+C:\>ping -n 1 ds1.eecs.berkeley.edu &:: sends thru 10.170.109.112
+
+Pinging ds1.eecs.berkeley.edu [169.229.60.105] with 32 bytes of data:
+Reply from 169.229.60.105: bytes=32 time=32ms TTL=50
+
+Ping statistics for 169.229.60.105:
+    Packets: Sent = 1, Received = 1, Lost = 0 (0% loss),
+Approximate round trip times in milli-seconds:
+    Minimum = 32ms, Maximum = 32ms, Average = 32ms
+----
+
+[source,console]
+---
+Linux# tcpdump host 10.170.109.10
+1 20:27:00.759340 IP 10.170.109.10 > ds1.eecs.berkeley.edu: icmp 40:
+                    echo request seq 15616
+2 20:27:00.759445 IP 10.170.109.112 > 10.170.109.10: icmp 68:
+                    redirect ds1.eecs.berkeley.edu to host 10.170.109.254
+---
+
+.The ICMPv6 Redirect message. The target address indicates the IPv6 address of a better next-hop router for the node identified by the destination address. This message can also be used to indicate that the destination address is an on-link neighbor to the node sending the message that induced the error message. In this case, the destination and target addresses are the same.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-redirect-message-format.png[ICMPv6 Redirect Message,45%,45%]
+
+In ICMPv6, the Redirect message (type 137) contains the target address and the destination address, and it is defined in conjunction with the ND process.
+
+* The _Target Address_ field contains the correct node's link-local IPv6 address that should be used for the next hop.
+* The _Destination Address_ is the destination IPv6 address in the datagram that evoked the redirect.
+
+==== ICMP Time Exceeded (ICMPv4 Type 11, ICMPv6 Type 3)
+
+Every IPv4 datagram has a _Time-to-Live (TTL)_ field in its IPv4 header, and every IPv6 datagram has a _Hop Limit_ field in its header. Any router must decrement the _TTL_ field by at least 1.
+
+ICMP Time Exceeded (_code 0_) messages are generated when a router discards a datagram because the _TTL_ or _Hop Limit_ field is too low (i.e., arrives with value 0 or 1 and must be forwarded).
+
+This message is important for the proper operation of the _traceroute_ tool (called _tracert_ on Windows).
+
+.The ICMP Time Exceeded message format for ICMPv4 and ICMPv6. The message is standardized for both the TTL or hop count being exceeded (code 0) or the time for reassembling fragments exceeding some preconfigured threshold (code 1).
+image::/assets/tcp-ip/internet-control-message-protocol/icmp-time-exceeded-message-format.png[ICMP Time Exceeded Message Format,45%,45%]
+
+Another less common variant of this message is when a fragmented IP datagram only partially arrives at its destination (i.e., all its fragments do not arrive after a period of time).
+
+In such cases, a variant of the ICMP Time Exceeded message (_code 1_) is used to inform the sender that its overall datagram has been discarded.
+
+Recall that if any fragment of a datagram is dropped, the entire datagram is lost.
+
+[source,console]
+----
+x@node-0:~$ sudo traceroute -I -m 2 10.170.109.10
+traceroute to 10.170.109.10 (10.170.109.10), 2 hops max, 60 byte packets
+ 1  192.168.91.130 (192.168.91.130)  0.315 ms  0.189 ms  0.160 ms
+ 2  192.168.91.2 (192.168.91.2)  0.190 ms  0.173 ms  0.164 ms
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -nvv -t icmp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 1, id 37515, offset 0, flags [none], proto ICMP (1), length 60)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 6913, seq 1, length 40
+...
+IP (tos 0x0, ttl 2, id 37518, offset 0, flags [none], proto ICMP (1), length 60)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 6913, seq 4, length 40
+...
+IP (tos 0xc0, ttl 64, id 28770, offset 0, flags [none], proto ICMP (1), length 88)
+    192.168.91.130 > 192.168.91.128: ICMP time exceeded in-transit, length 68
+	IP (tos 0x0, ttl 1, id 37515, offset 0, flags [none], proto ICMP (1), length 60)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 6913, seq 1, length 40
+...
+IP (tos 0x0, ttl 128, id 16816, offset 0, flags [none], proto ICMP (1), length 88)
+    192.168.91.2 > 192.168.91.128: ICMP time exceeded in-transit, length 68
+	IP (tos 0x0, ttl 1, id 37518, offset 0, flags [none], proto ICMP (1), length 60)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 6913, seq 4, length 40
+...
+----
