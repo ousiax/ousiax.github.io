@@ -1224,7 +1224,7 @@ IP6 (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe85:2
 IP6 (hlim 255, next-header ICMPv6 (58) payload length: 24) fe80::20c:29ff:fe8c:df3f > fe80::20c:29ff:fe85:2607: [icmp6 sum ok] ICMP6, neighbor advertisement, length 24, tgt is fe80::20c:29ff:fe8c:df3f, Flags [solicited]
 ----
 
-==== ICMPv6 Inverse Neighbor Discovery Solicitation/Advertisement (ICMPv6 Types 141/142)
+=== ICMPv6 Inverse Neighbor Discovery Solicitation/Advertisement (ICMPv6 Types 141/142)
 
 The _Inverse Neighbor Discovery_ (IND) facility in IPv6 [RFC3122] originated from a need to determine IPv6 addresses given link-layer addresses on Frame Relay networks.
 
@@ -1240,3 +1240,117 @@ image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-ind-solicitation-
 * It must contain both a _Source Link-Layer Address_ option and a _Destination Link-Layer Address_ option.
 
 * It may also contain a _Source/Target Address List_ option and/or an _MTU_ option.
+
+=== Neighbor Unreachability Detection (NUD)
+
+One of the important features of ND is to detect when reachability between two systems on the same link has become lost or asymmetric (i.e., is not available in both directions).
+
+This is accomplished using the *Neighbor Unreachability Detection* (NUD) algorithm. It is used to manage the _neighbor cache_ present on each node.
+
+The neighbor cache is analogous to the ARP cache; it is a (conceptual) data structure that holds the IPv6-to-link-layer-address mapping information required to perform direct delivery of IPv6 datagrams to on-link neighbors as well as information regarding the state of the mapping.
+
+.Neighbor Unreachability Detection helps maintain the neighbor cache consisting of several neighbor entries. Each entry is in one of five states at any given time. Confirmations of reachability are accomplished by receiving Neighbor Advertisement messages or using other higher-layer protocol information, if available. Unsolicited evidence includes unsolicited Neighbor and Router Advertisement messages.
+image::/assets/tcp-ip/internet-control-message-protocol/nud-neighbor-cache-states.png[NUD Neighbor Cache States,55%,55%]
+
+Each mapping may be in one of five states: INCOMPLETE, REACHABLE, STALE, DELAY, or PROBE.
+
+* The transition diagram shows the initial states to be either INCOMPLETE or STALE.
+
+* When an IPv6 node has a unicast datagram to send to a destination, it checks its destination cache to see if an entry corresponding to the destination is present.
+
+** If so, and the destination is on-link, the neighbor cache is consulted to see if the neighbor's state is REACHABLE.
++
+If so, the datagram is sent using direct delivery.
+
+** If no neighbor cache entry is present but the destination appears to be on-link, NUD enters the INCOMPLETE state and sends an NS message.
++
+Successful receipt of a solicited NA message provides confirmation that the node is reachable, and the entry enters the REACHABLE state.
+
+* The STALE state corresponds to apparently valid entries that have not yet been confirmed.
++
+This state is entered 
+
+** when either an entry has not been updated for some time when it was previously REACHABLE,
+** or when unsolicited information is received (e.g., a node has changed its address and sent an unsolicited NA message).
++
+These cases suggest that reachability is possible, but confirmation in the form of a valid NA is still required.
+
+* The other states, DELAY and PROBE, are temporary states.
+
+** DELAY is used when a packet is sent but ND has no current evidence to suggest that reachability is possible.
++
+The state gives upper-layer protocols an opportunity to provide additional evidence.
+
+** If after DELAY_FIRST_PROBE_TIME seconds (the constant 5) no evidence is received, the state changes to PROBE.
+
+** In the PROBE state, ND sends periodic NS messages (every RetransTimer milliseconds, with constant default value RETRANS_ TIMER equal to 1000).
++
+If no evidence has been received after sending MAX_UNICAST_SOLICIT NS messages (default 3), the entry is supposed to be deleted.
+
+[source,console]
+----
+x@node-0:~$ sudo  ip -6 n flush all
+
+x@node-0:~$ ping -c 1 -6 ff02::1%ens32
+PING ff02::1%ens32(ff02::1%ens32) 56 data bytes
+64 bytes from fe80::20c:29ff:fe8c:df3f%ens32: icmp_seq=1 ttl=64 time=0.022 ms
+
+--- ff02::1%ens32 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.022/0.022/0.022/0.000 ms
+
+x@node-0:~$ ip -6 n
+fe80::20c:29ff:fe85:2607 dev ens32 lladdr 00:0c:29:85:26:07 DELAY
+
+x@node-0:~$ ip -6 n
+fe80::20c:29ff:fe85:2607 dev ens32 lladdr 00:0c:29:85:26:07 REACHABLE
+
+x@node-0:~$ ip -6 n
+fe80::20c:29ff:fe85:2607 dev ens32 lladdr 00:0c:29:85:26:07 STALE
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -tnvv icmp6 -i ens32 
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP6 (flowlabel 0xc865c, hlim 1, next-header ICMPv6 (58) payload length: 64) fe80::20c:29ff:fe8c:df3f > ff02::1: [icmp6 sum ok] ICMP6, echo request, id 52700, seq 1
+IP6 (flowlabel 0x3ad83, hlim 64, next-header ICMPv6 (58) payload length: 64) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, echo reply, id 52700, seq 1
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, neighbor solicitation, length 32, who has fe80::20c:29ff:fe8c:df3f
+	  source link-address option (1), length 8 (1): 00:0c:29:85:26:07
+	    0x0000:  000c 2985 2607
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 24) fe80::20c:29ff:fe8c:df3f > fe80::20c:29ff:fe85:2607: [icmp6 sum ok] ICMP6, neighbor advertisement, length 24, tgt is fe80::20c:29ff:fe8c:df3f, Flags [solicited]
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe8c:df3f > fe80::20c:29ff:fe85:2607: [icmp6 sum ok] ICMP6, neighbor solicitation, length 32, who has fe80::20c:29ff:fe85:2607
+	  source link-address option (1), length 8 (1): 00:0c:29:8c:df:3f
+	    0x0000:  000c 298c df3f
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 24) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, neighbor advertisement, length 24, tgt is fe80::20c:29ff:fe85:2607, Flags [solicited]
+----
+
+[source,console]
+----
+root@node-1:~# ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::20c:29ff:fe85:2607/64 scope link 
+       valid_lft forever preferred_lft forever
+
+root@node-1:~# ip link set ens32 down && ip link set ens32 address 00:0c:29:85:26:10 && ip link set ens32 up 
+
+root@node-1:~# ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:10 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::20c:29ff:fe85:2610/64 scope link 
+       valid_lft forever preferred_lft forever
+----
+
+[source,console]
+----
+x@node-0:~$ ping -c 1 fe80::20c:29ff:fe85:2607%ens32
+PING fe80::20c:29ff:fe85:2607%ens32(fe80::20c:29ff:fe85:2607%ens32) 56 data bytes
+From fe80::20c:29ff:fe8c:df3f%ens32 icmp_seq=1 Destination unreachable: Address unreachable
+
+--- fe80::20c:29ff:fe85:2607%ens32 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+x@node-0:~$ ip -6 n
+fe80::20c:29ff:fe85:2607 dev ens32  FAILED
+----
