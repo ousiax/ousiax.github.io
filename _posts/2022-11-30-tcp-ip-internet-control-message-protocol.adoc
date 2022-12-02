@@ -1031,7 +1031,7 @@ x@node-1:~$ ip a s ens32
 ----
 x@node-0:~$ sudo ip neigh flush all
 
-x@node-0:~$ ping -c 2 -b 192.168.91.255
+x@node-0:~$ ping -c 2 -b 192.168.91.255 # ICMPv4 Echo Request to the subnet broadcast address.
 WARNING: pinging broadcast address
 PING 192.168.91.255 (192.168.91.255) 56(84) bytes of data.
 64 bytes from 192.168.91.2: icmp_seq=1 ttl=128 time=0.449 ms
@@ -1059,3 +1059,184 @@ IP (tos 0x0, ttl 128, id 17588, offset 0, flags [none], proto ICMP (1), length 8
 IP (tos 0x0, ttl 64, id 55720, offset 0, flags [none], proto ICMP (1), length 84)
     192.168.91.130 > 192.168.91.128: ICMP echo reply, id 17779, seq 2, length 64
 ----
+
+=== Router Discovery: Router Solicitation and Advertisement (ICMPv4 Types 9, 10)
+
+_DHCP_ can be used for a host to acquire an IP address and learn about the existence of nearby routers.
+
+An alternative option for learning about routers is called _Router Discovery (RD)_.
+
+Although specified for configuring both IPv4 and IPv6 hosts, it is not widely used with IPv4 because of widespread preference for DHCP.
+
+Router Discovery for IPv4 is accomplished using a pair of ICMPv4 informational messages [RFC1256]: _Router Solicitation_ (RS, type 10) and _Router Advertisement_ (RA, type 9).
+
+* First, they are periodically multicast on the local network (using TTL = 1) to the _All Hosts multicast address_ (_224.0.0.1_),
+
+* and they are also provided to hosts on demand that ask for them using RS messages. RS messages are sent using multicast to the _All Routers multicast address_ (_224.0.0.2_).
+
+The primary purpose of Router Discovery is for a host to learn about all the routers on its local subnetwork, so that it can choose a default route among them.
+
+It is also used to discover the presence of routers that are willing to act as _Mobile IP home agents_.
+
+=== Multicast Listener Query/Report/Done (ICMPv6 Types 130/131/132)
+
+_Multicast Listener Discovery_ (MLD) [RFC2710][RFC3590] provides management of multicast addresses on links using IPv6. It is similar to the _IGMP_ protocol used by IPv4.
+
+.ICMPv6 MLD version 1 messages are all of this form.Queries (type 130) are either general or multicast-address-specific. General queries ask hosts to report which multicast addresses they have in use, and address-specific queries are used to determine if a specific address is (still) in use. The maximum response time gives the maximum number of milliseconds a host may delay sending a report in response to a query. The destination multicast address is 0 for general queries and the multicast address in question for specific reports. For Report (type 131) and Done messages (type 132), it includes the address related to the report or what address is no longer of interest, respectively.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-mld-message-v1.png[ICMPv6 MLD Message V1,55%,55%]
+
+The main purpose of MLD is for multicast routers to learn the multicast addresses used by the hosts on each link to which they are mutually attached.
+
+MLDv2 extends this capability by allowing hosts to specify particular hosts from which they wish to (or not to) receive traffic.
+
+Two forms of MLD queries (type 130) are sent by multicast routers: _general queries_ and _multicast-address-specific queries_.
+
+Generally, routers send the query messages and hosts respond with reports, either in response to the queries, or unsolicited if a host's multicast address membership changes.
+
+The _Maximum Response Time_ field, nonzero only in queries, gives the maximum number of milliseconds a host may delay sending a report in response to a query.
+
+The _Multicast Address_ field is 0 for general queries and the address for which the router is interested in reports otherwise.
+
+For MLD Report messages (type 131) and MLD Done messages (type 132) it includes the address related to the report or what address is no longer of interest, respectively.
+
+=== Version 2 Multicast Listener Discovery (MLDv2) (ICMPv6 Type 143)
+
+MLDv2 extends the MLD Query message with additional information pertaining to specific sources. The first 24 bytes of the message are identical to the common MLD format.
+
+== Neighbor Discovery in IPv6
+
+The _Neighbor Discovery Protocol_ in IPv6 (sometimes abbreviated as NDP or ND) [RFC4861] brings together the _Router Discovery_ and _Redirect_ mechanisms of ICMPv4 with the address-mapping capabilities provided by _ARP_.
+
+It is also specified for use in supporting _Mobile IPv6_.
+
+In contrast to ARP and IPv4, which generally use broadcast addressing (except for Router Discovery), ICMPv6 makes extensive use of multicast addressing, at both the network and link layers. (Recall that IPv6 does not even have broadcast addresses.)
+
+ND is designed to allow nodes (routers and hosts) on the same link or segment to find each other, determine if they have bidirectional connectivity, and determine if a neighbor has become inoperative or unavailable. It also supports _stateless address autoconfiguration_. All of the ND functionality is provided by ICMPv6 at or above the network layer, making it largely independent of the particular link-layer technology employed underneath. However, ND does prefer to make use of link-layer multicast capabilities, and for this reason operation on non-broadcast- and non-multicast-capable link layers (called non-broadcast multiple access or NBMA links) may differ somewhat.
+
+The two main parts of ND are 
+
+* _Neighbor Solicitation/Advertisement (NS/NA)_, which provides the ARP-like function of mapping between network- and link-layer addresses,
+
+* and _Router Solicitation/Advertisement (RS/RA)_, which provides the functions of router discovery, Mobile IP agent discovery, and redirects, as well as some support for autoconfiguration.
+
+A secure variant of ND called SEND [RFC3971] adds authentication and special forms of addressing, primarily by introducing additional ND options.
+
+ND messages are ICMPv6 messages sent using an IPv6 Hop Limit field value of 255. Receivers verify that incoming ND messages have this value to protect against off-link senders that may attempt to spoof local ICMPv6 messages (such messages would arrive with values less than 255).
+
+=== ICMPv6 Router Solicitation and Advertisement (ICMPv6 Types 133, 134)
+
+*Router Advertisement (RA)* messages indicate the presence and capabilities of a nearby router.
+
+They are sent periodically by routers, or in response to a *Router Solicitation (RS) message*.
+
+.The ICMPv6 Router Solicitation message is very simple but ordinarily contains a Source Link-Layer Address option (unlike its ICMPv4 counterpart). It may also contain an MTU option if an unusual MTU value is in use on the link.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-rs-message.png[ICMPv6 Router Solicitation message,55%,55%]
+
+The RS message is used to induce on-link routers to send RA messages. RS messages are sent to the _All Routers multicast address_, _ff02::2_. A Source Link-Layer Address option is supposed to be included if the sender of the message is using an IPv6 address other than the unspecified address (used during autoconfiguration). It is the only valid option for such messages as of [RFC4861].
+
+.An ICMPv6 Router Advertisement message is sent to the All Nodes multicast address (ff02::1). Receiving nodes check to make sure that the Hop Limit field is 255, ensuring that the packet has not been forwarded through a router. The message includes three flags: M (Managed address configuration), O (Other stateful configuration), and H (Home Agent).
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-ra-message.png[ICMPv6 Router Advertisement message,55%,55%]
+
+The Router Advertisement (RA) message is sent by routers to the _All Nodes multicast address_ (_ff02::1_) or the _unicast address_ of the requesting host, if the advertisement is sent in response to a solicitation. RA messages inform local hosts and other routers of configuration details relevant to the local link.
+
+=== ICMPv6 Neighbor Solicitation and Advertisement (IMCPv6 Types 135, 136)
+
+The *Neighbor Solicitation (NS)* message in ICMPv6 effectively replaces the _ARP Request_ messages used with IPv4.
+
+* Its primary purpose is to convert IPv6 addresses to link-layer addresses.
++
+When used to determine address mappings, it is sent to the _Solicited-Node multicast address_ corresponding to the IPv6 address contained in the _Target Address_ field (prefix _f02::1:f/104_, combined with the low-order 24 bits of the solicited IPv6 address).
+
+* However, it is also used for detecting whether nearby nodes can be reached, and if they can be reached bidirectionally (that is, whether the nodes can talk to each other).
++
+When this message is used to determine connectivity to a neighbor, it is sent to that neighbor's IPv6 unicast address instead of the Solicited-Node address.
+
+.The ICMPv6 Neighbor Solicitation message is similar to the RS message but contains a target IPv6 address. These messages are sent to Solicited-Node multicast addresses to provide ARP-like functionality and to unicast addresses to test reachability to other nodes. NS messages contain a Source Link-Layer Address option on links that use lower-layer addressing.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-ns-message.png[ICMPv6 Neighbor Solicitation message,55%,55%]
+
+The NS message contains the IPv6 address for which the sender is trying to learn the link-layer address.
+
+* The message may contain the _Source Link-Layer Address_ option.
++
+This option must be included in networks that use link-layer addressing when the solicitation is sent to a multicast address and should be included for unicast solicitations.
+
+* If the sender of the message is using the unspecified address as its source address (e.g., during duplicate address detection), this option is not to be included.
+
+.The ICMPv6 Neighbor Advertisement message contains the following flags: _R_ indicates that the sender is a router, _S_ indicates that the advertisement is a response to a solicitation, and _O_ indicates that the message contents should override other cached address mappings. The _Target Address_ field contains the IPv6 address of the sender of the message (generally, the unicast address of the solicited node from the ND solicitation). A _Target Link-Layer Address_ option is included to enable ARP-like functionality for IPv6.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-na-message.png[ICMPv6 Neighbor Advertisement message,55%,55%]
+
+The ICMPv6 Neighbor Advertisement (NA) message serves the purpose of the ARP Response message in IPv4 in addition to helping with neighbor unreachability detection .
+
+* It is either sent as a response to an NS message or sent asynchronously when a node's IPv6 address changes.
++
+It is sent either to
+
+** the unicast address of the soliciting node,
+** or to the _All Nodes multicast address_ if the soliciting node used the unspecified address as its source address.
+
+* The _R (Router)_ field indicates that the sender of the message is a router.
++
+This could change, for example, if a router ceases being a router and becomes only a host instead.
+
+* The _S (Solicited)_ field indicates that the advertisement is in response to a solicitation received earlier.
++
+This field is used to verify that bidirectional connectivity between neighbors has been achieved.
+
+* The _O (Override)_ field indicates that information in the advertisement should override any previously cached information the receiver of the message has.
++
+It is not supposed to be set for solicited advertisements, for anycast addresses, or in solicited proxy advertisements.
++
+It is supposed to be set in other (solicited or unsolicited) advertisements.
+
+* For solicited advertisements, the _Target Address_ field is the IPv6 address being looked up.
++
+For unsolicited advertisements, it is the IPv6 address that corresponds to a link-layer address that has changed.
++
+This message must contain the _Target Link-Layer Address_ option on networks that support link-layer addressing when the advertisement was solicited via a multicast address.
+
+[source,console]
+----
+x@node-0:~$ sudo ip -6 n flush all
+x@node-0:~$ ping -c 1 -I fe80::20c:29ff:fe8c:df3f%ens32 fe80::20c:29ff:fe85:2607
+PING fe80::20c:29ff:fe85:2607(fe80::20c:29ff:fe85:2607) from fe80::20c:29ff:fe8c:df3f%ens32 ens32: 56 data bytes
+64 bytes from fe80::20c:29ff:fe85:2607%ens32: icmp_seq=1 ttl=64 time=9.09 ms
+
+--- fe80::20c:29ff:fe85:2607 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 9.085/9.085/9.085/0.000 ms
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -tvvn -s1500 -p icmp6
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 1500 bytes
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe8c:df3f > ff02::1:ff85:2607: [icmp6 sum ok] ICMP6, neighbor solicitation, length 32, who has fe80::20c:29ff:fe85:2607
+	  source link-address option (1), length 8 (1): 00:0c:29:8c:df:3f
+	    0x0000:  000c 298c df3f
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, neighbor advertisement, length 32, tgt is fe80::20c:29ff:fe85:2607, Flags [solicited, override]
+	  destination link-address option (2), length 8 (1): 00:0c:29:85:26:07
+	    0x0000:  000c 2985 2607
+IP6 (flowlabel 0x1bc9d, hlim 64, next-header ICMPv6 (58) payload length: 64) fe80::20c:29ff:fe8c:df3f > fe80::20c:29ff:fe85:2607: [icmp6 sum ok] ICMP6, echo request, id 36469, seq 1
+IP6 (flowlabel 0xfb479, hlim 64, next-header ICMPv6 (58) payload length: 64) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, echo reply, id 36469, seq 1
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 32) fe80::20c:29ff:fe85:2607 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, neighbor solicitation, length 32, who has fe80::20c:29ff:fe8c:df3f
+	  source link-address option (1), length 8 (1): 00:0c:29:85:26:07
+	    0x0000:  000c 2985 2607
+IP6 (hlim 255, next-header ICMPv6 (58) payload length: 24) fe80::20c:29ff:fe8c:df3f > fe80::20c:29ff:fe85:2607: [icmp6 sum ok] ICMP6, neighbor advertisement, length 24, tgt is fe80::20c:29ff:fe8c:df3f, Flags [solicited]
+----
+
+==== ICMPv6 Inverse Neighbor Discovery Solicitation/Advertisement (ICMPv6 Types 141/142)
+
+The _Inverse Neighbor Discovery_ (IND) facility in IPv6 [RFC3122] originated from a need to determine IPv6 addresses given link-layer addresses on Frame Relay networks.
+
+It resembles _reverse ARP_, a protocol once used with IPv4 networks primarily for supporting diskless computers.
+
+Its main function is to ascertain the networklayer address(es) corresponding to a known link-layer address.
+
+.The ICMPv6 IND Solicitation (type 141) and Advertisement (type 142) messages have the same basic format. They are used to map known link-layer addresses to IPv6 addresses in environments where this is useful.
+image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-ind-solicitation-advertisement-message.png[ICMPv6 IND Message,45%,45%]
+
+* The IND Solicitation message is sent to the _All Nodes multicast address_ at the IPv6 layer but is encapsulated in a unicast link-layer address (the one being looked up).
+
+* It must contain both a _Source Link-Layer Address_ option and a _Destination Link-Layer Address_ option.
+
+* It may also contain a _Source/Target Address List_ option and/or an _MTU_ option.
