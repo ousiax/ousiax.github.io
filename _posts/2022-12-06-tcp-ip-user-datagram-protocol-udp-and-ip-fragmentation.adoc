@@ -1,0 +1,128 @@
+= TCP/IP: User Datagram Protocol (UDP) and IP Fragmentation
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking', 'udp']
+:page-date: 2022-12-06 08:37:47 +0800
+:page-revdate: 2022-12-06 08:37:47 +0800
+:toc: preamble
+:sectnums:
+
+UDP is a simple, datagram-oriented, transport-layer protocol that preserves message boundaries.
+
+It does not provide error correction, sequencing, duplicate elimination, flow control, or congestion control.
+
+It can provide error detection, and it includes the first true _end-to-end_ checksum at the transport layer that we have encountered.
+
+This protocol provides minimal functionality itself, so applications using it have a great deal of control over how packets are sent and processed.
+
+.Encapsulation of a UDP datagram in a single IPv4 datagram (the typical case with no IPv4 options). The IPv6 encapsulation is similar; the UDP header follows the header chain.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/ipv4-udp-datagram-message-format.png[IPv4 UDP Datagram,45%,45%]
+
+== UDP Header
+
+.The UDP header and payload (data) area. The Checksum field is end-to-end and is computed over the UDP pseudo-header, which includes the Source and Destination IP Address fields from the IP header. Thus, any modification made to those fields (e.g., by NAT) requires a modification to the UDP checksum.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/udp-header-and-payload.png[UDP Header and Payload,35%,35%]
+
+Port numbers act as _mailboxes_ and help a protocol implementation identify the sending and receiving processes. They are purely _abstract_—they do not correspond to any physical entity on a host.
+
+* In UDP, port numbers are positive 16-bit numbers, and the source port number is optional; it may be set to 0 if the sender of the datagram never requires a reply.
+
+* Transport protocols such as TCP, UDP, and SCTP [RFC4960] use the destination port number to help demultiplex incoming data from IP.
+
+* Because IP demultiplexes the incoming IP datagram to a particular transport protocol based on the value of the _Protocol_ field in the IPv4 header or _Next Header_ field in the IPv6 header, this means that the port numbers can be made independent among the transport protocols.
++
+[NOTE]
+====
+Despite this independence, if a well-known service is provided (or can conceivably be provided) by both TCP and UDP, the port number is normally allocated to be the same for both transport protocols. This is purely for convenience and is not required by the protocols.
+====
+
+The UDP _Length_ field is the length of the UDP header and the UDP data in bytes. The minimum value for this field is 8 except when UDP is used with IPv6 jumbograms.
+
+[NOTE]
+====
+Note that the UDP _Length_ field is redundant; the IPv4 header contains the datagram's total length, and the IPv6 header contains the payload length.
+
+* The length of a UDP/IPv4 datagram is then the _Total Length_ of the IPv4 datagram minus the length of the IPv4 header.
+
+* A UDP/IPv6 datagram's length is the value of the _Payload Length_ field contained in the IPv6 header minus the lengths of any extension headers (unless jumbograms are being used).
+
+In either case, the UDP _Length_ field should match the length computed from the IP-layer information.
+====
+
+== UDP Checksum
+
+The UDP checksum is the first end-to-end transport-layer checksum we have encountered (ICMP has an end-to-end checksum but is not a true transport protocol). It covers the UDP header, the UDP data, and a pseudo-header.
+
+It is computed at the initial sender and checked at the final destination. It is not modified in transit (except when it passes through a NAT).
+
+Recall that the checksum in the IPv4 header covers only the header (i.e.,
+
+* it does not cover any data in the IP packet)
+* and is recomputed at each IP hop (required because the IPv4 _TTL_ field is decremented by routers when the datagram is forwarded).
+
+Transport protocols (e.g., TCP, UDP) use checksums to cover their headers and data.
+
+* With UDP, the checksum is optional (although strongly suggested), while with the others it is mandatory.
+
+* When UDP is used with IPv6, computation and use of the checksum are mandatory because there is no header checksum at the IP layer.
+
+To provide error-free data to applications, a transport-layer protocol such as UDP must always compute a checksum or use some other error detection mechanism before delivering the data to a receiving application.
+
+The pseudo-header is virtual and is used only for purposes of the checksum computation (at both the sender and the receiver).
+
+* It is never actually transmitted.
+* This pseudo-header includes the source and destination addresses and _Protocol_ or _Next Header_ field (which should contain the value 17) from the IP header.
+* Its purpose is to let the UDP layer verify that the data has arrived at the correct destination (i.e., that IP has not accepted a misaddressed datagram, and that IP has not given UDP a datagram that is for another transport protocol).
+
+.Fields used in computing the checksum for UDP/IPv4 datagrams, including the pseudo-header, the UDP header, and data. If the data is not an even number of bytes, it is padded with one 0 byte for purposes of computing the checksum. The pseudo-header and any pad bytes are not transmitted with the datagram.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/ipv4-udp-pesudo-header-checksum.png[UDP pseduo-header checksum,40%,40%]
+
+.The UDP (and TCP) pseudo-header used with IPv6 ([RFC2460]). The pseudo-header includes the source and destination IPv6 addresses and a larger 32-bit _Length_ field value. The pseudo-header checksum is required when UDP is used with IPv6 because the IPv6 header lacks a checksum. The _Next Header_ field is copied from the last IPv6 header of the chain.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/ipv6-udp-tcp-pesudo-header-checksum.png[UDP/TCP IPv6 pseduo-header,45%,45%]
+
+[source,console]
+----
+x@node-0:~$ echo -n "hello" | nc -4u -w0 192.168.91.137 330
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -tnv -X host 192.168.91.137 and \( udp or icmp \)
+IP (tos 0x0, ttl 64, id 38490, offset 0, flags [DF], proto UDP (17), length 33)
+    192.168.91.128.58585 > 192.168.91.137.330: UDP, length 5
+	0x0000:  4500 0021 965a 4000 4011 6c17 c0a8 5b80  E..!.Z@.@.l...[.
+	0x0010:  c0a8 5b89 e4d9 014a 000d 9d83 6865 6c6c  ..[....J....hell
+	0x0020:  6f                                       o
+IP (tos 0xc0, ttl 64, id 62130, offset 0, flags [none], proto ICMP (1), length 61)
+    192.168.91.137 > 192.168.91.128: ICMP 192.168.91.137 udp port 330 unreachable, length 41
+	IP (tos 0x0, ttl 64, id 38490, offset 0, flags [DF], proto UDP (17), length 33)
+    192.168.91.128.58585 > 192.168.91.137.330: UDP, length 5
+	0x0000:  45c0 003d f2b2 0000 4001 4ef3 c0a8 5b89  E..=....@.N...[.
+	0x0010:  c0a8 5b80 0303 3576 0000 0000 4500 0021  ..[...5v....E..!
+	0x0020:  965a 4000 4011 6c17 c0a8 5b80 c0a8 5b89  .Z@.@.l...[...[.
+	0x0030:  e4d9 014a 000d 9d83 6865 6c6c 6f         ...J....hello
+----
+
+[source,console]
+----
+x@node-0:~$ echo -n ' ' |  nc -6u -w0 fe80::20c:29ff:fe85:2610%ens32 330
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -tnv host fe80::20c:29ff:fe85:2610 and \( udp or icmp6 \) -X
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP6 (flowlabel 0x6b6e1, hlim 64, next-header UDP (17) payload length: 9) fe80::20c:29ff:fe8c:df3f.33297 > fe80::20c:29ff:fe85:2610.330: [udp sum ok] UDP, length 1
+	0x0000:  6006 b6e1 0009 1140 fe80 0000 0000 0000  `......@........
+	0x0010:  020c 29ff fe8c df3f fe80 0000 0000 0000  ..)....?........
+	0x0020:  020c 29ff fe85 2610 8211 014a 0009 0506  ..)...&....J....
+	0x0030:  20 
+IP6 (flowlabel 0xa4c7d, hlim 64, next-header ICMPv6 (58) payload length: 57) fe80::20c:29ff:fe85:2610 > fe80::20c:29ff:fe8c:df3f: [icmp6 sum ok] ICMP6, destination unreachable, unreachable port, fe80::20c:29ff:fe85:2610 udp port 330
+	0x0000:  600a 4c7d 0039 3a40 fe80 0000 0000 0000  `.L}.9:@........
+	0x0010:  020c 29ff fe85 2610 fe80 0000 0000 0000  ..)...&.........
+	0x0020:  020c 29ff fe8c df3f 0104 7ef6 0000 0000  ..)....?..~.....
+	0x0030:  6006 b6e1 0009 1140 fe80 0000 0000 0000  `......@........
+	0x0040:  020c 29ff fe8c df3f fe80 0000 0000 0000  ..)....?........
+	0x0050:  020c 29ff fe85 2610 8211 014a 0009 0506  ..)...&....J....
+	0x0060:  20                                     
+----
