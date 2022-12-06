@@ -31,7 +31,7 @@ Model name:                      Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
 ----
 
 .The IPv4 datagram format.
-image::/assets/tcp-ip-internet-protocol/ipv4-datagram.png[IPv4 Datagram,55%,55%]
+image::/assets/tcp-ip/internet-protocol/ipv4-datagram.png[IPv4 Datagram,55%,55%]
 
 * The header is of variable size, limited to fifteen 32-bit words (60 bytes) by the 4-bit _IHL_ field.
 * A typical IPv4 header contains 20 bytes (no options).
@@ -40,7 +40,7 @@ image::/assets/tcp-ip-internet-protocol/ipv4-datagram.png[IPv4 Datagram,55%,55%]
 * A header _checksum_ helps ensure that the fields in the header are delivered correctly to the proper destination but does not protect the data.
 
 .The IPv6 datagram format.
-image::/assets/tcp-ip-internet-protocol/ipv6-datagram.png[IPv6 Datagram,55%,55%]
+image::/assets/tcp-ip/internet-protocol/ipv6-datagram.png[IPv6 Datagram,55%,55%]
 
 * The IPv6 header is of fixed size (40 bytes) and contains 128-bit _source_ and _destination_ addresses.
 * The _Next Header_ field is used to indicate the presence and types of additional extension headers that follow the IPv6 header, forming a _daisy chain of headers_ that may include special extensions or processing directives.
@@ -128,6 +128,66 @@ The _Header Checksum_ field is calculated over the IPv4 header only.
 Every IP datagram contains the _Source IP Address_ of the sender of the datagram and the _Destination IP Address_ of where the datagram is destined.
 
 * These are 32-bit values for IPv4 and 128-bit values for IPv6, and they usually identify a single interface on a computer, although multicast and broadcast addresses  violate this rule.
+
+=== The Internet Checksum
+
+The Internet checksum is a 16-bit mathematical sum used to determine, with reasonably high probability, whether a received message or portion of a message matches the one sent.
+
+Note that the Internet checksum algorithm is not the same as the common _cyclic redundancy check_ (CRC), which offers stronger protection. 
+
+To compute the IPv4 header checksum for an outgoing datagram,
+
+* the value of the datagram's _Checksum_ field is first set to 0.
+* Then, the 16-bit one's complement sum of the header is calculated (the entire header is considered a sequence of 16-bit words).
+* The 16-bit one's complement of this sum is then stored in the _Checksum_ field to make the datagram ready for transmission.
++
+One's complement addition can be implemented by "end-round-carry addition": when a carry bit is produced using conventional (two's complement) addition, the carry is added back in as a 1 value.
+
+When an IPv4 datagram is received, a checksum is computed across the whole header, including the value of the _Checksum_ field itself. Assuming there are no errors, the computed checksum value is always 0 (a one's complement of the value _FFFF_).
+
+Note that for any nontrivial packet or header, the value of the _Checksum_ field in the packet can never be _FFFF_.
+
+* If it were, the sum (prior to the final one's complement operation at the sender) would have to have been 0.
+* No sum can ever be 0 using one's complement addition unless all the bytes are 0—something that never happens with any legitimate IPv4 header.
+
+When the header is found to be bad (the computed checksum is nonzero), the IPv4 implementation discards the received datagram.
+
+* No error message is generated.
+* It is up to the higher layers to somehow detect the missing datagram and retransmit if necessary.
+
+.The Internet checksum is the one's complement of a one's complement 16-bit sum of the data being checksummed (zero padding is used if the number of bytes being summed is odd). If the data being summed includes a _Checksum_ field, the field is first set to 0 prior to the checksum operation and then filled in with the computed checksum. To check whether an incoming block of data that contains a _Checksum_ field (header, payload, etc.) is valid, the same type of checksum is computed over the whole block (including the _Checksum_ field). Because the _Checksum_ field is essentially the inverse of the checksum of the rest of the data, computing the checksum on correctly received data should produce a value of 0.
+image::/assets/tcp-ip/internet-protocol/internet-checksum-computed-check.png[Internet checksum,55%,55%]
+
+[source,console]
+----
+45 10 01 48 00 00 00 00 10 11 70 c4 c0 a8 5b fe c0 a8 5b 82
+
+| 45 10 | Version, IHL, DS, ECN  | 0100 0101 0001 0000
+
+| 01 48 | Total Length           | 0000 0001 0100 1000
+                                => 0100 0110 0101 1000
+| 00 00 | Identification         | 0000 0000 0000 0000
+                                => 0100 0110 0101 1000
+| 00 00 | Flags, Fragment Offset | 0000 0000 0000 0000
+                                => 0100 0110 0101 1000
+| 10 11 | TTL, Protocol          | 0001 0000 0001 0001
+                                => 0101 0110 0110 1001
+| 70 c4 | Checksum               | 0111 0000 1100 0100
+                                => 0101 0110 0110 1001
+| c0 a8 | Source Address         | 1100 0000 1010 1000
+                                 1 0001 0111 0001 0001
+                                 +                   1
+                                => 0001 0111 0001 0010 # round-carry
+| 5b fe | Source Address         | 0101 1011 1111 1110
+                                => 0111 0011 0001 0000
+| c0 a8 | Destination Address    | 1100 0000 1010 1000
+                                => 0011 0011 1011 1001 # round-carry
+| 5b 82 | Destination Address    | 0101 1011 1000 0010
+                                => 1000 1111 0011 1011
+                                => 0111 0000 1100 0100 # one's complement (i.e. checksum)
+                                => 1111 1111 1111 1111 # computed including the Checksum field
+                                => 0000 0000 0000 0000 # one's complement (correct)
+----
 
 == IP Forwarding
 
@@ -297,7 +357,7 @@ In some circumstances, more than one entry may match an equal number of _1_ bits
 Where all systems are using the same network prefix, is called _direct delivery_, and the other case is called _indirect delivery_.
 
 .Direct delivery and indirect delivery
-image::/assets/tcp-ip-internet-protocol/direct-delivery-and-indirect-delivery.png[Direct delivery and indirect delivery,55%,55%]
+image::/assets/tcp-ip/internet-protocol/direct-delivery-and-indirect-delivery.png[Direct delivery and indirect delivery,55%,55%]
 
 * Direct delivery does not require the presence of a router—IP datagrams are encapsulated in a link-layer frame that directly identifies the source and destination.
 * Indirect delivery involves a router—data is forwarded to the router using the router's link-layer address as the destination link-layer address.
@@ -467,7 +527,7 @@ HAs are a special type of router deployed in the network infrastructure like oth
 * The association between an MN's HoA and its CoA is called a _binding_ for the MN.
 
 .Mobile IP supports the ability of nodes to change their point of network attachment and keep network connections operating. The mobile node’s home agent helps to forward traffic for mobiles it serves and also plays a role in route optimization, which can substantially improve routing performance by allowing mobile and correspondent nodes to communicate directly.
-image::/assets/tcp-ip-internet-protocol/mobile-ip-model.png[Basic MIPV6 Model,55%,55%]
+image::/assets/tcp-ip/internet-protocol/mobile-ip-model.png[Basic MIPV6 Model,55%,55%]
 
 The basic model works in cases where an MN's CNs do not engage in the MIPv6 protocol. This model is also used for network mobility (called _NEMO_ [RFC3963]), when an entire network is mobile.
 
@@ -500,7 +560,7 @@ There are two host models, the *strong host model* and the *weak host model*.
 Host models also apply to sending behavior. That is, a host using the strong host model sends datagrams from a particular interface only if one of the interface's configured addresses matches the _Source IP Address_ field in the datagram being sent.
 
 .Hosts may be connected by more than one interface. In such cases, they must decide which addresses to use for the _Source IP Address_ and _Destination IP Address_ fields of the packets they exchange. The addresses used result from a combination of each host's forwarding table, application of an address selection algorithm [RFC 3484], and whether hosts are operating using a _weak_ or _strong host model_.
-image::/assets/tcp-ip-internet-protocol/host-model.png[Host Model,45%,45%]
+image::/assets/tcp-ip/internet-protocol/host-model.png[Host Model,45%,45%]
 
 * In this example, two hosts (A and B) are connected through the global Internet but also through a local network.
 * If host A is set up to conform to the _strong host model_, packets it receives destined for _203.0.113.1_ from the Internet or destined for _192.0.2.1_ from the local network are dropped.
