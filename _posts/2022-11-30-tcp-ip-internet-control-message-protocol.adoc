@@ -883,31 +883,64 @@ image::/assets/tcp-ip/internet-control-message-protocol/icmpv4-redirect-message-
 
 [source,console]
 ----
-C:\>netstat -rn
-Network Destination        Netmask          Gateway       Interface  Metric
-          0.0.0.0          0.0.0.0   10.170.109.254    10.170.109.10     35
+x@node-0:~$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
 
-C:\> route delete 0.0.0.0 &:: delete default
-C:\> route add 0.0.0.0 mask 0.0.0.0 10.170.109.112 &:: add new
-C:\>ping -n 1 ds1.eecs.berkeley.edu &:: sends thru 10.170.109.112
+x@node-0:~$ sudo sysctl net.ipv4.conf.all.accept_redirects=1
+net.ipv4.conf.all.accept_redirects = 1
 
-Pinging ds1.eecs.berkeley.edu [169.229.60.105] with 32 bytes of data:
-Reply from 169.229.60.105: bytes=32 time=32ms TTL=50
+x@node-0:~$ ping -c 2 10.170.109.10
+PING 10.170.109.10 (10.170.109.10) 56(84) bytes of data.
+From 192.168.91.137: icmp_seq=1 Redirect Host(New nexthop: 192.168.91.2)
+64 bytes from 10.170.109.10: icmp_seq=1 ttl=128 time=1.02 ms
+64 bytes from 10.170.109.10: icmp_seq=2 ttl=128 time=1.14 ms
 
-Ping statistics for 169.229.60.105:
-    Packets: Sent = 1, Received = 1, Lost = 0 (0% loss),
-Approximate round trip times in milli-seconds:
-    Minimum = 32ms, Maximum = 32ms, Average = 32ms
+--- 10.170.109.10 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+rtt min/avg/max/mdev = 1.019/1.080/1.142/0.061 ms
+
+x@node-0:~$ ip r show cache
+10.170.109.10 via 192.168.91.2 dev ens32 
+    cache <redirected> expires 264sec 
 ----
 
 [source,console]
----
-Linux# tcpdump host 10.170.109.10
-1 20:27:00.759340 IP 10.170.109.10 > ds1.eecs.berkeley.edu: icmp 40:
-                    echo request seq 15616
-2 20:27:00.759445 IP 10.170.109.112 > 10.170.109.10: icmp 68:
-                    redirect ds1.eecs.berkeley.edu to host 10.170.109.254
----
+----
+x@node-1:~$ sudo sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 1
+
+x@node-1:~$ sudo sysctl net.ipv4.conf.all.send_redirects 
+net.ipv4.conf.all.send_redirects = 1
+
+x@node-1:~$ sudo sysctl net.ipv4.conf.ens32.send_redirects 
+net.ipv4.conf.ens32.send_redirects = 1
+
+x@node-1:~$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.137 
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -ntv host 192.168.91.128 and icmp
+IP (tos 0x0, ttl 64, id 4851, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 35246, seq 1, length 64
+IP (tos 0xc0, ttl 64, id 43486, offset 0, flags [none], proto ICMP (1), length 112)
+    192.168.91.137 > 192.168.91.128: ICMP redirect 10.170.109.10 to host 192.168.91.2, length 92
+	IP (tos 0x0, ttl 63, id 4851, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 35246, seq 1, length 64
+
+IP (tos 0x0, ttl 63, id 4851, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 35246, seq 1, length 64
+IP (tos 0x0, ttl 128, id 23335, offset 0, flags [none], proto ICMP (1), length 84)
+    10.170.109.10 > 192.168.91.128: ICMP echo reply, id 35246, seq 1, length 64
+
+IP (tos 0x0, ttl 64, id 4897, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.91.128 > 10.170.109.10: ICMP echo request, id 35246, seq 2, length 64
+IP (tos 0x0, ttl 128, id 23336, offset 0, flags [none], proto ICMP (1), length 84)
+    10.170.109.10 > 192.168.91.128: ICMP echo reply, id 35246, seq 2, length 64
+----
 
 .The ICMPv6 Redirect message. The target address indicates the IPv6 address of a better next-hop router for the node identified by the destination address. This message can also be used to indicate that the destination address is an on-link neighbor to the node sending the message that induced the error message. In this case, the destination and target addresses are the same.
 image::/assets/tcp-ip/internet-control-message-protocol/icmpv6-redirect-message-format.png[ICMPv6 Redirect Message,45%,45%]
