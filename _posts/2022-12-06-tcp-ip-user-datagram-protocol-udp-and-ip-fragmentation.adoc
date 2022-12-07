@@ -168,6 +168,8 @@ IP compares the outgoing interface's MTU with the datagram size and performs fra
 
 * When an IP datagram is fragmented, it is not reassembled until it reaches its final destination.
 
+=== Example: UDP/IPv4 Fragmentation
+
 .A single UDP datagram with 2992 UDP payload bytes is fragmented into three UDP/IPv4 packets (no options). The UDP header that contains the source and destination port numbers appears only in the first fragment (a complicating factor for firewalls and NATs). Fragmentation is controlled by the _Identification_, _Fragment Offset_, and _More Fragments_ (MF) fields in the IPv4 header.
 image::/assets/tcp-ip/udp-and-ip-fragmentation/udp-datagram-fragmentation-sample.png[UDP datagram fragmentation sample,50%,50%]
 
@@ -207,3 +209,118 @@ IP (tos 0x0, ttl 64, id 4494, offset 1480, flags [+], proto UDP (17), length 150
 IP (tos 0x0, ttl 64, id 4494, offset 2960, flags [none], proto UDP (17), length 60)
     192.168.91.128 > 192.168.91.137: ip-proto-17
 ----
+
+Using UDP, it is easy to generate IP fragmentation. On an Ethernet, 
+
+* the maximum amount of data in a frame is ordinarily 1500 bytes,
+* which leaves at most 1472 bytes for application data to avoid fragmentation, assuming 20 bytes for the IPv4 header and 8 bytes for the UDP header.
++
+[source,console]
+----
+x@node-0:~$ ip addr show  ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+
+x@node-0:~$ sudo nping -c 1 --udp -g 2022 --data-length 1473 --mtu 1600 --df -p 2019 192.168.91.137
+
+Warning: fragmentation (mtu=1600) requested but the payload is too small already (1481)
+sendto in send_ip_packet_sd: sendto(4, packet, 1501, 0, 192.168.91.137, 16) => Message too long
+Offending packet: UDP 192.168.91.128:2022 > 192.168.91.137:2019 ttl=64 id=47461 iplen=1501 
+SENT (0.0286s) UDP 192.168.91.128:2022 > 192.168.91.137:2019 ttl=64 id=47461 iplen=1501 
+nping_event_handler(): READ-PCAP killed: Message too long
+
+x@node-0:~$ sudo nping -c 1 --udp -g 2022 --data-length 1472 --mtu 1600 --df -p 2019 192.168.91.137
+
+Warning: fragmentation (mtu=1600) requested but the payload is too small already (1480)
+SENT (0.0275s) UDP 192.168.91.128:2022 > 192.168.91.137:2019 ttl=64 id=30623 iplen=1500 
+RCVD (0.0286s) ICMP [192.168.91.137 > 192.168.91.128 Port 2019 unreachable (type=3/code=3) ] IP [ttl=64 id=8055 iplen=576 ]
+ 
+x@node-0:~$ sudo nping -c 1 --udp -g 2022 --data-length 1473 --mtu 1472 --df -p 2019 192.168.91.137
+
+Starting Nping 0.7.80 ( https://nmap.org/nping ) at 2022-12-07 16:22 CST
+SENT (0.0214s) UDP 192.168.91.128:2022 > 192.168.91.137:2019 ttl=64 id=29894 iplen=1501 
+RCVD (0.0218s) ICMP [192.168.91.137 > 192.168.91.128 Port 2019 unreachable (type=3/code=3) ] IP [ttl=64 id=8998 iplen=576 ]
+----
++
+[source,console]
+----
+root@node-0:~# tcpdump -ntv host 192.168.91.128 and udp
+IP (tos 0x0, ttl 64, id 30623, offset 0, flags [DF], proto UDP (17), length 1500)
+    192.168.91.128.2022 > 192.168.91.137.2019: UDP, length 1472
+
+IP (tos 0x0, ttl 64, id 29894, offset 0, flags [+], proto UDP (17), length 1492)
+    192.168.91.128.2022 > 192.168.91.137.2019: UDP, length 1473
+IP (tos 0x0, ttl 64, id 29894, offset 1472, flags [none], proto UDP (17), length 29)
+    192.168.91.128 > 192.168.91.137: ip-proto-17
+----
+
+If one fragment is lost, the entire datagram is lost.
+
+* There is no way to resend only one fragment of a datagram.
+* When a fragment of a TCP segment is lost, TCP retransmits the entire TCP segment, which corresponds to an entire IP datagram.
+* Some UDP-based applications perform timeout and retransmission themselves, but this happens at a layer above UDP.
+
+Indeed, if the fragmentation was done by an intermediate router, and not the originating system, there is no way for the originating system to know how the datagram was fragmented.
+
+For this reason, fragmentation is often avoided.
+
+=== Reassembly Timeout
+
+The IP layer must start a timer when any fragment of a datagram first arrives. If this were not done, fragments that never arrive could eventually cause the receiver to run out of buffers and can constitute a form of attack opportunity.
+
+== Path MTU Discovery with UDP
+
+For a protocol such as UDP, in which the calling application is generally in control of the outgoing datagram size, it is useful if there is some way to determine an appropriate datagram size if fragmentation is to be avoided.
+
+Conventional PMTUD uses ICMP PTB messages in determining the largest packet size along a routing path that can be used without inducing fragmentation. These messages are typically processed below the UDP layer and are not directly visible to an application, so
+
+* either an API call is used for the application to learn the best current estimate of the path MTU size for each destination with which it has communicated,
+* or the IP layer can perform PMTUD independently without the application knowing.
++
+The IP layer often caches PMTUD information on a per-destination basis and times it out if it is not refreshed.
+
+[source,console]
+----
+x@node-1:~$ sudo sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 1
+
+x@node-1:~$ ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 900 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:10 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+----
+
+[source,console]
+----
+x@node-0:~$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+
+x@node-0:~$ ping -M do -s 1472 -c 1 10.170.109.10 
+PING 10.170.109.10 (10.170.109.10) 1472(1500) bytes of data.
+ping: local error: message too long, mtu=900
+
+--- 10.170.109.10 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+x@node-0:~$ ip r show cache
+10.170.109.10 via 192.168.91.137 dev ens32 
+    cache expires 578sec mtu 900 
+----
+
+[NOTE]
+====
+Path MTU discovery can sometimes cause problems because firewalls and filtering gateways may drop ICMP traffic indiscriminately, which can harm the PMTU discovery algorithm.
+
+Because of this, it is possible to disable PMTU discovery on a system-wide or finer-granularity basis.
+
+* On Linux, the file `/proc/sys/net/ipv4/ip_no_pmtu_disc` can have a `1` written to it to disable the feature.
+
+* On Windows, it involves editing the registry entry `HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\EnablePMTUDiscovery` to include the value `0`.
+
+An alternative to conventional PMTUD that does not use ICMP has also been developed [RFC4821].
+====
