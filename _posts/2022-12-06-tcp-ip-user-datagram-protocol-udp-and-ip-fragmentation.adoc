@@ -77,9 +77,6 @@ The pseudo-header is virtual and is used only for purposes of the checksum compu
 .Fields used in computing the checksum for UDP/IPv4 datagrams, including the pseudo-header, the UDP header, and data. If the data is not an even number of bytes, it is padded with one 0 byte for purposes of computing the checksum. The pseudo-header and any pad bytes are not transmitted with the datagram.
 image::/assets/tcp-ip/udp-and-ip-fragmentation/ipv4-udp-pesudo-header-checksum.png[UDP pseduo-header checksum,40%,40%]
 
-.The UDP (and TCP) pseudo-header used with IPv6 ([RFC2460]). The pseudo-header includes the source and destination IPv6 addresses and a larger 32-bit _Length_ field value. The pseudo-header checksum is required when UDP is used with IPv6 because the IPv6 header lacks a checksum. The _Next Header_ field is copied from the last IPv6 header of the chain.
-image::/assets/tcp-ip/udp-and-ip-fragmentation/ipv6-udp-tcp-pesudo-header-checksum.png[UDP/TCP IPv6 pseduo-header,45%,45%]
-
 [source,console]
 ----
 x@node-0:~$ echo -n "hello" | nc -4u -w0 192.168.91.137 330
@@ -103,6 +100,23 @@ IP (tos 0xc0, ttl 64, id 62130, offset 0, flags [none], proto ICMP (1), length 6
 	0x0030:  e4d9 014a 000d 9d83 6865 6c6c 6f         ...J....hello
 ----
 
+== UDP and IPv6
+
+.The UDP (and TCP) pseudo-header used with IPv6 ([RFC2460]). The pseudo-header includes the source and destination IPv6 addresses and a larger 32-bit _Length_ field value. The pseudo-header checksum is required when UDP is used with IPv6 because the IPv6 header lacks a checksum. The _Next Header_ field is copied from the last IPv6 header of the chain.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/ipv6-udp-tcp-pesudo-header-checksum.png[UDP/TCP IPv6 pseduo-header,45%,45%]
+
+A related but more subtle distinction is that in IPv6, no IP-layer header checksum is present.
+
+* If UDP were to operate with checksums disabled, there would be no _end-to-end check whatsoever_ on the correctness of the IP-layer addressing information.
+
+* When UDP is used with IPv6, a pseudo-header checksum, common to both UDP and TCP, is required.
+
+* In IPv6, the minimum MTU size is 1280 bytes (as opposed to the 576 bytes required by IPv4 as the minimum size required to be supported by all hosts).
+
+* IPv6 supports jumbograms (packets larger than 65,535 bytes).
++
+When encapsulated in IPv6, a UDP/IPv6 datagram exceeding 65,535 bytes has its UDP _Length_ field value set to 0.
+
 [source,console]
 ----
 x@node-0:~$ echo -n ' ' |  nc -6u -w0 fe80::20c:29ff:fe85:2610%ens32 330
@@ -125,4 +139,71 @@ IP6 (flowlabel 0xa4c7d, hlim 64, next-header ICMPv6 (58) payload length: 57) fe8
 	0x0040:  020c 29ff fe8c df3f fe80 0000 0000 0000  ..)....?........
 	0x0050:  020c 29ff fe85 2610 8211 014a 0009 0506  ..)...&....J....
 	0x0060:  20                                     
+----
+
+== UDP-Lite
+
+Some applications are tolerant of bit errors that may be introduced in the data they send and receive. Often, these types of applications wish to use UDP in order to avoid connection setup overhead or to use broadcast or multicast addressing, but UDP uses a checksum that covers either the entire payload or none of it (i.e., when no checksum is computed by the sender).
+
+A protocol called *UDP-Lite* or *UDPLite* [RFC3828] addresses this issue by modifying the conventional UDP protocol to provide partial checksums. Such checksums cover only a portion of the payload in each UDP datagram.
+
+UDP-Lite has its own IPv4 Protocol and IPv6 Next Header field value (136), so it effectively counts as a separate transport protocol.
+
+.UDP-Lite includes a Checksum Coverage field that gives the number of bytes (starting with the first byte of the UDP-Lite header) covered by the checksum. The minimum value is 0, indicating that the whole datagram is covered. Values 1 through 7 are invalid, as the header is always covered. UDP-Lite uses a different IPv4 protocol number (136) from UDP (17). IPv6 uses the same values in the _Next Header_ field.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/udp-lite-message-format.png[UDP-Lite Message, 45%,45%]
+
+== IP Fragmentation
+
+The link-layer framing normally imposes an upper limit on the maximum size of a frame that can be transmitted.
+
+To keep the IP datagram abstraction consistent and isolated from link-layer details, IP employs _fragmentation_ and _reassembly_.
+
+* Whenever the IP layer receives an IP datagram to send, it determines which local interface the datagram is to be sent over next (via a forwarding table lookup) and what MTU is required.
++
+IP compares the outgoing interface's MTU with the datagram size and performs fragmentation if the datagram is too large.
+
+* Fragmentation in IPv4 can take place at the original sending host and at any intermediate routers along the end-to-end path. Note that datagram fragments can themselves be fragmented.
+
+* Fragmentation in IPv6 is somewhat different because only the source is permitted to perform fragmentation.
+
+* When an IP datagram is fragmented, it is not reassembled until it reaches its final destination.
+
+.A single UDP datagram with 2992 UDP payload bytes is fragmented into three UDP/IPv4 packets (no options). The UDP header that contains the source and destination port numbers appears only in the first fragment (a complicating factor for firewalls and NATs). Fragmentation is controlled by the _Identification_, _Fragment Offset_, and _More Fragments_ (MF) fields in the IPv4 header.
+image::/assets/tcp-ip/udp-and-ip-fragmentation/udp-datagram-fragmentation-sample.png[UDP datagram fragmentation sample,50%,50%]
+
+* The original UDP datagram included 2992 bytes of application (UDP payload) data and 8 bytes of UDP header, resulting in an IPv4 _Total Length_ field value of 3020 bytes (recall that this size includes a 20-byte IPv4 header as well).
++
+When this datagram was fragmented into three packets, 40 extra bytes were created (20 bytes for each of the newly created IPv4 fragment headers). Thus, the total number of bytes sent is 3060, an increase in IP-layer overhead of about 1.3%.
+
+* The _Identification_ field value (set by the original sender) is copied to each fragment and is used to group them together when they arrive.
+
+* The _Fragment Offset_ field gives the offset of the first byte of the fragment payload byte in the original IPv4 datagram (_in 8-byte units_).
+
+* Finally, the _MF_ bit field indicates whether more fragments in the datagram should be expected and is 0 only in the final fragment.
++
+Because each _Offset_ field is relative to the original datagram, the reassembly process can handle fragments that arrive out of order.
++
+When a datagram is fragmented, the _Total Length_ field in the IPv4 header of each fragment is changed to be the total size of that fragment.
+
+[source,console]
+----
+x@node-0:$ ip addr show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+
+x@node-0:$ dd bs=2992 if=/dev/zero count=1 status=none | nc -w0 -u -s 192.168.91.128 192.168.91.137 330
+----
+
+[source,console]
+----
+root@node-0:~# tcpdump -tnvvv -i ens32 host 192.168.91.137 and udp
+IP (tos 0x0, ttl 64, id 4494, offset 0, flags [+], proto UDP (17), length 1500)
+    192.168.91.128.45401 > 192.168.91.137.330: UDP, length 2992
+IP (tos 0x0, ttl 64, id 4494, offset 1480, flags [+], proto UDP (17), length 1500)
+    192.168.91.128 > 192.168.91.137: ip-proto-17
+IP (tos 0x0, ttl 64, id 4494, offset 2960, flags [none], proto UDP (17), length 60)
+    192.168.91.128 > 192.168.91.137: ip-proto-17
 ----
