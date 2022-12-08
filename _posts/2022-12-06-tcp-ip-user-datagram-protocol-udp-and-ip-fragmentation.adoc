@@ -324,3 +324,122 @@ Because of this, it is possible to disable PMTU discovery on a system-wide or fi
 
 An alternative to conventional PMTUD that does not use ICMP has also been developed [RFC4821].
 ====
+
+== Interaction between IP Fragmentation and ARP/ND
+
+Using UDP, we can see the relationship between induced IP fragmentation and typical implementations of ARP.
+
+Recall that ARP is used to map IP-layer addresses to corresponding MAC-layer addresses on the same IPv4 subnet.
+
+The questions with which we are concerned include, When multiple fragments are to be sent, how many ARP messages should be generated, and how many of the fragments are held until a pending ARP request/response is completed? (Similar questions apply with IPv6 ND.)
+
+Returning to our host and LAN using a 1500-byte MTU, we use the following two commands to see the answer:
+
+[source,console]
+----
+x@node-0:~$ ping -s 8192 -c 1 192.168.91.110
+PING 192.168.91.110 (192.168.91.110) 8192(8220) bytes of data.
+From 192.168.91.128 icmp_seq=1 Destination Host Unreachable
+
+--- 192.168.91.110 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+x@node-0:~$ ping -s 8192 -c 1 192.168.91.137
+PING 192.168.91.137 (192.168.91.137) 8192(8220) bytes of data.
+8200 bytes from 192.168.91.137: icmp_seq=1 ttl=64 time=1.13 ms
+
+--- 192.168.91.137 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 1.129/1.129/1.129/0.000 ms
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -i ens32 -tttnv icmp or arp
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+ 00:00:00.000000 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.110 tell 192.168.91.128, length 28
+ 00:00:01.030208 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.110 tell 192.168.91.128, length 28
+ 00:00:01.024150 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.110 tell 192.168.91.128, length 28
+
+ 00:00:06.177783 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.137 tell 192.168.91.128, length 28
+ 00:00:00.000262 ARP, Ethernet (len 6), IPv4 (len 4), Reply 192.168.91.137 is-at 00:0c:29:85:26:10, length 46
+
+ 00:00:00.000009 IP (tos 0x0, ttl 64, id 21330, offset 0, flags [+], proto ICMP (1), length 1500)
+    192.168.91.128 > 192.168.91.137: ICMP echo request, id 2725, seq 1, length 1480
+ 00:00:00.000030 IP (tos 0x0, ttl 64, id 21330, offset 1480, flags [+], proto ICMP (1), length 1500)
+    192.168.91.128 > 192.168.91.137: ip-proto-1
+ 00:00:00.000022 IP (tos 0x0, ttl 64, id 21330, offset 2960, flags [+], proto ICMP (1), length 1500)
+    192.168.91.128 > 192.168.91.137: ip-proto-1
+ 00:00:00.000022 IP (tos 0x0, ttl 64, id 21330, offset 4440, flags [+], proto ICMP (1), length 1500)
+    192.168.91.128 > 192.168.91.137: ip-proto-1
+ 00:00:00.000023 IP (tos 0x0, ttl 64, id 21330, offset 5920, flags [+], proto ICMP (1), length 1500)
+    192.168.91.128 > 192.168.91.137: ip-proto-1
+ 00:00:00.000019 IP (tos 0x0, ttl 64, id 21330, offset 7400, flags [none], proto ICMP (1), length 820)
+    192.168.91.128 > 192.168.91.137: ip-proto-1
+...
+----
+
+== Maximum UDP Datagram Size
+
+Theoretically, the maximum size of an IPv4 datagram is 65,535 bytes, imposed by the 16-bit _Total Length_ field in the IPv4 header. With an optionless IPv4 header of 20 bytes and a UDP header of 8 bytes, this leaves a maximum of 65,507 bytes of user data in a UDP datagram.
+
+For IPv6, the 16-bit _Payload Length_ field permits an effective UDP payload of 65,527 bytes (8 of the 65,535 IPv6 payload bytes are used for the UDP header), assuming jumbograms are not being used.
+
+There are two main reasons why a full-size datagram of these sizes may not be delivered end-to-end, however.
+
+* First, the system's local protocol implementation may have some limitation.
+* Second, the receiving application may not be prepared to handle such large datagrams.
+
+=== Implementation Limitations
+
+Protocol implementations provide an API to applications that pick some default buffer size for sending and receiving.
+
+* Some implementations provide defaults that are less than the maximum IP datagram size,
+* and some actually do not support sending datagrams larger than a few tens of kilobytes (although this problem is not common).
+
+The sockets API provides a set of functions that an application can call to set or query the size of the receive and send buffers.
+
+* For a UDP socket, this size is directly related to the maximum size of UDP datagram the application can read or write.
+* Typical default values are 8192 bytes or 65,535 bytes, but these can generally be made larger by invoking the `setsockopt()` API call.
+
+Many UDP applications (e.g. DNS, DHCP, etc.) are designed to restrict their application data size to 512 bytes or less (resulting in IPv4 datagrams under 576 bytes), to stay below this limit.
+
+.https://www.rfc-editor.org/rfc/rfc791#section-3.1
+[source,text]
+----
+Total Length:  16 bits
+
+    Total Length is the length of the datagram, measured in octets,
+    including internet header and data.  This field allows the length of
+    a datagram to be up to 65,535 octets.  Such long datagrams are
+    impractical for most hosts and networks.  All hosts must be prepared
+    to accept datagrams of up to 576 octets (whether they arrive whole
+    or in fragments).  It is recommended that hosts only send datagrams
+    larger than 576 octets if they have assurance that the destination
+    is prepared to accept the larger datagrams.
+
+    The number 576 is selected to allow a reasonable sized data block to
+    be transmitted in addition to the required header information.  For
+    example, this size allows a data block of 512 octets plus 64 header
+    octets to fit in a datagram.  The maximal internet header is 60
+    octets, and a typical internet header is 20 octets, allowing a
+    margin for headers of higher level protocols.
+----
+
+=== Datagram Truncation
+
+Just because UDP/IP is capable of sending and receiving a datagram of a given (large) size does not mean the receiving application is prepared to read that size.
+
+UDP programming interfaces allow the application to specify the maximum number of bytes to return each time a network read operation completes.
+
+What happens if the received datagram exceeds the size specified?
+
+* In most cases, the answer to this question is that the API truncates the datagram, discarding any excess data in the datagram beyond the number of bytes specified by the receiving application.
+
+* However, the exact behavior varies from implementation to implementation.
++
+Some systems provide the unconsumed portion of the datagram in subsequent read operations,
++
+and others inform the caller of how much data was truncated (or, in yet other cases, that some data was truncated, but not exactly how much).
+
+NOTE: In Linux, the `MSG_TRUNC` option may be given to the sockets API to discover how much data was truncated.
