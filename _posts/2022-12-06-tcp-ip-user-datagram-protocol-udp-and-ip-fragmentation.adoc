@@ -443,3 +443,238 @@ Some systems provide the unconsumed portion of the datagram in subsequent read o
 and others inform the caller of how much data was truncated (or, in yet other cases, that some data was truncated, but not exactly how much).
 
 NOTE: In Linux, the `MSG_TRUNC` option may be given to the sockets API to discover how much data was truncated.
+
+== UDP Server Design
+
+There are some characteristics of UDP that affect the design and implementation of networking application software wishing to use it [https://www.rfc-editor.org/rfc/rfc5405[RFC5405]].
+
+Servers typically interact with the operating system, and most need a way to handle multiple clients at the same time.
+
+In the typical client/server scenario, a client starts, immediately communicates with a single server, and is done. Servers, on the other hand, start and then go to sleep, waiting for a client's request to arrive. They awaken when a client's datagram arrives, which usually requires the server to evaluate the request and possibly perform further processing.
+
+=== IP Addresses and UDP Port Numbers
+
+What arrives at a UDP server from a client is a UDP datagram.
+
+* The IP header contains the source and destination IP addresses,
+* and the UDP header contains the source and destination UDP port numbers.
+* When an application receives a UDP message,
+** the IP and UDP headers have been stripped off;
+** the application must be told by the operating system in some other way who sent the message (the source IP address and port number), if it intends to furnish a reply. This feature allows a UDP server to handle multiple clients.
+
+Some servers need to know to _whom_ the datagram was sent, that is, the destination IP address.
+
+* Any server wishing to perform its tasks differently depending on the destination IP address selected by the client would require access to the destination IP address information.
+* In addition, some services may respond differently if the destination address is broadcast or multicast.
+
+NOTE: A DNS server is one type of server that is sensitive to the destination IP address. It can use this information to arrange a particular sorting order on the address mappings it returns.
+
+=== Restricting Local IP Addresses
+
+Most UDP servers _wildcard_ their local IP address when they bind a UDP endpoint. This means that an incoming UDP datagram destined for the server's port is accepted on any local IP address (any IP address in use on the local machine, including the local loopback address).
+
+[source,console]
+----
+x@node-0:~$ ncat -vlu 7777
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on :::7777
+Ncat: Listening on 0.0.0.0:7777
+----
+
+[source,console]
+----
+x@node-0:~$ netstat -lun
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+udp        0      0 0.0.0.0:7777            0.0.0.0:*                          
+udp6       0      0 :::7777                 :::*                               
+----
+
+When the server creates its endpoint, it can specify one of the host's local IP addresses, including a broadcast address, as the local IP address for the endpoint. In such cases, incoming UDP datagrams are then passed to this endpoint only if the destination IP address matches the specified local address.
+
+[source,console]
+----
+x@node-0:~$ ncat -vlu 127.0.0.1 7777
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 127.0.0.1:7777
+----
+
+[source,console]
+----
+x@node-0:~$ netstat -lun
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+udp        0      0 127.0.0.1:7777          0.0.0.0:* 
+----
+
+[source,console]
+----
+x@node-0:~$ nping -c 1 --udp -p 7777 192.168.91.128 
+SENT (0.0026s) UDP packet with 4 bytes to 192.168.91.128:7777
+ERR: (0.0026s) READ to 192.168.91.128:7777 failed: Connection refused
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tnv udp or icmp -i any
+lo    In  IP (tos 0x0, ttl 64, id 23511, offset 0, flags [DF], proto UDP (17), length 32)
+    192.168.91.128.49849 > 192.168.91.128.7777: UDP, length 4
+lo    In  IP (tos 0xc0, ttl 64, id 60067, offset 0, flags [none], proto ICMP (1), length 60)
+    192.168.91.128 > 192.168.91.128: ICMP 192.168.91.128 udp port 7777 unreachable, length 40
+	IP (tos 0x0, ttl 64, id 23511, offset 0, flags [DF], proto UDP (17), length 32)
+    192.168.91.128.49849 > 192.168.91.128.7777: UDP, length 4
+----
+
+=== Using Multiple Addresses
+
+It is possible to start different servers on the same port number, each with a different local IP address.
+
+[source,console]
+----
+x@node-0:~$ ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+    inet 192.168.91.129/24 brd 192.168.91.255 scope global secondary ens32
+       valid_lft forever preferred_lft forever
+    inet 192.168.91.134/24 brd 192.168.91.255 scope global secondary dynamic ens32
+       valid_lft 1543sec preferred_lft 1543sec
+    inet6 fe80::20c:29ff:fe8c:df3f/64 scope link 
+       valid_lft forever preferred_lft forever
+
+x@node-0:~$ ncat -lu 8888
+x@node-0:~$ ncat -lu 192.168.91.129 8888
+x@node-0:~$ ncat -lu 192.168.91.128 8888
+----
+
+[source,console]
+----
+x@node-0:~$ netstat -nlu
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+udp        0      0 192.168.91.129:8888     0.0.0.0:*                          
+udp        0      0 192.168.91.128:8888     0.0.0.0:*                          
+udp        0      0 0.0.0.0:8888            0.0.0.0:*                          
+udp6       0      0 :::8888                 :::*   
+----
+
+There is a priority implied when an endpoint with a wildcard address exists.
+
+* An endpoint with a specific IP address that matches the destination IP address is always chosen over a wildcard.
+* The wildcard endpoint is used only when a specific match is not found.
+
+=== Restricting Foreign IP Address
+
+In all the netstat output that we showed earlier, the foreign IP address (i.e., the one not local to the host where the server is running) and foreign port number are shown as _0.0.0.0:*_, meaning that the endpoint will accept an incoming UDP datagram from any IPv4 address and any port number.
+
+However, there is an option to restrict the foreign address. This means that the endpoint receives UDP datagrams only from that specific IPv4 address and port number.
+
+.Types of address bindings for a UDP server
+[%header,cols="1,1,3"]
+|===
+|Local Address
+|Foreign Address
+|Description
+
+|local_IP.local_port
+|foreign_IP.foreign_port
+|Restricted to one client
+
+|local_IP.local_port
+|+++*.*+++ (wildcard)
+|Restricted to one local IP
+address and port (but for
+any client)
+|*.local_port
+|+++*.*+++ (wildcard)
+|Restricted to local port
+only
+
+|===
+
+=== Using Multiple Servers per Port
+
+Although it is not specified in the RFCs, by default most implementations allow only one application endpoint at a time to be associated with any one (local IP address, UDP port number) pair for a given address family (i.e., IPv4 or IPv6).
+
+When a UDP datagram arrives at a host destined for its IP address and an active port number, one copy is delivered to that single endpoint (e.g., a listening application).
+
+The IP address of the endpoint can be the wildcard, as shown earlier, but only a single application can receive datagrams for the address(es) specified.
+
+If we then try to start another server with the same wildcarded local address and the same port using the same address family, it does not work:
+
+[source,console]
+----
+x@node-0:~$ socat - udp-listen:8888 & socat - udp-listen:8888
+[1] 38249
+2022/12/08 16:57:19 socat[38250] E bind(5, {AF=2 0.0.0.0:8888}, 16): Address already in use
+----
+
+In support of multicasting, multiple endpoints can be allowed to use the same (local IP address, UDP port number) pair, although the application normally must tell the API (i.e., specifing the `SO_REUSEADDR` option).
+
+[source,console]
+----
+x@node-0:~$ socat - udp-listen:8888,reuseaddr & socat - udp-listen:8888,reuseaddr
+[2] 38270
+----
+
+When a UDP datagram arrives whose destination IP address is a broadcast or multicast address, and there are multiple endpoints at the destination IP address and port number, one copy of the incoming datagram is passed to each endpoint.
+
+* The endpoint's local IP address can be the wildcard, which matches any destination IP address.
++
+[source,console]
+----
+x@node-0:~$ ncat -vlu4 192.168.91.255 9999
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 192.168.91.255:9999
+Ncat: Connection from 192.168.91.137.
+hello
+hello
+----
++
+[source,console]
+----
+x@node-0:~$ ncat -vlu4 9999
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 0.0.0.0:9999
+Ncat: Connection from 192.168.91.137.
+hello
+hello
+----
++
+[source,console]
+----
+x@node-0:~$ netstat -nlu4
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+udp        0      0 192.168.91.255:9999     0.0.0.0:*                          
+udp        0      0 0.0.0.0:9999            0.0.0.0:*
+----
++
+[source,console]
+----
+x@node-1:~$ echo 'hello' | nc -u 192.168.91.255 9999
+----
+
+But if a UDP datagram arrives whose destination IP address is a unicast address (i.e., an ordinary address), only a single copy of the datagram is delivered to one of the endpoints.
+
+=== Spanning Address Families: IPv4 and IPv6
+
+It is possible to write servers that span not only protocols (such as servers that respond to both TCP and UDP) but also across address families. That is, we may write a UDP server that responds to incoming requests for IPv4 as well as for IPv6.
+
+While this may seem entirely straightforward (IPv6 addresses are just additional IP addresses on the same host that happen to be 128 bits long), there is a subtlety related to the sharing of the port space.
+
+On some systems, the port space between IPv6 and IPv4 for UDP (and TCP) is _shared_. This means that if a service binds to a UDP port using IPv4, it is also allocated the same port in the IPv6 port space (and vice versa), preventing other services from using it (unless the `SO_REUSEADDR` socket option is used).
+
+Furthermore, because IPv6 addresses can encode IPv4 addresses in an interoperable way, wildcard bindings in IPv6 may receive incoming IPv4 traffic.
+
+=== Lack of Flow and Congestion Control
+
+Most UDP servers are _iterative_ servers. This means that a single server thread (or process) handles all the client requests on a single UDP port (e.g., the server's well-known port).
+
+Normally there is a limited-size input queue associated with each UDP port that an application is using. This means that requests arriving at about the same time from different clients are automatically queued by UDP. The received UDP datagrams are passed to the application (when it asks for the next one) in the order in which they were received (i.e., FCFS—first come, first served).
+
+It is possible, however, for this queue to overflow, causing the UDP implementation to discard incoming datagrams. This can happen even if only one client is being served because UDP provides no *flow control* (that is, no way for the server to tell the client to slow down). Because UDP is a connectionless protocol with no reliability mechanism of its own, applications are not told when the UDP input queue overflows. The excess datagrams are just discarded by UDP.
+
+Another concern arises from the fact that queues are also present in the IP routers between the sender and the receiver—in the middle of the network. When these queues become full, traffic may be discarded in a fashion similar to that of the UDP input queue. When this happens, the network is said to be *congested*. Congestion is undesirable because it affects all network users with traffic that traverses the point where congestion is occurring, as opposed to the UDP input case mentioned previously, where only a single application server was affected. UDP poses a special concern for congestion because it has no way of being informed that it should slow down its sending rate if the network is being driven into congestion. (It also has no mechanism for slowing down, even if it were told to do so.) Thus, it is said to lack *congestion control*. Congestion control is a complex subject and still an active area of research.
