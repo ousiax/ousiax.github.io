@@ -1,0 +1,572 @@
+= TCP/IP: Name Resolution and the Domain Name System (DNS)
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking', 'dns']
+:page-date: 2022-12-09 09:35:45 +0800
+:page-revdate: 2022-12-09 09:35:45 +0800
+:toc: premable
+:sectnums:
+
+IP addresses (especially IPv6 addresses) are cumbersome for humans to use and remember, so the Internet supports the use of *host names* to identify hosts, both clients and servers.
+
+In order to be used by protocols such as TCP and IP, host names are converted into IP addresses using a process known as *name resolution*.
+
+There are different forms of name resolution in the Internet, but the most prevalent and important one uses a distributed database system known as the *Domain Name System (DNS)* .
+
+DNS is a distributed client/server networked database that is used by TCP/IP applications to map between host names and IP addresses (and vice versa).
+
+* DNS runs as an application on the Internet, using IPv4 or IPv6 (or both).
+* For scalability, DNS names are hierarchical, as are the servers that support name resolution.
+
+From an application's point of view, access to the DNS is through an application library called a *resolver*.
+
+* In general, an application must convert a host name to an IPv4 and/or IPv6 address before it can ask TCP to open a connection or send a unicast datagram using UDP.
+* The TCP and IP protocol implementations know nothing about the DNS; they operate only with the addresses.
+
+== The DNS Name Space
+
+The set of all names used with DNS constitutes the DNS *name space*. This space is partitioned hierarchically and is case insensitive, similar to computer file system folders (directories) and files.
+
+The current DNS name space is a tree of domains with an *unnamed root* at the top. The top echelons of the tree are the so-called *top-level domains (TLDs)*, which include
+
+* generic TLDs (gTLDs),
+* country-code TLDs (ccTLDs),
+* and internationalized country-code TLDs (IDN ccTLDs), plus a special infrastructure TLD called,
+* for historical reasons, ARPA [RFC3172].
+
+.The DNS name space forms a hierarchy with an unnamed root at the top. The top-level domains (TLDs) include generic TLDs (gTLDs), country-code TLDs (ccTLDs), internationalized TLDs (IDN ccTLDs), and a special infrastructure TLD called _ARPA_.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-name-space.png[DNS Name Space,75%,75%]
+
+=== DNS Naming Syntax
+
+The names below a TLD in the DNS name tree are further partitioned into groups known as *subdomains*. This is very common practice, especially for the ccTLDs.
+
+For example, the site _www.ci.manhattan-beach.ca.us_ is the site of Manhattan Beach, California's, city government in the United States, also known as *fully qualified domain names* (FQDNs).
+
+* FQDNs are sometimes written more formally with a trailing period (e.g., _mit.edu._).
+* The trailing period indicates that the name is complete; no additional information should be added to the name when performing a name resolution.
+
+In contrast to the FQDN, an *unqualified domain name*, which is used in combination with a default domain or domain search list set during system configuration, has one or more strings appended to the end.
+
+* When a system is configured, it is typically assigned a default domain extension and search list using DHCP (or, less commonly, the RDNSS and DNSSL RA options).
++
+For example, the default domain _cs.berkeley.edu_ might be configured in systems at the computer science department at UC Berkeley.
++
+If a user on one of these machines types in the name _vangogh_, the local resolver software converts this name to the FQDN _vangogh.cs.berkeley.edu._ before invoking a resolver to determine vangogh's IP address.
+
+A domain name consists of a sequence of *labels* separated by periods.
+
+* The name represents a location in the name hierarchy, where the period is the hierarchy delimiter and descending down the tree takes place from right to left in the name.
+
+* Each label can be up to 63 characters long, and an entire FQDN is limited to at most 255 (1-byte) characters.
+
+The hierarchical structure of the DNS name space allows different administrative authorities to manage different parts of the name space. For example,
+
+* creating a new DNS name of the form _elevator.cs.berkeley.edu_ would likely require dealing with the owner of the _cs.berkeley.edu_ subdomain only.
+* The berkeley _.edu_ and _edu_ portions of the name space would not require alteration, so the owners of those would not need to be bothered.
+* This feature of DNS is one key aspect of its _scalability_.
+
+== Name Servers and Zones
+
+Management responsibility for portions of the DNS name space is assigned to individuals or organizations.
+
+* The active DNS name space (domains) is supposed to arrange for at least two *name servers* or *DNS servers* to hold information about the name space so that users of the Internet can perform queries on the names.
+* The collection of servers forms the DNS (service) itself, a distributed system whose primary job is to provide name-to-address mappings.
+
+The unit of administrative delegation, in the language of DNS servers, is called a *zone*.
+
+* A zone is a subtree of the DNS name space that can be administered separately from other zones.
+
+* Every domain name exists within some zone, even the TLDs that exist in the *root zone*.
+
+* Whenever a new record is added to a zone, the DNS administrator for the zone allocates a name and additional information (usually an IP address) for the new entry and enters these into the name server's database.
+
+A DNS server can contain information for more than one zone.
+
+* At any hierarchical change point in a domain name (i.e., wherever a period appears), a different zone and containing server may be accessed to provide information for the name. This is called a *delegation*.
+
+* Each zone has a designated owner or responsible party who is given authority to manage the names, addresses, and subordinate zones, also the name servers that contain the zone's database(s) within the zone.
+
+Zone information is supposed to exist in at least two places, implying that there should be at least two servers containing information for each zone.
+
+* This is for redundancy; if one server is not functioning properly, at least one other server is available.
+
+* All of these servers contain identical information about a zone.
+
+* Typically, among the servers, a *primary server* contains the zone database in a disk file, and one or more *secondary servers* obtain copies of the database in its entirety from the primary using a process called a *zone transfer*.
+
+== Caching
+
+Name servers contain information such as name-to-IP-address mappings that may be obtained from three sources.
+
+* The name server obtains the information directly from the zone database,
++
+The server is said to contain authoritative information about the zone and may be called an *authoritative server* for the zone. Such servers are identified by name within the zone information.
+* as the result of a zone transfer (e.g., for a slave server),
+* or from another server in the course of processing a resolution.
+
+Most name servers (except some of the root and TLD servers) also *cache* zone information they learn, up to a time limit called the *time to live* (TTL). They use this cached information to answer queries.
+
+* Doing so can greatly decrease the amount of DNS message traffic that would otherwise be carried on the Internet.
+
+* When answering a query, a server indicates whether the information it is returning has been derived from its cache or from its authoritative copy of the zone.
+
+* When cached information is returned, it is common for a server to also include the domain names of the name servers that can be contacted to retrieve authoritative information about the corresponding zone.
+
+It is worth mentioning that caching is applied both for successful resolutions and for unsuccessful resolutions (called *negative caching*).
+
+* If a request for a particular domain name fails to return a record, this fact is also cached.
+* Doing so can help to reduce Internet traffic when errant applications repeatedly make requests for names that do not exist.
+* Negative caching was changed from optional to mandatory by [RFC2308].
+
+In some network configurations (e.g., those using older UNIX-compatible systems), the cache is maintained in a nearby name server, not in the resolvers resident in the clients.
+
+* Placing the cache in the server allows any hosts on the LAN that use the nearby server to benefit from the server's cache but implies a small delay in accessing the cache over the local network.
+
+* In Windows and more recent systems (e.g., Linux), the client can maintain a cache, and it is made available to all applications running on the same system.
++
+In Windows, this happens by default, and in Linux, it is a service that can be enabled or disabled.
+
+* On Windows, the local system's cache parameters may be modified by editing the following registry entry:
++
+[source,text]
+HKLM\SYSTEM\CurrentControlSet\Services\DNSCache\Parameters
++
+The DWORD value _MaxNegativeCacheTtl_ gives the maximum number of seconds that a negative DNS result remains in the resolver cache.
++
+The DWORD value _MaxCacheTtl_ gives the maximum number of seconds that a DNS record may remain in the resolver cache.
++
+If this value is less than the _TTL_ of a received DNS record, the lesser value controls how long the record remains in cache.
++
+These two registry keys do not exist by default, so they must be created in order to be used.
+
+* In Linux and other systems that support it, the _Name Service Caching Daemon_ (NSCD) provides a client-side caching capability.
++
+It is controlled by the _/etc/nscd.conf_ file that can indicate which types of resolutions (for DNS and some other services) are cached, along with some cache parameters such as _TTL_ settings.
++
+In addition, the file _/etc/nsswitch.conf_ controls how name resolution for applications takes place. Among other things, it can control whether local files, the DNS protocol, and/or NSCD is employed for mappings.
+
+== The DNS Protocol
+
+The DNS protocol consists of two main parts:
+
+* a query/response protocol used for performing queries against the DNS for particular names,
+* and another protocol for name servers to exchange database records (zone transfers).
+* It also has a way to notify secondary servers that the zone database has evolved and a zone transfer is necessary (DNS Notify), and a way to dynamically update the zone (dynamic updates).
+
+DNS query/response operations are supported over the distributed DNS infrastructure consisting of
+
+* servers deployed locally at each site or ISP,
+
+* and a special set of *root servers*,
+
+* also a special set of *generic top-level domain servers* used for scaling some of the larger gTLDs.
+
+.A typical recursive DNS query for `EXAMPLE.COM` from `A.HOME` involves up to ten messages. The local recursive server (`GW.HOME` here) uses a DNS server provided by its ISP. That server, in turn, uses an Internet root name server and a gTLD server (for `COM` and `NET` TLDs) to find the name server for the `EXAMPLE.COM` domain. That name server (`A.IANA-SERVERS.NET` here) provides the required IP address for the host `EXAMPLE.COM`. All of the recursive servers cache any information learned for later use.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-recursive-query-example-com.png[DNS resurcive query,75%,75%]
+
+Here, we have a laptop called _A.HOME_ residing nearby the DNS server _GW.HOME_. The domain _HOME_ is private, so it is not known to the Internet—only locally at the user's residence.
+
+When _A.HOME_ wishes to connect to the host _EXAMPLE.COM_, it must determine the IP address of _EXAMPLE.COM_.
+
+. Assuming it does not know this address already, the resolver software on _A.HOME_ first makes a request to its local name server, _GW.HOME_, to convert the name _EXAMPLE.COM_ into an address and constitutes _message 1_.
+
+. If _GW.HOME_ does not already know the IP address for _EXAMPLE.COM_ or the name servers for either the _EXAMPLE.COM_ domain or the _COM TLD_, it forwards the request to another DNS server (called *recursion*). In this case, a request (_message 2_) goes to an ISP-provided DNS server. 
+
+. Assuming that this server also does not know the required address or other information, it contacts one of the root name servers (_message 3_).
+
+. The root servers are not recursive, so they do not process the request further but instead return the information required to contact a name server for the _COM TLD_.
++
+For example, it might return the name _A.GTLD-SERVERS.NET_ and one or more of its IP addresses (_message 4_).
+
+. With this information, the ISP-provided server contacts the gTLD server (_message 5_) and discovers the name and IP addresses of the name servers for the domain _EXAMPLE.COM_ (_message 6_). In this case, one of the servers is _A.IANA-SERVERS.NET_.
+
+. Given the correct server for the domain, the ISP-provided server contacts the appropriate server (_message 7_), which responds with the requested IP address (_message 8_).
+
+. At this point, the ISP-provided server can respond to _GW.HOME_ with the required information (_message 9_).
+
+. _GW.HOME_ is now able to complete the initial query and responds to the client with the desired IPv4 and/or IPv6 address(es) (_message 10_).
+
+From the perspective of _A.HOME_, the local name server was able to perform the request.
+
+However, what really happened is a *recursive query*, where the _GW.HOME_ and ISP-provided servers in turn made additional DNS requests to satisfy _A.HOME_'s query.
+
+* In general, most name servers perform recursive queries such as this.
+
+* The notable exceptions are the root servers and other TLD servers that do not perform recursive queries.
+
+=== DNS Message Format
+
+There is one basic DNS message format [RFC6195] used for all DNS operations (queries, responses, zone transfers, notifications, and dynamic updates).
+
+The basic DNS message begins with a fixed 12-byte header followed by four variable-length *sections*:
+
+* questions (or queries),
+* answers,
+* authority records,
+* and additional records.
+
+All but the first section contain one or more *resource records* (RRs). The question section contains a data item that is very close in structure to an RR. RRs can be cached; questions are not.
+
+.The DNS message format has a fixed 12-byte header. The entire message is usually carried in a UDP/IPv4 datagram and limited to 512 bytes. DNS UPDATE (DNS with dynamic updates) uses the field names _ZOCOUNT_, _PRCOUNT_, _UPCOUNT_, and _ADCOUNT_. A special extension format (called EDNS0) allows messages to be larger than 512 bytes, which is required for DNSSEC.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-message-format.png[DNS Message format,55%,55%]
+
+In the fixed-length header, the _Transaction ID_ field is set by the client and returned by the server. It lets the client match responses to requests.
+
+The second 16-bit word includes a number of flags and other subfields.
+
+* Beginning from the left-most bit, _QR_ is a 1-bit field: 0 means the message is a query; 1 means it is a response.
+
+* The next is the _OpCode_, a 4-bit field.
++
+The normal value is 0 (a standard query) for requests and responses.
++
+Other values are: 4 (notify), and 5 (update).
++
+Other values (1–3) are deprecated or never seen in operational use.
+
+* Next is the _AA_ bit field that indicates an "authoritative answer" (as opposed to a cached answer).
+
+* _TC_ is a 1-bit field that means "truncated."
++
+With UDP, this flag being set means that the total size of the reply exceeded 512 bytes, and only the first 512 bytes of the reply were returned.
+
+* _RD_ is a bit field that means "recursion desired."
++
+It can be set in a query and is then returned in the response. It tells the server to perform a recursive query.
++
+If the bit is not set, and the requested name server does not have an authoritative answer, the requested name server returns a list of other name servers to contact for the answer. At this point, the overall query may be continued by contacting the list of other name servers. This is called an *iterative query*.
+
+* _RA_ is a bit field that means "recursion available."
++
+This bit is set in the response if the server supports recursion.
++
+Root servers generally do not support recursion, thereby forcing clients to perform iterative queries to complete name resolution.
+
+* The _Z_ bit field must be 0 for now but is reserved for future use.
+
+* The _AD_ bit field is set to true if the contained information is authenticated, and the _CD_ bit is set to true if security checking is disabled.
+
+* The _Response Code_ (or _RCODE_) field is a 4-bit field with the return code whose possible values are given in [DNSPARAM].
++
+The common values include 0 (no error) and 3 (name error or "nonexistent domain", written as _NXDOMAIN_).
++
+A name error is returned only from an authoritative name server and means that the domain name specified in the query does not exist.
+
+* The next four fields are 16 bits in size and specify the number of entries in the question, answer, authority, and additional information sections that complete the DNS message.
++
+For a query, the number of questions is normally 1 and the other three counts are 0. For a reply, the number of answers is at least 1.
++
+Questions have a name, type, and class.
++
+All of the other sections contain zero or more RRs. RRs contain a name, type, and class information, but also the TTL value that controls how long the data can be cached.
+
+[source,console]
+----
+x@node-0:~$ dig @8.8.8.8 +trace +question cs.berkeley.edu A
+
+; <<>> DiG 9.16.33-Debian <<>> @8.8.8.8 +trace +question cs.berkeley.edu A
+; (1 server found)
+;; global options: +cmd
+;.				IN	NS
+.			86915	IN	NS	a.root-servers.net.
+.			86915	IN	NS	b.root-servers.net.
+.			86915	IN	NS	c.root-servers.net.
+.			86915	IN	NS	d.root-servers.net.
+.			86915	IN	NS	e.root-servers.net.
+.			86915	IN	NS	f.root-servers.net.
+.			86915	IN	NS	g.root-servers.net.
+.			86915	IN	NS	h.root-servers.net.
+.			86915	IN	NS	i.root-servers.net.
+.			86915	IN	NS	j.root-servers.net.
+.			86915	IN	NS	k.root-servers.net.
+.			86915	IN	NS	l.root-servers.net.
+.			86915	IN	NS	m.root-servers.net.
+.			86915	IN	RRSIG	NS 8 0 518400 20221222050000 20221209040000 18733 . ponJYUxKKcFVganWIWR+LMy2uEOTCzWYKn2sKCsx6SWi+IzxTTeOz04j 4f2uQfF6gxAkN5eJFLyFcudyAgL2LCXyvqHinEOXQUJG0++/dEZ7o24N Zm9PNAeC1ByWA+DWA+EFfGyUmVju8FqDtE8WGWVycqEdOiTMGSh5sjp+ X8RQPd+6ZSBJQwC+UeAF1Vxi6QGqoDmFlfdro0gAZPXQWDDcqh47/ZFc luiqPZH0P610fYlEjVtDlJXzPCymkLbsJZAKtnC6/eVDFBgLEcb4P4ff FcU53mmCvzEArkBIkcM13OHeHEH9kvdGs/nJJsmGieqVaw+bchyno4ZT vA90eQ==
+;; Received 525 bytes from 8.8.8.8#53(8.8.8.8) in 67 ms
+
+;cs.berkeley.edu.		IN	A
+edu.			172800	IN	NS	a.edu-servers.net.
+edu.			172800	IN	NS	b.edu-servers.net.
+edu.			172800	IN	NS	c.edu-servers.net.
+edu.			172800	IN	NS	d.edu-servers.net.
+edu.			172800	IN	NS	e.edu-servers.net.
+edu.			172800	IN	NS	f.edu-servers.net.
+edu.			172800	IN	NS	g.edu-servers.net.
+edu.			172800	IN	NS	h.edu-servers.net.
+edu.			172800	IN	NS	i.edu-servers.net.
+edu.			172800	IN	NS	j.edu-servers.net.
+edu.			172800	IN	NS	k.edu-servers.net.
+edu.			172800	IN	NS	l.edu-servers.net.
+edu.			172800	IN	NS	m.edu-servers.net.
+edu.			86400	IN	DS	28065 8 2 4172496CDE85534E51129040355BD04B1FCFEBAE996DFDDE652006F6 F8B2CE76
+edu.			86400	IN	RRSIG	DS 8 1 86400 20221222050000 20221209040000 18733 . g3UnJR1A2ZYH0DcdbSr8quB0ubph6tT3LZbipK+adQH+rR7vTttrjccx w7WLrniPyDhb6jFTMpm4zF+xbwCRjlcx4yoGRkR6yMQoCmfphGV767z8 zfQvrNVxILE+l/NmzYcKA63QaMUTmkaupWPL9mm+bZPQo/eXPTOvz+Pn BhIpuL9WPKoIIqR5+ZadJGf1rI5bbaTM8ZTWg5cruOc1Ya4DI8TGnlzc sjnNEU5GIHXZg3Rsh8u4PyM+cimzd7pP/HIzwiCFczVwYapmkJ9Rgm8e pc2cYbeXcP0OvS0Mo6zQ2ojwlG6xCuFgzMZ5K8uUlbuw/+IeXHGSjQ3c qCEOlw==
+;; Received 1174 bytes from 198.97.190.53#53(h.root-servers.net) in 35 ms
+
+;cs.berkeley.edu.		IN	A
+berkeley.edu.		172800	IN	NS	adns1.berkeley.edu.
+berkeley.edu.		172800	IN	NS	adns2.berkeley.edu.
+berkeley.edu.		172800	IN	NS	adns3.berkeley.edu.
+berkeley.edu.		86400	IN	DS	38028 10 2 A37654ABBF41A2F3D7DC8D4B2E77A70E9B1AF6A670101FF8AEF4F36E FB7CA323
+berkeley.edu.		86400	IN	DS	20949 10 2 448D22499ED0D3098E2BC186F5D5F5091055C5BECDF3BD82632855D2 1CD493C4
+berkeley.edu.		86400	IN	RRSIG	DS 8 2 86400 20221216073252 20221209062252 28775 edu. ym6j4W1W9h8oaqJMFu1kZ/eTHWiRh94zTP33PU81PCP2JGjiKxXNC27D oPU96kj6hWv9jYCLKFqtjcMjdFb/KJL3JmJNBl4QTf9RNHfXyxEsd7zm RgVJkgk5XBaCebMzZsJWz6godVrxGtLC8EcRCg+Y3IQeDLmS5T+zUtaZ GR8kYgN9L+mW23jrKTVh2rOD+v1AZu0fbitcfj/3Q25odQ==
+;; Received 471 bytes from 192.31.80.30#53(d.edu-servers.net) in 55 ms
+
+;cs.berkeley.edu.		IN	A
+cs.berkeley.edu.	86400	IN	A	23.185.0.1
+;; Received 88 bytes from 128.32.136.3#53(adns1.berkeley.edu) in 207 ms
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tnv udp and port 53
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 2498, offset 0, flags [none], proto UDP (17), length 68)
+    192.168.91.128.50158 > 8.8.8.8.53: 30713+ [1au] NS? . (40)
+IP (tos 0x0, ttl 128, id 2372, offset 0, flags [none], proto UDP (17), length 553)
+    8.8.8.8.53 > 192.168.91.128.50158: 30713$ 14/0/1 . NS a.root-servers.net., . NS b.root-servers.net., . NS c.root-servers.net., . NS d.root-servers.net., . NS e.root-servers.net., . NS f.root-servers.net., . NS g.root-servers.net., . NS h.root-servers.net., . NS i.root-servers.net., . NS j.root-servers.net., . NS k.root-servers.net., . NS l.root-servers.net., . NS m.root-servers.net., . RRSIG (525)
+IP (tos 0x0, ttl 64, id 1382, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.43221 > 192.168.91.2.53: 64354+ A? a.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 1383, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.43221 > 192.168.91.2.53: 43153+ AAAA? a.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2373, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.43221: 64354 1/0/0 a.root-servers.net. A 198.41.0.4 (52)
+IP (tos 0x0, ttl 128, id 2374, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.43221: 43153 1/0/0 a.root-servers.net. AAAA 2001:503:ba3e::2:30 (64)
+IP (tos 0x0, ttl 64, id 10694, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.34575 > 192.168.91.2.53: 21203+ A? b.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 10695, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.34575 > 192.168.91.2.53: 43735+ AAAA? b.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2375, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.34575: 21203 1/0/0 b.root-servers.net. A 199.9.14.201 (52)
+IP (tos 0x0, ttl 128, id 2376, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.34575: 43735 1/0/0 b.root-servers.net. AAAA 2001:500:200::b (64)
+IP (tos 0x0, ttl 64, id 31250, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.38787 > 192.168.91.2.53: 7810+ A? c.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 31251, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.38787 > 192.168.91.2.53: 59783+ AAAA? c.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2377, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.38787: 7810 1/0/0 c.root-servers.net. A 192.33.4.12 (52)
+IP (tos 0x0, ttl 128, id 2378, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.38787: 59783 1/0/0 c.root-servers.net. AAAA 2001:500:2::c (64)
+IP (tos 0x0, ttl 64, id 23307, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.42530 > 192.168.91.2.53: 4872+ A? d.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 23308, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.42530 > 192.168.91.2.53: 47884+ AAAA? d.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2379, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.42530: 4872 1/0/0 d.root-servers.net. A 199.7.91.13 (52)
+IP (tos 0x0, ttl 128, id 2380, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.42530: 47884 1/0/0 d.root-servers.net. AAAA 2001:500:2d::d (64)
+IP (tos 0x0, ttl 64, id 65516, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.45349 > 192.168.91.2.53: 13436+ A? e.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 65517, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.45349 > 192.168.91.2.53: 889+ AAAA? e.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2381, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.45349: 889 1/0/0 e.root-servers.net. AAAA 2001:500:a8::e (64)
+IP (tos 0x0, ttl 128, id 2382, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.45349: 13436 1/0/0 e.root-servers.net. A 192.203.230.10 (52)
+IP (tos 0x0, ttl 64, id 13755, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.39321 > 192.168.91.2.53: 53142+ A? f.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 13756, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.39321 > 192.168.91.2.53: 19435+ AAAA? f.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2383, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.39321: 53142 1/0/0 f.root-servers.net. A 192.5.5.241 (52)
+IP (tos 0x0, ttl 128, id 2384, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.39321: 19435 1/0/0 f.root-servers.net. AAAA 2001:500:2f::f (64)
+IP (tos 0x0, ttl 64, id 58275, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.49218 > 192.168.91.2.53: 59578+ A? g.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 58276, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.49218 > 192.168.91.2.53: 51847+ AAAA? g.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2385, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.49218: 59578 1/0/0 g.root-servers.net. A 192.112.36.4 (52)
+IP (tos 0x0, ttl 128, id 2386, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.49218: 51847 1/0/0 g.root-servers.net. AAAA 2001:500:12::d0d (64)
+IP (tos 0x0, ttl 64, id 28684, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.43118 > 192.168.91.2.53: 28030+ A? h.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 28685, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.43118 > 192.168.91.2.53: 28259+ AAAA? h.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2387, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.43118: 28030 1/0/0 h.root-servers.net. A 198.97.190.53 (52)
+IP (tos 0x0, ttl 128, id 2388, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.43118: 28259 1/0/0 h.root-servers.net. AAAA 2001:500:1::53 (64)
+IP (tos 0x0, ttl 64, id 42386, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.50290 > 192.168.91.2.53: 38390+ A? i.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 42387, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.50290 > 192.168.91.2.53: 20466+ AAAA? i.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2389, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.50290: 38390 1/0/0 i.root-servers.net. A 192.36.148.17 (52)
+IP (tos 0x0, ttl 128, id 2390, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.50290: 20466 1/0/0 i.root-servers.net. AAAA 2001:7fe::53 (64)
+IP (tos 0x0, ttl 64, id 30327, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.60808 > 192.168.91.2.53: 62333+ A? j.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 30328, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.60808 > 192.168.91.2.53: 37513+ AAAA? j.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2391, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.60808: 62333 1/0/0 j.root-servers.net. A 192.58.128.30 (52)
+IP (tos 0x0, ttl 128, id 2392, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.60808: 37513 1/0/0 j.root-servers.net. AAAA 2001:503:c27::2:30 (64)
+IP (tos 0x0, ttl 64, id 48755, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.35868 > 192.168.91.2.53: 13036+ A? k.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 48756, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.35868 > 192.168.91.2.53: 53736+ AAAA? k.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2393, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.35868: 53736 1/0/0 k.root-servers.net. AAAA 2001:7fd::1 (64)
+IP (tos 0x0, ttl 128, id 2394, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.35868: 13036 1/0/0 k.root-servers.net. A 193.0.14.129 (52)
+IP (tos 0x0, ttl 64, id 22552, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.44693 > 192.168.91.2.53: 33129+ A? l.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 22553, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.44693 > 192.168.91.2.53: 32349+ AAAA? l.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2395, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.44693: 33129 1/0/0 l.root-servers.net. A 199.7.83.42 (52)
+IP (tos 0x0, ttl 128, id 2396, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.44693: 32349 1/0/0 l.root-servers.net. AAAA 2001:500:9f::42 (64)
+IP (tos 0x0, ttl 64, id 62343, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.45991 > 192.168.91.2.53: 10021+ A? m.root-servers.net. (36)
+IP (tos 0x0, ttl 64, id 62344, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.45991 > 192.168.91.2.53: 22347+ AAAA? m.root-servers.net. (36)
+IP (tos 0x0, ttl 128, id 2397, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.45991: 10021 1/0/0 m.root-servers.net. A 202.12.27.33 (52)
+IP (tos 0x0, ttl 128, id 2398, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.45991: 22347 1/0/0 m.root-servers.net. AAAA 2001:dc3::35 (64)
+IP (tos 0x0, ttl 64, id 49461, offset 0, flags [none], proto UDP (17), length 84)
+    192.168.91.128.37889 > 198.97.190.53.53: 53008 [1au] A? cs.berkeley.edu. (56)
+IP (tos 0x0, ttl 128, id 2399, offset 0, flags [none], proto UDP (17), length 1202)
+    198.97.190.53.53 > 192.168.91.128.37889: 53008- 0/15/27 (1174)
+IP (tos 0x0, ttl 64, id 43388, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.44873 > 192.168.91.2.53: 35146+ A? a.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 43389, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.44873 > 192.168.91.2.53: 21077+ AAAA? a.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2400, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.44873: 35146 1/0/0 a.edu-servers.net. A 192.5.6.30 (51)
+IP (tos 0x0, ttl 128, id 2401, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.44873: 21077 1/0/0 a.edu-servers.net. AAAA 2001:503:a83e::2:30 (63)
+IP (tos 0x0, ttl 64, id 4541, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.44128 > 192.168.91.2.53: 20982+ A? b.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 4542, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.44128 > 192.168.91.2.53: 13562+ AAAA? b.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2402, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.44128: 13562 1/0/0 b.edu-servers.net. AAAA 2001:503:231d::2:30 (63)
+IP (tos 0x0, ttl 128, id 2403, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.44128: 20982 1/0/0 b.edu-servers.net. A 192.33.14.30 (51)
+IP (tos 0x0, ttl 64, id 35075, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.45738 > 192.168.91.2.53: 3063+ A? c.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 35076, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.45738 > 192.168.91.2.53: 64244+ AAAA? c.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2404, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.45738: 3063 1/0/0 c.edu-servers.net. A 192.26.92.30 (51)
+IP (tos 0x0, ttl 128, id 2405, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.45738: 64244 1/0/0 c.edu-servers.net. AAAA 2001:503:83eb::30 (63)
+IP (tos 0x0, ttl 64, id 49342, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.35535 > 192.168.91.2.53: 20919+ A? d.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 49343, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.35535 > 192.168.91.2.53: 30090+ AAAA? d.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2406, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.35535: 20919 1/0/0 d.edu-servers.net. A 192.31.80.30 (51)
+IP (tos 0x0, ttl 128, id 2407, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.35535: 30090 1/0/0 d.edu-servers.net. AAAA 2001:500:856e::30 (63)
+IP (tos 0x0, ttl 64, id 29151, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.58006 > 192.168.91.2.53: 4629+ A? e.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 29152, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.58006 > 192.168.91.2.53: 7432+ AAAA? e.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2408, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.58006: 4629 1/0/0 e.edu-servers.net. A 192.12.94.30 (51)
+IP (tos 0x0, ttl 128, id 2409, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.58006: 7432 1/0/0 e.edu-servers.net. AAAA 2001:502:1ca1::30 (63)
+IP (tos 0x0, ttl 64, id 35933, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.39921 > 192.168.91.2.53: 11317+ A? f.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 35934, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.39921 > 192.168.91.2.53: 3122+ AAAA? f.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2410, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.39921: 11317 1/0/0 f.edu-servers.net. A 192.35.51.30 (51)
+IP (tos 0x0, ttl 128, id 2411, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.39921: 3122 1/0/0 f.edu-servers.net. AAAA 2001:503:d414::30 (63)
+IP (tos 0x0, ttl 64, id 5435, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.55809 > 192.168.91.2.53: 44753+ A? g.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 5436, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.55809 > 192.168.91.2.53: 52436+ AAAA? g.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2412, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.55809: 44753 1/0/0 g.edu-servers.net. A 192.42.93.30 (51)
+IP (tos 0x0, ttl 128, id 2413, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.55809: 52436 1/0/0 g.edu-servers.net. AAAA 2001:503:eea3::30 (63)
+IP (tos 0x0, ttl 64, id 49232, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.60580 > 192.168.91.2.53: 49113+ A? h.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 49233, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.60580 > 192.168.91.2.53: 32559+ AAAA? h.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2414, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.60580: 49113 1/0/0 h.edu-servers.net. A 192.54.112.30 (51)
+IP (tos 0x0, ttl 128, id 2415, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.60580: 32559 1/0/0 h.edu-servers.net. AAAA 2001:502:8cc::30 (63)
+IP (tos 0x0, ttl 64, id 35291, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.51377 > 192.168.91.2.53: 44732+ A? i.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 35292, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.51377 > 192.168.91.2.53: 60859+ AAAA? i.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2416, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.51377: 60859 1/0/0 i.edu-servers.net. AAAA 2001:503:39c1::30 (63)
+IP (tos 0x0, ttl 128, id 2417, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.51377: 44732 1/0/0 i.edu-servers.net. A 192.43.172.30 (51)
+IP (tos 0x0, ttl 64, id 4982, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.43509 > 192.168.91.2.53: 45804+ A? j.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 4983, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.43509 > 192.168.91.2.53: 2801+ AAAA? j.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2418, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.43509: 2801 1/0/0 j.edu-servers.net. AAAA 2001:502:7094::30 (63)
+IP (tos 0x0, ttl 128, id 2419, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.43509: 45804 1/0/0 j.edu-servers.net. A 192.48.79.30 (51)
+IP (tos 0x0, ttl 64, id 31422, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.34967 > 192.168.91.2.53: 52770+ A? k.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 31423, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.34967 > 192.168.91.2.53: 52001+ AAAA? k.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2420, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.34967: 52770 1/0/0 k.edu-servers.net. A 192.52.178.30 (51)
+IP (tos 0x0, ttl 128, id 2421, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.34967: 52001 1/0/0 k.edu-servers.net. AAAA 2001:503:d2d::30 (63)
+IP (tos 0x0, ttl 64, id 15228, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.51570 > 192.168.91.2.53: 54129+ A? l.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 15229, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.51570 > 192.168.91.2.53: 50038+ AAAA? l.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2422, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.51570: 54129 1/0/0 l.edu-servers.net. A 192.41.162.30 (51)
+IP (tos 0x0, ttl 128, id 2423, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.51570: 50038 1/0/0 l.edu-servers.net. AAAA 2001:500:d937::30 (63)
+IP (tos 0x0, ttl 64, id 55720, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.56144 > 192.168.91.2.53: 900+ A? m.edu-servers.net. (35)
+IP (tos 0x0, ttl 64, id 55721, offset 0, flags [DF], proto UDP (17), length 63)
+    192.168.91.128.56144 > 192.168.91.2.53: 60038+ AAAA? m.edu-servers.net. (35)
+IP (tos 0x0, ttl 128, id 2424, offset 0, flags [none], proto UDP (17), length 91)
+    192.168.91.2.53 > 192.168.91.128.56144: 60038 1/0/0 m.edu-servers.net. AAAA 2001:501:b1f9::30 (63)
+IP (tos 0x0, ttl 128, id 2425, offset 0, flags [none], proto UDP (17), length 79)
+    192.168.91.2.53 > 192.168.91.128.56144: 900 1/0/0 m.edu-servers.net. A 192.55.83.30 (51)
+IP (tos 0x0, ttl 64, id 37599, offset 0, flags [none], proto UDP (17), length 84)
+    192.168.91.128.59416 > 192.31.80.30.53: 47106 [1au] A? cs.berkeley.edu. (56)
+IP (tos 0x0, ttl 128, id 2426, offset 0, flags [none], proto UDP (17), length 499)
+    192.31.80.30.53 > 192.168.91.128.59416: 47106- 0/6/5 (471)
+IP (tos 0x0, ttl 64, id 38284, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.40041 > 192.168.91.2.53: 55216+ A? adns1.berkeley.edu. (36)
+IP (tos 0x0, ttl 64, id 38285, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.40041 > 192.168.91.2.53: 17843+ AAAA? adns1.berkeley.edu. (36)
+IP (tos 0x0, ttl 128, id 2427, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.40041: 55216 1/0/0 adns1.berkeley.edu. A 128.32.136.3 (52)
+IP (tos 0x0, ttl 128, id 2428, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.40041: 17843 1/0/0 adns1.berkeley.edu. AAAA 2607:f140:ffff:fffe::3 (64)
+IP (tos 0x0, ttl 64, id 31973, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.49562 > 192.168.91.2.53: 54416+ A? adns2.berkeley.edu. (36)
+IP (tos 0x0, ttl 64, id 31974, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.49562 > 192.168.91.2.53: 9191+ AAAA? adns2.berkeley.edu. (36)
+IP (tos 0x0, ttl 128, id 2429, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.49562: 54416 1/0/0 adns2.berkeley.edu. A 128.32.136.14 (52)
+IP (tos 0x0, ttl 128, id 2430, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.49562: 9191 1/0/0 adns2.berkeley.edu. AAAA 2607:f140:ffff:fffe::e (64)
+IP (tos 0x0, ttl 64, id 48017, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.47776 > 192.168.91.2.53: 62215+ A? adns3.berkeley.edu. (36)
+IP (tos 0x0, ttl 64, id 48018, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.47776 > 192.168.91.2.53: 41239+ AAAA? adns3.berkeley.edu. (36)
+IP (tos 0x0, ttl 128, id 2431, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.47776: 62215 1/0/0 adns3.berkeley.edu. A 192.107.102.142 (52)
+IP (tos 0x0, ttl 128, id 2432, offset 0, flags [none], proto UDP (17), length 92)
+    192.168.91.2.53 > 192.168.91.128.47776: 41239 1/0/0 adns3.berkeley.edu. AAAA 2607:f140:a000:d::abc (64)
+IP (tos 0x0, ttl 64, id 47471, offset 0, flags [none], proto UDP (17), length 84)
+    192.168.91.128.45546 > 128.32.136.3.53: 8354 [1au] A? cs.berkeley.edu. (56)
+IP (tos 0x0, ttl 128, id 2433, offset 0, flags [none], proto UDP (17), length 116)
+    128.32.136.3.53 > 192.168.91.128.45546: 8354*- 1/0/1 cs.berkeley.edu. A 23.185.0.1 (88)
+----
