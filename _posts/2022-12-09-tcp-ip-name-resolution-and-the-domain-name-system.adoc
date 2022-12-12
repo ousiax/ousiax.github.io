@@ -376,3 +376,62 @@ IP (tos 0x0, ttl 64, id 47471, offset 0, flags [none], proto UDP (17), length 84
 IP (tos 0x0, ttl 128, id 2433, offset 0, flags [none], proto UDP (17), length 116)
     128.32.136.3.53 > 192.168.91.128.45546: 8354*- 1/0/1 cs.berkeley.edu. A 23.185.0.1 (88)
 ----
+
+
+=== UDP or TCP
+
+The well-known port number for DNS is 53, for both UDP and TCP. The most common format uses the UDP/IPv4 datagram structure.
+
+.DNS messages are typically encapsulated in a UDP/IPv4 datagram and are limited to 512 bytes in size unless TCP and/or EDNS0 is used. Each section (except the question section) contains a set of resource records.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-udp-ipv4-message-format.png[DNS UDP/IPv4 Message,55%,55%]
+
+When a resolver issues a query and the response comes back with the _TC_ bit field set ("truncated"), the size of the true response exceeded 512 bytes, so only the first 512 bytes are returned by the server.
+
+* The resolver may issue the request again, using TCP, which now must be a supported configuration [RFC5966].
+* This allows more than 512 bytes to be returned because TCP breaks up large messages into multiple segments.
+
+When a secondary name server for a zone starts up, it normally performs a zone transfer from the primary name server for the zone.
+
+* Zone transfers can also be initiated by a timer or as a result of a DNS NOTIFY message.
+* Full zone transfers use TCP as they can be large.
+* Incremental zone transfers, where only the updated entries are transferred, may use UDP at first but switch to TCP if the response is too large, just like a conventional query.
+
+When UDP is used, both the resolver and the server application software must perform their own timeout and retransmission.
+
+* A recommendation for how to do this is given in [RFC1536].
+* It suggests starting with a timeout of at least 4s, and that subsequent timeouts result in an exponential increase of the timeout (a bit like TCP's algorithms).
+* Linux and UNIX-like systems allow a change to be made to the retransmission timeout parameters by altering the contents of the _/etc/resolv.conf_ file (by setting the _timeout_ and _attempts_ options).
+
+[source,console]
+----
+x@node-0:~$ dig +short +tcp @8.8.8.8 cs.berkeley.edu A
+23.185.0.1
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tnv \(tcp or udp\) and port 53
+
+IP (tos 0x0, ttl 64, id 30721, offset 0, flags [none], proto TCP (6), length 60)
+    192.168.91.128.44587 > 8.8.8.8.53: Flags [S], cksum 0xbe79 (correct), seq 1999751284, win 64240, options [mss 1460,sackOK,TS val 3664026097 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 128, id 5910, offset 0, flags [none], proto TCP (6), length 44)
+    8.8.8.8.53 > 192.168.91.128.44587: Flags [S.], cksum 0x18e7 (correct), seq 1120675634, ack 1999751285, win 64240, options [mss 1460], length 0
+IP (tos 0x0, ttl 64, id 30722, offset 0, flags [none], proto TCP (6), length 40)
+    192.168.91.128.44587 > 8.8.8.8.53: Flags [.], cksum 0x30a4 (correct), ack 1, win 64240, length 0
+IP (tos 0x0, ttl 64, id 30723, offset 0, flags [none], proto TCP (6), length 98)
+    192.168.91.128.44587 > 8.8.8.8.53: Flags [P.], cksum 0xfd6a (correct), seq 1:59, ack 1, win 64240, length 58 32781+ [1au] A? cs.berkeley.edu. (56)
+IP (tos 0x0, ttl 128, id 5911, offset 0, flags [none], proto TCP (6), length 40)
+    8.8.8.8.53 > 192.168.91.128.44587: Flags [.], cksum 0x306a (correct), ack 59, win 64240, length 0
+IP (tos 0x0, ttl 128, id 5912, offset 0, flags [none], proto TCP (6), length 102)
+    8.8.8.8.53 > 192.168.91.128.44587: Flags [P.], cksum 0x8005 (correct), seq 1:63, ack 59, win 64240, length 62 32781 1/0/1 cs.berkeley.edu. A 23.185.0.1 (60)
+IP (tos 0x0, ttl 64, id 30724, offset 0, flags [none], proto TCP (6), length 40)
+    192.168.91.128.44587 > 8.8.8.8.53: Flags [.], cksum 0x306a (correct), ack 63, win 64178, length 0
+IP (tos 0x0, ttl 64, id 30725, offset 0, flags [none], proto TCP (6), length 40)
+    192.168.91.128.44587 > 8.8.8.8.53: Flags [F.], cksum 0x3069 (correct), seq 59, ack 63, win 64178, length 0
+IP (tos 0x0, ttl 128, id 5913, offset 0, flags [none], proto TCP (6), length 40)
+    8.8.8.8.53 > 192.168.91.128.44587: Flags [.], cksum 0x302c (correct), ack 60, win 64239, length 0
+IP (tos 0x0, ttl 128, id 5914, offset 0, flags [none], proto TCP (6), length 40)
+    8.8.8.8.53 > 192.168.91.128.44587: Flags [FP.], cksum 0x3023 (correct), seq 63, ack 60, win 64239, length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.44587 > 8.8.8.8.53: Flags [.], cksum 0x3068 (correct), ack 64, win 64178, length 0
+----
