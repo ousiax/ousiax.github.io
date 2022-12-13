@@ -5,6 +5,7 @@
 :page-date: 2022-12-09 09:35:45 +0800
 :page-revdate: 2022-12-09 09:35:45 +0800
 :toc: premable
+:toclevels: 4
 :sectnums:
 
 IP addresses (especially IPv6 addresses) are cumbersome for humans to use and remember, so the Internet supports the use of *host names* to identify hosts, both clients and servers.
@@ -435,3 +436,334 @@ IP (tos 0x0, ttl 128, id 5914, offset 0, flags [none], proto TCP (6), length 40)
 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
     192.168.91.128.44587 > 8.8.8.8.53: Flags [.], cksum 0x3068 (correct), ack 64, win 64178, length 0
 ----
+
+=== Question (Query) and Zone Section Format
+
+The question or query section of a DNS message lists the question(s) being referenced. The same structure is also used for the zone section in dynamic updates, but with different names.
+
+.The query (or question) section of a DNS message does not contain a _TTL_ because it is not cached.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-query-question-message-format.png[DNS query(question) message,35%,35%]
+
+* The _Query Name_ is the domain name being looked up, using the encoding for labels.
+
+* Each question has a _Query Type_ and _Query Class_.
++
+The class value is 1, 254, or 255, indicating the Internet class, no class, or all classes, respectively, for all cases in which we are interested (other values are not typically used for TCP/IP networks).
++
+The _Query Type_ field holds a value indicating the type of query being performed.
++
+** The most common query type is _A_ (or _AAAA_ if IPv6 DNS resolution is enabled), which means that an IP address is desired for the query name.
+** It is also possible to create a query of type _ANY_, which returns all RRs of any type in the same class that match the query name.
+
+=== Answer, Authority, and Additional Information Section Formats
+
+The final three sections in the DNS message, the answer, authority, and additional information sections, contain sets of RRs.
+
+.The format of a DNS resource record. For DNS in the Internet, the _Class_ field always contains the value 1. The _TTL_ field gives the maximum amount of time the RR can be cached (in seconds).
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-resource-record-message-format.png[DNS RR message,35%,35%]
+
+* The _Name_ field (sometimes called the "owning name", "owner", or "record owner's name") is the domain name to which the following resource data corresponds.
+
+* The _Type_ field specifies one of the RR type codes.
+
+* The _Class_ field is 1 for Internet data.
+
+* The _TTL_ field is the number of seconds for which the RR can be cached.
+
+* The _Resource Data Length_ (RDLENGTH) field specifies the number of bytes contained in the Resource Data (RDATA) field.
+
+=== Resource Record Types
+
+Although DNS is most commonly used to determine the IP address(es) that correspond to a particular name, it can also be used for the opposite purpose and for a number of other things. The wide range of capabilities provided by DNS is largely attributable to its ability to have different types of resource records.
+
+.The popular resource record and query types used in DNS protocol messages. Additional records (not shown) are used when DNS security (DNSSEC) is employed.
+[%header,cols="1,1,1,9"]
+|===
+|Value
+|RR Type
+|Reference
+|Description and Purpose
+
+|1
+|A
+|[RFC1035]
+|Address record for IPv4 (32-bit IPv4 address)
+
+|2
+|NS
+|[RFC1035]
+|Name server; provides name of authoritative name server
+for zone
+
+|5
+|CNAME
+|[RFC1035]
+|Canonical name; maps one name to another (to provide a
+form of name aliasing)
+
+|6
+|SOA
+|[RFC1035]
+|Start of authority; provides authoritative information for the
+zone (name servers, e-mail address of contact, serial number,
+zone transfer timers)
+
+|12
+|PTR
+|[RFC1035]
+|Pointer; provides address to (canonical) name mapping;
+used with in-addr.arpa and ip6.arpa domains for IPv4
+and IPv6 reverse queries
+
+|15
+|MX
+|[RFC1035]
+|Mail exchanger; provides name of e-mail handling host for
+a domain
+
+|16
+|TXT
+|[RFC1035]
+[RFC1464]
+|Text; provides a variety of information (e.g., used with SPF
+anti-spam scheme to identify authorized e-mail servers)
+
+|28
+|AAAA
+|[RFC3596]
+|Address record for IPv6 (128-bit IPv6 address)
+
+|33
+|SRV
+|[RFC2782]
+|Server selection; transport endpoints of a generic service
+
+|35
+|NAPTR
+|[RFC3403]
+|Name authority pointer; supports alternative name spaces
+
+|41
+|OPT
+|[RFC2671]
+|Pseudo-RR; supports larger datagrams, labels, return codes
+in EDNS0
+
+|251
+|IXFR
+|[RFC1995]
+|Incremental zone transfer
+
+|252
+|AXFR
+|[RFC1035]
+[RFC5936]
+|Full zone transfer; carried over TCP
+
+|255
+|(ANY)
+|[RFC1035]
+|Request for all (any) records
+
+|===
+
+Resource records are used for many purposes but can be divided into three broad categories: data types, query types, and meta types.
+
+* *Data types* are used to convey information stored in the DNS such as IP addresses and the names of authoritative name servers.
+
+* *Query types* use the same values as data types, with a few additional values (e.g., AXFR, IXFR, and +++*+++).
+
+* *Meta types* designate transient data associated with a particular single DNS message.
+
+==== Authority (SOA) Records
+
+In DNS, each zone has an authority record, using an RR type called _start of authority_ (SOA). These records provide authoritative links between portions of the DNS name space and the servers that provide the zone information allowing various queries to be performed for addresses and other information.
+
+The SOA RR is used to identify the name of the host providing the official permanent database,
+
+* the responsible party's e-mail address (where "." is used instead of @),
+* zone update parameters,
+* and the default TTL.
+
+The default TTL is applied to RRs in the zone that are not otherwise assigned an explicit per-RR TTL.
+
+The zone update parameters include a serial number, refresh time, retry time, and expire time.
+
+* The serial number is increased (by at least 1), usually by the network administrator, anytime there is a change to the zone contents.
++
+It is used by secondary servers to determine if they should initiate a zone transfer (when they do not have a copy of the zone contents with largest serial number).
+
+* The refresh time tells secondary servers how long to wait before checking the SOA record from the primary and its version number to determine if a zone transfer is required.
+
+* The retry and expire times are used in the case of zone transfer failure.
++
+The retry value gives the time (in seconds) a secondary will wait before retrying.
++
+The expire time is an upper bound (in seconds) that a secondary server will keep retrying zone transfers before giving up. If it gives up, such a server ceases to respond to queries for the zone.
+
+In general, a zone can contain a mix of IPv4 and IPv6 data and can be accessed using either version of IP.
+
+[source,console]
+----
+C:\>nslookup
+Default Server:  DC01.fosun.com
+Address:  192.168.200.10
+
+> set type=soa
+> codefarm.me
+Server:  DC01.fosun.com
+Address:  192.168.200.10
+
+Non-authoritative answer:
+codefarm.me
+        primary name server = ns01.domaincontrol.com
+        responsible mail addr = dns.jomax.net
+        serial  = 2022120700
+        refresh = 28800 (8 hours)
+        retry   = 7200 (2 hours)
+        expire  = 604800 (7 days)
+        default TTL = 600 (10 mins)
+
+ns01.domaincontrol.com  internet address = 97.74.100.1
+ns01.domaincontrol.com  AAAA IPv6 address = 2603:5:2140::1
+----
+
+==== Mail Exchanger (MX) Records
+
+An MX record provides the name of a mail exchanger—a host willing to engage in the Simple Mail Transfer Protocol (SMTP) [RFC5321] to receive incoming e-mail on behalf of users associated with a domain name.
+
+MX records include a preference value, so that more than one MX record may be present for a particular domain name, which allows a sending agent to sort the hosts in preference order (smaller is more preferable) in deciding which host to use as an e-mail destination.
+
+[source,console]
+----
+x@node-0:~$ nslookup 
+> set type=mx
+> server ns3.dns.ucla.edu
+Default server: ns3.dns.ucla.edu
+Address: 54.236.209.157#53
+Default server: ns3.dns.ucla.edu
+Address: 2600:1f18:21d4:e000::53#53
+> cs.ucla.edu
+Server:		ns3.dns.ucla.edu
+Address:	54.236.209.157#53
+
+CS.UCLA.EDU	mail exchanger = 13 Mailman.CS.UCLA.EDU.
+CS.UCLA.EDU	mail exchanger = 3 Pelican.CS.UCLA.EDU.
+----
+
+==== Fighting Spam: The Sender Policy Framework (SPF) and Text (TXT) Records
+
+For outgoing e-mail, MX records allow the DNS to help determine the names of mail relays and servers for a domain. More recently, the DNS has been leveraged by receiving mail agents to determine which relaying or sending mail servers are authorized to send mail from a particular domain name. This is used to help combat spam (unwanted e-mail) that is sent by a rogue mail agent pretending to be an authorized mail sender.
+
+E-mail received by a mail server is rejected, stored, or forwarded to another mail server.
+
+* Rejection can happen for a number of reasons, such as a protocol error or lack of available storage space at the receiver.
+
+* It can also be rejected because the sending mail client does not appear to be the proper one for sending e-mail.
++
+This capability is supported by the *Sender Policy Framework* (SPF) and documented in [RFC4408], an experimental RFC.
++
+There is another framework known as *Sender ID* [RFC4406] that incorporates SPF's functions. It is also experimental but less widely deployed.
+
+Version 1 of SPF uses DNS TXT or SPF (type 99) resource records.
+
+* Records are set up and published in the DNS by a domain's owner to indicate which servers are authorized to send mail originating from the domain.
+* The text contains the matching criteria (called *mechanisms*) and other information (called *modifiers*).
+
+* Preceding each mechanism is a *qualifier* that determines the consequence of a matching mechanism.
+
+Any mechanism missing a qualifier is assumed to have the `+` qualifier.
+
+* The `+` *_qualifier_* indicates that a match results in a Pass indication.
+
+* Other possible qualifiers include `-` (Fail), `~` (Soft Fail), and `?` (Neutral).
+
+If none of the matching mechanisms produces a Pass result, the final mechanism (_all_) matches any condition.
+
+* The tilde character (`~`) before the _all_ criterion indicates that a Soft Fail return should be generated if _all_ is the only matching mechanism.
++
+The exact way a soft failure is handled is dependent on the receiving e-mail software.
+
+[source,console,highlight='12,27']
+----
+x@node-0:~$ dig +tcp +nocmd +nostats txt outlook.com
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 18595
+;; flags: qr rd ra; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4000
+;; QUESTION SECTION:
+;outlook.com.			IN	TXT
+
+;; ANSWER SECTION:
+outlook.com.		349	IN	TXT	"v=spf1 include:spf-a.outlook.com include:spf-b.outlook.com ip4:157.55.9.128/25 include:spf.protection.outlook.com include:spf-a.hotmail.com include:_spf-ssg-b.microsoft.com include:_spf-ssg-c.microsoft.com ~all"
+outlook.com.		349	IN	TXT	"google-site-verification=0iLWhIMhXEkeWwWfFU4ursTn-_OvoOjaA0Lr7Pg1sEM"
+outlook.com.		349	IN	TXT	"google-site-verification=DC2uC-T8kD33lINhNzfo0bNBrw-vrCXs5BPF5BXY56g"
+
+x@node-0:~$ dig +tcp +nocmd +nostats txt spf-a.outlook.com
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 1423
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4000
+;; QUESTION SECTION:
+;spf-a.outlook.com.		IN	TXT
+
+;; ANSWER SECTION:
+spf-a.outlook.com.	380	IN	TXT	"v=spf1 ip4:157.56.232.0/21 ip4:157.56.240.0/20 ip4:207.46.198.0/25 ip4:207.46.4.128/25 ip4:157.56.24.0/25 ip4:157.55.157.128/25 ip4:157.55.61.0/24 ip4:157.55.49.0/25 ip4:65.55.174.0/25 ip4:65.55.126.0/25 ip4:65.55.113.64/26 ip4:65.55.94.0/25 -all"
+----
+
+Reading from left to right in the above example,
+
+* the string `v=spf1` is a *_modifier_* indicating that the SPF version is 1.
+* The `ip4` *_mechanism_* specifies that the SMTP sender has an IPv4 address with the prefix.
+* The `ip6` mechanism specifies any sending host with IPv6 address prefix.
+* Finally, the `include` mechanism incorporates, by reference, the TXT records with recursive SPF resource records.
+
+=== Zone Transfers and DNS NOTIFY
+
+A zone transfer is used to copy a set of RRs for a zone from one server to another (generally from the master server to slave servers). The purpose of doing so is to keep multiple servers in sync with respect to a zone’s contents.
+
+* Multiple servers provide resiliency to failure, in case a server should go down.
+
+* Performance can also be improved as multiple servers can be used to share the processing load for incoming queries.
+
+* Finally, the latency of a DNS query/response can potentially be reduced if servers are placed in locations close to clients (i.e., where the network latency between resolver and server is small).
+
+As originally specified, zone transfers are initiated after _polling_, where slaves periodically contact masters to see if a zone transfer is necessary by comparing the zones' version numbers.
+
+A later method says if a zone transfer needs to be initiated using an asynchronous update mechanism when the zone contents change, called *DNS NOTIFY*.
+
+Once a zone transfer is initiated, either the entire zone is transferred (using DNS *AXFR* messages) [RFC5936], or an _incremental zone transfer_ option may be used (using DNS *IXFR* messages) [RFC1995].
+
+.A DNS zone transfer copies the contents of zones between servers. An optional notification can cause a slave to request a full or incremental zone transfer.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-zone-transfer.png[DNS zone transfer,45%,45%]
+
+== Sort Lists, Round-Robin, and Split DNS
+
+A DNS server could return all matching data to any client in whatever order the server finds most convenient.
+
+However, special configuration options and behaviors are available in most DNS server software to achieve certain operational, privacy, or performance goals.
+
+.In a small enterprise topology, DNS may be configured to return different addresses depending on the requesting IP address. There is a private network and a public network including a DNS server. In addition, there is a pair of hosts on the DMZ (A and B), one on the internal network (C) and one on the Internet (R). A multihomed host (M) spans the DMZ and internal networks. M therefore has two IP addresses drawn from two different network prefixes.
+image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/small-enterprise-topology.png[Small enterprise topology,55%,55%]
+
+A host wishing to contact M performs a DNS lookup that returns two addresses—one associated with the internal network and one with the DMZ.
+
+Naturally, it would be more efficient if A, B, and R reached M via the DMZ and C reached M via the internal network.
+
+* This generally happens if the DNS server *orders* its returned address records based on the source IP address of the request.
+* It could also use the destination IP address, especially if M uses multiple IP addresses from different subnets on the same network interface.
+
+To achieve load balancing, the DNS server may be configured to use *DNS round-robin*, which means that the server permutes the order of the returned address records. While this helps to balance load, it is far from perfect.
+
+* When records are cached, the desired effect may not occur because of reuse of existing cached address records.
+* In addition, this scheme may balance the number of connections well across servers, but not the load.
++
+Different connections can have radically different processing requirements, so the true processing load is likely to remain unbalanced unless the particular service always has the same processing requirements.
+
+In *split DNS*, the set of resource records returned in response to a query is dependent on the identity of the client and possibly query destination address. Most often, the client is identified by IP address or address prefix.
+
+With split DNS, we could arrange for any host in the enterprise (i.e., those sharing a set of prefixes) to be provided with the entire DNS database, whereas those outside are given visibility only to A and B, where the main Web service is offered.
