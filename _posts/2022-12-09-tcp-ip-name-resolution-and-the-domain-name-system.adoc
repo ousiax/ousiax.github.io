@@ -38,6 +38,41 @@ The current DNS name space is a tree of domains with an *unnamed root* at the to
 .The DNS name space forms a hierarchy with an unnamed root at the top. The top-level domains (TLDs) include generic TLDs (gTLDs), country-code TLDs (ccTLDs), internationalized TLDs (IDN ccTLDs), and a special infrastructure TLD called _ARPA_.
 image::/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-name-space.png[DNS Name Space,75%,75%]
 
+.Special-use domain name
+[%header,cols="1,7,2"]
+|===
+|Domain
+|Purpose
+|Reference
+
+|intranet.
+.6+|Used for Private/internal DNS Namespaces
+.6+|RFC 6762 (Appendix G)
+
+|internal.
+|private.
+|corp.
+|home.
+|lan.
+
+|local.
+|Used for _Multicast DNS_ as link-local host names
+|RFC 6762 (Section 3)
+
+|localhost.
+|Reserved to avoid conflict with the traditional use of _localhost_ as a hostname
+|RFC 6761
+
+|onion.
+|Anonymous onion service
+|RFC 7686 
+
+|===
+
+* RFC 6762 reserves the use of _.local_ for link-local host names that can be resolved via the Multicast DNS name resolution protocol.
+
+* RFC 7686 reserves the use of _.onion_ for the self-authenticating names of _Tor onion services_.
+
 === DNS Naming Syntax
 
 The names below a TLD in the DNS name tree are further partitioned into groups known as *subdomains*. This is very common practice, especially for the ccTLDs.
@@ -803,6 +838,162 @@ In cases where a DNS server is not available (e.g., a quickly formed ad hoc netw
 ** Any DNS queries for domain names in this TLD are sent to the mDNS IPv4 address _224.0.0.251_ or the IPv6 address _ff02::fb_.
 
 ** Queries for other domains may optionally be sent to these multicast addresses.
+
+.Multicast DNS: From Wikipedia, the free encyclopedia
+****
+:computer_network: https://en.wikipedia.org/wiki/Computer_network
+:hostname: https://en.wikipedia.org/wiki/Hostname
+:name_server: https://en.wikipedia.org/wiki/Name_server
+:zero-configuration_networking-name_service_discovery: https://en.wikipedia.org/wiki/Zero-configuration_networking#Name_service_discovery
+:domain_name_system: https://en.wikipedia.org/wiki/Domain_Name_System
+:User_Datagram_Protocol: https://en.wikipedia.org/wiki/User_Datagram_Protocol
+:Bonjour_software: https://en.wikipedia.org/wiki/Bonjour_(software)
+:Avahi_software: https://en.wikipedia.org/wiki/Avahi_(software)
+:rfc6762: https://www.rfc-editor.org/rfc/rfc6762.html
+:rfc6763: https://www.rfc-editor.org/rfc/rfc6763.html
+:_local: https://en.wikipedia.org/wiki/.local
+
+In {computer_network}[computer networking], the *multicast DNS (mDNS)* protocol resolves {hostname}[hostnames] to IP addresses within small networks that do not include a local {name_server}[name server].
+
+* It is a {zero-configuration_networking-name_service_discovery}[zero-configuration] service, using essentially the same programming interfaces, packet formats and operating semantics as unicast {domain_name_system}[Domain Name Service] (DNS).
+
+* It was designed to work as either a stand-alone protocol or compatibly with standard DNS servers.
+
+* It uses IP multicast {User_Datagram_protocol}[User Datagram Protocol] (UDP) packets, and is implemented by the Apple {Bonjour_software}[Bonjour] and open source {Avahi_software}[Avahi] software packages, included in most Linux distributions.
+
+* Although the Windows 10 implementation was limited to discovering networked printers, subsequent releases resolved hostnames as well.
+
+* mDNS can work in conjunction with DNS Service Discovery (DNS-SD), a companion zero-configuration networking technique specified separately in {rfc6763}[RFC 6763].
+
+Multicast DNS was first proposed by Bill Woodcock and Bill Manning in the IETF in 2000, and was eventually published as standards-track IETF {rfc6762}[RFC 6762] by Stuart Cheshire and Marc Krochmal thirteen years later.
+
+When an mDNS client needs to resolve a hostname,
+
+* it sends an IP multicast query message that asks the host having that name to identify itself.
+* That target machine then multicasts a message that includes its IP address.
+* All machines in that subnet can then use that information to update their mDNS caches.
+* Any host can relinquish its claim to a name by sending a response packet with a time to live (TTL) equal to zero.
+
+By default, mDNS exclusively resolves hostnames ending with the {_local}[.local] top-level domain.
+
+An mDNS message is a multicast UDP packet sent using the following addressing:
+
+* IPv4 address _224.0.0.251_ or IPv6 address _ff02::fb_ and UDP port _5353_
+* When using Ethernet frames, the standard IP multicast MAC address _01:00:5E:00:00:FB_ (for IPv4) or _33:33:00:00:00:FB_ (for IPv6)
+* The payload structure is based on the unicast DNS packet format.
++
+[source,console]
+----
+x@node-0:~$ avahi-resolve-host-name node-1.local
+node-1.local	fe80::20c:29ff:fe85:2607
+----
++
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tnvvv port 5353
+IP6 (flowlabel 0x83068, hlim 255, next-header UDP (17) payload length: 44) fe80::20c:29ff:fe8c:df3f.5353 > ff02::fb.5353: [bad udp cksum 0x0894 -> 0xc569!] 0 [2q] A (QM)? node-1.local. AAAA (QM)? node-1.local. (36)
+IP (tos 0x0, ttl 255, id 63528, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.134.5353 > 224.0.0.251.5353: [bad udp cksum 0xfd67 -> 0xd095!] 0 [2q] A (QM)? node-1.local. AAAA (QM)? node-1.local. (36)
+IP6 (flowlabel 0xac503, hlim 255, next-header UDP (17) payload length: 60) fe80::20c:29ff:fe85:2607.5353 > ff02::fb.5353: [udp sum ok] 0*- [0q] 1/0/0 node-1.local. (Cache flush) [2m] AAAA fe80::20c:29ff:fe85:2607 (52)
+IP (tos 0x0, ttl 255, id 13910, offset 0, flags [DF], proto UDP (17), length 112)
+    192.168.91.137.5353 > 224.0.0.251.5353: [udp sum ok] 0*- [0q] 3/0/0 node-1.local. (Cache flush) [2m] AAAA fe80::20c:29ff:fe85:2607, node-1.local. (Cache flush) [2m] A 192.168.91.135, node-1.local. (Cache flush) [2m] A 192.168.91.137 (84)
+----
++
+[source,console]
+----
+x@node-0:~$ dig +search +nocmd +nostats -p 5353 @224.0.0.251 node-1.local A
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 15791
+;; flags: qr aa; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;node-1.local.			IN	A
+
+;; ANSWER SECTION:
+node-1.local.		10	IN	A	192.168.91.137
+node-1.local.		10	IN	A	192.168.91.135
+
+x@node-0:~$ dig +search +nocmd +nostats -p 5353 @224.0.0.251 node-1.local AAAA
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 61682
+;; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;node-1.local.			IN	AAAA
+
+;; ANSWER SECTION:
+node-1.local.		10	IN	AAAA	fe80::20c:29ff:fe85:2607
+----
++
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tnv port 53 or port 5353
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 1, id 36980, offset 0, flags [none], proto UDP (17), length 81)
+    192.168.91.128.34856 > 224.0.0.251.5353: 15791+ [1au] A (QM)? node-1.local. (53)
+IP (tos 0x0, ttl 255, id 45595, offset 0, flags [DF], proto UDP (17), length 90)
+    192.168.91.137.5353 > 192.168.91.128.34856: 15791*- 2/0/0 node-1.local. A 192.168.91.137, node-1.local. A 192.168.91.135 (62)
+IP (tos 0x0, ttl 1, id 39442, offset 0, flags [none], proto UDP (17), length 81)
+    192.168.91.128.51000 > 224.0.0.251.5353: 61682+ [1au] AAAA (QM)? node-1.local. (53)
+IP (tos 0x0, ttl 255, id 47214, offset 0, flags [DF], proto UDP (17), length 86)
+    192.168.91.137.5353 > 192.168.91.128.51000: 61682*- 1/0/0 node-1.local. AAAA fe80::20c:29ff:fe85:2607 (58)
+----
+****
+
+[source,console]
+----
+x@node-0:~$ systemctl status avahi-daemon.service 
+● avahi-daemon.service - Avahi mDNS/DNS-SD Stack
+     Loaded: loaded (/lib/systemd/system/avahi-daemon.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2022-12-14 11:53:34 CST; 5min ago
+TriggeredBy: ● avahi-daemon.socket
+   Main PID: 1864 (avahi-daemon)
+     Status: "avahi-daemon 0.8 starting up."
+      Tasks: 2 (limit: 4633)
+     Memory: 784.0K
+        CPU: 23ms
+     CGroup: /system.slice/avahi-daemon.service
+             ├─1864 avahi-daemon: running [node-0.local]
+             └─1865 avahi-daemon: chroot helper
+
+x@node-0:~$ sudo systemctl restart avahi-daemon.service 
+
+x@node-0:~$ cat /etc/resolv.conf 
+domain localdomain
+search localdomain
+nameserver 192.168.91.2
+
+x@node-0:~$ ping -c 1 node-1
+PING node-1.localdomain (192.168.91.137) 56(84) bytes of data.
+64 bytes from 192.168.91.137 (192.168.91.137): icmp_seq=1 ttl=64 time=0.216 ms
+
+--- node-1.localdomain ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.216/0.216/0.216/0.000 ms
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tnv port 53 or port 5353
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 22416, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.57800 > 192.168.91.2.53: 43159+ A? node-1.localdomain. (36)
+IP (tos 0x0, ttl 64, id 22417, offset 0, flags [DF], proto UDP (17), length 64)
+    192.168.91.128.57800 > 192.168.91.2.53: 16776+ AAAA? node-1.localdomain. (36)
+IP (tos 0x0, ttl 128, id 17525, offset 0, flags [none], proto UDP (17), length 136)
+    192.168.91.2.53 > 192.168.91.128.57800: 16776 NXDomain 0/1/0 (108)
+IP (tos 0x0, ttl 1, id 50969, offset 0, flags [none], proto UDP (17), length 58)
+    192.168.91.1.5353 > 224.0.0.251.5353: 0 A (QM)? node-1.local. (30)
+IP (tos 0x0, ttl 255, id 5793, offset 0, flags [DF], proto UDP (17), length 84)
+    192.168.91.137.5353 > 224.0.0.251.5353: 0*- [0q] 2/0/0 node-1.local. (Cache flush) A 192.168.91.137, node-1.local. (Cache flush) A 192.168.91.135 (56)
+IP6 (flowlabel 0xfc266, hlim 1, next-header UDP (17) payload length: 38) fe80::50c2:d6ef:87fb:1b7b.5353 > ff02::fb.5353: [udp sum ok] 0 A (QM)? node-1.local. (30)
+IP (tos 0x0, ttl 128, id 17526, offset 0, flags [none], proto UDP (17), length 80)
+    192.168.91.2.53 > 192.168.91.128.57800: 43159*- 1/0/0 node-1.localdomain. A 192.168.91.137 (52)
+----
 
 == References
 
