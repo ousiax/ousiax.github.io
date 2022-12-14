@@ -57,7 +57,17 @@ filename = filename.gsub(' ', '-').gsub(/\(|\)|\./, '').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".adoc"
 revdate = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
-front_matter = "= #{title}\n:page-layout: post\n:page-categories: [#{categories}]\n:page-tags: [#{tags}]\n:page-date: #{revdate}\n:page-revdate: #{revdate}\n\n"
+front_matter = "= #{title}\n" \
+  ":page-layout: post\n" \
+  ":page-categories: [#{categories}]\n" \
+  ":page-tags: [#{tags}]\n" \
+  ":page-date: #{revdate}\n" \
+  ":page-revdate: #{revdate}\n" \
+  ":toc: premable\n" \
+  ":toclevels: 4\n" \
+  ":sectnums:\n" \
+  ":sectnumlevels: 4\n" \
+  "\n"
 
 File.open(filename, 'w') { |f| f.write(front_matter) }
 
