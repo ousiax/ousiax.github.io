@@ -1,0 +1,730 @@
+= Bootstrapping Kubernetes Clusters with kubeadm
+:page-layout: post
+:page-categories: ["kubernetes"]
+:page-tags: ["kubernetes", "kubeadm"]
+:page-date: 2019-01-28 11:11:46 +0800
+:page-revdate: 2022-12-15 12:56:54+08:00
+:toc: preamble
+:sectnums:
+
+:Kubernetes-Conformance-tests: https://kubernetes.io/blog/2017/10/software-conformance-certification/
+:bootstrap-tokens: https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/
+
+Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conforms to best practices. In fact, you can use kubeadm to set up a cluster that will pass the {Kubernetes-Conformance-tests}[Kubernetes Conformance tests]. kubeadm also supports other cluster lifecycle functions, such as {bootstrap-tokens}[bootstrap tokens] and cluster upgrades.
+
+== Installing kubeadm and container runtime
+
+* A compatible Linux host. The Kubernetes project provides generic instructions for Linux distributions based on Debian and Red Hat, and those distributions without a package manager.
+* 2 GB or more of RAM per machine (any less will leave little room for your apps).
+* 2 CPUs or more.
+* Full network connectivity between all machines in the cluster (public or private network is fine).
+* Unique hostname, MAC address, and product_uuid for every node.
+* Certain ports are open on your machines.
+* Swap disabled. You *MUST* disable swap in order for the kubelet to work properly.
+
+=== Verify the MAC address and product_uuid are unique for every node
+
+* You can get the MAC address of the network interfaces using the command `ip link` or `ifconfig -a`
+
+* The product_uuid can be checked by using the command `sudo cat /sys/class/dmi/id/product_uuid`
++
+[source,console]
+----
+[x@node-2 ~]$ ip link show ens32
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+    link/ether 00:0c:29:f2:e6:ca brd ff:ff:ff:ff:ff:ff
+
+[x@node-2 ~]$ sudo cat /sys/class/dmi/id/product_uuid 
+44314D56-8B56-37B6-C94C-6A2D5FF2E6CA
+----
+
+=== Check required ports
+
+:networking-ports-and-protocols: https://kubernetes.io/docs/reference/networking/ports-and-protocols/
+
+.Control plane
+[%header,cols="1,1,1,2,2"]
+|===
+|Protocol
+|Direction
+|Port Range
+|Purpose
+|Used By
+
+|TC
+|Inbound
+|6443
+|Kubernetes API server
+|All
+
+|TCP
+|Inbound
+|2379-2380
+|etcd server client API
+|kube-apiserver, etcd
+
+|TCP
+|Inbound
+|10250
+|Kubelet API
+|Self, Control plane
+
+|TCP
+|Inbound
+|10259
+|kube-scheduler
+|Self
+
+|TCP
+|Inbound
+|10257
+|kube-controller-manager
+|Self
+
+|===
+
+.Worker node(s)
+[%header,cols="1,1,1,2,2"]
+|===
+|Protocol
+|Direction
+|Port Range
+|Purpose
+|Used By
+
+|TCP
+|Inbound
+|10250
+|Kubelet API
+|Self, Control plane
+
+|TCP
+|Inbound
+|30000-32767
+|NodePort Services
+|All
+
+|===
+
+These {networking-ports-and-protocols}[required ports] need to be open in order for Kubernetes components to communicate with each other. You can use tools like netcat to check if a port is open. For example:
+
+[source,console]
+----
+nc 127.0.0.1 6443
+----
+
+The pod network plugin you use may also require certain ports to be open. 
+
+
+=== Installing a container runtime
+
+:container-runtimes: https://kubernetes.io/docs/setup/production-environment/container-runtimes
+:container-runtime-cri: https://kubernetes.io/docs/concepts/overview/components/#container-runtime
+
+To run containers in Pods, Kubernetes uses a {container-runtimes}[container runtime].
+
+By default, Kubernetes uses the {container-runtime-cri}[Container Runtime Interface] (CRI) to interface with your chosen container runtime.
+
+If you don't specify a runtime, kubeadm automatically tries to detect an installed container runtime by scanning through a list of known endpoints.
+
+.Known endpoints for Linux supported operating systems
+[%header,cols="2,3"]
+|===
+|Runtime
+|Path to Unix domain socket
+
+|containerd
+|unix:///var/run/containerd/containerd.sock
+
+|CRI-O
+|unix:///var/run/crio/crio.sock
+
+|Docker Engine (using cri-dockerd)
+|unix:///var/run/cri-dockerd.sock
+
+|===
+
+If multiple or no container runtimes are detected kubeadm will throw an error and will request that you specify which one you want to use.
+
+:cri: https://kubernetes.io/docs/concepts/architecture/cri/
+:cri-dockerd: https://github.com/Mirantis/cri-dockerd
+
+[NOTE]
+====
+Docker Engine does not implement the {cri}[CRI] which is a requirement for a container runtime to work with Kubernetes. For that reason, an additional service {cri-dockerd}[cri-dockerd] has to be installed. cri-dockerd is a project based on the legacy built-in Docker Engine support that was removed from the kubelet in version 1.24.
+====
+
+=== Installing kubeadm, kubelet and kubectl
+
+You will install these packages on all of your machines:
+
+* *kubeadm*: the command to bootstrap the cluster.
+
+* *kubelet*: the component that runs on all of the machines in your cluster and does things like starting pods and containers.
+
+* *kubectl*: the command line util to talk to your cluster.
+
+kubeadm will not install or manage _kubelet_ or _kubectl_ for you, so you will need to ensure they match the version of the Kubernetes control plane you want kubeadm to install for you.
+
+If you do not, there is a risk of a version skew occurring that can lead to unexpected, buggy behaviour.
+
+However, one minor version skew between the kubelet and the control plane is supported, but the kubelet version may never exceed the API server version.
+
+For example, the kubelet running _1.7.0_ should be fully compatible with a _1.8.0_ API server, but not vice versa.
+
+:kubernetes-version-skew-policy: https://kubernetes.io/docs/setup/release/version-skew-policy/
+:kubeadm-version-skew-policy: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#version-skew-policy
+
+For more information on version skews, see:
+
+* Kubernetes {kubernetes-version-skew-policy}[version and version-skew policy]
+* Kubeadm-specific {kubeadm-version-skew-policy}[version skew policy]
+
+==== Debian-based distributions
+
+. Update the _apt_ package index and install packages needed to use the Kubernetes _apt_ repository:
++
+[source,console]
+----
+$ sudo apt-get update
+$ sudo apt-get install -y apt-transport-https ca-certificates curl
+----
+
+. Download the Google Cloud public signing key:
++
+[source,console]
+----
+$ sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+----
+
+. Add the Kubernetes _apt_ repository:
++
+[source,console]
+----
+$ echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+----
++
+Note: You can also set the _kubernetes.list_ repository with the following mirror by USTC China.
++
+[source,sh]
+----
+# deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main
+deb [arch=amd64 signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://mirrors.ustc.edu.cn/kubernetes/apt/  kubernetes-xenial main
+----
+
+. Update _apt_ package index, install _kubelet_, _kubeadm_ and _kubectl_, and pin their version:
++
+[source,console]
+----
+$ sudo apt-get update
+$ sudo apt-get install -y kubelet kubeadm kubectl
+$ sudo apt-mark hold kubelet kubeadm kubectl
+----
++
+You can also specify the installing package version:
++
+[source,console]
+----
+$ apt-cache madison kubeadm | head -n 5
+   kubeadm |  1.26.0-00 | https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubeadm |  1.25.5-00 | https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubeadm |  1.25.4-00 | https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubeadm |  1.25.3-00 | https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubeadm |  1.25.2-00 | https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial/main amd64 Packages
+
+$ sudo apt-get install -y kubelet=1.26.0-00 kubeadm=1.26.0-00 kubectl=1.26.0-00
+----
+
+==== Red Hat-based distributions
+
+[source,sh]
+----
+cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kubelet kubeadm kubectl
+EOF
+
+# Set SELinux in permissive mode (effectively disabling it)
+sudo setenforce 0
+sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+
+sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+
+sudo systemctl enable --now kubelet
+----
+
+* Setting SELinux in permissive mode by running `setenforce 0` and `sed ...` effectively disables it. This is required to allow containers to access the host filesystem, which is needed by pod networks for example. You have to do this until SELinux support is improved in the kubelet.
+
+* You can leave SELinux enabled if you know how to configure it but it may require settings that are not supported by kubeadm.
+
+* If the `baseurl` fails because your Red Hat-based distribution cannot interpret `basearch`, replace `\$basearch` with your computer's architecture. Type `uname -m` to see that value. For example, the `baseurl` URL for `x86_64` could be: `https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64`
+
+* You can also replace the kubernetes repository with USTC China mirror.
++
+.. Update `/etc/yum.repos.d/kubernetes.repo`:
++
+[source,ini]
+----
+[kubernetes]
+name=Kubernetes
+baseurl=https://mirrors.ustc.edu.cn/kubernetes/yum/repos/kubernetes-el7-\$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kubelet kubeadm kubectl
+----
++
+.. You can install and import RPM GPG Key manually:
++
+[source,console]
+----
+$ curl -fsSLo /tmp/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+$ sudo rpm --import /tmp/kubernetes-archive-keyring.gpg
+
+$ rpm -qa gpg-pubkey
+gpg-pubkey-f4a80eb5-53a7ff4b
+gpg-pubkey-3e1ba8d5-558ab6a8
+
+$ rpm -qi gpg-pubkey-3e1ba8d5-558ab6a8
+Version     : 3e1ba8d5
+Release     : 558ab6a8
+...
+Packager    : Google Cloud Packages RPM Signing Key <gc-team@google.com>
+...
+----
+
+=== Configuring a cgroup driver
+
+:container-runtimes: https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+Both the container runtime and the kubelet have a property called "{container-runtimes}[cgroup driver]", which is important for the management of cgroups on Linux machines.
+
+[WARNING]
+====
+Matching the container runtime and kubelet cgroup drivers is required or otherwise the kubelet process will fail.
+====
+
+=== Install CRI (Docker)
+
+==== Debian
+
+[,sh]
+----
+## Install Docker CE on Debian 9+
+## Install packages to allow apt to use a repository over HTTPS
+apt-get update \
+    && apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg2 \
+    software-properties-common
+
+## Add Docker’s official GPG key
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+
+## Add docker apt repository.
+add-apt-repository \
+    "deb [arch=amd64] https://download.docker.com/linux/debian \
+    $(lsb_release -cs) \
+    stable"
+
+## Create /etc/docker directory.
+mkdir /etc/docker
+
+## Setup daemon.
+cat > /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
+}
+EOF
+
+## Install docker ce.
+apt-get update && apt-get install -y docker-ce=18.06.0~ce~3-0~debian
+
+apt-mark hold docker-ce
+----
+
+==== Centos/RHEL
+
+[,sh]
+----
+# Install Docker CE on CentOS/RHEL 7.4+
+## Set up the repository
+### Install required packages.
+yum install yum-utils device-mapper-persistent-data lvm2
+
+### Add docker repository.
+yum-config-manager \
+    --add-repo \
+    https://download.docker.com/linux/centos/docker-ce.repo
+
+## Create /etc/docker directory.
+mkdir /etc/docker
+
+# Setup daemon.
+cat > /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true"
+  ]
+}
+EOF
+
+## Install docker ce.
+yum update && yum install docker-ce-18.06.1.ce
+----
+
+=== Installing kubeadm, kubelet, kubectl and kubernetes-cni
+
+==== Ubuntu/Debian
+
+[,sh]
+----
+# Install kubeadm, kubelet, kubectl and kuberntes-cni on Ubuntu, Debian or HypriotOS
+apt-get update && apt-get install -y apt-transport-https curl
+
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+
+apt-get update && apt-get install -y kubelet kubeadm kubectl kubernetes-cni
+
+apt-mark hold kubelet kubeadm kubectl kubernetes-cni
+
+# The kubelet is now restarting every few seconds, as it waits in a crashloop for kubeadm to tell it what to do.
+----
+
+==== CentOS/RHEL
+
+[,sh]
+----
+# Install kubeadm, kubelet, kubectl and kuberntes-cni on CentOS, RHEL or Fedora
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kube*
+EOF
+
+# Set SELinux in permissive mode (effectively disabling it)
+setenforce 0
+sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+
+yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+
+systemctl enable kubelet && systemctl start kubelet
+
+# The kubelet is now restarting every few seconds, as it waits in a crashloop for kubeadm to tell it what to do.
+----
+
+Note:
+
+* Setting SELinux in permissive mode by running `setenforce 0` and `+sed ...+` effectively disables it. This is required to allow containers to access the host filesystem, which is needed by pod networks for example. You have to do this until SELinux support is improved in the kubelet.
+* Some users on RHEL/CentOS 7 have reported issues with traffic being routed incorrectly due to iptables being bypassed. You should ensure `net.bridge.bridge-nf-call-iptables` is set to `1` in your sysctl config, e.g.
++
+----
+  cat <<EOF >  /etc/sysctl.d/k8s.conf
+  net.bridge.bridge-nf-call-ip6tables = 1
+  net.bridge.bridge-nf-call-iptables = 1
+  EOF
+  sysctl --system
+----
+
+==== Install kubeadm, kubectl bash completion
+
+[,sh]
+----
+# Install bash completion
+kubeadm completion bash > /etc/bash_completion.d/kubeadm.sh
+kubectl completion bash > /etc/bash_completion.d/kubectl.sh
+
+# Load the completion code for bash into the current shell
+source /etc/bash_completion.d/kube{adm,ctl}.sh
+----
+
+=== Creating a single master cluster with kubeadm
+
+==== Initializing your master
+
+For *flannel* to work correctly, you must pass `--pod-network-cidr=10.244.0.0/16` to `kubeadm init`.
+
+The master is the machine where the control plane components run, including etcd (the cluster database) and the API server (which the kubectl CLI communicates with).
+
+* Choose a pod network add-on, and verify whether it requires any arguments to be passed to kubeadm initialization. Depending on which third-party provider you choose, you might need to set the `--pod-network-cidr` to a provider-specific value. See https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network[Installing a pod network add-on].
+* (Optional) Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to advertise the master's IP. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to `kubeadm init`. To deploy an IPv6 Kubernetes cluster using IPv6 addressing, you must specify an IPv6 address, for example `--apiserver-advertise-address=fd00::101`
+* (Optional) Choose a specific Kubernetes version for the control plane with `--kubernetes-version`. (default "stable-1")
+* (Optional) Run `kubeadm config images pull` prior to `kubeadm init` to verify connectivity to gcr.io registries.
+* Run `swapoff -a` and edit `/etc/fstab` to commant all swap fs to disable swap.
+
+Now run:
+
+[,sh]
+----
+kubeadm init <args>
+----
+
+`kubeadm init` first runs a series of prechecks to ensure that the machine is ready to run Kubernetes. These prechecks expose warnings and exit on errors. `kubeadm init` then downloads and installs the cluster control plane components. This may take several minutes. The output should look like:
+
+----
+[init] Using Kubernetes version: vX.Y.Z
+[preflight] Running pre-flight checks
+
+... (log output of join workflow) ...
+
+Your Kubernetes master has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+You can now join any number of machines by running the following on each node
+as root:
+
+  kubeadm join --token <token> <master-ip>:<master-port> --discovery-token-ca-cert-hash sha256:<hash>
+----
+
+Make a record of the `kubeadm join` command that `kubeadm init` outputs. You need this command to join nodes to your cluster.
+
+The token is used for mutual authentication between the master and the joining nodes. The token included here is secret. Keep it safe, because anyone with this token can add authenticated nodes to your cluster. These tokens can be listed, created, and deleted with the `kubeadm token` command. See the https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/[kubeadm reference guide].
+
+If the token is expired or you lost the record of the `kubeadm join` command that `kubeadm init` outputs, you can also use the `kubeadm token create --print-join-command` to create a new bootstrap token.
+
+==== Installing a pod network add-on (Flannel)
+
+For flannel to work correctly, you must pass `--pod-network-cidr=10.244.0.0/16` to `kubeadm init`.
+
+Set `/proc/sys/net/bridge/bridge-nf-call-iptables` to `1` by running `sysctl net.bridge.bridge-nf-call-iptables=1` to pass bridged IPv4 traffic to iptables`' chains. This is a requirement for some CNI plugins to work, for more information please see https://kubernetes.io/docs/concepts/cluster-administration/network-plugins/#network-plugin-requirements[here].
+
+You can also run the following command to set the kernel paramets.
+
+----
+cat <<EOF >  /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+sysctl --system
+----
+
+Note that flannel works on amd64, arm, arm64 and ppc64le.
+
+----
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/bc79dd1505b0c8681ece4de4c0d86c5cd2643275/Documentation/kube-flannel.yml
+----
+
+==== Control plane node isolation
+
+By default, your cluster will not schedule pods on the master for security reasons. If you want to be able to schedule pods on the master, e.g. for a single-machine Kubernetes cluster for development, run:
+
+[,sh]
+----
+kubectl taint nodes --all node-role.kubernetes.io/master-
+----
+
+This will remove the *node-role.kubernetes.io/master* taint from any nodes that have it, including the master node, meaning that the scheduler will then be able to schedule pods everywhere.
+
+==== Joining your nodes
+
+The nodes are where your workloads (containers and pods, etc) run. To add new nodes to your cluster do the following for each machine:
+
+* SSH to the machine
+* Become root (e.g. `sudo su -`)
+* Run the command that was output by `kubeadm init`. For example:
+
+[,sh]
+----
+kubeadm join --token <token> <master-ip>:<master-port> --discovery-token-ca-cert-hash sha256:<hash>
+----
+
+If you do not have the token, you can get it by running the following command on the master node:
+
+[,sh]
+----
+kubeadm token list
+----
+
+The output is similar to this:
+
+[,none]
+----
+TOKEN                     TTL       EXPIRES                     USAGES                   DESCRIPTION                                                EXTRA GROUPS
+6b0kj6.goxmubaepv3hvcd5   23h       2019-01-29T15:01:49+08:00   authentication,signing   The default bootstrap token generated by 'kubeadm init'.   system:bootstrappers:kubeadm:default-node-token
+----
+
+By default, tokens expire after 24 hours. If you are joining a node to the cluster after the current token has expired, you can create a new token by running the following command on the master node:
+
+[,sh]
+----
+kubeadm token create
+----
+
+The output is similar to this:
+
+[,none]
+----
+5didvk.d09sbcov8ph2amjw
+----
+
+If you don't have the value of `--discovery-token-ca-cert-hash`, you can get it by running the following command chain on the master node:
+
+[,sh]
+----
+openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
+   openssl dgst -sha256 -hex | sed 's/^.* //'
+----
+
+The output is similar to this:
+
+[,none]
+----
+8cb2de97839780a412b93877f8507ad6c94f73add17d5d7058e91741c9d5ec78
+----
+
+The output should look something like:
+
+[,none]
+----
+[preflight] Running pre-flight checks
+
+... (log output of join workflow) ...
+
+Node join complete:
+* Certificate signing request sent to master and response
+  received.
+* Kubelet informed of new secure connection details.
+
+Run 'kubectl get nodes' on the master to see this machine join.
+
+A few seconds later, you should notice this node in the output from kubectl get nodes when run on the master.
+----
+
+=== Tear down
+
+To undo what kubeadm did, you should first drain the node and make sure that the node is empty before shutting it down.
+
+Talking to the master with the appropriate credentials, run:
+
+[,sh]
+----
+kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
+kubectl delete node <node name>
+----
+
+Then, on the node being removed, reset all kubeadm installed state:
+
+[,sh]
+----
+kubeadm reset
+----
+
+The reset process does not reset or clean up iptables rules or IPVS tables. If you wish to reset iptables, you must do so manually:
+
+[,sh]
+----
+iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
+----
+
+If you want to reset the IPVS tables, you must run the following command:
+
+[,sh]
+----
+ipvsadm -C
+----
+
+If you wish to start over simply run `kubeadm init` or `kubeadm join` with the appropriate arguments.
+
+=== Set HTTP proxy for APT/YUM
+
+* Set HTTP proxy for APT:
++
+[,sh]
+----
+cat <<EOF > /etc/apt/apt.conf.d/httproxy
+> Acquire::http::Proxy "http://PROXY_HOST:PORT";
+> EOF
+----
++
+Here is a config _/etc/apt/apt.conf.d/10httproxy_ file:
++
+----
+Acquire::http::Proxy "http://10.20.30.40:1080";
+Acquire::http::Proxy {
+  # the special keyword DIRECT meaning to use no proxies
+  #security.debian.org DIRECT;
+  #security-cdn.debian.org DIRECT;
+  ftp2.cn.debian.org DIRECT;
+  ftp.cn.debian.org DIRECT;
+  mirror.lzu.edu.cn DIRECT;
+  mirrors.163.com DIRECT;
+  mirrors.huaweicloud.com DIRECT;
+  mirrors.tuna.tsinghua.edu.cn DIRECT;
+  mirrors.ustc.edu.cn DIRECT;
+
+  download.docker.com DIRECT;
+  packages.microsoft.com DIRECT;
+};
+----
+
+* Set HTTP proxy for YUM:
++
+[,sh]
+----
+echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
+----
++
+Here is a complete config _/etc/yum.repos.d/kubernetes.repo_ file:
++
+[,none]
+----
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kube*
+proxy=http://10.20.30.40:1080/
+----
+
+== References
+
+. https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+. https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
+
+. Installing kubeadm - Kubernetes, https://kubernetes.io/docs/setup/independent/install-kubeadm
+. CRI installation - Kubernetes, https://kubernetes.io/docs/setup/cri/
+. Creating a single master cluster with kubeadm - Kubernetes, https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
+. https://manpages.debian.org/buster/apt/apt.conf.5.en.html[apt.conf - Configuration file for APT]
+. https://wiki.debian.org/AptConfiguration[AptConfiguration]
+. https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/deployment_guide/sec-configuring_yum_and_yum_repositories[8.4. Configuring Yum and Yum Repositories]
+. https://www.cyberciti.biz/faq/centos-redhat-fedora-linux-using-yum-with-a-proxy-server/[CentOS / RHEL / Fedora Linux: Use Yum Command With A Proxy Server]
+. https://unix.stackexchange.com/questions/230246/can-i-set-a-proxy-for-specific-yum-repositories[Can I set a proxy for specific yum repositories?]
