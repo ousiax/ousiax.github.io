@@ -265,7 +265,7 @@ You can find this file under the path `/etc/containerd/config.toml`.
 
 On Linux the default CRI socket for containerd is `/run/containerd/containerd.sock`.
 
-* Configuring the systemd cgroup driver
+. *Configuring the systemd cgroup driver*
 +
 To use the _systemd_ cgroup driver in `/etc/containerd/config.toml` with _runc_, set
 +
@@ -350,10 +350,9 @@ disabled_plugins = ["cri"]
 #  gid = 0
 #  level = "info"
 ----
-
 ====
 
-* Overriding the sandbox (pause) image
+. *Overriding the sandbox (pause) image*
 +
 In your containerd config you can overwrite the sandbox image by setting the following config:
 +
@@ -363,7 +362,7 @@ In your containerd config you can overwrite the sandbox image by setting the fol
   sandbox_image = "registry.k8s.io/pause:3.2"
 ----
 
-* Configure _root_ and _state_ storage locations
+. *Configure _root_ and _state_ storage locations*
 +
 In the containerd config file you will find settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.
 +
@@ -411,12 +410,79 @@ $ sudo tree /run/containerd/
 2 directories, 2 files
 ----
 
+. *Configure HTTP or HTTPS proxy.*
++
+The _contianerd_ daemon uses the _HTTP_PROXY_, _HTTPS_PROXY_, and _NO_PROXY_ environmental variables in its start-up environment to configure HTTP or HTTPS proxy behavior.
++
+--
+.. Create a systemd drop-in directory for the containerd service:
++
+[source,console]
+----
+$ sudo mkdir -p /etc/systemd/system/containerd.service.d
+----
+
+.. Create a file called _10-http_proxy.conf_ at the above directory that adds the _HTTP_PROXY_ environment variable:
++
+[source,ini]
+----
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:80/"
+----
++
+Or, if you are behind an HTTPS proxy server, adds the _HTTPS_PROXY_ environment variable:
++
+[source,ini]
+----
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:80/"
+Environment="HTTPS_PROXY=https://proxy.example.com:443/"
+----
++
+If you have internal registries that you need to contact without proxying you can specify them via the _NO_PROXY_ environment variable:
++
+[source,ini]
+----
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:80/"
+Environment="HTTPS_PROXY=https://proxy.example.com:443/"
+Environment="NO_PROXY=localhost,127.0.0.1,docker-registry.somecorporation.com"
+----
++
 [TIP]
 ====
-For more information about Cgroups, see link:/2021/11/23/linux-cgroups-containers/[Linux CGroups and Containers].
+The _NO_PROXY_ environment variable specifies URLs that should be excluded from proxying (on servers that should be contacted directly). This should be a comma-separated list of hostnames, domain names, or a mixture of both. Asterisks can be used as wildcards, but other clients may not support that. Domain names may be indicated by a leading dot. For example:
 
-For more information about containerd, see link:/2021/11/25/oci-runc-containerd-cri-dockershim/[RUNC CONTAINERD CRI DOCKERSHIM].
+[source,text]
+----
+NO_PROXY="*.aventail.com,home.com,.seanet.com"
+----
+
+says to contact all machines in the ‘aventail.com’ and ‘seanet.com’ domains directly, as well as the machine named ‘home.com’. If _NO_PROXY_ isn’t defined, _no_PROXY_ and _no_proxy_ are also tried, in that order.
+
+ref: https://www.gnu.org/software/emacs/manual/html_node/url/Proxies.html
 ====
++
+[TIP]
+====
+You can also use the `systemctl edit containerd` to edit _override.conf_ at _/etc/systemd/system/containrd.service.d_ for the containerd service. 
+====
+
+.. Flush changes and restart containerd:
++
+[source,console]
+----
+$ sudo systemctl daemon-reload
+$ sudo systemctl restart containerd
+----
+
+.. Verify that the configuration has been loaded:
++
+[source,console]
+----
+$ systemctl show --property=Environment containerd --full --no-pager
+----
+--
 
 [TIP]
 ====
@@ -464,6 +530,13 @@ sudo yum install containerd.io
 sudo systemctl enable containerd.service
 sudo systemctl start containerd.service
 ----
+====
+
+[TIP]
+====
+For more information about Cgroups, see link:/2021/11/23/linux-cgroups-containers/[Linux CGroups and Containers].
+
+For more information about containerd, see link:/2021/11/25/oci-runc-containerd-cri-dockershim/[RUNC CONTAINERD CRI DOCKERSHIM].
 ====
 
 ===== Docker Engine
@@ -756,12 +829,106 @@ NOTE: In v1.22, if the user is not setting the _cgroupDriver_ field under _Kubel
 
 :kubeadm-init-without-internet-connection: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/#without-internet-connection
 :kubeadm-init-custom-images: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init#custom-images
+:kubeadm-init-config-file: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/#config-file
 
 This step is optional and only applies in case you wish `kubeadm init` and `kubeadm join` to not download the default container images which are hosted at _registry.k8s.io_.
 
 Kubeadm has commands that can help you pre-pull the required images when {kubeadm-init-without-internet-connection}[creating a cluster without an internet connection] on its nodes.
 
+You can list and pull the images using the kubeadm config images sub-command:
+
+[source,sh]
+----
+kubeadm config images list # [--kubernetes-version=v1.25.3] [--image-repository=registry.k8s.io]
+kubeadm config images pull # [--kubernetes-version=v1.25.3] [--image-repository=registry.k8s.io]
+----
+
 Kubeadm allows you to use a {kubeadm-init-custom-images}[custom image repository] for the required images.
+
+This example uses the custom image repository with  _registry.cn-hangzhou.aliyuncs.com/google_containers_:
+
+[source,sh]
+----
+sudo kubeadm config images pull \
+  --kubernetes-version=v1.25.3 \
+  --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers
+----
+
+You can override this behavior by using {kubeadm-init-config-file}[kubeadm with a configuration file].
+
+[source,console]
+----
+$ kubeadm config print init-defaults
+apiVersion: kubeadm.k8s.io/v1beta3
+bootstrapTokens:
+- groups:
+  - system:bootstrappers:kubeadm:default-node-token
+  token: abcdef.0123456789abcdef
+  ttl: 24h0m0s
+  usages:
+  - signing
+  - authentication
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 1.2.3.4
+  bindPort: 6443
+nodeRegistration:
+  criSocket: unix:///var/run/containerd/containerd.sock
+  imagePullPolicy: IfNotPresent
+  name: node
+  taints: null
+---
+apiServer:
+  timeoutForControlPlane: 4m0s
+apiVersion: kubeadm.k8s.io/v1beta3
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+controllerManager: {}
+dns: {}
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+imageRepository: registry.k8s.io
+kind: ClusterConfiguration
+kubernetesVersion: 1.25.0
+networking:
+  dnsDomain: cluster.local
+  serviceSubnet: 10.96.0.0/12
+scheduler: {}
+----
+
+=== Initializing your control-plane node
+
+:configure-upgrade-etcd: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
+:kube-apiserver: https://kubernetes.io/docs/concepts/overview/components/#kube-apiserver
+:kubectl-overview: https://kubernetes.io/docs/user-guide/kubectl-overview/
+:pod-network: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#pod-network
+
+The control-plane node is the machine where the control plane components run, including {configure-upgrade-etcd}[etcd] (the cluster database) and the {kube-apiserver}[API Server] (which the {kubectl-overview}[kubectl] command line tool communicates with). <<create-cluster-kubeadm>>
+
+. (Recommended) If you have plans to upgrade this single control-plane kubeadm cluster to high availability you should specify the `--control-plane-endpoint` to set the shared endpoint for all control-plane nodes. Such an endpoint can be either a DNS name or an IP address of a load-balancer.
+
+. Choose a {pod-network}[Pod network] add-on, and verify whether it requires any arguments to be passed to `kubeadm init`. Depending on which third-party provider you choose, you might need to set the `--pod-network-cidr` to a provider-specific value.
+
+. (Optional) kubeadm tries to detect the container runtime by using a list of well known endpoints. To use different container runtime or if there are more than one installed on the provisioned node, specify the `--cri-socket` argument to kubeadm.
+
+. (Optional) Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to set the advertise address for this particular control-plane node's API server. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to kubeadm init. To deploy an IPv6 Kubernetes cluster using IPv6 addressing, you must specify an IPv6 address, for example `--apiserver-advertise-address=2001:db8::101`.
+
+[NOTE]
+====
+While `--apiserver-advertise-address` can be used to set the advertise address for this particular control-plane node's API server, `--control-plane-endpoint` can be used to set the shared endpoint for all control-plane nodes.
+
+`--control-plane-endpoint` allows both IP addresses and DNS names that can map to IP addresses. Please contact your network administrator to evaluate possible solutions with respect to such mapping.
+
+Here is an example mapping:
+
+[source,text]
+192.168.0.102 cluster-endpoint
+
+Where `192.168.0.102` is the IP address of this node and cluster-endpoint is a custom DNS name that maps to this IP. This will allow you to pass `--control-plane-endpoint=cluster-endpoint` to `kubeadm init` and pass the same DNS name to `kubeadm join`. Later you can modify `cluster-endpoint` to point to the address of your load-balancer in an high availability scenario.
+
+Turning a single control plane cluster created without `--control-plane-endpoint` into a highly available cluster is not supported by kubeadm.
+====
 
 === Creating a single master cluster with kubeadm
 
@@ -1024,6 +1191,7 @@ proxy=http://10.20.30.40:1080/
 * [[[docker-runtime-execution-options,6]]] https://docs.docker.com/engine/reference/commandline/dockerd/#docker-runtime-execution-options
 * [[[rhel-7-yum-repo,7]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/ch-yum#sec-Configuring_Yum_and_Yum_Repositories
 * [[[rpm-gpg-verify-packages,8]]] https://www.redhat.com/sysadmin/rpm-gpg-verify-packages
+* [[[create-cluster-kubeadm,9]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
 
 ==== aaaaaa
 
