@@ -665,6 +665,40 @@ sudo sh -c 'crictl completion > /etc/bash_completion.d/crictl'
 source /etc/bash_completion
 ----
 
+[TIP]
+====
+*Set HTTP proxy for APT:*
+
+[source,sh]
+----
+cat <<EOF > /etc/apt/apt.conf.d/httproxy
+> Acquire::http::Proxy "http://PROXY_HOST:PORT";
+> EOF
+----
+
+Here is a config _/etc/apt/apt.conf.d/10httproxy_ file:
+
+[source,txt]
+----
+Acquire::http::Proxy "http://10.20.30.40:1080";
+Acquire::http::Proxy {
+  # the special keyword DIRECT meaning to use no proxies
+  #security.debian.org DIRECT;
+  #security-cdn.debian.org DIRECT;
+  ftp2.cn.debian.org DIRECT;
+  ftp.cn.debian.org DIRECT;
+  mirror.lzu.edu.cn DIRECT;
+  mirrors.163.com DIRECT;
+  mirrors.huaweicloud.com DIRECT;
+  mirrors.tuna.tsinghua.edu.cn DIRECT;
+  mirrors.ustc.edu.cn DIRECT;
+
+  download.docker.com DIRECT;
+  packages.microsoft.com DIRECT;
+};
+----
+====
+
 ==== Red Hat-based distributions
 
 [source,sh]
@@ -738,6 +772,11 @@ Release     : 558ab6a8
 Packager    : Google Cloud Packages RPM Signing Key <gc-team@google.com>
 ...
 ----
++
+[TIP]
+====
+You can also download the link:/assets/packages.cloud.google.com/yum/doc/rpm-package-key.gpg[rpm-package-key.gpg] here.
+====
 
 * You can also specify the installing package version:
 +
@@ -752,6 +791,31 @@ kubeadm.x86_64                       1.26.0-0                        kubernetes
 
 $ sudo yum --disableexcludes=kubernetes install kubelet-1.26.0-0 kubeadm-1.26.0-0 kubectl-1.26.0-0
 ----
+
+[TIP]
+====
+*Set HTTP proxy for YUM:*
+
+[source,sh]
+----
+echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
+----
+
+Here is a complete config _/etc/yum.repos.d/kubernetes.repo_ file:
+
+[source,ini]
+----
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kube*
+proxy=http://10.20.30.40:1080/
+----
+====
 
 ==== Set CRICTL endpoint of CRI container runtime service
 
@@ -930,254 +994,191 @@ Where `192.168.0.102` is the IP address of this node and cluster-endpoint is a c
 Turning a single control plane cluster created without `--control-plane-endpoint` into a highly available cluster is not supported by kubeadm.
 ====
 
-=== Creating a single master cluster with kubeadm
-
-==== Initializing your master
-
-For *flannel* to work correctly, you must pass `--pod-network-cidr=10.244.0.0/16` to `kubeadm init`.
-
-The master is the machine where the control plane components run, including etcd (the cluster database) and the API server (which the kubectl CLI communicates with).
-
-* Choose a pod network add-on, and verify whether it requires any arguments to be passed to kubeadm initialization. Depending on which third-party provider you choose, you might need to set the `--pod-network-cidr` to a provider-specific value. See https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network[Installing a pod network add-on].
-* (Optional) Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to advertise the master's IP. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to `kubeadm init`. To deploy an IPv6 Kubernetes cluster using IPv6 addressing, you must specify an IPv6 address, for example `--apiserver-advertise-address=fd00::101`
-* (Optional) Choose a specific Kubernetes version for the control plane with `--kubernetes-version`. (default "stable-1")
-* (Optional) Run `kubeadm config images pull` prior to `kubeadm init` to verify connectivity to gcr.io registries.
-* Run `swapoff -a` and edit `/etc/fstab` to commant all swap fs to disable swap.
-
-Now run:
-
-[,sh]
+[source,console]
 ----
-kubeadm init <args>
+$ sudo kubeadm init \
+    --kubernetes-version=v1.26.0 \
+    --pod-network-cidr=10.244.0.0/16 \
+    --control-plane-endpoint=cluster-endpoint \
+    --apiserver-advertise-address=192.168.0.100 \
+    --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers \
+    --ignore-preflight-errors=NumCPU,Mem \
+    --dry-run
 ----
 
-`kubeadm init` first runs a series of prechecks to ensure that the machine is ready to run Kubernetes. These prechecks expose warnings and exit on errors. `kubeadm init` then downloads and installs the cluster control plane components. This may take several minutes. The output should look like:
+=== Installing a Pod network add-on
 
+:cni-network-plugins: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
+:rbac: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+[WARNING]
+====
+You must deploy a {cni-network-plugins}[Container Network Interface] (CNI) based Pod network add-on so that your Pods can communicate with each other. Cluster DNS (CoreDNS) will not start up before a network is installed.
+
+* Take care that your Pod network must not overlap with any of the host networks: you are likely to see problems if there is any overlap. (If you find a collision between your network plugin's preferred Pod network and some of your host networks, you should think of a suitable CIDR block to use instead, then use that during kubeadm init with `--pod-network-cidr` and as a replacement in your network plugin's YAML).
+
+* By default, kubeadm sets up your cluster to use and enforce use of {rbac}[RBAC] (role based access control). Make sure that your Pod network plugin supports RBAC, and so do any manifests that you use to deploy it.
+
+* If you want to use IPv6--either dual-stack, or single-stack IPv6 only networking--for your cluster, make sure that your Pod network plugin supports IPv6. IPv6 support was added to CNI in v0.6.0.
+====
+
+:network-policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+:how-to-implement-the-kubernetes-networking-model: https://kubernetes.io/docs/concepts/cluster-administration/networking/#how-to-implement-the-kubernetes-networking-model
+:addons-networking-and-network-policy: https://kubernetes.io/docs/concepts/cluster-administration/addons/#networking-and-network-policy
+
+Several external projects provide Kubernetes Pod networks using CNI, some of which also support {network-policies}[Network Policy].
+
+See a list of {addons-networking-and-network-policy}[add-ons] that implement the {how-to-implement-the-kubernetes-networking-model}[Kubernetes networking model].
+
+You can install a Pod network add-on with the following command on the control-plane node or a node that has the kubeconfig credentials:
+
+[source,console]
 ----
-[init] Using Kubernetes version: vX.Y.Z
-[preflight] Running pre-flight checks
-
-... (log output of join workflow) ...
-
-Your Kubernetes master has initialized successfully!
-
-To start using your cluster, you need to run the following as a regular user:
-
-  mkdir -p $HOME/.kube
-  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-  sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-You should now deploy a pod network to the cluster.
-Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
-  https://kubernetes.io/docs/concepts/cluster-administration/addons/
-
-You can now join any number of machines by running the following on each node
-as root:
-
-  kubeadm join --token <token> <master-ip>:<master-port> --discovery-token-ca-cert-hash sha256:<hash>
-----
-
-Make a record of the `kubeadm join` command that `kubeadm init` outputs. You need this command to join nodes to your cluster.
-
-The token is used for mutual authentication between the master and the joining nodes. The token included here is secret. Keep it safe, because anyone with this token can add authenticated nodes to your cluster. These tokens can be listed, created, and deleted with the `kubeadm token` command. See the https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/[kubeadm reference guide].
-
-If the token is expired or you lost the record of the `kubeadm join` command that `kubeadm init` outputs, you can also use the `kubeadm token create --print-join-command` to create a new bootstrap token.
-
-==== Installing a pod network add-on (Flannel)
-
-For flannel to work correctly, you must pass `--pod-network-cidr=10.244.0.0/16` to `kubeadm init`.
-
-Set `/proc/sys/net/bridge/bridge-nf-call-iptables` to `1` by running `sysctl net.bridge.bridge-nf-call-iptables=1` to pass bridged IPv4 traffic to iptables`' chains. This is a requirement for some CNI plugins to work, for more information please see https://kubernetes.io/docs/concepts/cluster-administration/network-plugins/#network-plugin-requirements[here].
-
-You can also run the following command to set the kernel paramets.
-
-----
-cat <<EOF >  /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-ip6tables = 1
-net.bridge.bridge-nf-call-iptables = 1
-EOF
-sysctl --system
+$ kubectl apply -f <add-on.yaml>
 ----
 
-Note that flannel works on amd64, arm, arm64 and ppc64le.
+You can install only one Pod network per cluster.
 
+Once a Pod network has been installed, you can confirm that it is working by checking that the CoreDNS Pod is Running in the output of `kubectl get pods --all-namespaces`. And once the CoreDNS Pod is up and running, you can continue by joining your nodes.
+
+[TIP]
+====
+*Deploying flannel manually*<<flannel>>
+
+Flannel can be added to any existing Kubernetes cluster though it's simplest to add _flannel_ before any pods using the pod network have been started.
+
+For Kubernetes v1.17+
+
+[source,console]
 ----
-kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/bc79dd1505b0c8681ece4de4c0d86c5cd2643275/Documentation/kube-flannel.yml
+$ kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/v0.20.2/Documentation/kube-flannel.yml
 ----
 
-==== Control plane node isolation
+If you use custom podCIDR (not _10.244.0.0/16_) you first need to download the above manifest and modify the network to match your one.
+====
 
-By default, your cluster will not schedule pods on the master for security reasons. If you want to be able to schedule pods on the master, e.g. for a single-machine Kubernetes cluster for development, run:
+=== Control plane node isolation
 
-[,sh]
+By default, your cluster will not schedule Pods on the control plane nodes for security reasons. If you want to be able to schedule Pods on the control plane nodes, for example for a single machine Kubernetes cluster, run:
+
+[source,console]
 ----
-kubectl taint nodes --all node-role.kubernetes.io/master-
+$ kubectl taint nodes --all node-role.kubernetes.io/control-plane-
 ----
 
-This will remove the *node-role.kubernetes.io/master* taint from any nodes that have it, including the master node, meaning that the scheduler will then be able to schedule pods everywhere.
+The output will look something like:
 
-==== Joining your nodes
+[source,console]
+----
+node/node-1.localdomain untainted
+...
+----
 
-The nodes are where your workloads (containers and pods, etc) run. To add new nodes to your cluster do the following for each machine:
+This will remove the `node-role.kubernetes.io/control-plane:NoSchedule` taint from any nodes that have it, including the control plane nodes, meaning that the scheduler will then be able to schedule Pods everywhere.
+
+=== Joining your nodes 
+
+The nodes are where your workloads (containers and Pods, etc) run. To add new nodes to your cluster do the following for each machine:
 
 * SSH to the machine
-* Become root (e.g. `sudo su -`)
-* Run the command that was output by `kubeadm init`. For example:
 
-[,sh]
-----
-kubeadm join --token <token> <master-ip>:<master-port> --discovery-token-ca-cert-hash sha256:<hash>
-----
+* Become root (e.g. _sudo su -_)
 
-If you do not have the token, you can get it by running the following command on the master node:
+* Install a runtime if needed
 
-[,sh]
+* Run the command that was output by _kubeadm init_. For example:
++
+[source,console]
 ----
-kubeadm token list
-----
+You can now join any number of control-plane nodes by copying certificate authorities
+and service account keys on each node and then running the following as root:
 
-The output is similar to this:
+  kubeadm join cluster-endpoint:6443 --token r8zo5w.rfrg93x0luuo01cy \
+	--discovery-token-ca-cert-hash sha256:ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1 \
+	--control-plane
 
-[,none]
-----
-TOKEN                     TTL       EXPIRES                     USAGES                   DESCRIPTION                                                EXTRA GROUPS
-6b0kj6.goxmubaepv3hvcd5   23h       2019-01-29T15:01:49+08:00   authentication,signing   The default bootstrap token generated by 'kubeadm init'.   system:bootstrappers:kubeadm:default-node-token
-----
+Then you can join any number of worker nodes by running the following on each as root:
 
-By default, tokens expire after 24 hours. If you are joining a node to the cluster after the current token has expired, you can create a new token by running the following command on the master node:
-
-[,sh]
-----
-kubeadm token create
+kubeadm join cluster-endpoint:6443 --token r8zo5w.rfrg93x0luuo01cy \
+	--discovery-token-ca-cert-hash sha256:ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1
 ----
 
-The output is similar to this:
+If you do not have the token, you can get it by running the following command on the control-plane node:
 
-[,none]
+[source,console]
 ----
-5didvk.d09sbcov8ph2amjw
+$ kubeadm token list
+TOKEN                     TTL         EXPIRES                USAGES                   DESCRIPTION                                                EXTRA GROUPS
+r8zo5w.rfrg93x0luuo01cy   23h         2022-12-27T06:07:36Z   authentication,signing   The default bootstrap token generated by 'kubeadm init'.   system:bootstrappers:kubeadm:default-node-token
 ----
 
-If you don't have the value of `--discovery-token-ca-cert-hash`, you can get it by running the following command chain on the master node:
+By default, tokens expire after 24 hours. If you are joining a node to the cluster after the current token has expired, you can create a new token by running the following command on the control-plane node:
 
-[,sh]
+[source,console]
 ----
-openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
+$ kubeadm token create
+jlur5d.5qzgyjl28ssfj3za
+----
+
+If you don't have the value of `--discovery-token-ca-cert-hash`, you can get it by running the following command chain on the control-plane node:
+
+[source,console]
+----
+$ openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
    openssl dgst -sha256 -hex | sed 's/^.* //'
+ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1
 ----
 
-The output is similar to this:
+You can also run the following command to create and print join command:
 
-[,none]
+[source,console]
 ----
-8cb2de97839780a412b93877f8507ad6c94f73add17d5d7058e91741c9d5ec78
-----
-
-The output should look something like:
-
-[,none]
-----
-[preflight] Running pre-flight checks
-
-... (log output of join workflow) ...
-
-Node join complete:
-* Certificate signing request sent to master and response
-  received.
-* Kubelet informed of new secure connection details.
-
-Run 'kubectl get nodes' on the master to see this machine join.
-
-A few seconds later, you should notice this node in the output from kubectl get nodes when run on the master.
+$ kubeadm token create --print-join-command
+kubeadm join cluster-endpoint:6443 --token 2ihyt2.g933wbzyatjdw56i --discovery-token-ca-cert-hash sha256:ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1
 ----
 
-=== Tear down
+[NOTE]
+====
+As the cluster nodes are usually initialized sequentially, the CoreDNS Pods are likely to all run on the first control-plane node.
 
-To undo what kubeadm did, you should first drain the node and make sure that the node is empty before shutting it down.
+To provide higher availability, please rebalance the CoreDNS Pods with `kubectl -n kube-system rollout restart deployment coredns` after at least one new node is joined.
+====
 
-Talking to the master with the appropriate credentials, run:
+=== Remove the node
 
-[,sh]
+Talking to the control-plane node with the appropriate credentials, run:
+
+[source,console]
 ----
-kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
-kubectl delete node <node name>
+$ kubectl drain <node name> --delete-emptydir-data --force --ignore-daemonsets
 ----
 
-Then, on the node being removed, reset all kubeadm installed state:
+Before removing the node, reset the state installed by kubeadm:
 
-[,sh]
+[source,console]
 ----
-kubeadm reset
+$ kubeadm reset
 ----
 
 The reset process does not reset or clean up iptables rules or IPVS tables. If you wish to reset iptables, you must do so manually:
 
-[,sh]
+[source,console]
 ----
-iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
+$ iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
 ----
 
 If you want to reset the IPVS tables, you must run the following command:
 
-[,sh]
+[source,console]
 ----
-ipvsadm -C
-----
-
-If you wish to start over simply run `kubeadm init` or `kubeadm join` with the appropriate arguments.
-
-=== Set HTTP proxy for APT/YUM
-
-* Set HTTP proxy for APT:
-+
-[,sh]
-----
-cat <<EOF > /etc/apt/apt.conf.d/httproxy
-> Acquire::http::Proxy "http://PROXY_HOST:PORT";
-> EOF
-----
-+
-Here is a config _/etc/apt/apt.conf.d/10httproxy_ file:
-+
-----
-Acquire::http::Proxy "http://10.20.30.40:1080";
-Acquire::http::Proxy {
-  # the special keyword DIRECT meaning to use no proxies
-  #security.debian.org DIRECT;
-  #security-cdn.debian.org DIRECT;
-  ftp2.cn.debian.org DIRECT;
-  ftp.cn.debian.org DIRECT;
-  mirror.lzu.edu.cn DIRECT;
-  mirrors.163.com DIRECT;
-  mirrors.huaweicloud.com DIRECT;
-  mirrors.tuna.tsinghua.edu.cn DIRECT;
-  mirrors.ustc.edu.cn DIRECT;
-
-  download.docker.com DIRECT;
-  packages.microsoft.com DIRECT;
-};
+$ ipvsadm -C
 ----
 
-* Set HTTP proxy for YUM:
-+
-[,sh]
+Now remove the node:
+
+[source,console]
 ----
-echo 'proxy=http://PROXY_HOST:PORT' >> /etc/yum.conf
-----
-+
-Here is a complete config _/etc/yum.repos.d/kubernetes.repo_ file:
-+
-[,none]
-----
-[kubernetes]
-name=Kubernetes
-baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
-enabled=1
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-exclude=kube*
-proxy=http://10.20.30.40:1080/
+$ kubectl delete node <node name>
 ----
 
 [bibliography]
@@ -1192,14 +1193,4 @@ proxy=http://10.20.30.40:1080/
 * [[[rhel-7-yum-repo,7]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/ch-yum#sec-Configuring_Yum_and_Yum_Repositories
 * [[[rpm-gpg-verify-packages,8]]] https://www.redhat.com/sysadmin/rpm-gpg-verify-packages
 * [[[create-cluster-kubeadm,9]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
-
-==== aaaaaa
-
-. Installing kubeadm - Kubernetes, https://kubernetes.io/docs/setup/independent/install-kubeadm
-. CRI installation - Kubernetes, https://kubernetes.io/docs/setup/cri/
-. Creating a single master cluster with kubeadm - Kubernetes, https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
-. https://manpages.debian.org/buster/apt/apt.conf.5.en.html[apt.conf - Configuration file for APT]
-. https://wiki.debian.org/AptConfiguration[AptConfiguration]
-. https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/deployment_guide/sec-configuring_yum_and_yum_repositories[8.4. Configuring Yum and Yum Repositories]
-. https://www.cyberciti.biz/faq/centos-redhat-fedora-linux-using-yum-with-a-proxy-server/[CentOS / RHEL / Fedora Linux: Use Yum Command With A Proxy Server]
-. https://unix.stackexchange.com/questions/230246/can-i-set-a-proxy-for-specific-yum-repositories[Can I set a proxy for specific yum repositories?]
+* [[[flannel,10]]] https://github.com/flannel-io/flannel
