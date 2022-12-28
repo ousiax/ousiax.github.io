@@ -1006,6 +1006,88 @@ $ sudo kubeadm init \
     --dry-run
 ----
 
+=== The kubelet drop-in file for systemd
+
+:deb-kubeadm-10-kubeadm-conf: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/deb/kubeadm/10-kubeadm.conf
+:rpm-kubeadm-10-kubeadm-conf: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/rpm/kubeadm/10-kubeadm.conf
+:deb-kubelet-service: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/deb/kubelet/lib/systemd/system/kubelet.service
+:rpm-kubelet-service: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/rpm/kubelet/kubelet.service
+
+_kubeadm_ ships with configuration for how systemd should run the kubelet. Note that the kubeadm CLI command never touches this drop-in file. <<kubeadm-kubelet-integration>>
+
+This configuration file installed by the kubeadm {deb-kubeadm-10-kubeadm-conf}[DEB] or {rpm-kubeadm-10-kubeadm-conf}[RPM] package is written to _/etc/systemd/system/kubelet.service.d/10-kubeadm.conf_ and is used by systemd. It augments the basic {rpm-kubelet-service}[kubelet.service for RPM] or {deb-kubelet-service}[kubelet.service for DEB]:
+
+NOTE: Note: The contents below are just an example.
+
+[source,ini]
+----
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+# This is a file that "kubeadm init" and "kubeadm join" generate at runtime, populating
+# the KUBELET_KUBEADM_ARGS variable dynamically
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+# This is a file that the user can use for overrides of the kubelet args as a last resort. Preferably,
+# the user should use the .NodeRegistration.KubeletExtraArgs object in the configuration files instead.
+# KUBELET_EXTRA_ARGS should be sourced from this file.
+EnvironmentFile=-/etc/default/kubelet
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+----
+
+This file specifies the default locations for all of the files managed by kubeadm for the kubelet.
+
+* The KubeConfig file to use for the TLS Bootstrap is _/etc/kubernetes/bootstrap-kubelet.conf_, but it is only used if _/etc/kubernetes/kubelet.conf_ does not exist.
+* The KubeConfig file with the unique kubelet identity is _/etc/kubernetes/kubelet.conf_.
+* The file containing the kubelet's ComponentConfig is _/var/lib/kubelet/config.yaml_.
+* The dynamic environment file that contains _KUBELET_KUBEADM_ARGS_ is sourced from _/var/lib/kubelet/kubeadm-flags.env_.
+* The file that can contain user-specified flag overrides with _KUBELET_EXTRA_ARGS_ is sourced from _/etc/default/kubelet_ (for DEBs), or _/etc/sysconfig/kubelet_ (for RPMs). _KUBELET_EXTRA_ARGS_ is last in the flag chain and has the highest priority in the event of conflicting settings.
+
+=== Configurations for local ephemeral storage
+
+:volumes-emptyDir: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
+
+Nodes have local ephemeral storage, backed by locally-attached writeable devices or, sometimes, by RAM. "Ephemeral" means that there is no long-term guarantee about durability. <<manage-resources-containers>> <<so-ephemeral-storage>>
+
+Pods use ephemeral local storage for scratch space, caching, and for logs. The kubelet can provide scratch space to Pods using local ephemeral storage to mount {volumes-emptyDir}[emptyDir] volumes into containers.
+
+The kubelet also uses this kind of storage to hold node-level container logs, container images, and the writable layers of running containers.
+
+Kubernetes supports two ways to configure local ephemeral storage on a node: 
+
+* https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-storage-configurations-0[Single filesystem]
++
+In this configuration, you place all different kinds of ephemeral local data (emptyDir volumes, writeable layers, container images, logs) into one filesystem. The most effective way to configure the kubelet means dedicating this filesystem to Kubernetes (kubelet) data.
++
+The kubelet also writes node-level container logs and treats these similarly to ephemeral local storage.
++
+The kubelet writes logs to files inside its configured log directory (_/var/log_ by default); and has a base directory for other locally stored data (_/var/lib/kubelet_ by default).
++
+Typically, both _/var/lib/kubelet_ and _/var/log_ are on the system root filesystem, and the kubelet is designed with that layout in mind.
++
+Your node can have as many other filesystems, not used for Kubernetes, as you like.
+
+* https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-storage-configurations-1[Two filesystems]
++
+You have a filesystem on the node that you're using for ephemeral data that comes from running Pods: logs, and emptyDir volumes. You can use this filesystem for other data (for example: system logs not related to Kubernetes); it can even be the root filesystem.
++
+The kubelet also writes node-level container logs into the first filesystem, and treats these similarly to ephemeral local storage.
++
+You also use a separate filesystem, backed by a different logical storage device. In this configuration, the directory where you tell the kubelet to place container image layers and writeable layers is on this second filesystem.
++
+The first filesystem does not hold any image layers or writeable layers.
++
+Your node can have as many other filesystems, not used for Kubernetes, as you like.
+
+The kubelet can measure how much local storage it is using. It does this provided that you have set up the node using one of the supported configurations for local ephemeral storage.
+
+If you have a different configuration, then the kubelet does not apply resource limits for ephemeral local storage.
+
+NOTE: Note: The kubelet tracks _tmpfs_ emptyDir volumes as container memory use, rather than as local ephemeral storage.
+
+NOTE: Note: The kubelet will only track the root filesystem for ephemeral storage. OS layouts that mount a separate disk to _/var/lib/kubelet_ or _/var/lib/containers_ will not report ephemeral storage correctly.
+
+
 === Installing a Pod network add-on
 
 :cni-network-plugins: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
@@ -1255,3 +1337,6 @@ images:
 * [[[flannel,10]]] https://github.com/flannel-io/flannel
 * [[[bib-metrics-server,11]]] https://github.com/kubernetes-sigs/metrics-server
 * [[[bib-ingress-controllers,12]]] https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
+* [[[manage-resources-containers,13]]] https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+* [[[kubeadm-kubelet-integration,14]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/kubelet-integration/
+* [[[so-ephemeral-storage,15]]] https://stackoverflow.com/questions/70931881/what-does-kubelet-use-to-determine-the-ephemeral-storage-capacity-of-the-node
