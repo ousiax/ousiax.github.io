@@ -918,6 +918,31 @@ sudo kubeadm config images pull \
   --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers
 ----
 
+You can use `ctr` to retag the images back to the default repository `registry.k8s.io`:
+
+[source,sh]
+----
+#!/bin/sh
+kubernetes_version=v1.25.3
+image_repository=registry.cn-hangzhou.aliyuncs.com/google_containers
+images=$(kubeadm config images list \
+    --kubernetes-version $kubernetes_version \
+    --image-repository $image_repository)
+
+for i in $images; do
+    case "$i" in
+        *coredns*) 
+            new_repo="registry.k8s.io/coredns"
+            ;;
+        *)
+            new_repo="registry.k8s.io"
+            ;;
+    esac
+    newtag=$(echo "$i" | sed "s@$image_repository@$new_repo@")
+    ctr -n k8s.io images tag $i $newtag
+done
+----
+
 You can override this behavior by using {kubeadm-init-config-file}[kubeadm with a configuration file].
 
 [source,console]
