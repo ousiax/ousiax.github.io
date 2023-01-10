@@ -63,7 +63,7 @@ front_matter = "= #{title}\n" \
   ":page-tags: [#{tags}]\n" \
   ":page-date: #{revdate}\n" \
   ":page-revdate: #{revdate}\n" \
-  ":toc: premable\n" \
+  ":toc: preamble\n" \
   ":toclevels: 4\n" \
   ":sectnums:\n" \
   ":sectnumlevels: 4\n" \
