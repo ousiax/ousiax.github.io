@@ -128,3 +128,69 @@ With a *simultaneous close* the same number of segments are exchanged as in the 
 
 .Segments exchanged during simultaneous close work like a conventional close, but the segment ordering is interleaved.
 image::/assets/tcp-ip/tcp-connection-management/tcp-simultaneous-close.png[TCP simultaneous close,55%,55%]
+
+=== Initial Sequence Number (ISN)
+
+When a connection is open, any segment with the appropriate two IP addresses and port numbers is accepted as valid provided the sequence number is valid (i.e., within the window) and the checksum is OK.
+
+Before each end sends its SYN to establish the connection, it chooses an ISN for that connection.
+
+* The ISN should change over time, so that each connection has a different one.
++
+[RFC0793] specifies that the ISN should be viewed as a 32-bit counter that increments by 1 every 4μs.
+
+* The purpose of doing this is to arrange for the sequence numbers for segments on one connection to not overlap with sequence numbers on a another (new) identical connection.
+
+* In particular, new sequence numbers must not be allowed to overlap between different _instantiations_ (or _incarnations_) of the _same_ connection.
+
+* In modern systems, the ISN is typically selected in a semirandom way.
+
+If a connection had one of its segments delayed for a long period of time and closed, but then opened again with the same 4-tuple, it is conceivable that the delayed segment could reenter the new connection's data stream as valid data.
+
+* By taking steps to avoid overlap in sequence numbers between connection instantiations, we can try to minimize this risk.
+
+* It does suggest, however, that an application with a very great need for data integrity should employ its own CRCs or checksums at the application layer to ensure that its own data has been transferred without error.
++
+This is generally good practice in any case, and it is commonly done for large files.
+
+The connection 4-tuple as well as the currently active window of sequence numbers is all that is required to form a TCP segment that is considered valid to a communicating TCP endpoint, which represents a form of vulnerability for TCP:
+
+* anyone can forge a TCP segment and, if the sequence numbers, IP addresses, and port numbers are chosen appropriately, can interrupt a TCP connection [RFC5961].
+* One way of repelling this is to make the initial sequence number (or ephemeral port number [RFC6056]) relatively hard to guess. Another is encryption.
+
+=== Example
+
+[source,console]
+----
+x@node-0:~$ telnet github.io 80
+Trying 185.199.108.153...
+Connected to github.io.
+Escape character is '^]'.
+^]
+telnet> q
+Connection closed.
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -ntSv host github.io
+
+IP (tos 0x10, ttl 64, id 29406, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.51610 > 185.199.108.153.80: Flags [S], cksum 0x42b8 (incorrect -> 0xd5cf), seq 2440985640, win 64240, options [mss 1460,sackOK,TS val 1617951924 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 128, id 44533, offset 0, flags [none], proto TCP (6), length 44)
+    185.199.108.153.80 > 192.168.91.128.51610: Flags [S.], cksum 0x11dd (correct), seq 1194142207, ack 2440985641, win 64240, options [mss 1460], length 0
+IP (tos 0x10, ttl 64, id 29407, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.51610 > 185.199.108.153.80: Flags [.], cksum 0x42a4 (incorrect -> 0x299a), ack 1194142208, win 64240, length 0
+IP (tos 0x10, ttl 64, id 29408, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.51610 > 185.199.108.153.80: Flags [F.], cksum 0x42a4 (incorrect -> 0x2999), seq 2440985641, ack 1194142208, win 64240, length 0
+IP (tos 0x0, ttl 128, id 44534, offset 0, flags [none], proto TCP (6), length 40)
+    185.199.108.153.80 > 192.168.91.128.51610: Flags [.], cksum 0x299a (correct), ack 2440985642, win 64239, length 0
+IP (tos 0x0, ttl 128, id 44535, offset 0, flags [none], proto TCP (6), length 40)
+    185.199.108.153.80 > 192.168.91.128.51610: Flags [FP.], cksum 0x2991 (correct), seq 1194142208, ack 2440985642, win 64239, length 0
+IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.51610 > 185.199.108.153.80: Flags [.], cksum 0x2998 (correct), ack 1194142209, win 64240, length 0
+^C
+7 packets captured
+12 packets received by filter
+0 packets dropped by kernel
+----
