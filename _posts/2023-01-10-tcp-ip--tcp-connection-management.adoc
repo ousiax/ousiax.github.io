@@ -1,0 +1,130 @@
+= TCP/IP: TCP Connection Management
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking', 'tcp']
+:page-date: 2023-01-10 10:14:59 +0800
+:page-revdate: 2023-01-10 10:14:59 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+TCP is a unicast *connection-oriented* protocol.
+
+* Before either end can send data to the other, a connection must be established between them.
+
+* During connection establishment, several options can be exchanged between the two endpoints regarding the parameters of the connection.
+
+* Some options are allowed to be sent only when the connection is established, and others can be sent later.
+
+* Because of its management of *connection state* (information about the connection kept by both endpoints), TCP is a considerably more complicated protocol than UDP.
++
+UDP is a *connectionless* protocol that involves no connection establishment or termination.
++
+One of the major differences between the two is the amount of detail required to handle the various TCP states properly: when connections are created, terminated normally, and reset without warning.
+
+Recall that TCP's service model is a byte stream. TCP detects and repairs essentially all the data transfer problems that may be introduced by packet loss, duplication, or errors at the IP layer (or below).
+
+== TCP Connection Establishment and Termination
+
+A TCP *_connection_* is defined to be a 4-tuple consisting of two IP addresses and two port numbers. More precisely, it is a pair of _endpoints_ or _sockets_ where each endpoint is identified by an (IP address, port number) pair.
+
+A connection typically goes through three phases: setup, data transfer (called _established_), and teardown (closing).
+
+.A normal TCP connection establishment and termination (without any data transfer). Usually, the client initiates a three-way handshake to exchange initial sequence numbers carried on SYN segments for the client and server (ISN(c) and ISN(s), respectively). The connection terminates after each side has sent a FIN and received an acknowledgment for it.
+image::/assets/tcp-ip/tcp-connection-management/tcp-connection-establishment-and-termination.png[A normal TCP connection establishment and termination,55%,55%]
+
+To establish a TCP connection, the following events usually take place:
+
+. The *_active opener_* (normally called the client) sends a SYN segment (i.e., a TCP/IP packet with the _SYN_ bit field turned on in the TCP header) specifying the port number of the peer to which it wants to connect and the client's initial sequence number or ISN(c).
++
+It typically sends one or more options at this point.
++
+This is segment 1.
+
+. The server responds with its own SYN segment containing its initial sequence number (ISN(s)).
++
+This is segment 2.
++
+The server also acknowledges the client's SYN by ACKing ISN(c) plus 1.
++
+A SYN consumes one sequence number and is retransmitted if lost.
+
+. The client must acknowledge this SYN from the server by ACKing ISN(s) plus 1.
++
+This is segment 3.
+
+These three segments complete the connection establishment. This is often called the *_three-way handshake_*.
+
+* Its main purposes are to let each end of the connection know that a connection is starting and the special details that are carried as options, and to exchange the ISNs.
+
+* The side that sends the first SYN is said to perform an *active open*. As mentioned, this is typically a client.
+* The other side, which receives this SYN and sends the next SYN, performs a *passive open*. It is most commonly called the server.
+* There is a supported but unusual *simultaneous open* when both sides can do an active open at the same time and become both clients and servers.
+
+Either end can initiate a close operation, and simultaneous closes are also supported but are rare.
+
+* Traditionally, it was most common for the client to initiate a close.
+* However, other servers (e.g., Web servers) initiate a close after they have completed a request.
+* Usually a close operation starts with an application indicating its desire to terminate its connection (e.g., using the `close()` system call).
+* The closing TCP initiates the close operation by sending a FIN segment (i.e., a TCP segment with the _FIN_ bit field set).
+
+The complete close operation occurs after both sides have completed the close:
+
+. The *active closer* sends a FIN segment specifying the current sequence number the receiver expects to see (_K_).
++
+The FIN also includes an ACK for the last data sent in the other direction (labeled _L_).
+
+. The *passive closer* responds by ACKing value _K + 1_ to indicate its successful receipt of the active closer's FIN.
++
+At this point, the application is notified that the other end of its connection has performed a close.
++
+Typically this results in the application initiating its own close operation.
++
+The passive closer then effectively becomes another active closer and sends its own FIN. The sequence number is equal to _L_.
+
+. To complete the close, the final segment contains an ACK for the last FIN.
++
+Note that if a FIN is lost, it is retransmitted until an ACK for it is received.
+
+While it takes three segments to establish a connection, it takes four to terminate one.
+
+It is also possible for the connection to be in a _half-open_ state, although this is not common. This reason is that TCP's data communications model is bidirectional, meaning it is possible to have only one of the two directions operating.
+
+The _half-close_ operation in TCP closes only a single direction of the data flow. Two half-close operations together close the entire connection. The rule is that either end can send a FIN when it is done sending data.
+
+When a TCP receives a FIN, it must notify the application that the other end has terminated that direction of data flow. The sending of a FIN is normally the result of the application issuing a close operation, which typically causes both directions to close.
+
+The seven segments we have seen are baseline overheads for any TCP connection that is established and cleared gracefully.
+
+* When a small amount of data needs to be exchanged, it is now apparent why some applications prefer to use UDP because of its ability to send and receive data without establishing connections.
+
+* However, such applications are then faced with handling their own error repair features, congestion management, and flow control.
+
+=== TCP Half-Close
+
+TCP supports a half-close operation. Few applications require this capability, so it is not common.
+
+To use this feature, the API must provide a way for the application to say, essentially, "I am done sending data, so send a FIN to the other end, but I still want to receive data from the other end, until it sends me a FIN".
+
+The Berkeley sockets API supports half-close, if the application calls the `shutdown()` function instead of calling the more typical `close()` function. Most applications, however, terminate both directions of the connection by calling `close`.
+
+.With the TCP half-close operation, one direction of the connection can terminate while the other continues until it is closed. Few applications use this feature.
+image::/assets/tcp-ip/tcp-connection-management/tcp-half-close-operation.png[TCP half close,45%,45%]
+
+=== Simultaneous Open and Close
+
+It is possible, although highly improbable unless specifically arranged, for two applications to perform an active open to each other at the same time. If this happens, it is called a *simultaneous open*.
+
+* Each end must have transmitted a SYN before receiving a SYN from the other side; the SYNs must pass each other on the network.
+* This scenario also requires each end to have an IP address and port number that are known to the other end, which is rare (except for the firewall _hole-punching_ techniques).
+* A simultaneous open requires the exchange of four segments, one more than the normal three-way handshake.
+* Also note that we do not call either end a client or a server, because both ends act as client and server.
+
+.Segments exchanged during simultaneous open. One additional segment is required compared to the ordinary connection establishment procedure. The SYN bit field is on in each segment until an ACK for it is received.
+image::/assets/tcp-ip/tcp-connection-management/tcp-simultaneous-open.png[TCP simultaneous open,55%,55%]
+
+With a *simultaneous close* the same number of segments are exchanged as in the normal close. The only real difference is that the segment sequence is interleaved instead of sequential.
+
+.Segments exchanged during simultaneous close work like a conventional close, but the segment ordering is interleaved.
+image::/assets/tcp-ip/tcp-connection-management/tcp-simultaneous-close.png[TCP simultaneous close,55%,55%]
