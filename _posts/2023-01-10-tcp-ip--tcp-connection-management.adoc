@@ -194,3 +194,79 @@ IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
 12 packets received by filter
 0 packets dropped by kernel
 ----
+
+=== Timeout of Connection Establishment
+
+There are several circumstances in which a connection cannot be established. One obvious case is when the server host is down.
+
+To simulate this scenario, we issue our telnet command to a nonexistent host in the same subnet.
+
+* If we do this without modifying the ARP table, the client exits with a "No route to host" error message, generated because no ARP reply is ever returned for the ARP request.
+* If, however, we place an ARP entry for a nonexistent host in the ARP table first, the ARP request is not sent, and the system immediately attempts to contact the nonexistent host with TCP/IP. First, the commands:
++
+[source,console]
+----
+x@node-0:~$ sudo ip neigh add 192.168.91.120 lladdr 00:00:1a:1b:1c:1d dev ens32
+----
++
+Here the MAC address `00:00:1a:1b:1c:1d` was chosen simply as a MAC address not being used on the LAN; it is of no special consequence.
+
+* The timeout occurs about 2 minutes after the initial command.
++
+[source,console]
+----
+x@node-0:~$ time telnet 192.168.91.120 80
+Trying 192.168.91.120...
+telnet: Unable to connect to remote host: Connection timed out
+
+real	2m11.038s
+user	0m0.002s
+sys	0m0.001s
+----
+
+* Because there is no host to respond, all of the segments generated are from the client.
++
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -ntttSvv host 192.168.91.120
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+ 00:00:00.000000 IP (tos 0x10, ttl 64, id 28344, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0xb088), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492721928 ecr 0,nop,wscale 7], length 0
+ 00:00:01.018720 IP (tos 0x10, ttl 64, id 28345, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0xac8d), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492722947 ecr 0,nop,wscale 7], length 0
+ 00:00:02.016512 IP (tos 0x10, ttl 64, id 28346, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0xa4ad), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492724963 ecr 0,nop,wscale 7], length 0
+ 00:00:04.096269 IP (tos 0x10, ttl 64, id 28347, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0x94ad), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492729059 ecr 0,nop,wscale 7], length 0
+ 00:00:08.191479 IP (tos 0x10, ttl 64, id 28348, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0x74ad), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492737251 ecr 0,nop,wscale 7], length 0
+ 00:00:16.128796 IP (tos 0x10, ttl 64, id 28349, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0x35ac), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492753380 ecr 0,nop,wscale 7], length 0
+ 00:00:34.047254 IP (tos 0x10, ttl 64, id 28350, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.47586 > 192.168.91.120.80: Flags [S], cksum 0x3878 (incorrect -> 0xb0ac), seq 54668487, win 64240, options [mss 1460,sackOK,TS val 1492787427 ecr 0,nop,wscale 7], length 0
+^C
+7 packets captured
+7 packets received by filter
+0 packets dropped by kernel
+----
+
+The number of times to retry an initial SYN can be configured on some systems. In Linux,
+
+* the system configuration variable `net.ipv4.tcp_syn_retries` gives the maximum number of times to attempt to resend a SYN segment during an active open.
+
+* A corresponding value called `net.ipv4.tcp_synack_retries` gives the maximum number of times to attempt to resend a SYN + ACK segment when responding to a peer's active open request.
+
+* It can also be used on an individual connection basis by setting the Linux-specific TCP_SYNCNT socket option.
++
+[source,console]
+----
+x@node-0:~$ sudo sysctl net.ipv4.tcp_syn_retries net.ipv4.tcp_synack_retries
+net.ipv4.tcp_syn_retries = 6
+net.ipv4.tcp_synack_retries = 5
+
+x@node-0:~$ man 7 tcp
+...
+TCP_SYNCNT (since Linux 2.4)
+       Set the number of SYN retransmits that TCP should send before aborting the attempt to connect.  It cannot exceed 255.  This option should not be used
+       in code intended to be portable.
+----
