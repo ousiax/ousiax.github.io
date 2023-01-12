@@ -516,3 +516,112 @@ TCP-AO improves upon TCP-MD5 by supporting a variety of cryptographic algorithms
 However, because it requires creation and distribution of a shared key (and is a relatively new option), it is not yet widely deployed.
 
 == Path MTU Discovery with TCP
+
+The path MTU is the minimum MTU on any network segment that is currently in the path between two hosts.
+
+* Knowing the path MTU can help protocols such as TCP avoid fragmentation.
+
+* The discovering of the path MTU (PMTUD) is accomplished based on ICMP messages.
++
+We shall use the ICMPv6 Packet Too Big (PTB) terminology to refer to either ICMPv4 Destination Unreachable (Fragmentation Required) or ICMPv6 Packet Too Big messages.
++
+A method that avoids the use of ICMP, called _Packetization Layer Path MTU Discovery_ (PLPMTUD), can also be used by TCP [RFC4821] or by other transport protocols.
+
+* UDP is not usually able to adapt its datagram size because the application specifies the size (i.e., not the transport protocol).
++
+TCP, in providing the byte stream abstraction it implements, determines what segment size to use and as a result has a much greater degree of control over the size of IP datagrams that are ultimately generated.
+
+TCP's regular PMTUD process operates as follows:
+
+* When a connection is established, TCP uses the minimum of the MTU of the outgoing interface, or the MSS announced by the other end, as the basis for selecting its _send maximum segment size_ (SMSS).
+
+* PMTUD does not allow TCP to exceed the MSS announced by the other end.
+
+* If the other end does not specify an MSS, the sender assumes a default of 536 bytes, but this situation is now rare.
+
+* It is also possible for an implementation to save path MTU information on a per-destination basis to help in selecting its segment size.
+
+* Note that the path MTU in each direction of a connection could be different.
+
+* Once the initial SMSS is chosen, all IPv4 datagrams sent by TCP on that connection have the IPv4 _DF_ bit field set.
++
+For TCP/IPv6, this is not necessary because there is no DF bit field; all datagrams are assumed to have it set implicitly.
+
+* If a PTB is received, TCP decreases the segment size and retransmits using a different segment size.
++
+If the PTB contains the suggested next-hop MTU, the segment size can be set to the next-hop MTU minus the sizes of the IPv4 (or IPv6) and TCP headers.
++
+If the next-hop MTU value is not present (e.g., an older ICMP error was returned that lacks this information), the sender may try a variety of values (e.g., binary-search for a usable value).
++
+This also affects TCP's congestion control management.
+
+* For PLPMTUD the situation is similar, except PTB messages are not used.
++
+Instead, the protocol performing PMTUD must be able to detect message discards quickly and perform its own datagram size adjustments.
+
+* Because routes can change dynamically, when some time has passed since the last decrease of the segment size, a larger value (up to the initial SMSS) can be tried.
++
+Guidance in [RFC1191] and [RFC1981] recommends that this time interval be about 10 minutes.
+
+There are a number of problems with PMTUD when it operates in an Internet environment with firewalls that block PTB messages [RFC2923].
+
+Of the various operational problems with PMTUD, *_black holes_* have been the most problematic, although the situation is improving (in [LS10], 80% of systems studied were able to properly process PTB messages).
+
+PMTUD _black holes_ arise when a TCP implementation that depends on the delivery of ICMP messages to adjust its segment size never receives them.
+
+* This could be for several reasons, including a firewall or NAT configuration that prohibits such ICMP messages from being forwarded.
+
+* The consequence is a TCP connection that cannot proceed once it starts to use larger packets.
+
+* It can be difficult to diagnose because only large packets cannot be forwarded.
++
+The smaller ones (such as SYN and SYN + ACK packets used to establish the connection) generally succeed.
+
+Some TCP implementations have _black hole detection_, which amounts to trying a smaller segment size when a segment is retransmitted several times.
+
+\# a router (`node-1`, a Linux host with local address `192.168.91.137`)
+
+[source,console]
+----
+x@node-1:~$ sudo sysctl net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.all.send_redirects = 0
+x@node-1:~$ sudo sysctl net.ipv4.conf.ens32.send_redirects=0
+net.ipv4.conf.ens32.send_redirects = 0
+x@node-1:~$ sudo sysctl net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+
+x@node-1:~$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.137 
+
+x@node-1:~$ sudo ip link set ens32 mtu 288
+x@node-1:~$ ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 288 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+----
+
+\# the client system (`node-0`) that small segments are allowed:
+
+[source,console]
+----
+x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu 
+net.ipv4.route.min_pmtu = 552
+x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu=68
+net.ipv4.route.min_pmtu = 68
+
+x@node-0:~$ sudo sysctl net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.all.accept_redirects = 0
+x@node-0:~$ sudo sysctl net.ipv4.conf.ens32.accept_redirects=0
+net.ipv4.conf.ens32.accept_redirects = 0
+
+x@node-0:~$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+x@node-0:~$ sudo ip r del default 
+x@node-0:~$ sudo ip r add default via 192.168.91.137 dev ens32 
+x@node-0:~$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+----
