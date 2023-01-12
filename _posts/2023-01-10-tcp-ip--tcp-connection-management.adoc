@@ -270,3 +270,249 @@ TCP_SYNCNT (since Linux 2.4)
        Set the number of SYN retransmits that TCP should send before aborting the attempt to connect.  It cannot exceed 255.  This option should not be used
        in code intended to be portable.
 ----
+
+== TCP Options
+
+The only options defined in the original TCP specification are the _End of Option List_ (EOL), the _No Operation_ (NOP), and the _Maximum Segment Size_ (MSS) options.
+
+.The TCP option values. Up to 40 bytes are available to hold options.
+[%header,cols="1,1,2,1,5"]
+|===
+|Kind
+|Length
+|Name
+|Reference
+|Description and Purpose
+
+|0
+|1
+|EOL
+|[RFC0793]
+|End of Option List
+
+|1
+|1
+|NOP
+|[RFC0793]
+|No Operation (used for padding)
+
+|2
+|4
+|MSS
+|[RFC0793]
+|Maximum Segment Size
+
+|3
+|3
+|WSOPT
+|[RFC1323]
+|Window Scaling Factor (left-shift amount on window)
+
+|4
+|2
+|SACK-Permitted
+|[RFC2018]
+|Sender supports SACK options
+
+|5
+|Var.
+|SACK
+|[RFC2018]
+|SACK block (out-of-order data received)
+
+|8
+|10
+|TSOPT
+|[RFC1323]
+|Timestamps option
+
+|28
+|4
+|UTO
+|[RFC5482]
+|User Timeout (abort after idle time)
+
+|29
+|Var.
+|TCP-AO
+|[RFC5925]
+|Authentication option (using various algorithms)
+
+|253
+|Var.
+|Experimental
+|[RFC4727]
+|Reserved for experimental use
+
+|254
+|Var.
+|Experimental
+|[RFC4727]
+|Reserved for experimental use
+
+|===
+
+* Every option begins with a 1-byte _kind_ that specifies the type of option.
+
+* Options that are not understood are simply ignored, according to [RFC1122].
+
+* The options with a _kind_ value of 0 and 1 occupy a single byte.
+
+* The other options have a _len_ byte that follows the _kind_ byte. The length is the total length, including the _kind_ and _len_ bytes.
+
+* The reason for the NOP option is to allow the sender to pad fields to a multiple of 4 bytes, if it needs to.
++
+Remember that the TCP header's length is always required to be a multiple of 32 bits because the TCP _Header Length_ field uses that unit.
+
+* The EOL option indicates the end of the list and that no further processing of the options list is to be performed.
+
+=== Maximum Segment Size (MSS) Option
+
+The maximum segment size (MSS) is the largest segment that a TCP is willing to receive from its peer and, consequently, the largest size its peer should ever use when sending.
+
+* The MSS value counts only TCP data bytes and does not include the sizes of any associated TCP or IP header [RFC0879].
+
+* When a connection is established, each end usually announces its MSS in an MSS option carried with its SYN segment.
+
+* The option allows for 16 bits to be used to specify the MSS value.
+
+* If no MSS option is provided, a default value of 536 bytes is used.
++
+Recall the rule that requires any host to be capable of processing IPv4 datagrams at least as large as 576.
++
+With minimum-size IPv4 and TCP headers, a TCP using a sending MSS size of 536 bytes produces an IPv4 datagram of size 20 + 20 + 536 = 576 bytes.
+
+* The MSS value 1460 is typical for IPv4.
++
+The resulting IPv4 datagram is normally 40 bytes larger (1500 bytes total, the typical MTU size for Ethernet and path MTU for the Internet): 20 bytes for the TCP header and 20 bytes for the IPv4 header.
+
+* When IPv6 is used, the MSS is usually 1440, 20 bytes less because of the larger IPv6 header.
++
+The special MSS value of 65535 can be used with IPv6 jumbograms to indicate an effective MSS of infinity [RFC2675].
++
+In this case the SMSS will be determined as the PMTU minus 60 bytes (40 bytes for the IPv6 header and 20 bytes for the TCP header).
+
+* Note that the MSS option is not a negotiation between one TCP and its peer; it is a limit.
++
+When one TCP gives its MSS option to the other, it is indicating its unwillingness to accept any segments larger than that size for the duration of the connection.
+
+=== Selective Acknowledgment (SACK) Options
+
+Because it uses cumulative ACKs, TCP with a sliding window is never able to acknowledge data it has received correctly but that is not contiguous, in terms of sequence numbers, with data it has received previously.
+
+* In such cases, the TCP receiver is said to have _holes_ in its received data queue.
+* A receiving TCP prevents applications from consuming data beyond a hole because of the byte stream abstraction it provides.
+
+If a TCP sender were able to learn of the existence of holes (and out-of-sequence data blocks beyond holes in the sequence space) at the receiver, it could better select which particular TCP segments to retransmit when segments are lost or otherwise missing at the receiver.
+
+* The TCP selective acknowledgment (SACK) options [RFC2018][RFC2883] provide this capability.
+* The scheme works effectively, however, only if the TCP sender logic is able to make effective use of the SACK information it receives from a SACK-capable receiver.
+* A TCP learns that its peer is capable of advertising SACK information by receiving the _SACK-Permitted_ option in a SYN (or SYN + ACK) segment.
+* Once this has taken place, the TCP receiving out-of-sequence data may provide a _SACK_ option that describes the out-of-sequence data to help its peer perform retransmissions more efficiently.
+
+SACK information contained in a SACK option consists of a range of sequence numbers representing data blocks the receiver has successfully received.
+
+* Each range is called a SACK _block_ and is represented by a pair of 32-bit sequence numbers.
+
+* Thus, a _SACK_ option containing _n_ SACK blocks is (_8n + 2_) bytes long. Two bytes are used to hold the kind and length of the _SACK_ option.
+
+* Because of the limited amount of space available in the option space of a TCP header, the maximum number of SACK blocks available to be sent in a single segment is three (assuming the _Timestamps_ option is also used, which is typical for modern TCP implementations).
+
+* Although the _SACK-Permitted_ option is only ever sent in a SYN segment, the SACK blocks themselves may be sent in any segment once the sender has sent the _SACK-Permitted_ option.
+
+* The operation of SACK is most easily (and importantly) related to the error and congestion control operations of TCP.
+
+=== Window Scale (WSCALE or WSOPT) Option
+
+The _Window Scale_ option (denoted _WSCALE_ or _WSOPT_) [RFC1323] effectively increases the capacity of the TCP _Window Advertisement_ field from 16 to about 30 bits.
+
+Instead of changing the field size, however, the header still holds a 16-bit value, and an option is defined that applies a scaling factor to the 16-bit value.
+
+* This factor effectively left-shifts the window field value by the scale factor.
++
+This, in effect, multiplies the window value by the value 2^s^, where _s_ is the scale factor.
+
+* The 1-byte shift count is between 0 and 14 (inclusive).
+
+** A shift count of 0 indicates no scaling.
+** The maximum scale value of 14 provides for a maximum window of 1,073,725,440 bytes (65,535 × 2^14^), close to 1,073,741,823 (2^30^ −1), effectively 1GB.
++
+TCP then maintains the _real_ window size internally as a 32-bit value.
+
+This option can appear only in a SYN segment, so the scale factor is fixed in each direction when the connection is established.
+
+* To enable window scaling, both ends must send the option in their SYN segments.
+* The end doing the active open sends the option in its SYN, but the end doing the passive open can send the option only if the received SYN specifies the option.
+* The scale factor can be different in each direction.
++
+If the end doing the active open sends a nonzero scale factor but does not receive a _Window Scale_ option from the other end, it sets its send and receive scale values to 0.
++
+This lets systems that do not understand the option interoperate with systems that do.
+
+Assume we are using the _Window Scale_ option, with a shift count of _S_ for sending and a shift count of _R_ for receiving.
+
+* Then every 16-bit advertised window that we receive from the other end is left-shifted by _R_ bits to obtain the real advertised window size.
+* Every time we send a window advertisement to the other end, we take our real 32-bit window size and right-shift it _S_ bits, placing the resulting 16-bit value in the TCP header.
+
+The shift count is automatically chosen by TCP, based on the size of the receive buffer. The size of this buffer is set by the system, but the capability is normally provided for the application to change it.
+
+The _Window Scale_ option is most relevant when TCP is used to provide bulk data transfer over networks with large-bandwidth-delay products (i.e., those with a product of round-trip time and bandwidth being relatively large).
+
+[source,console]
+----
+IP (tos 0xc0, ttl 200, id 64132, offset 0, flags [DF], proto TCP (6), length 52, bad cksum 0 (->f66f)!)
+    10.170.109.10.50979 > 175.24.154.66.443: Flags [S], cksum 0xc135 (incorrect -> 0x82a4), seq 3917970949, win 64240, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0
+IP (tos 0x20, ttl 52, id 0, offset 0, flags [DF], proto TCP (6), length 52)
+    175.24.154.66.443 > 10.170.109.10.50979: Flags [S.], cksum 0xdacf (correct), seq 2258807318, ack 3917970950, win 29200, options [mss 1440,nop,nop,sackOK,nop,wscale 7], length 0
+IP (tos 0xc0, ttl 200, id 64133, offset 0, flags [DF], proto TCP (6), length 40, bad cksum 0 (->f67a)!)
+    10.170.109.10.50979 > 175.24.154.66.443: Flags [.], cksum 0xc129 (incorrect -> 0x8b99), ack 2258807319, win 517, length 0
+----
+
+=== Timestamps Option and Protection against Wrapped Sequence Numbers (PAWS)
+
+The _Timestamps_ option (sometimes called the _Timestamp_ option and written as _TSOPT_ or _TSopt_) lets the sender place two 4-byte timestamp values in every segment.
+
+The receiver reflects these values in the acknowledgment, allowing the sender to calculate an estimate of the connection's RTT for each ACK received.
+
+* We must say "each ACK received" and not "each segment" because TCP often acknowledges multiple segments per ACK.
+
+* When using the _Timestamps_ option,
+
+** the sender places a 32-bit value in the _Timestamp Value_ field (called _TSV_ or _TSval_) in the first part of the _TSOPT_,
+** and the receiver echoes this back unchanged in the second _Timestamp Echo Retry_ field (called _TSER_ or _TSecr_).
+
+* TCP headers containing this option increase by 10 bytes (8 bytes for the two timestamp values and 2 to indicate the option value and length).
+
+* The timestamp is a monotonically increasing value.
+
+** Because the receiver simply echoes what it receives, it does not care what the timestamp units or values actually are.
+** This option does not require any form of clock synchronization between the two hosts.
+** [RFC1323] recommends that the sender increment the timestamp value by at least 1 every second.
+
+The main reason for wishing to calculate a good estimate of the connection's RTT is to set the retransmission timeout, which tells TCP when it should try resending a segment that is likely lost.
+
+* With the _Timestamps_ option, we can get relatively fine-grain measurements of the RTT.
+* Prior to the creation of the _Timestamps_ option, most TCPs would perform just one RTT sample per window of data.
+* With the _Timestamps_ option, more samples can be taken, leading to the potential of a better RTT estimate (see [RFC1323] and [RFC6298]).
+
+The _Timestamps_ option allows for more frequent RTT samples, but it also provides a way for the receiver to avoid receiving old segments and considering them as valid, which is called _Protection Against Wrapped Sequence Numbers_ (PAWS), and it is described in [RFC1323] along with the _Timestamps_ option.
+
+=== User Timeout (UTO) Option
+
+The _User Timeout_ (UTO) option is a relatively new TCP capability described in [RFC5482]. The UTO value (also called _USER_TIMEOUT_) specifies the amount of time a TCP sender is willing to wait for an ACK of outstanding data before concluding that the remote end has failed.
+
+_USER_TIMEOUT_ has traditionally been a local configuration parameter for TCP [RFC0793]. The UTO option allows one TCP to signal its _USER_TIMEOUT_ value to its connection peer. This allows the receiving TCP to adjust its behavior (e.g., to tolerate a longer period of disrupted connectivity prior to aborting a connection). NAT devices could also interpret such information to help set their connection activity timers.
+
+UTO option values are advisory; just because one end of a connection might wish to use a large or small UTO value does not mean that the other end needs to comply.
+
+UTO options are included on SYN segments when a connection is established, on the first non-SYN segments, and whenever the _USER_TIMEOUT_ value is changed. The option value is expressed as a 15-bit value in units of seconds or minutes following a bit field (_granularity_) that indicates that the value is in minutes (_1_) or seconds (_0_). As a relatively new option, it is not yet widely deployed.
+
+=== Authentication Option (TCP-AO)
+
+There is an option used to enhance the security of TCP connections. It is designed to enhance and replace an earlier mechanism called _TCP-MD5_ [RFC2385]. Called the _TCP Authentication Option_ (TCP-AO) [RFC5925], it uses a cryptographic hash algorithm, in combination with a secret value known to each end of a TCP connection, to authenticate each segment.
+
+TCP-AO improves upon TCP-MD5 by supporting a variety of cryptographic algorithms and identifying changing of keys using in-band signaling. It does not provide a comprehensive key management solution, however. That is, each end still has to have a way to establish a shared set of keys prior to operation.
+
+However, because it requires creation and distribution of a shared key (and is a relatively new option), it is not yet widely deployed.
+
+== Path MTU Discovery with TCP
