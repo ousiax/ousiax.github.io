@@ -579,49 +579,72 @@ The smaller ones (such as SYN and SYN + ACK packets used to establish the connec
 
 Some TCP implementations have _black hole detection_, which amounts to trying a smaller segment size when a segment is retransmitted several times.
 
-\# a router (`node-1`, a Linux host with local address `192.168.91.137`)
+== TCP State Transitions
 
+The rules which types of segments are sent during different phases of a TCP connection that determine what TCP does are determined by what state TCP is in.
+
+The current state is changed based on various stimuli, such as segments that are transmitted or received, timers that expire, application reads or writes, or information from other layers.
+
+These rules can be summarized in TCP's state transition diagram.
+
+.The TCP state transition diagram (also called finite state machine). Arrows represent transitions between states due to segment transmission, segment reception, or timers expiring. The bold arrows indicate typical client behavior, and the dashed arrows indicate typical server behavior. The boldface directives (e.g., open, close) are actions performed by applications.
+image::/assets/tcp-ip/tcp-connection-management/tcp-state-transistion-digram.png[TCP state transition diagram,55%,55%]
+
+* States are indicated by ovals and transitions between states by arrows. Each endpoint of a connection transitions through the states.
+
+* The state CLOSED is not really an _official_ state but has been added as a useful starting point and ending point for the diagram.
+
+* The names of the 11 states (CLOSED, LISTEN, SYN_SENT, etc.) are based on the names output by the `netstat` command in UNIX, Linux, and Windows, which are themselves based on the names originally used in [RFC0793].
++
 [source,console]
 ----
-x@node-1:~$ sudo sysctl net.ipv4.conf.all.send_redirects=0
-net.ipv4.conf.all.send_redirects = 0
-x@node-1:~$ sudo sysctl net.ipv4.conf.ens32.send_redirects=0
-net.ipv4.conf.ens32.send_redirects = 0
-x@node-1:~$ sudo sysctl net.ipv4.ip_forward=1
-net.ipv4.ip_forward = 1
-
-x@node-1:~$ ip r
-default via 192.168.91.2 dev ens32 
-192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.137 
-
-x@node-1:~$ sudo ip link set ens32 mtu 288
-x@node-1:~$ ip a show ens32 
-2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 288 qdisc pfifo_fast state UP group default qlen 1000
-    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
-    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
-       valid_lft forever preferred_lft forever
+x@node-1:~$ netstat -nat4
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp        0      0 127.0.0.1:6010          0.0.0.0:*               LISTEN     
+tcp        0    316 192.168.91.137:22       192.168.91.1:55776      ESTABLISHED
+x@node-1:~$ ss -nat4
+State                 Recv-Q                Send-Q                                 Local Address:Port                                 Peer Address:Port                 
+LISTEN                0                     128                                          0.0.0.0:22                                        0.0.0.0:*                    
+LISTEN                0                     128                                        127.0.0.1:6010                                      0.0.0.0:*                    
+ESTAB                 0                     36                                    192.168.91.137:22                                   192.168.91.1:55776                
 ----
-
-\# the client system (`node-0`) that small segments are allowed:
-
++
 [source,console]
 ----
-x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu 
-net.ipv4.route.min_pmtu = 552
-x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu=68
-net.ipv4.route.min_pmtu = 68
+PS C:\> netstat -na -p tcp
 
-x@node-0:~$ sudo sysctl net.ipv4.conf.all.accept_redirects=0
-net.ipv4.conf.all.accept_redirects = 0
-x@node-0:~$ sudo sysctl net.ipv4.conf.ens32.accept_redirects=0
-net.ipv4.conf.ens32.accept_redirects = 0
+Active Connections
 
-x@node-0:~$ ip r
-default via 192.168.91.2 dev ens32 
-192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
-x@node-0:~$ sudo ip r del default 
-x@node-0:~$ sudo ip r add default via 192.168.91.137 dev ens32 
-x@node-0:~$ ip r
-default via 192.168.91.137 dev ens32 
-192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+  Proto  Local Address          Foreign Address        State
+  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING
+  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING
+  TCP    0.0.0.0:902            0.0.0.0:0              LISTENING
+  TCP    0.0.0.0:912            0.0.0.0:0              LISTENING
+  TCP    0.0.0.0:5040           0.0.0.0:0              LISTENING
+  TCP    10.170.109.10:139      0.0.0.0:0              LISTENING
+  TCP    10.170.109.10:7680     10.170.108.1:64345     TIME_WAIT
+  TCP    10.170.109.10:7680     10.170.108.1:64354     TIME_WAIT
+  TCP    10.170.109.10:60491    10.170.100.40:443      TIME_WAIT
+  TCP    10.170.109.10:60492    10.170.100.40:443      ESTABLISHED
+  TCP    10.170.109.10:60493    10.170.100.40:443      ESTABLISHED
+  TCP    10.170.109.10:60495    113.108.239.225:443    TIME_WAIT
+  TCP    10.170.109.10:60496    113.108.239.225:443    TIME_WAIT
+  TCP    10.170.109.10:60497    113.108.239.225:443    TIME_WAIT
+  TCP    10.170.109.10:60500    10.170.111.1:7680      SYN_SENT
+  TCP    10.170.109.10:60501    52.184.217.56:443      ESTABLISHED
+  TCP    10.170.109.10:60502    10.171.95.148:7680     SYN_SENT
+  TCP    10.170.109.10:60503    40.70.229.150:443      ESTABLISHED
+  TCP    10.170.109.10:60506    10.170.100.40:443      TIME_WAIT
+  TCP    10.170.109.10:60508    23.5.241.238:443       ESTABLISHED
+  TCP    127.0.0.1:49805        0.0.0.0:0              LISTENING
+  TCP    127.0.0.1:50000        0.0.0.0:0              LISTENING
+  TCP    127.0.0.1:58165        127.0.0.1:60480        TIME_WAIT
+  TCP    127.0.0.1:58165        127.0.0.1:60481        TIME_WAIT
+  TCP    127.0.0.1:60461        127.0.0.1:58165        TIME_WAIT
+  TCP    127.0.0.1:65123        0.0.0.0:0              LISTENING
+  TCP    169.254.24.54:139      0.0.0.0:0              LISTENING
+  TCP    192.168.56.1:139       0.0.0.0:0              LISTENING
+  TCP    192.168.91.1:139       0.0.0.0:0              LISTENING
 ----
