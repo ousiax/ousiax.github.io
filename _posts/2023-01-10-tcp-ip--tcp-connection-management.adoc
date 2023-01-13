@@ -618,33 +618,109 @@ PS C:\> netstat -na -p tcp
 Active Connections
 
   Proto  Local Address          Foreign Address        State
-  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING
-  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING
-  TCP    0.0.0.0:902            0.0.0.0:0              LISTENING
   TCP    0.0.0.0:912            0.0.0.0:0              LISTENING
   TCP    0.0.0.0:5040           0.0.0.0:0              LISTENING
-  TCP    10.170.109.10:139      0.0.0.0:0              LISTENING
-  TCP    10.170.109.10:7680     10.170.108.1:64345     TIME_WAIT
-  TCP    10.170.109.10:7680     10.170.108.1:64354     TIME_WAIT
-  TCP    10.170.109.10:60491    10.170.100.40:443      TIME_WAIT
-  TCP    10.170.109.10:60492    10.170.100.40:443      ESTABLISHED
-  TCP    10.170.109.10:60493    10.170.100.40:443      ESTABLISHED
-  TCP    10.170.109.10:60495    113.108.239.225:443    TIME_WAIT
-  TCP    10.170.109.10:60496    113.108.239.225:443    TIME_WAIT
-  TCP    10.170.109.10:60497    113.108.239.225:443    TIME_WAIT
-  TCP    10.170.109.10:60500    10.170.111.1:7680      SYN_SENT
-  TCP    10.170.109.10:60501    52.184.217.56:443      ESTABLISHED
   TCP    10.170.109.10:60502    10.171.95.148:7680     SYN_SENT
-  TCP    10.170.109.10:60503    40.70.229.150:443      ESTABLISHED
-  TCP    10.170.109.10:60506    10.170.100.40:443      TIME_WAIT
-  TCP    10.170.109.10:60508    23.5.241.238:443       ESTABLISHED
   TCP    127.0.0.1:49805        0.0.0.0:0              LISTENING
-  TCP    127.0.0.1:50000        0.0.0.0:0              LISTENING
   TCP    127.0.0.1:58165        127.0.0.1:60480        TIME_WAIT
   TCP    127.0.0.1:58165        127.0.0.1:60481        TIME_WAIT
   TCP    127.0.0.1:60461        127.0.0.1:58165        TIME_WAIT
   TCP    127.0.0.1:65123        0.0.0.0:0              LISTENING
   TCP    169.254.24.54:139      0.0.0.0:0              LISTENING
-  TCP    192.168.56.1:139       0.0.0.0:0              LISTENING
-  TCP    192.168.91.1:139       0.0.0.0:0              LISTENING
 ----
+
+=== TIME_WAIT (2MSL Wait) State
+
+The *TIME_WAIT* state is also called the *2MSL* wait state, which is a state in which TCP waits for a time equal to twice the _Maximum Segment Lifetime_ (MSL), sometimes called _timed wait_. It is the maximum amount of time any segment can exist in the network before being discarded.
+
+.TCP states corresponding to normal connection establishment and termination
+image::/assets/tcp-ip/tcp-connection-management/tcp-state-normal-estab-term.png[TCP states corresponding to normal connection establishment and termination,55%,55%]
+
+[RFC0793] specifies the MSL as 2 minutes. Common implementation values, however, are 30s, 1 minute, or 2 minutes.
+
+* On Linux, the value `net.ipv4.tcp_fin_timeout` holds the 2MSL wait timeout value (in seconds).
+
+* On Windows, the following registry key: `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\TcpTimedWaitDelay` holds the timeout. It is permitted to be in the range of 30 to 300s. For IPv6, replace the term _Tcpip_ with _Tcpip6_.
+
+Given the MSL value for an implementation, the rule is: _When TCP performs an active close and sends the final ACK, that connection must stay in the TIME_WAIT state for twice the MSL._ This lets TCP resend the final ACK in case it is lost.
+
+* The final ACK is resent not because the TCP retransmits ACKs (they do not consume sequence numbers and are not retransmitted by TCP), but because the other side will retransmit its FIN (which does consume a sequence number).
+
+* Indeed, TCP will always retransmit FINs until it receives a final ACK.
+
+Another effect of this 2MSL wait state is that _while the TCP implementation waits, the endpoints defining that connection cannot be reused_. That connection defined by the address/port 4-tuple can be reused
+
+* only when the 2MSL wait is over, or
+* when a new connection uses an ISN that exceeds the highest sequence number used on the previous instantiation of the connection [RFC1122], or
+* if the use of the _Timestamps_ option allows the disambiguation of segments from a previous connection instantiation to not otherwise be confused [RFC6191].
+
+Unfortunately, some implementations impose a more stringent constraint. In these systems, a local port number cannot be reused while that port number is the local port number of any endpoint that is in the 2MSL wait state on the system.
+
+Most implementations and APIs provide a way to bypass this restriction.
+
+With the Berkeley sockets API, the `SO_REUSEADDR` socket option enables the bypass operation.
+
+* It lets the caller assign itself a local port number even if that port number is part of some connection in the 2MSL wait state.
+
+* We will see, however, that even with this bypass mechanism for one socket (address, port number pair), the rules of TCP still (should) prevent this port number from being reused by another instantiation of the same connection that is in the 2MSL wait state.
+
+* Any delayed segments that arrive for a connection while it is in the 2MSL wait state are discarded.
++
+Because the connection defined by the address/port 4-tuple in the 2MSL wait state cannot be reused during this time period, when a valid connection is finally established, we know that delayed segments from an earlier instantiation of this connection cannot be misinterpreted as being part of the new connection.
+
+For interactive applications, it is normally the client that does the active close and enters the TIME_WAIT state. The server usually does the passive close and does not go through the TIME_WAIT state.
+
+* The implication is that if we terminate a client, and restart the same client immediately, that new client cannot reuse the same local port number.
++
+This is not ordinarily a problem, because clients normally use ephemeral ports assigned by the operating system and do not care what the assigned port number is.
++
+Recall, it is actually a recommended practice for them to be randomized for security reasons [RFC6056].
++
+This is important to know because a client that makes a large number of connections quickly (especially to the same server) could conceivably have to delay while other connections terminate if ephemeral ports are in short supply.
+
+* If we terminate a server process that has a connection established and immediately try to restart it, the server cannot assign its well-knonw assigned port number to its endpoint (it gets an _Address already in use_ binding error), because that port number is part of a connection that is in a 2MSL wait state.
++
+It may take from 1 to 4 minutes for the server to be able to restart, depending on the local system's value for the MSL.
+
+=== Quiet Time Concept
+
+The 2MSL wait provides protection against delayed segments from an earlier instantiation of a connection being interpreted as part of a new connection that uses the same local and foreign IP addresses and port numbers. But this works only if a host with connections in the 2MSL wait does not crash.
+
+What if a host with connections in the TIME_WAIT state crashes, reboots within the MSL, and immediately establishes new connections using the same local and foreign IP addresses and port numbers corresponding to the local connections that were in the TIME_WAIT state before the crash? In this scenario, delayed segments from the connections that existed before the crash can be misinterpreted as belonging to the new connections created after the reboot. This can happen regardless of how the initial sequence number is chosen after the reboot.
+
+To protect against this scenario, [RFC0793] states that TCP should wait an amount of time equal to the MSL before creating any new connections after a reboot or crash. This is called the *quiet time*. Few implementations abide by this because most hosts take longer than the MSL to reboot after a crash. Also, if applications use their own checksums or encryption, errors such as these are easily detected.
+
+=== FIN_WAIT_2 State
+
+In the FIN_WAIT_2 state, TCP has sent a FIN and the other end has acknowledged it.
+
+* Unless a half-close is being performed, the TCP must wait for the application on the other end to recognize that it has received an end-of-file notification and close its end of the connection, which causes a FIN to be sent.
+
+* Only when the application performs this close (and its FIN is received) does the active closing TCP move from the FIN_WAIT_2 to the TIME_WAIT state.
+
+* This means that one end of the connection can remain in this state forever.
+
+* The other end is still in the CLOSE_WAIT state and can remain there forever, until the application decides to issue its close.
+
+Many implementations prevent this infinite wait in the FIN_WAIT_2 state as follows:
+
+* If the application that does the active close does a complete close, not a half-close indicating that it expects to receive data, a timer is set.
+* If the connection is idle when the timer expires, TCP moves the connection into the CLOSED state.
+
+In Linux, the variable `net.ipv4.tcp_fin_timeout` can be adjusted to control the number of seconds to which the timer is set. Its default value is 60s.
+
+=== Simultaneous Open and Close Transitions
+
+We have seen the normal uses for the SYN_SENT and SYN_RCVD states that correspond to sending and receiving SYN segments, respectively. As illustrated
+in Figure 13-3, TCP was purposely designed to handle simultaneous opens that
+result in a single connection. 
+
+When a simultaneous open occurs, both ends send a SYN at about the same time, entering the SYN_SENT state.
+
+* When each end receives its peer's SYN segments, the state changes to SYN_RCVD, and each end resends a SYN and acknowledges the received SYN.
+* When each end receives the SYN plus the ACK, the state changes to ESTABLISHED.
+
+For a simultaneous close, both ends go from ESTABLISHED to FIN_WAIT_1 when the application issues the close. This causes both FINs to be sent, and they probably pass each other somewhere in the network.
+
+* When its peer's FIN arrives, each end transitions from FIN_WAIT_1 to the CLOSING state, and each endpoint sends its final ACK.
+* Upon receiving a final ACK, each endpoint's state changes to TIME_WAIT, and the 2MSL wait is initiated.
