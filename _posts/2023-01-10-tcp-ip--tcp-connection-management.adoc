@@ -938,6 +938,243 @@ If, however, it receives certain segments from the connection during this period
 .An RST segment can "assassinate" the TIME_WAIT state and force the connection to close prematurely. Various methods exist to resist this problem, including ignoring RST segments when in the TIME_WAIT state.
 image::/assets/tcp-ip/tcp-connection-management/tcp-time-wait-assassination.png[TCP TIME-WAIT Assassination,55%,55%]
 
+== TCP Server Operation
+
+When a new connection request arrives at a server, the server accepts the connection and invokes a new process or thread to handle the new client concurrently.
+
+=== TCP Port Numbers
+
+We shall watch the secure shell server (called `sshd`) using the `netstat` command on a dual-stack IPv4/IPv6-capable host. The following output is on a system with no active secure shell connections.
+
+[source,console]
+----
+x@node-0:~$ netstat -nat
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp6       0      0 :::22                   :::*                    LISTEN     
+----
+
+* The local address (which really means _local endpoint_) is output as `0.0.0.0:22` and `:::22`, which are the IPv4/IPv6-oriented ways of referring to the all-zeros address, also called the _wildcard_ address, along with port number 22. This means that an incoming connection request (i.e., a SYN) to port 22 will be accepted on any local interface.
++
+If the host were multihomed (this one is), we could specify a single IP address for the local IP address (one of the host's IP addresses), and only connections received on that interface would be accepted.
++
+Port 22 is the well-known port number reserved for the Secure Shell Protocol.
+
+* The foreign address is output as `0.0.0.0:*` and `:::*`, which mean both a wildcard address and port number (i.e., it represents a wildcard endpoint).
++
+Here, the foreign IP address and foreign port number are not known yet, because the local endpoint is in the LISTEN state, waiting for a connection to arrive.
+
+We now start a secure shell client on the host through a NAT `192.168.91.1` that connects to this server.
+
+[source,console]
+----
+x@node-0:~$ netstat -n -t -a
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp        0    172 192.168.91.128:22       192.168.91.1:52094      ESTABLISHED
+tcp6       0      0 :::22                   :::*                    LISTEN     
+----
+
+* The second line for port 22 is the ESTABLISHED connection.
++
+All four elements of the local and foreign endpoints are filled in for this connection: the local IP address and port number, and the foreign IP address and port number.
++
+The local IP address corresponds to the interface on which the connection request arrived (the Ethernet interface, identified by address, `192.168.91.128`).
+
+* The local endpoint in the LISTEN state is left alone.
++
+This is the endpoint that the concurrent server uses to accept future connection requests. It is the TCP module in the operating system that creates the new endpoint in the ESTABLISHED state, when the incoming connection request arrives and is accepted.
+
+* Also notice that the port number for the ESTABLISHED connection does not change: it is 22, the same as the LISTEN endpoint.
+
+We now initiate another client request from the same system (`192.168.91.1`) to this server. Here is the relevant `netstat` output:
+
+[source,console]
+----
+x@node-0:~$ netstat -nta
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp        0      0 192.168.91.128:22       192.168.91.1:52408      ESTABLISHED
+tcp        0      0 192.168.91.128:22       192.168.91.1:52094      ESTABLISHED
+tcp6       0      0 :::22                   :::*                    LISTEN
+----
+
+=== Restricting Local IP Addresses
+
+We can see what happens when the server does not wildcard the local IP address but instead sets it to one particular local address. If we run our `nc` program as a server and provide it with a particuclar IP address, that address becomes the local address of the listening endpoint. For example:
+
+[source,console]
+----
+x@node-0:~$ ip a s ens32
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+    inet 192.168.91.129/24 brd 192.168.91.255 scope global secondary ens32
+       valid_lft forever preferred_lft forever
+    inet6 fe80::20c:29ff:fe8c:df3f/64 scope link 
+       valid_lft forever preferred_lft forever
+x@node-0:~$ nc -kvl 192.168.91.128 8888
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 192.168.91.128:8888
+
+Ncat: Connection from 192.168.91.137.
+Ncat: Connection from 192.168.91.137:56918.
+----
+
+If we instead try to connect to this server from a host using a destination address other than `192.168.91.128` (even including the local address `127.0.0.1`), the connection request is not accepted by the TCP module, meanwhile the server application never sees the connection request.
+
+[source,console]
+----
+x@node-1:~$ nc 192.168.91.128 8888
+^C
+x@node-1:~$ nc 192.168.91.129 8888
+Ncat: Connection refused.
+----
+
+[source,console]
+----
+x@node-0:~$ nc 127.0.0.1 8888
+Ncat: Connection refused.
+----
+
+If we watch with tcpdump, the SYN elicits an RST segment.
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -ntSv -i any port 8888 and tcp
+ens32 In  IP (tos 0x0, ttl 64, id 42898, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.38142 > 192.168.91.128.8888: Flags [S], cksum 0x12bf (correct), seq 244930047, win 64240, options [mss 1460,sackOK,TS val 1592493755 ecr 0,nop,wscale 7], length 0
+ens32 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.8888 > 192.168.91.137.38142: Flags [S.], cksum 0x3889 (incorrect -> 0x21bc), seq 2513818259, ack 244930048, win 65160, options [mss 1460,sackOK,TS val 3269837322 ecr 1592493755,nop,wscale 7], length 0
+ens32 In  IP (tos 0x0, ttl 64, id 42899, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.137.38142 > 192.168.91.128.8888: Flags [.], cksum 0x4d1b (correct), ack 2513818260, win 502, options [nop,nop,TS val 1592493755 ecr 3269837322], length 0
+ens32 In  IP (tos 0x0, ttl 64, id 42900, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.137.38142 > 192.168.91.128.8888: Flags [F.], cksum 0x47b3 (correct), seq 244930048, ack 2513818260, win 502, options [nop,nop,TS val 1592495138 ecr 3269837322], length 0
+ens32 Out IP (tos 0x0, ttl 64, id 22157, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.128.8888 > 192.168.91.137.38142: Flags [F.], cksum 0x3881 (incorrect -> 0x4242), seq 2513818260, ack 244930049, win 510, options [nop,nop,TS val 3269838706 ecr 1592495138], length 0
+ens32 In  IP (tos 0x0, ttl 64, id 42901, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.137.38142 > 192.168.91.128.8888: Flags [.], cksum 0x4249 (correct), ack 2513818261, win 502, options [nop,nop,TS val 1592495139 ecr 3269838706], length 0
+
+ens32 In  IP (tos 0x0, ttl 64, id 49077, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.52334 > 192.168.91.129.8888: Flags [S], cksum 0x9ff0 (correct), seq 268676780, win 64240, options [mss 1460,sackOK,TS val 1836145019 ecr 0,nop,wscale 7], length 0
+ens32 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.129.8888 > 192.168.91.137.52334: Flags [R.], cksum 0xc99d (correct), seq 0, ack 268676781, win 0, length 0
+
+lo    In  IP (tos 0x0, ttl 64, id 27559, offset 0, flags [DF], proto TCP (6), length 60)
+    127.0.0.1.39402 > 127.0.0.1.8888: Flags [S], cksum 0xfe30 (incorrect -> 0x7bca), seq 1179089949, win 65495, options [mss 65495,sackOK,TS val 2152518883 ecr 0,nop,wscale 7], length 0
+lo    In  IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    127.0.0.1.8888 > 127.0.0.1.39402: Flags [R.], cksum 0x32c6 (correct), seq 0, ack 1179089950, win 0, length 0
+----
+
+=== Restricting Foreign Endpoints
+
+The abstract interface functions for TCP given in [RFC0793] allow a server doing a passive open to have either a fully specified foreign endpoint (to wait for a particular client to issue an active open) or an unspecified foreign endpoint (to wait for any client).
+
+Unfortunately, the ordinary Berkeley sockets API does not provide a way to do this. The server must leave the client's endpoint unspecified, wait for the connection to arrive, and then examine the IP address and port number of the client.
+
+.Address and port number binding options available to a TCP server
+[%header,cols="1,1,1,2"]
+|===
+|Local Address
+|Foreign Address
+|Restricted to
+|Comment
+
+|`local_IP`.`lport`
+|`foraddr`.`foreign_port`
+|One client
+|Not usually supported
+
+|`local_IP`.`lport`
+|`+++*+++`.`+++*+++`
+|One local endpoint
+|Unusual (used by DNS servers)
+
+|`*`.`local_port`
+|`+++*+++`.`+++*+++`
+|One local port
+|Most common; multiple
+address families (IPv4/IPv6)
+may be supported
+
+|===
+
+=== Incoming Connection Queue
+
+A concurrent server invokes a new process or thread to handle each client, so the listening server should always be ready to handle the next incoming connection request. That is the underlying reason for using concurrent servers.
+
+But there is still a chance that multiple connection requests will arrive
+
+* while the listening server is creating a new process,
+* or while the operating system is busy running other higher-priority processes,
+* or worse yet, that the server is being attacked with bogus connection requests that are never allowed to be established.
+
+How does TCP handle these scenarios?
+
+To fully explore this question, we must first understand that new connections may be in one of two distinct states before they are made available to an application.
+
+* The first case is connections that have not yet completed but for which a SYN has been received (these are in the *SYN_RCVD* state).
+
+* The second case is connections that have already completed the three-way handshake and are in the *ESTABLISHED* state but have not yet been accepted by the application.
+
+An application has limited control over the sizing of these queues.
+
+* Traditionally, using the Berkeley sockets API, an application had only indirect control of the sum of the sizes of these two queues.
+* In modern Linux kernels this behavior has been changed to be the number of connections in the second case (ESTABLISHED connections).
++
+The application can therefore limit the number of fully formed connections waiting for it to handle.
+
+In Linux, then, the following rules apply:
+
+. When a connection request arrives (i.e., the SYN segment), the system-wide parameter `net.ipv4.tcp_max_syn_backlog` is checked (default 1000).
++
+If the number of connections in the SYN_RCVD state would exceed this threshold, the incoming connection is rejected.
+
+. Each listening endpoint has a fixed-length queue of connections that have been completely accepted by TCP (i.e., the three-way handshake is complete) but not yet accepted by the application.
++
+--
+** The application specifies a limit to this queue, commonly called the *backlog*.
+
+** This backlog must be between `0` and a system-specific maximum called `net.core.somaxconn`, inclusive (default 128).
+
+** Keep in mind that this backlog value specifies only the maximum number of queued connections for *_one_* listening endpoint, all of which have already been accepted by TCP and are _waiting to be accepted by the application_.
+
+** This backlog has no effect whatsoever on the maximum number of established connections allowed by the system, or on the number of clients that a concurrent server can handle concurrently.
+--
+
+. If there is room on this listening endpoint’s queue for this new connection, the TCP module ACKs the SYN and completes the connection.
++
+--
+** The server application with the listening endpoint does not see this new connection until the third segment of the three-way handshake is received.
+
+** Also, the client may think the server is ready to receive data when the client's active open completes successfully, before the server application has been notified of the new connection. If this happens, the server's TCP just queues the incoming data.
+--
+
+. If there is not enough room on the queue for the new connection, the TCP delays responding to the SYN, to give the application a chance to catch up.
++
+Linux is somewhat unique in this behavior—it persists in not ignoring incoming connections if it possibly can.
++
+If the `net.ipv4.tcp_abort_on_overflow` system control variable is set, new incoming connections are reset with a reset segment.
+
+[TIP]
+====
+Sending reset segments on overflow is not generally advisable and is not turned on by default.
+
+* The client has attempted to contact the server, and if it receives a reset during the SYN exchange, it may falsely conclude that no server is present (instead of concluding that there is a server present but it is busy). Being too busy is really a form of "soft" or temporary error rather than a hard error.
+
+* Normally, when the queue is full, the application or the operating system is busy, preventing the application from servicing incoming connections. This condition could change in a short while.
+
+* But if the server's TCP responded with a reset, the client's active open would abort (which is what we saw happen if the server was not started).
+
+* Without the reset, if the listening server does not get around to accepting some of the already-accepted connections that have filled its queue to the limit, the client's active open eventually times out, according to normal TCP mechanisms. In the case of Linux, the connecting clients are just slowed for a significant period of time—they will neither time out nor be reset.
+====
+
+
 [bibliography]
 == References
 
