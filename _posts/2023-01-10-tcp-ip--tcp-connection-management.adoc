@@ -730,3 +730,64 @@ For a simultaneous close, both ends go from ESTABLISHED to FIN_WAIT_1 when the a
 A segment having _RST_ bit set to `on` is called a _reset segment_ or simply a _reset_. In general, a reset is sent by TCP whenever a segment arrives that does not appear to be correct for the _referenced connection_ specified by the 4-tuple of the reset.
 
 Resets ordinarily result in a fast teardown of a TCP connection.
+
+=== Connection Request to Nonexistent Port
+
+A common case for generating a reset segment is when a connection request arrives and no process is listening on the destination port.
+
+[source,console]
+----
+x@node-0:~$ telnet localhost 9999
+Trying ::1...
+Trying 127.0.0.1...
+telnet: Unable to connect to remote host: Connection refused
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -i lo -ntSv
+IP6 (flowlabel 0x3ea4c, hlim 64, next-header TCP (6) payload length: 40) ::1.46796 > ::1.9999: Flags [S], cksum 0x0030 (incorrect -> 0x8263), seq 1025049371, win 65476, options [mss 65476,sackOK,TS val 999584289 ecr 0,nop,wscale 7], length 0
+IP6 (flowlabel 0x84cda, hlim 64, next-header TCP (6) payload length: 20) ::1.9999 > ::1.46796: Flags [R.], cksum 0x001c (incorrect -> 0x91be), seq 0, ack 1025049372, win 0, length 0
+IP (tos 0x10, ttl 64, id 58734, offset 0, flags [DF], proto TCP (6), length 60)
+    127.0.0.1.52076 > 127.0.0.1.9999: Flags [S], cksum 0xfe30 (incorrect -> 0x0b51), seq 499568435, win 65495, options [mss 65495,sackOK,TS val 2552810770 ecr 0,nop,wscale 7], length 0
+IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    127.0.0.1.9999 > 127.0.0.1.52076: Flags [R.], cksum 0xd257 (correct), seq 0, ack 499568436, win 0, length 0
+----
+
+Because the _ACK_ bit field was not on in the arriving SYN segment, the sequence number of the reset is set to 0 and the ACK number is set to the incoming ISN plus the number of data bytes in the segment.
+
+=== Aborting a Connection
+
+The normal way to terminate a connection is for one side to send a FIN, which is sometimes called an _orderly release_ because the FIN is sent after all previously queued data has been sent, and there is normally no loss of data. But it is also possible to abort a connection by sending a reset instead of a FIN at any time which is sometimes called an _abortive release_.
+
+Aborting a connection provides two features to the application: (1) any queued data is thrown away and a reset segment is sent immediately, and (2) the receiver of the reset can tell that the other end did an abort instead of a normal close. The API being used by the application must provide a way to generate the abort instead of a normal close.
+
+The sockets API provides this capability by using the _linger on close_ socket option (`SO_LINGER`) with a `0` linger value, which essentially this means _Linger for no time in making sure data gets to the other side, then abort_.
+
+In the following example, we show what happens when a remote command that generates a large amount of output is canceled by the user:
+
+[source,console]
+----
+x@node-0:~$ ssh -4 -i .ssh/id_rsa.localhost localhost cat /usr/share/dict/words > /dev/null 
+^C
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -i lo -ntSv
+IP (tos 0x0, ttl 64, id 25152, offset 0, flags [DF], proto TCP (6), length 60)
+    127.0.0.1.56842 > 127.0.0.1.22: Flags [S], cksum 0xfe30 (incorrect -> 0x0ce7), seq 3840402379, win 65495, options [mss 65495,sackOK,TS val 2560361386 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    127.0.0.1.22 > 127.0.0.1.56842: Flags [S.], cksum 0xfe30 (incorrect -> 0xde8a), seq 4193097762, ack 3840402380, win 65483, options [mss 65495,sackOK,TS val 2560361386 ecr 2560361386,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 25153, offset 0, flags [DF], proto TCP (6), length 52)
+    127.0.0.1.56842 > 127.0.0.1.22: Flags [.], cksum 0xfe28 (incorrect -> 0x0547), ack 4193097763, win 512, options [nop,nop,TS val 2560361386 ecr 2560361386], length 0
+...
+IP (tos 0x8, ttl 64, id 25186, offset 0, flags [DF], proto TCP (6), length 112)
+    127.0.0.1.56842 > 127.0.0.1.22: Flags [P.], cksum 0xfe64 (incorrect -> 0x1b78), seq 3840405884:3840405944, ack 4193659175, win 19379, options [nop,nop,TS val 2560361552 ecr 2560361552], length 60
+IP (tos 0x8, ttl 64, id 15367, offset 0, flags [DF], proto TCP (6), length 16472)
+    127.0.0.1.22 > 127.0.0.1.56842: Flags [P.], cksum 0x3e4d (incorrect -> 0x04b1), seq 4193659175:4193675595, ack 3840405944, win 512, options [nop,nop,TS val 2560361554 ecr 2560361552], length 16420
+IP (tos 0x8, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    127.0.0.1.56842 > 127.0.0.1.22: Flags [R], cksum 0xfd1c (correct), seq 3840405944, win 0, length 0
+IP (tos 0x8, ttl 64, id 25187, offset 0, flags [DF], proto TCP (6), length 52)
+    127.0.0.1.56842 > 127.0.0.1.22: Flags [R.], cksum 0xfe28 (incorrect -> 0x1b48), seq 3840405944, ack 4193659175, win 19379, options [nop,nop,TS val 2560361555 ecr 2560361552], length 0
+----
