@@ -1135,14 +1135,14 @@ In Linux, then, the following rules apply:
 +
 If the number of connections in the SYN_RCVD state would exceed this threshold, the incoming connection is rejected.
 
-. Each listening endpoint has a fixed-length queue of connections that have been completely accepted by TCP (i.e., the three-way handshake is complete) but not yet accepted by the application.
+. Each listening endpoint has a fixed-length queue of connections that have been _completely accepted by TCP_ (i.e., the three-way handshake is complete) but _not yet accepted by the application_.
 +
 --
 ** The application specifies a limit to this queue, commonly called the *backlog*.
 
 ** This backlog must be between `0` and a system-specific maximum called `net.core.somaxconn`, inclusive (default 128).
 
-** Keep in mind that this backlog value specifies only the maximum number of queued connections for *_one_* listening endpoint, all of which have already been accepted by TCP and are _waiting to be accepted by the application_.
+** Keep in mind that this backlog value specifies only the maximum number of queued connections for *one* listening endpoint, all of which have already been accepted by TCP and are _waiting to be accepted by the application_.
 
 ** This backlog has no effect whatsoever on the maximum number of established connections allowed by the system, or on the number of clients that a concurrent server can handle concurrently.
 --
@@ -1160,7 +1160,7 @@ If the number of connections in the SYN_RCVD state would exceed this threshold, 
 Linux is somewhat unique in this behavior—it persists in not ignoring incoming connections if it possibly can.
 +
 If the `net.ipv4.tcp_abort_on_overflow` system control variable is set, new incoming connections are reset with a reset segment.
-
++
 [TIP]
 ====
 Sending reset segments on overflow is not generally advisable and is not turned on by default.
@@ -1173,6 +1173,30 @@ Sending reset segments on overflow is not generally advisable and is not turned 
 
 * Without the reset, if the listening server does not get around to accepting some of the already-accepted connections that have filled its queue to the limit, the client's active open eventually times out, according to normal TCP mechanisms. In the case of Linux, the connecting clients are just slowed for a significant period of time—they will neither time out nor be reset.
 ====
++
+[source,console,highlight="5,17"]
+----
+x@node-0:~$ socat - tcp-listen:6666,fork,reuseaddr,backlog=1 2>&1 > /tmp/1
+^Z
+[1]+  Stopped                 socat - tcp-listen:6666,fork,reuseaddr,backlog=1 2>&1 > /tmp/1
+x@node-0:~$ ps aux | grep socat
+x           2313  0.0  0.0   8796  2332 pts/2    T    17:28   0:00 socat - tcp-listen:6666,fork,reuseaddr,backlog=1
+x           2320  0.0  0.0   6244   704 pts/2    S+   17:28   0:00 grep socat
+x@node-0:~$ netstat -ntl4
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 0.0.0.0:4000            0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:6666            0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:35729           0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+x@node-0:~$ ss -ntpl4
+State           Recv-Q          Send-Q                     Local Address:Port                      Peer Address:Port          Process                                   
+LISTEN          0               128                              0.0.0.0:4000                           0.0.0.0:*              users:(("ruby",pid=833,fd=11))           
+LISTEN          0               1                                0.0.0.0:6666                           0.0.0.0:*              users:(("socat",pid=2313,fd=5))          
+LISTEN          0               100                              0.0.0.0:35729                          0.0.0.0:*              users:(("ruby",pid=833,fd=18))           
+LISTEN          0               128                              0.0.0.0:22                             0.0.0.0:*                                                       
+x@node-0:~$ tail -f /tmp/1 
+----
 
 
 [bibliography]
@@ -1180,4 +1204,3 @@ Sending reset segments on overflow is not generally advisable and is not turned 
 
 * [[[tcp_ip_vol_1,1]]] Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
 * [[[tcp_reset_attack,2]]] https://en.wikipedia.org/wiki/TCP_reset_attack
-
