@@ -791,3 +791,156 @@ IP (tos 0x8, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
 IP (tos 0x8, ttl 64, id 25187, offset 0, flags [DF], proto TCP (6), length 52)
     127.0.0.1.56842 > 127.0.0.1.22: Flags [R.], cksum 0xfe28 (incorrect -> 0x1b48), seq 3840405944, ack 4193659175, win 19379, options [nop,nop,TS val 2560361555 ecr 2560361552], length 0
 ----
+
+=== TCP reset attack
+
+:the_great_firewall_of_china: https://en.wikipedia.org/wiki/The_Great_Firewall_of_China
+:internet_censorship_in_iran: https://en.wikipedia.org/wiki/Internet_censorship_in_Iran#Deep_packet_inspection
+
+TCP reset attack, also known as a "forged TCP reset" or "spoofed TCP reset", is a way to terminate a TCP connection by sending a forged TCP reset packet. This tampering technique can be used by a firewall or abused by a malicious attacker to interrupt Internet connections. <<tcp_reset_attack>>
+
+{the_great_firewall_of_china}[The Great Firewall of China], and {internet_censorship_in_iran}[Iranian Internet censors] are known to use TCP reset attacks to interfere with and block connections, as a major method to carry out Internet censorship. 
+
+[source,console]
+----
+x@node-0:~$ sudo sysctl net.ipv4.tcp_syn_retries=12
+net.ipv4.tcp_syn_retries = 12
+----
+
+[source,console]
+----
+x@node-0:~$ curl https://www.google.com
+curl: (7) Failed to connect to www.google.com port 443: Connection refused
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -ntSv host www.google.com
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 47240, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.60460 > 104.244.43.228.443: Flags [S], cksum 0xb12f (incorrect -> 0x3f20), seq 510666909, win 64240, options [mss 1460,sackOK,TS val 4143788283 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 47241, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.60460 > 104.244.43.228.443: Flags [S], cksum 0xb12f (incorrect -> 0x3b2e), seq 510666909, win 64240, options [mss 1460,sackOK,TS val 4143789293 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 47242, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.60460 > 104.244.43.228.443: Flags [S], cksum 0xb12f (incorrect -> 0x334d), seq 510666909, win 64240, options [mss 1460,sackOK,TS val 4143791310 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 47243, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.60460 > 104.244.43.228.443: Flags [S], cksum 0xb12f (incorrect -> 0x22ee), seq 510666909, win 64240, options [mss 1460,sackOK,TS val 4143795501 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 47244, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.60460 > 104.244.43.228.443: Flags [S], cksum 0xb12f (incorrect -> 0x02ee), seq 510666909, win 64240, options [mss 1460,sackOK,TS val 4143803693 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 128, id 65378, offset 0, flags [none], proto TCP (6), length 40)
+    104.244.43.228.443 > 192.168.91.128.60460: Flags [R.], cksum 0x3aca (correct), seq 1523136853, ack 510666910, win 64240, length 0
+----
+
+:virtual_private_network: https://en.wikipedia.org/wiki/Virtual_private_network
+
+By encrypting connections using a {virtual_private_network}[VPN], the attacker has to do a TCP reset attack on all encrypted connections, causing collateral damage.
+
+[source,console]
+----
+x@node-0:~$ curl -iI -x http://windows.home:7890 https://www.google.com 
+HTTP/1.1 200 Connection established
+
+HTTP/2 200
+content-type: text/html; charset=ISO-8859-1
+...
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -ntSv host windows.home
+IP (tos 0x0, ttl 64, id 11633, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.51404 > 10.170.109.10.7890: Flags [S], cksum 0x940b (incorrect -> 0x37da), seq 1111884013, win 64240, options [mss 1460,sackOK,TS val 93212920 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 128, id 65434, offset 0, flags [none], proto TCP (6), length 44)
+    10.170.109.10.7890 > 192.168.91.128.51404: Flags [S.], cksum 0x4445 (correct), seq 1282231747, ack 1111884014, win 64240, options [mss 1460], length 0
+IP (tos 0x0, ttl 64, id 11634, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.51404 > 10.170.109.10.7890: Flags [.], cksum 0x93f7 (incorrect -> 0x5c02), ack 1282231748, win 64240, length 0
+...
+    192.168.91.128.51404 > 10.170.109.10.7890: Flags [F.], cksum 0x93f7 (incorrect -> 0x4687), seq 1111885022, ack 1282237698, win 62780, length 0
+IP (tos 0x0, ttl 128, id 65452, offset 0, flags [none], proto TCP (6), length 40)
+    10.170.109.10.7890 > 192.168.91.128.51404: Flags [.], cksum 0x40d4 (correct), ack 1111885023, win 64239, length 0
+IP (tos 0x0, ttl 128, id 65453, offset 0, flags [none], proto TCP (6), length 40)
+    10.170.109.10.7890 > 192.168.91.128.51404: Flags [FP.], cksum 0x40cb (correct), seq 1282237698, ack 1111885023, win 64239, length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.51404 > 10.170.109.10.7890: Flags [.], cksum 0x4686 (correct), ack 1282237699, win 62780, length 0
+----
+
+=== Half-Open Connections
+
+A TCP connection is said to be *half-open* if one end has closed or aborted the connection without the knowledge of the other end.
+
+* This can happen anytime one of the peers crashes.
+
+* As long as there is no attempt to transfer data across a half-open connection, the end that is still up does not detect that the other end has crashed.
+
+Another common cause of a half-open connection is when one host is powered off instead of shut down properly. This happens, for example,
+
+* when PCs are being used to run remote login clients and are switched off at the end of the day.
+
+* If there was no data transfer going on when the power was cut, the server will never know that the client disappeared (it would still think the connection is in the ESTABLISHED state).
+
+* When the user comes in the next morning, powers on the PC, and starts a new session, a new occurrence of the server is started on the server host.
+
+* This can lead to many half-open TCP connections on the server host.
+
+We can easily create a half-open connection. In this case, we do so on the client rather than the server.
+
+* We will execute the Telnet client on `node-0`, connecting to the SSH Service server at `node-1`.
+* We type one line of input and watch it go across with `tcpdump`, and then we disconnect the Ethernet cable on the server's host and reboot the server host. This simulates the server host crashing.
++
+We disconnect the Ethernet cable before rebooting the server to prevent it from sending a FIN out of the open connections, which some TCPs do when they are shut down.
+* After the server has rebooted, we reconnect the cable and try to send another line from the client to the server.
+
+* After rebooting, the server's TCP has lost all memory of the connections that existed before, so it knows nothing about the connection that the data segment references. The rule of TCP is that the receiver responds with a reset.
++
+[source,console]
+----
+x@node-0:~$ telnet node-1 22
+Trying 192.168.91.137...
+Connected to node-1.localdomain.
+Escape character is '^]'.
+SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+heloo
+Connection closed by foreign host.
+----
++
+[source,sh]
+----
+# Disconnect the Ethernet cable on the server’s host and reboot the server host.
+x@node-1:~$ sudo ip link set ens32 down && sudo reboot
+----
++
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tSnv host node-1 and tcp
+IP (tos 0x10, ttl 64, id 39857, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.34128 > 192.168.91.137.22: Flags [S], cksum 0x3889 (incorrect -> 0xa161), seq 3124448828, win 64240, options [mss 1460,sackOK,TS val 2395494060 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.22 > 192.168.91.128.34128: Flags [S.], cksum 0xab81 (correct), seq 2701748454, ack 3124448829, win 65160, options [mss 1460,sackOK,TS val 177003962 ecr 2395494060,nop,wscale 7], length 0
+IP (tos 0x10, ttl 64, id 39858, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.128.34128 > 192.168.91.137.22: Flags [.], cksum 0x3881 (incorrect -> 0xd6df), ack 2701748455, win 502, options [nop,nop,TS val 2395494061 ecr 177003962], length 0
+IP (tos 0x0, ttl 64, id 39639, offset 0, flags [DF], proto TCP (6), length 93)
+    192.168.91.137.22 > 192.168.91.128.34128: Flags [P.], cksum 0x4dc3 (correct), seq 2701748455:2701748496, ack 3124448829, win 510, options [nop,nop,TS val 177003967 ecr 2395494061], length 41: SSH: SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+IP (tos 0x10, ttl 64, id 39859, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.128.34128 > 192.168.91.137.22: Flags [.], cksum 0x3881 (incorrect -> 0xd6ac), ack 2701748496, win 502, options [nop,nop,TS val 2395494066 ecr 177003967], length 0
+
+IP (tos 0x10, ttl 64, id 39860, offset 0, flags [DF], proto TCP (6), length 59)
+    192.168.91.128.34128 > 192.168.91.137.22: Flags [P.], cksum 0x3888 (incorrect -> 0x58ae), seq 3124448829:3124448836, ack 2701748496, win 502, options [nop,nop,TS val 2395571902 ecr 177003967], length 7
+IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.137.22 > 192.168.91.128.34128: Flags [R], cksum 0xe805 (correct), seq 2701748496, win 0, length 0
+----
+
+=== TIME-WAIT Assassination (TWA)
+
+During TIME-WAIT state period, the waiting TCP usually has little to do; it merely holds the state until the 2MSL timer expires.
+
+If, however, it receives certain segments from the connection during this period, or more specifically an RST segment, it can become desynchronized. This is called *TIME-WAIT Assassination* (TWA) [RFC1337].
+
+.An RST segment can "assassinate" the TIME_WAIT state and force the connection to close prematurely. Various methods exist to resist this problem, including ignoring RST segments when in the TIME_WAIT state.
+image::/assets/tcp-ip/tcp-connection-management/tcp-time-wait-assassination.png[TCP TIME-WAIT Assassination,55%,55%]
+
+[bibliography]
+== References
+
+* [[[tcp_ip_vol_1,1]]] Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
+* [[[tcp_reset_attack,2]]] https://en.wikipedia.org/wiki/TCP_reset_attack
+
