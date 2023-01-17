@@ -1133,6 +1133,14 @@ In Linux, then, the following rules apply:
 
 . When a connection request arrives (i.e., the SYN segment), the system-wide parameter `net.ipv4.tcp_max_syn_backlog` is checked (default 1000).
 +
+[source,console]
+----
+x@node-0:~$ uname -a
+Linux node-0 5.10.0-19-amd64 #1 SMP Debian 5.10.149-2 (2022-10-21) x86_64 GNU/Linux
+x@node-0:~$ sudo sysctl net.ipv4.tcp_max_syn_backlog
+net.ipv4.tcp_max_syn_backlog = 256
+----
++
 If the number of connections in the SYN_RCVD state would exceed this threshold, the incoming connection is rejected.
 
 . Each listening endpoint has a fixed-length queue of connections that have been _completely accepted by TCP_ (i.e., the three-way handshake is complete) but _not yet accepted by the application_.
@@ -1141,13 +1149,21 @@ If the number of connections in the SYN_RCVD state would exceed this threshold, 
 ** The application specifies a limit to this queue, commonly called the *backlog*.
 
 ** This backlog must be between `0` and a system-specific maximum called `net.core.somaxconn`, inclusive (default 128).
++
+[source,console]
+----
+x@node-0:~$ uname -a
+Linux node-0 5.10.0-19-amd64 #1 SMP Debian 5.10.149-2 (2022-10-21) x86_64 GNU/Linux
+x@node-0:~$ sudo sysctl net.core.somaxconn
+net.core.somaxconn = 4096
+----
 
 ** Keep in mind that this backlog value specifies only the maximum number of queued connections for *one* listening endpoint, all of which have already been accepted by TCP and are _waiting to be accepted by the application_.
 
 ** This backlog has no effect whatsoever on the maximum number of established connections allowed by the system, or on the number of clients that a concurrent server can handle concurrently.
 --
 
-. If there is room on this listening endpoint’s queue for this new connection, the TCP module ACKs the SYN and completes the connection.
+. If there is room on this listening endpoint's queue for this new connection, the TCP module ACKs the SYN and completes the connection.
 +
 --
 ** The server application with the listening endpoint does not see this new connection until the third segment of the three-way handshake is received.
@@ -1174,30 +1190,152 @@ Sending reset segments on overflow is not generally advisable and is not turned 
 * Without the reset, if the listening server does not get around to accepting some of the already-accepted connections that have filled its queue to the limit, the client's active open eventually times out, according to normal TCP mechanisms. In the case of Linux, the connecting clients are just slowed for a significant period of time—they will neither time out nor be reset.
 ====
 +
-[source,console,highlight="5,17"]
+[source,c]
 ----
-x@node-0:~$ socat - tcp-listen:6666,fork,reuseaddr,backlog=1 2>&1 > /tmp/1
-^Z
-[1]+  Stopped                 socat - tcp-listen:6666,fork,reuseaddr,backlog=1 2>&1 > /tmp/1
-x@node-0:~$ ps aux | grep socat
-x           2313  0.0  0.0   8796  2332 pts/2    T    17:28   0:00 socat - tcp-listen:6666,fork,reuseaddr,backlog=1
-x           2320  0.0  0.0   6244   704 pts/2    S+   17:28   0:00 grep socat
-x@node-0:~$ netstat -ntl4
+// backlog.c
+
+#include <arpa/inet.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#define MAXPENDING 1 // backlog
+#define SERV_PORT 6666
+
+int main(void) {
+    int serv_sock = -1;
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;                 /* Internet address family */
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  /* Any incoming interface */
+    serv_addr.sin_port = htons(SERV_PORT);          /* Local port */
+
+    do {
+        /* Create a TCP socket */
+        /* Create socket for incoming connections */
+        if ((serv_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+            perror("socket() failed");
+            break;
+        }
+
+        /* Assign a port to socket */
+        if (bind(serv_sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+            perror("bind() failed");
+            break;
+        }
+
+        /* Set socket to listen */
+        /* Mark the socket so it will listen for incoming connections */
+        if (listen(serv_sock, MAXPENDING) < 0) {
+            perror("listen() failed");
+            break;
+        }
+        char *addrp;
+        if (inet_ntop(AF_INET, &(serv_addr.sin_addr), addrp, sizeof(serv_addr)) == NULL) {
+            perror("inet_ntop() failed");
+            break;
+        }
+        printf("listening: %s:%d.\n", addrp, SERV_PORT);
+
+        sleep(60*60*25); // sleep 1 day without any accepting
+    } while (false);
+
+    if (serv_sock != -1) {
+        close(serv_sock);
+    }
+}
+----
++
+[source,console]
+----
+x@node-0:~$ gcc backlog.c 
+x@node-0:~$ ./a.out 
+listening: 0.0.0.0:6666.
+----
++
+[source,console,highlight="4"]
+----
+x@node-0:~$ netstat -nt4l
 Active Internet connections (only servers)
 Proto Recv-Q Send-Q Local Address           Foreign Address         State      
-tcp        0      0 0.0.0.0:4000            0.0.0.0:*               LISTEN     
 tcp        0      0 0.0.0.0:6666            0.0.0.0:*               LISTEN     
-tcp        0      0 0.0.0.0:35729           0.0.0.0:*               LISTEN     
 tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
-x@node-0:~$ ss -ntpl4
-State           Recv-Q          Send-Q                     Local Address:Port                      Peer Address:Port          Process                                   
-LISTEN          0               128                              0.0.0.0:4000                           0.0.0.0:*              users:(("ruby",pid=833,fd=11))           
-LISTEN          0               1                                0.0.0.0:6666                           0.0.0.0:*              users:(("socat",pid=2313,fd=5))          
-LISTEN          0               100                              0.0.0.0:35729                          0.0.0.0:*              users:(("ruby",pid=833,fd=18))           
-LISTEN          0               128                              0.0.0.0:22                             0.0.0.0:*                                                       
-x@node-0:~$ tail -f /tmp/1 
 ----
++
+[source,console]
+----
+x@node-1:~$ telnet 192.168.91.128 6666
+Trying 192.168.91.128...
+Connected to 192.168.91.128.
+Escape character is '^]'.
+----
++
+[source,console]
+----
+x@node-1:~$ telnet 192.168.91.128 6666
+Trying 192.168.91.128...
+Connected to 192.168.91.128.
+Escape character is '^]'.
+----
++
+We try to start a third whose SYN appears as segment 7 (port 49598), but the server-side TCP ignores the SYNs because the queue for this listening endpoint is full. The client retransmits its SYN in segments 8–13 using binary exponential backoff.
++
+[source,console]
+----
+x@node-1:~$ telnet 192.168.91.128 6666
+Trying 192.168.91.128...
+telnet: Unable to connect to remote host: Connection timed out
+----
++
+[source,console]
+----
+x@node-0:~$ ss -ntl4
+State              Recv-Q              Send-Q                           Local Address:Port                            Peer Address:Port             Process             
+LISTEN             2                   1                                      0.0.0.0:6666                                 0.0.0.0:*                                    
+LISTEN             0                   128                                    0.0.0.0:22                                   0.0.0.0:*                                    
+x@node-0:~$ netstat -nta4
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        2      0 0.0.0.0:6666            0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp        0      0 192.168.91.128:6666     192.168.91.137:47352    ESTABLISHED
+tcp        0      0 192.168.91.128:6666     192.168.91.137:54366    ESTABLISHED
+----
++
+The Linux server accepts two connections immediately. Subsequent connections receive no response and eventually time out at the client.
++
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tttSnvv port 6666 -i ens32 
+ 00:00:00.000000 IP (tos 0x10, ttl 64, id 27519, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.55964 > 192.168.91.128.6666: Flags [S], cksum 0x9b9c (correct), seq 2152111340, win 64240, options [mss 1460,sackOK,TS val 1666647015 ecr 0,nop,wscale 7], length 0
+ 00:00:00.000036 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.6666 > 192.168.91.137.55964: Flags [S.], cksum 0x3889 (incorrect -> 0x8908), seq 1765187368, ack 2152111341, win 65160, options [mss 1460,sackOK,TS val 3343990586 ecr 1666647015,nop,wscale 7], length 0
+ 00:00:00.000163 IP (tos 0x10, ttl 64, id 27520, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.137.55964 > 192.168.91.128.6666: Flags [.], cksum 0xb467 (correct), seq 2152111341, ack 1765187369, win 502, options [nop,nop,TS val 1666647015 ecr 3343990586], length 0
 
+ 00:00:03.103909 IP (tos 0x10, ttl 64, id 36918, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.55980 > 192.168.91.128.6666: Flags [S], cksum 0xfdfd (correct), seq 1592217530, win 64240, options [mss 1460,sackOK,TS val 1666650119 ecr 0,nop,wscale 7], length 0
+ 00:00:00.000023 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.6666 > 192.168.91.137.55980: Flags [S.], cksum 0x3889 (incorrect -> 0xb79d), seq 1742325809, ack 1592217531, win 65160, options [mss 1460,sackOK,TS val 3343993690 ecr 1666650119,nop,wscale 7], length 0
+ 00:00:00.000091 IP (tos 0x10, ttl 64, id 36919, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.137.55980 > 192.168.91.128.6666: Flags [.], cksum 0xe2fc (correct), seq 1592217531, ack 1742325810, win 502, options [nop,nop,TS val 1666650119 ecr 3343993690], length 0
+
+ 00:00:06.974278 IP (tos 0x10, ttl 64, id 7754, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0xbfe9 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666657092 ecr 0,nop,wscale 7], length 0
+ 00:00:01.010323 IP (tos 0x10, ttl 64, id 7755, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0xbbf6 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666658103 ecr 0,nop,wscale 7], length 0
+ 00:00:02.016133 IP (tos 0x10, ttl 64, id 7756, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0xb416 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666660119 ecr 0,nop,wscale 7], length 0
+ 00:00:04.191522 IP (tos 0x10, ttl 64, id 7757, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0xa3b6 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666664311 ecr 0,nop,wscale 7], length 0
+ 00:00:08.191700 IP (tos 0x10, ttl 64, id 7758, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0x83b6 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666672503 ecr 0,nop,wscale 7], length 0
+ 00:00:16.128449 IP (tos 0x10, ttl 64, id 7759, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0x44b6 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666688631 ecr 0,nop,wscale 7], length 0
+ 00:00:33.792360 IP (tos 0x10, ttl 64, id 7760, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.49598 > 192.168.91.128.6666: Flags [S], cksum 0xc0b5 (correct), seq 2744338131, win 64240, options [mss 1460,sackOK,TS val 1666722423 ecr 0,nop,wscale 7], length 0
+----
 
 [bibliography]
 == References
