@@ -1,0 +1,135 @@
+= TCP/IP: TCP Timeout and Retransmission
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking', 'tcp']
+:page-date: 2023-01-17 14:45:16 +0800
+:page-revdate: 2023-01-17 14:45:16 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+To decide what data it needs to resend, TCP depends on a continuous flow of acknowledgments from receiver to sender.
+
+When data segments or acknowledgments are lost, TCP initiates a *retransmission* of the data that has not been acknowledged.
+
+TCP has two separate mechanisms for accomplishing retransmission, one based on time and one based on the structure of the acknowledgments.
+
+* TCP sets a timer when it sends data, and if the data is not acknowledged when the timer expires, a *_timeout_* or *_timer-based retransmission_* of data occurs. The timeout occurs after an interval called the *_retransmission timeout_* (RTO).
+
+* It has another way of initiating a retransmission called *_fast retransmission_* or *_fast retransmit_*, which usually happens without any delay.
++
+Fast retransmit is based on inferring losses by noticing
+
+** when TCP's cumulative acknowledgment fails to advance in the ACKs received over time,
+** or when ACKs carrying selective acknowledgment information (SACKs) indicate that out-of-order segments are present at the receiver.
+
+== Simple Timeout and Retransmission (Time-based) Example
+
+We will establish a connection, send some data to verify that everything is OK, isolate one end of the connection, send some more data, and watch what TCP does.
+
+[source,console]
+----
+x@node-1:~$ nc -kl 6666
+----
+
+[source,console]
+----
+x@node-0:~$ telnet node-1 6666
+Trying 192.168.91.135...
+Connected to node-1.localdomain.
+Escape character is '^]'.
+hello
+Connection closed by foreign host.
+----
+
+[source,console]
+----
+x@node-1:~$ sudo ip link set ens32 down
+----
+
+[source,console]
+----
+x@node-0:~$ ss -nta dst *:6666
+State     Recv-Q     Send-Q            Local Address:Port              Peer Address:Port     Process     
+ESTAB     0          7                192.168.91.128:36824           192.168.91.137:6666                 
+x@node-0:~$ netstat -nta4
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      7 192.168.91.128:36824    192.168.91.137:6666     ESTABLISHED
+----
+
+[source,console]
+----
+x@node-0:~$ sudo tcpdump -tttttSnv -i any icmp or port 6666
+ 00:00:00.000000 ens32 Out IP (tos 0x10, ttl 64, id 26731, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.50688 > 192.168.91.137.6666: Flags [S], cksum 0x3889 (incorrect -> 0xc8d2), seq 1476981540, win 64240, options [mss 1460,sackOK,TS val 3360184417 ecr 0,nop,wscale 7], length 0
+ 00:00:00.000396 ens32 In  IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.137.6666 > 192.168.91.128.50688: Flags [S.], cksum 0x34e8 (correct), seq 2021627494, ack 1476981541, win 65160, options [mss 1460,sackOK,TS val 1682840845 ecr 3360184417,nop,wscale 7], length 0
+ 00:00:00.000462 ens32 Out IP (tos 0x10, ttl 64, id 26732, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.91.128.50688 > 192.168.91.137.6666: Flags [.], cksum 0x3881 (incorrect -> 0x6046), ack 2021627495, win 502, options [nop,nop,TS val 3360184418 ecr 1682840845], length 0
+ 00:00:33.520679 ens32 Out IP (tos 0x10, ttl 64, id 26733, offset 0, flags [DF], proto TCP (6), length 59)
+    192.168.91.128.50688 > 192.168.91.137.6666: Flags [P.], cksum 0x3888 (incorrect -> 0x8f67), seq 1476981541:1476981548, ack 2021627495, win 502, options [nop,nop,TS val 3360217938 ecr 1682840845], length 7
+...
+ 00:00:40.385007 ens32 Out IP (tos 0x10, ttl 64, id 26739, offset 0, flags [DF], proto TCP (6), length 59)
+    192.168.91.128.50688 > 192.168.91.137.6666: Flags [P.], cksum 0x3888 (incorrect -> 0x7497), seq 1476981541:1476981548, ack 2021627495, win 502, options [nop,nop,TS val 3360224802 ecr 1682840845], length 7
+ 00:00:50.113908 lo    In  IP (tos 0xd0, ttl 64, id 25299, offset 0, flags [none], proto ICMP (1), length 87)
+    192.168.91.128 > 192.168.91.128: ICMP host 192.168.91.137 unreachable, length 67
+	IP (tos 0x10, ttl 64, id 26740, offset 0, flags [DF], proto TCP (6), length 59)
+    192.168.91.128.50688 > 192.168.91.137.6666: Flags [P.], cksum 0x3888 (incorrect -> 0x5a96), seq 1476981541:1476981548, ack 2021627495, win 502, options [nop,nop,TS val 3360231459 ecr 1682840845], length 7
+...
+ 00:15:55.330154 lo    In  IP (tos 0xd0, ttl 64, id 7913, offset 0, flags [none], proto ICMP (1), length 87)
+    192.168.91.128 > 192.168.91.128: ICMP host 192.168.91.137 unreachable, length 67
+	IP (tos 0x10, ttl 64, id 26876, offset 0, flags [DF], proto TCP (6), length 59)
+    192.168.91.128.50688 > 192.168.91.137.6666: Flags [P.], cksum 0x3888 (incorrect -> 0x8a89), seq 1476981541:1476981548, ack 2021627495, win 502, options [nop,nop,TS val 3361136674 ecr 1682840845], length 7
+----
+
+Logically, TCP has two thresholds to determine how persistently it will attempt to resend the same segment [RFC1122].
+
+* Threshold `R1` indicates the number of tries TCP will make (or the amount of time it will wait) to resend a segment before passing _negative advice_ to the IP layer (e.g., causing it to reevaluate the IP route it is using).
+
+* Threshold `R2` (larger than `R1`) dictates the point at which TCP should abandon the connection.
+
+These thresholds are suggested to be at least three retransmissions and 100s, respectively.
+
+* For connection establishment (sending SYN segments), these values may be different from those for data segments, and the `R2` value for SYN segments is required to be at least 3 minutes.
+
+In Linux, the `R1` and `R2` values for regular data segments are available to be changed by applications or can be changed using the system-wide configuration variables `net.ipv4.tcp_retries1` and `net.ipv4.tcp_retries2`, respectively.
+
+* These are measured in the number of retransmissions, and not in units of time.
+
+* The default value for `net.ipv4.tcp_retries2` is 15, which corresponds roughly to 13–30 minutes, depending on the connection's RTO.
+
+* The default value for `net.ipv4.tcp_retries1` is 3.
+
+* For SYN segments, `net.ipv4.tcp_syn_retries` and `net.ipv4.tcp_synack_retries` bounds the number of retransmissions of SYN segments; their default value is 5 (roughly 180s).
+
+Windows also has a number of variables that affect the overall behavior of TCP, including values for `R1` and `R2`. These are all available by modifying values under the following registry keys [WINREG]:
+
+[source,console]
+----
+HKLM\System\CurrentControlSet\Services\Tcpip\Parameters
+HKLM\System\CurrentControlSet\Services\Tcpip6\Parameters
+----
+
+== Setting the Retransmission Timeout (RTO)
+
+Fundamental to TCP's timeout and retransmission procedures is how to set the RTO based upon measurement of the RTT experienced on a given connection.
+
+If TCP retransmits a segment earlier than the RTT, it may be injecting duplicate traffic into the network unnecessarily.
+
+Conversely, if it delays sending until much longer than one RTT, the overall network utilization (and single-connection throughput) drops when traffic is lost.
+
+Knowing the RTT is made more complicated because it can change over time, as routes and network usage vary.
+
+TCP must track these changes and modify its timeout accordingly in order to maintain good performance.
+
+Because TCP sends acknowledgments when it receives data, it is possible to send a byte with a particular sequence number and measure the time required to receive an acknowledgment that covers that sequence number. Each such measurement is called an _RTT_ *_sample_*.
+
+The challenge for TCP is
+
+* to establish a good estimate for the range of RTT values given a set of samples that vary over time.
+
+* The second step is how to set the RTO based on these values.
+
+The RTT is estimated for each TCP connection separately, and one retransmission timer is pending whenever any data is in flight that consumes a sequence number (including SYN and FIN segments).
