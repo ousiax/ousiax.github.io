@@ -579,6 +579,157 @@ The smaller ones (such as SYN and SYN + ACK packets used to establish the connec
 
 Some TCP implementations have _black hole detection_, which amounts to trying a smaller segment size when a segment is retransmitted several times.
 
+We can see the correct behavior of PMTUD when an intermediate router has an MTU less than either of the endpoints’ MSS.
+
+* Use `node-1` (a Linux host with local address `192.168.91.137`) as a router, disable the router send_redirects, and reduce the MTU from 1500 to 512 bytes.
++
+[source,console]
+----
+x@node-1:~$ sudo sysctl net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+x@node-1:~$ sudo sysctl net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.all.send_redirects = 0
+x@node-1:~$ sudo sysctl net.ipv4.conf.ens32.send_redirects=0
+net.ipv4.conf.ens32.send_redirects = 0
+x@node-1:~$ sudo ip link set ens32 mtu 512
+x@node-1:~$ ip link show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 512 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+----
+
+* Set the default gateway of host `node-0` to the intermediate router `node-1`.
++
+[NOTE]
++
+====
+In addition, we need to tell the client host (`node-0`) that small segments are allowed:
+
+[source,console]
+x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu=68
+
+If we did not perform the operation, Linux would clamp its minimum path MTU at the default value of 552 bytes, which helps avoid certain small MTU attacks .
+
+The consequence of doing so in our example here is that any packets larger than 512 bytes would be fragmented.
+====
++
+[NOTE]
+====
+Most modern operating systems support some form of network offloading, where some network processing happens on the NIC instead of the CPU. <<offloading>><<lab-15>>
+
+Normally this is a great thing. It can free up resources on the rest of the system and let it handle more connections.
+
+If you're trying to capture traffic it can result in false errors and strange or even missing traffic.
+
+Some cards can reassemble traffic. This will manifest itself in Tcpdump/Wireshark as packets that are larger than expected, such as a 2900-byte packet on a network with a 1500-byte MTU. 
+
+To disable TCP Segmentation Offload (TSO) for a network device `ens32` issue:
+
+[source,console]
+x@node-0:~$ sudo ethtool -K ens32 tx on tso off
+====
++
+[source,console]
+----
+x@node-0:~$ ip r
+default via 192.168.91.2 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+x@node-0:~$ sudo ip r del default 
+x@node-0:~$ sudo ip r add default via 192.168.91.137 dev ens32 
+x@node-0:~$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128
+x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu 
+net.ipv4.route.min_pmtu = 552
+x@node-0:~$ sudo sysctl net.ipv4.route.min_pmtu=68
+net.ipv4.route.min_pmtu = 68
+x@node-0:~$ sudo ethtool -k ens32 
+Features for ens32:
+rx-checksumming: off
+tx-checksumming: on
+	tx-checksum-ipv4: off [fixed]
+	tx-checksum-ip-generic: on
+	tx-checksum-ipv6: off [fixed]
+	tx-checksum-fcoe-crc: off [fixed]
+	tx-checksum-sctp: off [fixed]
+scatter-gather: on
+	tx-scatter-gather: on
+	tx-scatter-gather-fraglist: off [fixed]
+tcp-segmentation-offload: on
+	tx-tcp-segmentation: on
+	tx-tcp-ecn-segmentation: off [fixed]
+	tx-tcp-mangleid-segmentation: off
+	tx-tcp6-segmentation: off [fixed]
+...
+x@node-0:~$ sudo ethtool -K ens32 tx on tso off
+Actual changes:
+tx-checksum-ipv4: off [requested on]
+tx-checksum-ipv6: off [requested on]
+tx-tcp-segmentation: off
+tx-checksum-fcoe-crc: off [requested on]
+tx-checksum-sctp: off [requested on]
+----
+
+* Send a larger packet of with data size 500 bytes
++
+TIP: The max tcp segment size will be 512 - 20 (IP header) - 20 (TCP header) = 472, that is the 500 bytes will be fragmented to two segments.
++
+[source,console]
+----
+x@node-0:~$ head -c 500 /dev/random | nc -v windows.home 6666
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Connected to 10.170.109.10:6666.
+Ncat: 500 bytes sent, 0 bytes received in 0.01 seconds.
+x@node-0:~$ ip r get 10.170.109.10
+10.170.109.10 via 192.168.91.137 dev ens32 src 192.168.91.128 uid 1000 
+    cache expires 502sec mtu 512 
+----
+
+* The path MTU discovery mechanism finds an appropriate segment size to use when transiting the network where the middle link has a smaller MTU than the endpoints.
++
+[source,console,highlight="17,25,27,32,34"]
+----
+x@node-0:~$ sudo tcpdump -tnv port 6666 or icmp -i ens32 
+tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 34352, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [S], cksum 0x940b (incorrect -> 0x590e), seq 3025740589, win 64240, options [mss 1460,sackOK,TS val 2055433851 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 63, id 34352, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [S], cksum 0x590e (correct), seq 3025740589, win 64240, options [mss 1460,sackOK,TS val 2055433851 ecr 0,nop,wscale 7], length 0
+IP (tos 0x0, ttl 128, id 65296, offset 0, flags [none], proto TCP (6), length 44)
+    10.170.109.10.6666 > 192.168.91.128.34196: Flags [S.], cksum 0xfe8e (correct), seq 1730751594, ack 3025740590, win 64240, options [mss 1460], length 0
+IP (tos 0x0, ttl 64, id 34353, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [.], cksum 0x93f7 (incorrect -> 0x164c), ack 1, win 64240, length 0
+IP (tos 0x0, ttl 64, id 34354, offset 0, flags [DF], proto TCP (6), length 540)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [P.], cksum 0x95eb (incorrect -> 0xe838), seq 1:501, ack 1, win 64240, length 500
+IP (tos 0x0, ttl 64, id 34355, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [F.], cksum 0x93f7 (incorrect -> 0x1457), seq 501, ack 1, win 64240, length 0
+IP (tos 0x0, ttl 63, id 34353, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [.], cksum 0x164c (correct), ack 1, win 64240, length 0
+IP (tos 0xc0, ttl 64, id 9583, offset 0, flags [none], proto ICMP (1), length 512)
+    192.168.91.137 > 192.168.91.128: ICMP 10.170.109.10 unreachable - need to frag (mtu 512), length 492
+	IP (tos 0x0, ttl 64, id 34354, offset 0, flags [DF], proto TCP (6), length 540)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [P.], seq 1:501, ack 1, win 64240, length 500
+IP (tos 0x0, ttl 63, id 34355, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [F.], cksum 0x1457 (correct), seq 501, ack 1, win 64240, length 0
+IP (tos 0x0, ttl 128, id 65297, offset 0, flags [none], proto TCP (6), length 40)
+    10.170.109.10.6666 > 192.168.91.128.34196: Flags [.], cksum 0x164c (correct), ack 1, win 64240, length 0
+IP (tos 0x0, ttl 64, id 34356, offset 0, flags [DF], proto TCP (6), length 512)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [.], cksum 0x95cf (incorrect -> 0x1464), seq 1:473, ack 1, win 64240, length 472
+IP (tos 0x0, ttl 64, id 34357, offset 0, flags [DF], proto TCP (6), length 68)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [P.], cksum 0x9413 (incorrect -> 0xe848), seq 473:501, ack 1, win 64240, length 28
+IP (tos 0x0, ttl 63, id 34356, offset 0, flags [DF], proto TCP (6), length 540)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [P.], cksum 0x95eb (incorrect -> 0xe838), seq 1:501, ack 1, win 64240, length 500
+IP (tos 0x0, ttl 128, id 65298, offset 0, flags [none], proto TCP (6), length 40)
+    10.170.109.10.6666 > 192.168.91.128.34196: Flags [.], cksum 0x1474 (correct), ack 473, win 64240, length 0
+IP (tos 0x0, ttl 128, id 65299, offset 0, flags [none], proto TCP (6), length 40)
+    10.170.109.10.6666 > 192.168.91.128.34196: Flags [.], cksum 0x1458 (correct), ack 502, win 64239, length 0
+IP (tos 0x0, ttl 128, id 65300, offset 0, flags [none], proto TCP (6), length 40)
+    10.170.109.10.6666 > 192.168.91.128.34196: Flags [FP.], cksum 0x144f (correct), seq 1, ack 502, win 64239, length 0
+IP (tos 0x0, ttl 64, id 34358, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [.], cksum 0x93f7 (incorrect -> 0x1457), ack 2, win 64239, length 0
+IP (tos 0x0, ttl 63, id 34358, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.91.128.34196 > 10.170.109.10.6666: Flags [.], cksum 0x1457 (correct), ack 2, win 64239, length 0
+----
+
 == TCP State Transitions
 
 The rules which types of segments are sent during different phases of a TCP connection that determine what TCP does are determined by what state TCP is in.
@@ -1428,3 +1579,5 @@ IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
 
 * [[[tcp_ip_vol_1,1]]] Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
 * [[[tcp_reset_attack,2]]] https://en.wikipedia.org/wiki/TCP_reset_attack
+* [[[offloading,3]]] https://wiki.wireshark.org/CaptureSetup/Offloading
+* [[[lab-15,4]]] http://ce.sc.edu/cyberinfra/workshops/Material/NTP/Lab%2015.pdf
