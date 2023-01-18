@@ -515,6 +515,22 @@ TCP-AO improves upon TCP-MD5 by supporting a variety of cryptographic algorithms
 
 However, because it requires creation and distribution of a shared key (and is a relatively new option), it is not yet widely deployed.
 
+== Segmentation Offloading
+
+Unfortunately sometimes what we see in Wireshark is not what we expect. One case in which this occurs is when TCP/IP operations are offloaded by the operating system to the Network Interface Card (NIC). Common operations for offloading are segmentation and checksum calculations. That is, instead of the OS using the CPU to segment TCP packets, it allows the NIC to use its own processor to perform the segmentation. This saves on the CPU and importantly cuts down on the bus communications to/from the NIC. However offloading doesn't change what is sent over the network. In other words, offloading to the NIC can produce performance gains inside your computer, but not across the network. <<segmentation-offloading-with-wireshark-and-ethtool>>
+
+How does this affect what Wireshark captures? Consider the figure below illustrating the normal flow of data through a TCP/IP stack without offloading. Lets assume the application data is 7,300 Bytes. TCP breaks this into five segments. Why five? The Maximum Transmission Unit (MTU) of Ethernet is 1500 Bytes. If we subtract the 20 Byte IP header and 20 Byte TCP header there is 1460 Bytes remaining for data in a TCP segment (this is the TCP Maximum Segment Size (MSS)). 7,300 Bytes can be conveniently segmented into five maximum sized TCP segments. 
+
+image::/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-without-offloading.png[,55%,55%]
+
+After IP adds a header to the TCP segments the resulting IP datagrams are sent one-by-one to the "Ethernet layer". Note that TCP/IP are part of operating system, while most functionality of Ethernet is implemented on the NIC. However network drivers (lets consider them part of the OS) also perform some of the Ethernet functionality. The network driver creates/receives Ethernet frames. So in the above example, assuming segmentation offloading is not used, the 7,300 Bytes of application data is segmented into 5 TCP/IP packets containing 1460 Bytes of data each. The network driver encapsulates each IP datagram in an Ethernet frame and sends the frames to the NIC. It is these Ethernet frames that Wireshark (and other packet capture software, like *tcpdump*) captures. The NIC then sends the frames, one-by-one, over the network.
+
+Now consider when segmentation offloading is used (as in the figure below). The OS does not segment the application data, but instead creates one large TCP/IP packet and sends that to the driver. The TCP and IP headers are in fact template headers. The driver creates a single Ethernet frame (which is captured by Wireshark) and sends it to the NIC. Now the NIC performs the segmentation. It uses the template headers to create 5 Ethernet frames with real TCP/IP/Ethernet headers. The 5 frames are then sent over the network. 
+
+image::/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-with-offloading.png[,55%,55%]
+
+The result: although the same 5 Ethernet frames are sent over the network, Wireshark captures different data depending on the use of segmentation offloading. When not used, the 5 Ethernet frames are captured. When offloading is used, Wireshark only captures the single, large frame (containing 7,300 bytes of data).
+
 == Path MTU Discovery with TCP
 
 The path MTU is the minimum MTU on any network segment that is currently in the path between two hosts.
@@ -614,7 +630,7 @@ The consequence of doing so in our example here is that any packets larger than 
 +
 [NOTE]
 ====
-Most modern operating systems support some form of network offloading, where some network processing happens on the NIC instead of the CPU. <<offloading>><<lab-15>>
+Most modern operating systems support some form of network offloading, where some network processing happens on the NIC instead of the CPU. <<offloading>><<segmentation-offloading-with-wireshark-and-ethtool>><<lab-15>>
 
 Normally this is a great thing. It can free up resources on the rest of the system and let it handle more connections.
 
@@ -1580,4 +1596,7 @@ IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
 * [[[tcp_ip_vol_1,1]]] Fall, Kevin R._ Stevens, W. Richard_ Wright, Gary R - TCP_IP Illustrated, Volume 1_ The Protocols (2012, Addison-Wesley, Pearson)
 * [[[tcp_reset_attack,2]]] https://en.wikipedia.org/wiki/TCP_reset_attack
 * [[[offloading,3]]] https://wiki.wireshark.org/CaptureSetup/Offloading
-* [[[lab-15,4]]] http://ce.sc.edu/cyberinfra/workshops/Material/NTP/Lab%2015.pdf
+* [[[segmentation-offloading-with-wireshark-and-ethtool,4]]] https://sandilands.info/sgordon/segmentation-offloading-with-wireshark-and-ethtool
+* [[[lab-15,5]]] http://ce.sc.edu/cyberinfra/workshops/Material/NTP/Lab%2015.pdf
+* [[[generic_segmentation_offload_lib,6]]] https://doc.dpdk.org/guides/prog_guide/generic_segmentation_offload_lib.html
+* [[[segmentation-offloads,7]]] https://docs.kernel.org/networking/segmentation-offloads.html
