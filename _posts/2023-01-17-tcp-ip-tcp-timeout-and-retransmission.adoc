@@ -143,3 +143,83 @@ Once a sending TCP has established its RTO based upon measurements of the time-v
 * The next time the sender emits a packet with data in it, a new retransmission timer is set, the old one is canceled, and the new sequence number is recorded.
 
 * The sending TCP therefore continuously sets and cancels one retransmission timer per connection; if no data is ever lost, no retransmission timer ever expires.
+
+When TCP fails to receive an ACK for a segment it has timed on a connection within the RTO, it performs a timer-based retransmission.
+
+TCP considers a timer-based retransmission as a fairly major event; it reacts very cautiously when it happens by quickly reducing the rate at which it sends data into the network. It does this in two ways.
+
+* The first way is to reduce its sending window size based on congestion control procedures.
+* The other way is to keep increasing a multiplicative backoff factor applied to the RTO each time a retransmitted segment is again retransmitted.
++
+In particular, the RTO value is (temporarily) multiplied by the value `γ` to form the backed-off timeout when multiple retransmissions of the same segment occur:
++
+[source,text]
+RTO = γRTO
++
+** In ordinary circumstances, `γ` has the value 1.
++
+** On subsequent retransmissions, `γ` is doubled: 2, 4, 8, and so forth.
++
+There is typically a maximum backoff factor that `γ` is not allowed to exceed (Linux ensures that the used RTO never exceeds the value `TCP_RTO_MAX`, which defaults to 120s).
++
+[source,sh]
+----
+x@node-0:~$ uname -a; uname -r
+Linux node-0 5.10.0-19-amd64 #1 SMP Debian 5.10.149-2 (2022-10-21) x86_64 GNU/Linux
+5.10.0-19-amd64
+x@node-0:~$ grep "#define HZ" /usr/include/asm-generic/param.h 
+#define HZ 100
+x@node-0:~$ grep "#define TCP_RTO_" /usr/src/linux-headers-5.10.0-19-common/include/net/tcp.h 
+#define TCP_RTO_MAX	((unsigned)(120*HZ))
+#define TCP_RTO_MIN	((unsigned)(HZ/5))
+----
++
+** Once an acceptable ACK is received, `γ` is reset to 1.
++
+[source,man]
+----
+SS(8)                       System Manager's Manual                      SS(8)
+
+NAME
+       ss - another utility to investigate sockets
+....
+              rto:<icsk_rto>
+                     tcp re-transmission timeout value, the unit is  millisec‐
+                     ond
+
+              backoff:<icsk_backoff>
+                     used  for exponential backoff re-transmission, the actual
+                     re-transmission timeout value is icsk_rto << icsk_backoff
+
+              rtt:<rtt>/<rttvar>
+                     rtt is the average round trip time, rttvar  is  the  mean
+                     deviation of rtt, their units are millisecond
+
+              cwnd:<cwnd>
+                     congestion window size
+----
++
+[source,console]
+----
+x@node-0:~$ while ss -itn dst *:6666; do sleep 1; done
+State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+ESTAB 0      0      192.168.91.128:33176 192.168.91.135:6666
+	 cubic wscale:7,7 rto:204 rtt:1.86/0.93 cwnd:10
+State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
+	 cubic wscale:7,7 rto:204 rtt:1.86/0.93 cwnd:10
+State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
+	 cubic wscale:7,7 rto:816 backoff:2 rtt:1.86/0.93 cwnd:1
+State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
+	 cubic wscale:7,7 rto:1632 backoff:3 rtt:1.86/0.93 cwnd:1
+...
+State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
+	 cubic wscale:7,7 rto:6528 backoff:5 rtt:1.86/0.93 cwnd:1
+State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+ESTAB 0      0      192.168.91.128:33176 192.168.91.135:6666
+	 cubic wscale:7,7 rto:204 rtt:1.752/0.912 cwnd:2
+----
+
