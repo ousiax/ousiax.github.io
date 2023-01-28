@@ -156,6 +156,7 @@ In particular, the RTO value is (temporarily) multiplied by the value `γ` to fo
 [source,text]
 RTO = γRTO
 +
+--
 ** In ordinary circumstances, `γ` has the value 1.
 +
 ** On subsequent retransmissions, `γ` is doubled: 2, 4, 8, and so forth.
@@ -175,51 +176,138 @@ x@node-0:~$ grep "#define TCP_RTO_" /usr/src/linux-headers-5.10.0-19-common/incl
 ----
 +
 ** Once an acceptable ACK is received, `γ` is reset to 1.
-+
-[source,man]
-----
-SS(8)                       System Manager's Manual                      SS(8)
-
-NAME
-       ss - another utility to investigate sockets
-....
-              rto:<icsk_rto>
-                     tcp re-transmission timeout value, the unit is  millisec‐
-                     ond
-
-              backoff:<icsk_backoff>
-                     used  for exponential backoff re-transmission, the actual
-                     re-transmission timeout value is icsk_rto << icsk_backoff
-
-              rtt:<rtt>/<rttvar>
-                     rtt is the average round trip time, rttvar  is  the  mean
-                     deviation of rtt, their units are millisecond
-
-              cwnd:<cwnd>
-                     congestion window size
-----
+--
 +
 [source,console]
 ----
 x@node-0:~$ while ss -itn dst *:6666; do sleep 1; done
-State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+State Recv-Q Send-Q  Local Address:Port    Peer Address:Port
 ESTAB 0      0      192.168.91.128:33176 192.168.91.135:6666
 	 cubic wscale:7,7 rto:204 rtt:1.86/0.93 cwnd:10
-State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+State Recv-Q Send-Q  Local Address:Port    Peer Address:Port
 ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
 	 cubic wscale:7,7 rto:204 rtt:1.86/0.93 cwnd:10
-State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+State Recv-Q Send-Q  Local Address:Port    Peer Address:Port
 ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
 	 cubic wscale:7,7 rto:816 backoff:2 rtt:1.86/0.93 cwnd:1
-State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+State Recv-Q Send-Q  Local Address:Port    Peer Address:Port
 ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
 	 cubic wscale:7,7 rto:1632 backoff:3 rtt:1.86/0.93 cwnd:1
 ...
-State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+State Recv-Q Send-Q  Local Address:Port    Peer Address:Port
 ESTAB 0      7      192.168.91.128:33176 192.168.91.135:6666
 	 cubic wscale:7,7 rto:6528 backoff:5 rtt:1.86/0.93 cwnd:1
-State Recv-Q Send-Q  Local Address:Port    Peer Address:PortProcess
+State Recv-Q Send-Q  Local Address:Port    Peer Address:Port
 ESTAB 0      0      192.168.91.128:33176 192.168.91.135:6666
 	 cubic wscale:7,7 rto:204 rtt:1.752/0.912 cwnd:2
 ----
 
+== Fast Retransmit
+
+*Fast retransmit* [RFC5681] is a TCP procedure that can induce a packet retransmission based on feedback from the receiver instead of requiring a retransmission timer to expire.
+
+A typical TCP implements both fast retransmit and timer-based retransmission.
+
+TCP generates an immediate acknowledgment (a _duplicate ACK_) when an *_out-of-order segment_* is received, and that the loss of a segment implies out-of-order arrivals at the receiver when subsequent data arrives.
+
+* When this happens, a *_hole_* is created at the receiver.
+
+* The sender's job then becomes filling the receiver's holes as quickly and efficiently as possible.
+
+* The duplicate ACKs sent immediately when out-of-order data arrives are not delayed.
++
+The reason is to let the sender know that a segment was received out of order, and to indicate what sequence number is expected (i.e., where the hole is).
+
+* When SACK is used, these duplicate ACKs typically contain SACK blocks as well, which can provide information about more than one hole.
+
+A duplicate ACK (with or without SACK blocks) arriving at a sender is a potential indicator that a packet sent earlier has been lost. It can also appear when there is *_packet reordering_* in the network.
+
+TCP waits for a small number of duplicate ACKs (called the _duplicate ACK threshold_ or _dupthresh_) to be received before concluding that a packet has been lost and initiating a fast retransmit.
+
+Packet loss inferred by the presence of duplicate ACKs is assumed to be related to _network congestion_, and congestion control procedures are invoked along with _fast retransmit_.
+
+Without SACK, no more than one segment is typically retransmitted until an acceptable ACK is received.
+
+With SACK, ACKs contain additional information allowing the sender to fill more than one hole in the receiver per RTT.
+
+[source,console,highlight="14"]
+----
+x@node-1:~$ ip a show ens32 
+2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+    inet6 fe80::20c:29ff:fe85:2607/64 scope link 
+       valid_lft forever preferred_lft forever
+x@node-1:~$ sudo sysctl net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+x@node-1:~$ sudo sysctl net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.all.send_redirects = 0
+x@node-1:~$ sudo sysctl net.ipv4.conf.ens32.send_redirects=0
+net.ipv4.conf.ens32.send_redirects = 0
+x@node-1:~$ sudo tc qdisc replace dev ens32 root netem loss 50%
+x@node-1:~$ sudo tc qdisc show dev ens32 
+qdisc netem 8001: root refcnt 2 limit 1000 loss 50%
+----
+
+[source,console]
+----
+x@node-0:~$ sudo ip r replace default via 192.168.91.137
+x@node-0:~$ ip r
+default via 192.168.91.137 dev ens32 
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
+----
+
+[source,console,highlight="7"]
+----
+x@node-0:~$ ping -c 4 windows.home 
+PING windows.home (10.170.109.10) 56(84) bytes of data.
+64 bytes from http-proxy (10.170.109.10): icmp_seq=1 ttl=128 time=5.61 ms
+64 bytes from http-proxy (10.170.109.10): icmp_seq=2 ttl=128 time=1.28 ms
+
+--- windows.home ping statistics ---
+4 packets transmitted, 2 received, 50% packet loss, time 3021ms
+rtt min/avg/max/mdev = 1.275/3.441/5.608/2.166 ms
+x@node-0:~$ telnet windows.home 6666
+Trying 10.170.109.10...
+Connected to windows.home.
+Escape character is '^]'.
+HELLO
+^]
+telnet> q
+Connection closed.
+----
+
+[source,console,highlight="3-6,9,11-13,17,20,24"]
+----
+x@node-0:~$ sudo tcpdump -tttttSn port 6666
+ 00:00:00.000000 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131499270 ecr 0,nop,wscale 7], length 0
+ 00:00:01.030663 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131500300 ecr 0,nop,wscale 7], length 0
+ 00:00:03.045839 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131502315 ecr 0,nop,wscale 7], length 0
+ 00:00:07.237567 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131506507 ecr 0,nop,wscale 7], length 0
+ 00:00:07.238040 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131506507 ecr 0,nop,wscale 7], length 0
+ 00:00:07.238577 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
+ 00:00:07.238627 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
+ 00:00:07.343502 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
+ 00:00:07.343531 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
+ 00:00:07.454848 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
+ 00:00:07.562429 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
+ 00:00:08.573351 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
+ 00:00:08.573365 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
+ 00:00:08.573829 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
+ 00:00:13.085400 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [P.], seq 1089778285:1089778292, ack 462033366, win 64240, length 7
+ 00:00:13.087022 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [P.], seq 1089778285:1089778292, ack 462033366, win 64240, length 7
+ 00:00:13.087029 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [.], ack 1089778292, win 64240, length 0
+ 00:00:27.525036 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [F.], seq 1089778292, ack 462033366, win 64240, length 0
+ 00:00:27.525294 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [F.], seq 1089778292, ack 462033366, win 64240, length 0
+ 00:00:27.525532 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [.], ack 1089778293, win 64239, length 0
+ 00:00:27.525533 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [FP.], seq 462033366, ack 1089778293, win 64239, length 0
+ 00:00:27.525570 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033367, win 64240, length 0
+ 00:00:27.526226 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033367, win 64240, length 0
+----
+
+[bibliography]
+== References
+
+* [[[netem,2]]] https://wiki.linuxfoundation.org/networking/netem
+* [[[emulating-bad-networks,3]]] https://samwho.dev/blog/emulating-bad-networks/
