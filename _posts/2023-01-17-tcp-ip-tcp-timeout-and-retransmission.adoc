@@ -230,83 +230,87 @@ Without SACK, no more than one segment is typically retransmitted until an accep
 
 With SACK, ACKs contain additional information allowing the sender to fill more than one hole in the receiver per RTT.
 
-[source,console,highlight="14"]
+[source,console]
 ----
-x@node-1:~$ ip a show ens32 
-2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
-    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff
-    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
-       valid_lft forever preferred_lft forever
-    inet6 fe80::20c:29ff:fe85:2607/64 scope link 
-       valid_lft forever preferred_lft forever
-x@node-1:~$ sudo sysctl net.ipv4.ip_forward=1
-net.ipv4.ip_forward = 1
-x@node-1:~$ sudo sysctl net.ipv4.conf.all.send_redirects=0
-net.ipv4.conf.all.send_redirects = 0
-x@node-1:~$ sudo sysctl net.ipv4.conf.ens32.send_redirects=0
-net.ipv4.conf.ens32.send_redirects = 0
-x@node-1:~$ sudo tc qdisc replace dev ens32 root netem loss 50%
-x@node-1:~$ sudo tc qdisc show dev ens32 
-qdisc netem 8001: root refcnt 2 limit 1000 loss 50%
+x@node-1:~$ sudo sysctl net.ipv4.tcp_sack=0
+net.ipv4.tcp_sack = 0
+x@node-1:~$ sudo iptables -A INPUT -p tcp --dport 6666 -m statistic --mode nth --every 2 --packet 0 -j DROP
+x@node-1:~$ sudo iptables -L INPUT
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+DROP       tcp  --  anywhere             anywhere             tcp dpt:6666 statistic mode nth every 2
 ----
 
 [source,console]
 ----
-x@node-0:~$ sudo ip r replace default via 192.168.91.137
-x@node-0:~$ ip r
-default via 192.168.91.137 dev ens32 
-192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128 
-----
-
-[source,console,highlight="7"]
-----
-x@node-0:~$ ping -c 4 windows.home 
-PING windows.home (10.170.109.10) 56(84) bytes of data.
-64 bytes from http-proxy (10.170.109.10): icmp_seq=1 ttl=128 time=5.61 ms
-64 bytes from http-proxy (10.170.109.10): icmp_seq=2 ttl=128 time=1.28 ms
-
---- windows.home ping statistics ---
-4 packets transmitted, 2 received, 50% packet loss, time 3021ms
-rtt min/avg/max/mdev = 1.275/3.441/5.608/2.166 ms
-x@node-0:~$ telnet windows.home 6666
-Trying 10.170.109.10...
-Connected to windows.home.
-Escape character is '^]'.
-HELLO
-^]
-telnet> q
-Connection closed.
-----
-
-[source,console,highlight="3-6,9-15,17,20,24"]
-----
-x@node-0:~$ sudo tcpdump -tttttSn port 6666
- 00:00:00.000000 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131499270 ecr 0,nop,wscale 7], length 0
- 00:00:01.030663 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131500300 ecr 0,nop,wscale 7], length 0
- 00:00:03.045839 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131502315 ecr 0,nop,wscale 7], length 0
- 00:00:07.237567 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131506507 ecr 0,nop,wscale 7], length 0
- 00:00:07.238040 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [S], seq 1089778284, win 64240, options [mss 1460,sackOK,TS val 1131506507 ecr 0,nop,wscale 7], length 0
- 00:00:07.238577 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
- 00:00:07.238627 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
- 00:00:07.343502 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
- 00:00:07.343531 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
- 00:00:07.454848 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
- 00:00:07.562429 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
- 00:00:08.573351 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [S.], seq 462033365, ack 1089778285, win 64240, options [mss 1460], length 0
- 00:00:08.573365 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
- 00:00:08.573829 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033366, win 64240, length 0
- 00:00:13.085400 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [P.], seq 1089778285:1089778292, ack 462033366, win 64240, length 7
- 00:00:13.087022 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [P.], seq 1089778285:1089778292, ack 462033366, win 64240, length 7
- 00:00:13.087029 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [.], ack 1089778292, win 64240, length 0
- 00:00:27.525036 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [F.], seq 1089778292, ack 462033366, win 64240, length 0
- 00:00:27.525294 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [F.], seq 1089778292, ack 462033366, win 64240, length 0
- 00:00:27.525532 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [.], ack 1089778293, win 64239, length 0
- 00:00:27.525533 IP 10.170.109.10.6666 > 192.168.91.128.41716: Flags [FP.], seq 462033366, ack 1089778293, win 64239, length 0
- 00:00:27.525570 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033367, win 64240, length 0
- 00:00:27.526226 IP 192.168.91.128.41716 > 10.170.109.10.6666: Flags [.], ack 462033367, win 64240, length 0
+x@node-0:~$ sudo ethtool -K ens32 tx on tso off
+Actual changes:
+tx-checksum-ipv4: off [requested on]
+tx-checksum-ipv6: off [requested on]
+tx-tcp-segmentation: off
+tx-checksum-fcoe-crc: off [requested on]
+tx-checksum-sctp: off [requested on]
+x@node-0:~$ sudo sysctl net.ipv4.tcp_sack=0
+net.ipv4.tcp_sack = 0
+x@node-0:~$ head -c 10000 /dev/random | nc -v node-1 6666
+Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Connected to 192.168.91.137:6666.
+Ncat: 10000 bytes sent, 0 bytes received in 2.50 seconds.
 ----
 
 image::/assets/tcp-ip/tcp-timeout-and-retransmission/fast-retransmit-wireshark.png[,100%,100%]
+
+* The packets 23 and 28 are window update ACKs with a duplicate sequence number (because no data is being carried) but contains a change to the TCP flow control window. The window changes from 65,160 bytes to 63,488 bytes. Thus, it is not counted toward the three-duplicate-ACK threshold required to initiate a fast retransmit. Window updates merely provide a copy of the window advertisement.
+* The packets 14 and 15 are all duplicate ACKs for sequence number 1449. The arrival of the second of these duplicate ACKs triggers the fast retransmit of segment 1449 by packets 16 and 17.
+* The retransmissions from packet 19 to 22 are somewhat different from the first two. When the first two retransmissions takes place, the sending TCP notes the highest sequence number it had sent just before it performed the retransmission (9641 + 360 = 10001). This is called the *recovery point*.
++
+TCP is considered to be recovering from loss after a retransmission until it receives an ACK that matches or exceeds the sequence number of the recovery point.
++
+In this example, the ACKs at packet 18 are not for 10001, but instead for 5793. This number is larger than the previous highest ACK value seen (1449), but not enough to meet or exceed the recovery point (10001). This type of ACK is called a *partial ACK* for this reason.
++
+When partial ACKs arrive, the sending TCP immediately sends the segments that appears to be missing (5793 to 9641 in this case) and continues this way until the recovery point is matched or exceeded by an arriving ACK.
++
+If permitted by congestion control procedures, it may also send new data it has not yet sent.
+* Because no SACKs are being used, the sender can learn of at most one receiver hole per round-trip time, indicated by the increase in the ACK number of returning packets, which can only occur once a retransmission filling the receiver’s lowest-numbered hole has been received and ACKed.
+
+[source,console,linenums]
+----
+ 00:00:00.000000 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [S], seq 2395807434, win 64240, options [mss 1460,nop,nop,TS val 3245551521 ecr 0,nop,wscale 7], length 0
+ 00:00:01.013807 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [S], seq 2395807434, win 64240, options [mss 1460,nop,nop,TS val 3245552536 ecr 0,nop,wscale 7], length 0
+ 00:00:01.014094 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [S.], seq 3105090969, ack 2395807435, win 65160, options [mss 1460,nop,nop,TS val 939993754 ecr 3245552536,nop,wscale 7], length 0
+ 00:00:01.014138 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 0
+ 00:00:01.014253 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 1:1449, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 1448
+ 00:00:01.014303 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 1448
+ 00:00:01.014329 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 2897:4345, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 1448
+ 00:00:01.014330 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 4345:5793, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 1448
+ 00:00:01.014331 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 5793:7241, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 1448
+ 00:00:01.014367 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 952
+ 00:00:01.014392 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 1449, win 501, options [nop,nop,TS val 939993754 ecr 3245552536], length 0
+ 00:00:01.014401 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 8193:9641, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 1448
+ 00:00:01.014419 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [FP.], seq 9641:10001, ack 1, win 502, options [nop,nop,TS val 3245552536 ecr 939993754], length 360
+ 00:00:01.014498 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 1449, win 501, options [nop,nop,TS val 939993754 ecr 3245552536], length 0
+ 00:00:01.014498 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 1449, win 501, options [nop,nop,TS val 939993754 ecr 3245552536], length 0
+ 00:00:01.221646 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3245552743 ecr 939993754], length 1448
+ 00:00:01.653752 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3245553175 ecr 939993754], length 1448
+ 00:00:01.654191 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 5793, win 473, options [nop,nop,TS val 939994394 ecr 3245553175], length 0
+ 00:00:01.654217 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 5793:7241, ack 1, win 502, options [nop,nop,TS val 3245553176 ecr 939994394], length 1448
+ 00:00:01.654221 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3245553176 ecr 939994394], length 952
+ 00:00:01.654278 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 8193:9641, ack 1, win 502, options [nop,nop,TS val 3245553176 ecr 939994394], length 1448
+ 00:00:01.654303 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [FP.], seq 9641:10001, ack 1, win 502, options [nop,nop,TS val 3245553176 ecr 939994394], length 360
+ 00:00:01.654539 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 5793, win 496, options [nop,nop,TS val 939994394 ecr 3245553175], length 0
+ 00:00:01.862139 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 5793:7241, ack 1, win 502, options [nop,nop,TS val 3245553384 ecr 939994394], length 1448
+ 00:00:01.862428 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 7241, win 488, options [nop,nop,TS val 939994602 ecr 3245553384], length 0
+ 00:00:01.862444 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3245553384 ecr 939994602], length 952
+ 00:00:01.862475 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], seq 8193:9641, ack 1, win 502, options [nop,nop,TS val 3245553384 ecr 939994602], length 1448
+ 00:00:01.862675 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 7241, win 496, options [nop,nop,TS val 939994602 ecr 3245553384], length 0
+ 00:00:02.070061 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3245553592 ecr 939994602], length 952
+ 00:00:02.486074 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3245554008 ecr 939994602], length 952
+ 00:00:02.486555 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [.], ack 10002, win 489, options [nop,nop,TS val 939995226 ecr 3245554008], length 0
+ 00:00:02.486557 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 939995226 ecr 3245554008], length 0
+ 00:00:02.486636 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3245554008 ecr 939995226], length 0
+ 00:00:02.717525 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 939995457 ecr 3245554008], length 0
+ 00:00:02.717540 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3245554239 ecr 939995226], length 0
+----
 
 [bibliography]
 == References
@@ -376,9 +380,9 @@ When loss is used locally (not on a bridge or router), the loss is reported to t
 
 === Dropping Packets with iptables
 
-`iptables` allows you to create rules that specify how packets coming into your computer and going out of your computer are treated (and for routers, also forwarded by the router). The rules for packets coming in are in the _INPUT_ chain, packets going out are _OUTPUT_, and packets forwarded are in the _FORWARD_ chain. We will only use the _INPUT_ chain.
+`iptables` allows you to create rules that specify how packets coming into your computer and going out of your computer are treated (and for routers, also forwarded by the router). The rules for packets coming in are in the INPUT chain, packets going out are OUTPUT, and packets forwarded are in the FORWARD chain. We will only use the INPUT chain.
 
-The rules can filter packets based on common packet identifiers (IP addresses, ports, protocol numbers) as well as other matching criteria. We will use a special _statistic_ matching module. For each packet that matches the filter, some action is applied (e.g. _DROP_ the packet, _ACCEPT_ the packet, or some more complex operation). We want to _DROP_ packets, in particular a specified percentage of packets.
+The rules can filter packets based on common packet identifiers (IP addresses, ports, protocol numbers) as well as other matching criteria. We will use a special _statistic_ matching module. For each packet that matches the filter, some action is applied (e.g. DROP the packet, ACCEPT the packet, or some more complex operation).
 
 On computer `node-1` (the destination), to view the current set of rules: 
 
