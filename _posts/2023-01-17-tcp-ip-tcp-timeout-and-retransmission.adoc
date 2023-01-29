@@ -313,4 +313,147 @@ image::/assets/tcp-ip/tcp-timeout-and-retransmission/fast-retransmit-wireshark.p
 
 * [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens, TCP/IP Illustrated: The Protocols, Volume 1 (Addison-Wesley Professional Computing Series) 2nd Edition
 * [[[netem,2]]] https://wiki.linuxfoundation.org/networking/netem
-* [[[emulating-bad-networks,3]]] https://samwho.dev/blog/emulating-bad-networks/
+* [[[iptables,3]]] https://www.netfilter.org/documentation/HOWTO/packet-filtering-HOWTO-7.html
+* [[[emulating-bad-networks,4]]] https://samwho.dev/blog/emulating-bad-networks/
+* [[[dpltc,5]]] https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
+
+[appendix]
+== Dropping Packets in Linux using tc and iptables
+
+There are two simple ways to randomly drop packets on a Linux computer: using `tc`, the program dedicated for controlling traffic; and using `iptables`, the built-in firewall. <<netem>><<iptables>><<emulating-bad-networks>><<dpltc>>
+
+=== Dropping Packets with tc
+
+*tc* controls the transmit queues of your kernel. Normally when applications on your computer generate data to send, the data is passed to your kernel (via TCP and IP) for transmission on the network interface. The packets are transmitted in a first-in-first-out (FIFO) order.
+
+_tc_ allows you to change the queuing mechanisms (e.g. giving priority to specific type of packets), as well as emulate links by delaying and dropping packets.
+
+Here we will use _tc_ to drop packets. Because _tc_ controls the transmit queues, we use it on a source computer (normally _tc_ doesn't impact on what is received by your computer, but there are exceptions). 
+
+[source,console]
+----
+x@node-0:~$ sudo tc qdisc replace dev ens32 root netem loss 25%
+----
+
+_netem_ is a special type of queuing discipline used for emulating networks. The above command tells the Linux kernel to drop on average 25% of the packets in the transmit queue. You can use different values of loss (e.g. 10%).
+
+When using _tc_ you can show the current queue disciplines using:
+
+[source,console]
+----
+x@node-0:~$ sudo tc qdisc show dev ens32
+qdisc netem 8001: root refcnt 2 limit 1000 loss 25%
+----
+
+To show that it works, lets run an PING test. On computer `node-1` (the computer where _tc_ is NOT used) run: 
+
+[source,console]
+----
+x@node-1:~$ ping node-0 -c 4
+PING node-0.localdomain (192.168.91.129) 56(84) bytes of data.
+64 bytes from 192.168.91.129 (192.168.91.129): icmp_seq=1 ttl=64 time=0.424 ms
+64 bytes from 192.168.91.129 (192.168.91.129): icmp_seq=3 ttl=64 time=3.14 ms
+64 bytes from 192.168.91.129 (192.168.91.129): icmp_seq=4 ttl=64 time=0.643 ms
+
+--- node-0.localdomain ping statistics ---
+4 packets transmitted, 3 received, 25% packet loss, time 22ms
+rtt min/avg/max/mdev = 0.424/1.400/3.135/1.230 ms
+----
+
+To delete the above queue discipline use the _delete_ command instead of _replace_: 
+
+[source,console]
+----
+x@node-0:~$ sudo tc qdisc delete dev ens32 root netem loss 25%
+x@node-0:~$ sudo tc qdisc show dev ens32
+qdisc pfifo_fast 0: root refcnt 2 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+----
+
+[IMPORTANT]
+====
+When loss is used locally (not on a bridge or router), the loss is reported to the upper level protocols. This may cause TCP to resend and behave as if there was no loss. When testing protocol reponse to loss it is best to use a netem on a bridge or router. <<netem>>
+====
+
+=== Dropping Packets with iptables
+
+`iptables` allows you to create rules that specify how packets coming into your computer and going out of your computer are treated (and for routers, also forwarded by the router). The rules for packets coming in are in the _INPUT_ chain, packets going out are _OUTPUT_, and packets forwarded are in the _FORWARD_ chain. We will only use the _INPUT_ chain.
+
+The rules can filter packets based on common packet identifiers (IP addresses, ports, protocol numbers) as well as other matching criteria. We will use a special _statistic_ matching module. For each packet that matches the filter, some action is applied (e.g. _DROP_ the packet, _ACCEPT_ the packet, or some more complex operation). We want to _DROP_ packets, in particular a specified percentage of packets.
+
+On computer `node-1` (the destination), to view the current set of rules: 
+
+[source,console]
+----
+x@node-1:~$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination         
+----
+
+There are no rules in either of the three chains. Note that the default policy (if a packet does not match any rule) is to ACCEPT packets.
+
+Now to add a rule to the INPUT chain to drop 25% of incoming packets on computer `node-1`:
+
+[source,console]
+----
+x@node-1:~$ sudo iptables -A INPUT -m statistic --mode random --probability 0.25 -j DROP
+x@node-1:~$ sudo iptables -L INPUT --line-numbers 
+Chain INPUT (policy ACCEPT)
+num  target     prot opt source               destination         
+1    DROP       all  --  anywhere             anywhere             statistic mode random probability 0.25000000000
+----
+
+To demonstrate the packet dropping, run another PING test on the source `node-0`:
+
+[source,console]
+----
+x@node-0:~$ ping node-1.local -c 4
+PING node-1.local (192.168.91.135) 56(84) bytes of data.
+64 bytes from 192.168.91.135 (192.168.91.135): icmp_seq=1 ttl=64 time=0.547 ms
+64 bytes from 192.168.91.135 (192.168.91.135): icmp_seq=2 ttl=64 time=1.91 ms
+64 bytes from 192.168.91.135 (192.168.91.135): icmp_seq=3 ttl=64 time=0.513 ms
+
+--- node-1.local ping statistics ---
+4 packets transmitted, 3 received, 25% packet loss, time 3007ms
+rtt min/avg/max/mdev = 0.513/0.988/1.905/0.648 ms
+----
+
+Returning to computer `node-1`, to delete a rule you can use the `-D` option:
+
+[source,console]
+----
+x@node-1:~$ sudo iptables -D INPUT -m statistic --mode random --probability 0.25 -j DROP
+x@node-1:~$ sudo iptables -L INPUT
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination  
+----
+
+(or you can refer to rules by number, e.g. `iptables -D INPUT 1` to delete rule 1 from the INPUT chain). 
+
+Alternatively we can specify to drop every _n_ packets, starting from packet _p_. And we can combine with the standard filtering mechanisms of firewalls to only drop packets belong to a particular source/destination pair or application. 
+
+[source,console]
+----
+x@node-1:~$ sudo iptables -A INPUT -p udp --dport 6666 -m statistic --mode nth --every 4 --packet 3 -j DROP
+----
+
+This rule should drop packet 3, 7, 11, ... for only one of the connections (with destination port 6666). 
+
+Here is the output of an `iperf3` test at the source `node-0`. There are 25% packets dropped by the destination (receiver). 
+
+[source,console]
+----
+x@node-0:~$ iperf3 -c node-1 -p 6666 -t 10 -u
+Connecting to host node-1, port 6666
+[  5] local 192.168.91.128 port 52026 connected to 192.168.91.137 port 6666
+....
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec  1.25 MBytes  1.05 Mbits/sec  0.000 ms  0/906 (0%)  sender
+[  5]   0.00-10.04  sec   962 KBytes   784 Kbits/sec  0.337 ms  226/906 (25%)  receiver
+----
