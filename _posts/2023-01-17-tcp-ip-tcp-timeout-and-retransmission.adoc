@@ -312,6 +312,132 @@ If permitted by congestion control procedures, it may also send new data it has 
  00:00:02.717540 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3245554239 ecr 939995226], length 0
 ----
 
+== Retransmission with Selective Acknowledgments
+
+With the standardization of the Selective Acknowledgment options in [RFC2018], a SACK-capable TCP receiver is able to describe data it has received with sequence numbers beyond the cumulative _ACK Number_ field it sends in the primary portion of the TCP header.
+
+* The gaps between the ACK number and other in-window data cached at the receiver are called *holes*.
+
+* Data with sequence numbers beyond the holes are called *out-of-sequence* data because that data is not contiguous, in terms of its sequence numbers, with the other data the receiver has already received.
+
+The job of a sending TCP is to fill the holes in the receiver by retransmitting any data the receiver is missing, yet to be as efficient as possible by not resending data the receiver already has.
+
+In many circumstances, the properly operating SACK sender is able to fill these holes more quickly and with fewer unnecessary retransmissions than a comparable non-SACK sender because it does not have to wait an entire RTT to learn about additional holes.
+
+When the SACK option is being used, an ACK can be augmented with up to three or four SACK blocks that contain information about out-of-sequence data at the receiver.
+
+* Each *SACK block* contains two 32-bit sequence numbers representing the first and last sequence numbers (plus 1) of a continuous block of out-of-sequence data being held at the receiver.
+
+* A SACK option that specifies _n_ blocks has a length of 8n + 2 bytes, so the 40 bytes available to hold TCP options can specify a maximum of four blocks.
+
+* It is expected that SACK will often be used in conjunction with the TSOPT, which takes an additional 10 bytes (plus 2 bytes of padding), meaning that SACK is typically able to include only three blocks per ACK.
+
+* With three distinct blocks, up to three holes can be reported to the sender.
+
+* If not limited by congestion control, all three could be filled within one round-trip time using a SACK-capable sender.
+
+* An ACK packet containing one or more SACK blocks is sometimes called simply a *SACK*.
+
+=== SACK Receiver Behavior
+
+A SACK-capable receiver is allowed to generate SACKs if it has received the SACK-Permitted option during the TCP connection establishment.
+
+[source,console]
+----
+// The SACK-Permitted option is exchanged in SYN segments to indicate the capability to generate and process SACK information.
+// Most modern TCPs support the MSS, Timestamps, Window Scale, and SACK-Permitted options during connection establishment.
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [S], seq 3680115076, win 64240, options [mss 1460,sackOK,TS val 3251433112 ecr 0,nop,wscale 7], length 0
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [S.], seq 2651302134, ack 3680115077, win 65160, options [mss 1460,sackOK,TS val 945874299 ecr 3251433112,nop,wscale 7], length 0
+----
+
+Generally speaking, a receiver generates SACKs whenever there is any out-of-order data in its buffer. This can happen either:
+
+* because data was _lost_ in transit, or
+* because it has been reordered and newer data has arrived at the receiver before older data.
+
+The receiver places in the first SACK block the sequence number range contained in the segment it has _most recently received_.
+
+* Because the space in a SACK option is limited, it is best to ensure that the most recent information is always provided to the sending TCP, if possible.
+
+* Other SACK blocks are listed in the order in which they appeared as first blocks in previous SACK options.
++
+That is, they are filled in by repeating the most recently sent SACK blocks (in other segments) that are not subsets of another block about to be placed in the option being constructed.
+
+The purpose of including more than one SACK block in a SACK option and repeating these blocks across multiple SACKs is to provide some redundancy in the case where SACKs are lost.
+
+* If SACKs were never lost, [RFC2018] points out that only one SACK block would be required per SACK for full SACK functionality.
+
+* Unfortunately, SACKs and regular ACKs are sometimes lost and are not retransmitted by TCP unless they contain data (or the _SYN_ or _FIN_ control bit fields are turned on).
+
+=== SACK Sender Behavior
+
+A SACK-capable sender must be used that treats the SACK blocks appropriately and performs *selective retransmission* by sending only those segments missing at the receiver, a process also called *selective repeat*.
+
+The SACK sender keeps track of any cumulative ACK information it receives (like any TCP sender), plus any SACK information it receives.
+
+When a SACK-capable sender has the opportunity to perform a retransmission, usually because it has received a SACK or seen multiple duplicate ACKs, it has the choice of whether it sends new data or retransmits old data.
+
+* The SACK information provides the sequence number ranges present at the receiver, so the sender can infer what segments likely need to be retransmitted to fill the receiver's holes.
+
+* The simplest approach is to have the sender first fill the holes at the receiver and then move on to send more new data [RFC3517] if the congestion control procedures allow. This is the most common approach.
+
+=== Example
+
+To understand how the use of SACK alters the sender and receiver behaviors, we repeat the preceding fast retransmit experiment, but this time the sender and receiver are using SACK.
+
+image::/assets/tcp-ip/tcp-timeout-and-retransmission/fast-retransmit-with-sack-wireshark.png[,100%,100%]
+
+* The SYN packet from the sender, the first packet of the trace, also contains an identical option.
++
+These options are present only at connection setup, and thus they only ever appear in segments with the _SYN_ bit field set. Once the connection is permitted to use SACKs, packet loss generally causes the receiver to start producing SACKs.
+
+* The ACK at packet 14 for 1449 contains a SACK block of [2897:5793], indicating a hole at the receiver.
++
+The receiver is missing the sequence number range [1449,7241], which corresponds to the single 1448-byte packet starting with sequence number 1449.
+
+* The SACK arriving at packet 15 contains two SACK blocks: [8193:10002] and [2897:5793].
++
+Recall that the first SACK blocks from previous SACKs are repeated in later positions in subsequent SACKs for robustness against ACK loss.
++
+This SACK is a duplicate ACK for sequence number 1449 and suggests that the receiver now requires two full-size segments starting with sequence numbers 1449 and 5793.
+// +
+// The sender reacts immediately by initiating fast retransmit, but because of congestion control procedures, the sender sends only one retransmission, for segment 1449. With the arrival of two additional ACKs, the sender is permitted to send its second retransmission, for segment 5793.
+
+* The SACK sender has not had to wait an RTT to retransmit lost segment 5793 after retransmitting segment 1449.
+
+[source,console,linenums]
+----
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [S], seq 3680115076, win 64240, options [mss 1460,sackOK,TS val 3251432089 ecr 0,nop,wscale 7], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [S], seq 3680115076, win 64240, options [mss 1460,sackOK,TS val 3251433112 ecr 0,nop,wscale 7], length 0
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [S.], seq 2651302134, ack 3680115077, win 65160, options [mss 1460,sackOK,TS val 945874299 ecr 3251433112,nop,wscale 7], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 1:1449, ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [P.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 2897:4345, ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [P.], seq 4345:5793, ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 5793:7241, ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3251433112 ecr 945874299], length 952
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [.], ack 1449, win 501, options [nop,nop,TS val 945874300 ecr 3251433112], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 8193:9641, ack 1, win 502, options [nop,nop,TS val 3251433113 ecr 945874300], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [FP.], seq 9641:10001, ack 1, win 502, options [nop,nop,TS val 3251433113 ecr 945874300], length 360
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [.], ack 1449, win 501, options [nop,nop,TS val 945874300 ecr 3251433112,nop,nop,sack 1 {2897:5793}], length 0
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [.], ack 1449, win 501, options [nop,nop,TS val 945874300 ecr 3251433112,nop,nop,sack 2 {8193:10002}{2897:5793}], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3251433113 ecr 945874300], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 5793:7241, ack 1, win 502, options [nop,nop,TS val 3251433113 ecr 945874300], length 1448
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [.], ack 1449, win 501, options [nop,nop,TS val 945874301 ecr 3251433112,nop,nop,sack 2 {2897:7241}{8193:10002}], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3251433113 ecr 945874301], length 1448
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], seq 1449:2897, ack 1, win 502, options [nop,nop,TS val 3251433324 ecr 945874301], length 1448
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [.], ack 7241, win 465, options [nop,nop,TS val 945874513 ecr 3251433324,nop,nop,sack 1 {8193:10002}], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3251433326 ecr 945874513], length 952
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [P.], seq 7241:8193, ack 1, win 502, options [nop,nop,TS val 3251433532 ecr 945874513], length 952
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [.], ack 10002, win 489, options [nop,nop,TS val 945874720 ecr 3251433532], length 0
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 945874720 ecr 3251433532], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3251433533 ecr 945874720], length 0
+IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 945874926 ecr 3251433532], length 0
+IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3251433739 ecr 945874720], length 0
+----
+
+
 [bibliography]
 == References
 
