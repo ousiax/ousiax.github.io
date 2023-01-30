@@ -328,7 +328,7 @@ When the SACK option is being used, an ACK can be augmented with up to three or 
 
 * Each *SACK block* contains two 32-bit sequence numbers representing the first and last sequence numbers (plus 1) of a continuous block of out-of-sequence data being held at the receiver.
 
-* A SACK option that specifies _n_ blocks has a length of 8n + 2 bytes, so the 40 bytes available to hold TCP options can specify a maximum of four blocks.
+* A SACK option that specifies _n_ blocks has a length of 8n + 2 bytes (8n bytes for the sequence numbers and 2 to indicate the option kind and length), so the 40 bytes available to hold TCP options can specify a maximum of four blocks.
 
 * It is expected that SACK will often be used in conjunction with the TSOPT, which takes an additional 10 bytes (plus 2 bytes of padding), meaning that SACK is typically able to include only three blocks per ACK.
 
@@ -464,6 +464,108 @@ IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 2, win 502, option
 IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 945874926 ecr 3251433532], length 0
 IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3251433739 ecr 945874720], length 0
 ----
+
+== Spurious Timeouts and Retransmissions
+
+Under a number of circumstances, TCP may initiate a retransmission even when no data has been lost. Such undesirable retransmissions are called *spurious retransmissions* and are caused by _spurious timeouts_ (timeouts firing too early) and other reasons such as _packet reordering_, _packet duplication_, or _lost ACKs_.
+
+Spurious timeouts can occur when the real RTT has recently increased significantly, beyond the RTO. This happens more frequently in environments where lower-layer protocols have widely varying performance (e.g., wireless).
+
+A number of approaches have been suggested to deal with spurious timeouts. They generally involve a *detection algorithm* and a *response algorithm*.
+
+* The detection algorithm attempts to determine whether a timeout or timer-based retransmission was spurious.
+
+* The response algorithm is invoked once a timeout or retransmission is deemed spurious.
++
+Its purpose is to undo or mitigate some action that is otherwise normally performed by TCP when a retransmission timer expires.
+
+.A delay spike occurs after the transmission of packet 8, causing a spurious retransmission timeout and retransmission of packet 5. After retransmission, an ACK for the first copy of 5 arrives. The retransmission for 5 creates a duplicate packet at the receiver, followed by an undesirable "go-back-N" behavior whereby packets 6, 7, and 8 are retransmitted even though they are already present at the receiver.
+image::/assets/tcp-ip/tcp-timeout-and-retransmission/suprious-timeout-spike-delay.png[,25%,25%]
+
+=== Duplicate SACK (DSACK) Extension
+
+With a non-SACK TCP, an ACK can indicate only the highest in-sequence segment back to the sender. With SACK, it can signal other (out-of-order) segments as well.
+
+_DSACK_ or _D-SACK_ (stands for _duplicate SACK_ [RFC2883]) is a rule, applied at the SACK receiver and interoperable with conventional SACK senders, that causes _the first SACK block to indicate the sequence numbers of a duplicate segment that has arrived at the receiver_, which is usually to determine when a retransmission was not necessary and to learn additional facts about the network.
+
+The change to the SACK _receiver_ is to allow a SACK block to be included even if it covers sequence numbers below (or equal to) the cumulative _ACK Number_ field.
+
+* It applies equally well in cases where the DSACK information is _above_ the cumulative _ACK Number_ field; this happens for duplicated out-of-order segments.
+
+* DSACK information is included in only a single ACK, and such an ACK is called a *DSACK*.
+
+* DSACK information is not repeated across multiple SACKs as conventional SACK information is.
+
+Exactly what a _sender_ given DSACK information is supposed to do with it is not specified by [RFC2883].
+
+=== The Eifel Detection Algorithm
+
+The experimental _Eifel Detection Algorithm_ [RFC3522] deals with the retransmission ambiguity problem using the TCP TSOPT to detect spurious retransmissions.
+
+* After a retransmission timeout occurs, Eifel awaits the next acceptable ACK.
+
+* If the next acceptable ACK indicates that the first copy of a retransmitted packet (called the _original transmit_) was the cause for the ACK, the retransmission is considered to be spurious.
+
+The Eifel Detection Algorithm is able to detect spurious behavior earlier than the approach using only DSACK because it relies on ACKs generated as a result of packets arriving before loss recovery is initiated. DSACKs, conversely, are able to be sent only after a duplicate segment has arrived at the receiver and able to be acted upon only after the DSACK is returned to the sender. Detecting spurious retransmissions early can offer advantages, because it allows the sender to avoid most of the _go-back-N_ behavior mentioned earlier.
+
+The mechanics of the Eifel Detection Algorithm are simple. It requires the use of the TCP TSOPT.
+
+* When a retransmission is sent (either a timer-based retransmission or a fast retransmit), the TSV value is stored.
+* When the first acceptable ACK covering its sequence number is received, the incoming ACK's TSER is examined.
+* If it is smaller than the stored value, the ACK corresponds to the original transmission of the packet and not the retransmission, implying that the retransmission must have been spurious.
+* This approach is fairly robust to ACK loss as well.
+** If an ACK is lost, any subsequent ACKs still have TSER values less than the stored TSV of the retransmitted segment.
+** Thus, a retransmission can be deemed spurious as a result of any of the window's worth of ACKs arriving, so a loss of any single ACK is not likely to cause a problem.
+
+The Eifel Detection Algorithm can be combined with DSACKs which can be beneficial when an entire window's worth of ACKs are lost but both the original transmit and retransmission have arrived at the receiver.
+
+* In this particular case, the arriving retransmit causes a DSACK to be generated.
+* The Eifel Detection Algorithm would by default conclude that the retransmission is spurious.
+* It is thought, however, that if so many ACKs are being lost, allowing TCP to believe the retransmission was not spurious is useful (e.g., to induce it to start sending more slowly—a consequence of the congestion control procedures).
+* Thus, arriving DSACKs cause the Eifel Detection Algorithm to conclude that the corresponding retransmission is not spurious.
+
+=== Forward-RTO Recovery (F-RTO)
+
+_Forward-RTO Recovery (F-RTO)_ [RFC5682] is a standard algorithm for detecting spurious retransmissions.
+
+* It does not require any TCP options, so when it is implemented in a sender, it can be used effectively even with an older receiver that does not support the TCP TSOPT.
+
+* It attempts to detect only spurious retransmissions caused by expiration of the retransmission timer; it does not deal with the other causes for spurious retransmissions or duplications mentioned before.
+
+F-RTO makes a modification to the action TCP ordinarily takes after a timer-based retransmission.
+
+* These retransmissions are for the smallest sequence number for which no ACK has yet been received.
+
+* Ordinarily, TCP continues sending additional adjacent packets in order as additional ACKs arrive. This is the _go-back-N_ behavior.
+
+F-RTO modifies the ordinary behavior of TCP by having TCP send new (so far unsent) data after the timeout-based retransmission when the first ACK arrives. It then inspects the second arriving ACK.
+
+* If either of the first two ACKs arriving after the retransmission was sent are duplicate ACKs, the retransmission is deemed OK.
+
+* If they are both acceptable ACKs that advance the sender's window, the retransmission is deemed to have been spurious.
+
+* If the transmission of new data results in the arrival of acceptable ACKs, the arrival of the new data is moving the receiver's window forward.
++
+--
+** If such data is only causing duplicate ACKs, there must be one or more holes at the receiver.
+
+** In either case, the reception of new data at the receiver does not harm the overall data transfer performance (provided there are sufficient buffers at the receiver).
+--
+
+=== The Eifel Response Algorithm
+
+The _Eifel Response Algorithm_ [RFC4015] is a standard set of operations to be executed by a TCP once a retransmission has been deemed spurious.
+
+// Because the response algorithm is logically decoupled from the Eifel Detection Algorithm, it can be used with any of the detection algorithms.
+// 
+// The Eifel Response Algorithm was originally intended to operate for both timer-based and fast retransmit spurious retransmissions but is currently specified only for timer-based retransmissions.
+// 
+// Although the Eifel Response Algorithm can be used with any of the detection algorithms, it behaves somewhat differently based on whether a spurious timeout was detected early (e.g., by the Eifel or F-RTO detection algorithms) or later (e.g., by DSACKs). The former cases are called spurious timeouts and operate
+// by inspecting ACKs for original transmissions. The latter are called late spurious
+// timeouts and are based on ACKs for retransmissions invoked as a result of (spurious)
+// timeouts.
+
+
 
 
 [bibliography]
