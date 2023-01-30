@@ -134,6 +134,63 @@ The challenge for TCP is
 
 The RTT is estimated for each TCP connection separately, and one retransmission timer is pending whenever any data is in flight that consumes a sequence number (including SYN and FIN segments).
 
+=== The Classic Method
+
+The original TCP specification [RFC0793] had TCP update a _smoothed RTT_ estimator (called _SRTT_) using the following formula:
+
+[.text-center]
+_SRTT_ ← α(_SRTT_) + (1 − α) _RTT~s~_
+
+* Here, _SRTT_ is updated based on both its existing value and a new sample, _RTT~s~_.
+
+* The constant _α_ is a smoothing or scale factor with a recommended value between 0.8 and 0.9.
+
+* _SRTT_ is updated every time a new measurement is made.
+
+* With the original recommended value for _α_, it is clear that 80% to 90% of each new estimate is from the previous estimate and 10% to 20% is from the new measurement.
+
+* This type of average is also known as an _exponentially weighted moving average_ (EWMA) or _low-pass_ filter.
+
+* It is convenient for implementation reasons because it requires only one previous value of _SRTT_ to be stored in order to keep the running estimate.
+
+Given the estimator _SRTT_, which changes as the RTT changes, [RFC0793] recommended that the RTO be set to the following:
+
+[.text-center]
+RTO = min(_ubound_, max(_lbound_,(_SRTT_)β))
+
+* where _β_ is a delay variance factor with a recommended value of 1.3 to 2.0,
+
+* _ubound_ is an upper bound (suggested to be, e.g., 1 minute),
+
+* and _lbound_ is a lower bound (suggested to be, e.g., 1s) on the RTO.
+
+We shall call this assignment procedure _the classic method_. It generally results in the RTO being set either to 1s, or to about twice _SRTT_.
+
+For relatively stable distributions of the RTT, this was adequate. However, when TCP was run over networks with highly variable _RTT~s~_ (e.g., early packet radio networks in this case), it did not perform so well.
+
+=== The Standard Method
+
+In <<J88>>, Jacobson detailed problems with the classic method further—basically, that the timer specified by [RFC0793] cannot keep up with wide fluctuations in the RTT (and in particular, it causes unnecessary retransmissions when the real RTT is much larger than expected). Unnecessary retransmissions add to the network load, when the network is already loaded, as indicated by the increasing sample RTT.
+
+To address this problem, the method used to assign the RTO was enhanced to accommodate a larger variability in the RTT. This is accomplished by keeping track of an estimate of the variability in the RTT measurements in addition to the estimate of its average. Setting the RTO based on both a mean and a variability estimator provides a better timeout response to wide fluctuations in the roundtrip times than just calculating the RTO as a constant multiple of the mean.
+
+If we think of the RTT measurements made by TCP as samples of a statistical process, estimating both the mean and variance (or standard deviation) helps to make better predictions about the possible future values the process may take on. A good prediction for the range of possible values for the RTT helps TCP determine an RTO that is neither too large nor too small in most cases.
+
+The following equations that are applied to each RTT measurement _M_ (called _RTT~s~_ earlier):
+
+[.text-center]
+_srtt_ ← (1 - g)(_srtt_) + (g)_M_
+
+[.text-center]
+_rttvar_ ← (1 - h)(_rttvar_) + (h)(|_M_ - _srtt_|)
+
+[.text-center]
+RTO = _srtt_ + 4(_rttvar_)
+
+Here, the value _srtt_ effectively replaces the earlier value of _SRTT_, and the value _rttvar_, which becomes an EWMA of the _mean deviation_, is used instead of _β_ to help determine the RTO.
+
+This is the basis for the way many TCP implementations compute their RTOs to this day, and because of its adoption as the basis for [RFC6298] we shall call it _the standard method_, although there are slight refinements in [RFC6298].
+
 == Timer-Based Retransmission
 
 Once a sending TCP has established its RTO based upon measurements of the time-varying values of effective RTT, whenever it sends a segment it ensures that a retransmission timer is set appropriately.
@@ -556,22 +613,48 @@ F-RTO modifies the ordinary behavior of TCP by having TCP send new (so far unsen
 
 The _Eifel Response Algorithm_ [RFC4015] is a standard set of operations to be executed by a TCP once a retransmission has been deemed spurious.
 
-// Because the response algorithm is logically decoupled from the Eifel Detection Algorithm, it can be used with any of the detection algorithms.
-// 
-// The Eifel Response Algorithm was originally intended to operate for both timer-based and fast retransmit spurious retransmissions but is currently specified only for timer-based retransmissions.
-// 
-// Although the Eifel Response Algorithm can be used with any of the detection algorithms, it behaves somewhat differently based on whether a spurious timeout was detected early (e.g., by the Eifel or F-RTO detection algorithms) or later (e.g., by DSACKs). The former cases are called spurious timeouts and operate
-// by inspecting ACKs for original transmissions. The latter are called late spurious
-// timeouts and are based on ACKs for retransmissions invoked as a result of (spurious)
-// timeouts.
+Because the response algorithm is logically decoupled from the Eifel Detection Algorithm, it can be used with any of the detection algorithms we just discussed.
 
+The Eifel Response Algorithm was originally intended to operate for both timer-based and fast retransmit spurious retransmissions but is currently specified only for timer-based retransmissions.
 
+== Packet Reordering and Duplication
+
+In addition to packet loss, other packet delivery anomalies such as duplication and reordering can also affect TCP's operation. In both of these cases, we wish TCP to be able to distinguish between packets that are reordered or duplicated and those that are lost.
+
+=== Reordering
+
+Packet reordering can occur in an IP network because IP provides no guarantee that relative ordering between packets is maintained during delivery.
+
+This can be beneficial (to IP at least), because IP can choose another path for traffic (e.g., that is faster) without having to worry about the consequences that doing so may cause traffic freshly injected into the network to pass ahead of older traffic, resulting in the order of packet arrivals at the receiver not matching the order of transmission at the sender.
+
+There are other reasons packet reordering may occur. For example, some high-performance routers employ multiple parallel data paths within the hardware [BPS99], and different processing delays among packets can lead to a departure order that does not match the arrival order.
+
+Reordering may take place in the forward path or the reverse path of a TCP connection (or in some cases both). The reordering of data segments has a somewhat different effect on TCP as does reordering of ACK packets.
+
+Recall that because of asymmetric routing, it is frequently the case that ACKs travel along different network links (and through different routers) from data packets on the forward path.
+
+When traffic is reordered, TCP can be affected in several ways.
+
+If reordering takes place in the reverse (ACK) direction, it causes the sending TCP to receive some ACKs that move the window significantly forward followed by some evidently old redundant ACKs that are discarded. This can lead to an unwanted _burstiness_ (instantaneous high-speed sending) behavior in the sending pattern of TCP and also trouble in taking advantage of available network bandwidth, because of the behavior of TCP's congestion control.
+
+If reordering occurs in the forward direction, TCP may have trouble distinguishing this condition from loss. Both loss and reordering result in the receiver receiving out-of-order packets that create holes between the next expected packet and the other packets received so far. When reordering is moderate (e.g., two adjacent packets switch order), the situation can be handled fairly quickly. When reorderings are more severe, TCP can be tricked into believing that data has been lost even though it has not. This can result in spurious retransmissions, primarily from the fast retransmit algorithm.
+
+// Recall from previous discussions that the fast retransmit algorithm relies on observing duplicate acknowledgments from a TCP receiver in order to infer the loss of a packet and to initiate a retransmission without having to wait for a
+// retransmission timer to expire. Because a TCP receiver is supposed to immediately
+// ACK any out-of-sequence data it receives in order to help induce fast retransmit
+// to be triggered on packet loss, any packet that is reordered within the network
+// causes a receiver to produce a duplicate ACK. If fast retransmit were to be invoked
+// whenever any duplicate ACK is received at the sender, a large number of unnecessary
+// retransmissions would occur on network paths where a small amount of
+// reordering is common. To handle this situation, fast retransmit is triggered only
+// after the duplicate threshold (dupthresh) has been reached.
 
 
 [bibliography]
 == References
 
-* [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens, TCP/IP Illustrated: The Protocols, Volume 1 (Addison-Wesley Professional Computing Series) 2nd Edition
+* [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens, _TCP/IP Illustrated: The Protocols, Volume 1_ (Addison-Wesley Professional Computing Series) 2nd Edition
+* [[[J88]]] V. Jacobson, _Congestion Avoidance and Control_, https://ee.lbl.gov/papers/congavoid.pdf
 * [[[netem,2]]] https://wiki.linuxfoundation.org/networking/netem
 * [[[iptables,3]]] https://www.netfilter.org/documentation/HOWTO/packet-filtering-HOWTO-7.html
 * [[[emulating-bad-networks,4]]] https://samwho.dev/blog/emulating-bad-networks/
