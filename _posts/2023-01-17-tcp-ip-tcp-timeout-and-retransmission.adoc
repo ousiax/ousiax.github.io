@@ -338,6 +338,25 @@ When the SACK option is being used, an ACK can be augmented with up to three or 
 
 * An ACK packet containing one or more SACK blocks is sometimes called simply a *SACK*.
 
+[source,console]
+----
+=> [.], seq 1:1449, ack 1, [TS val 3251433112 ecr 945874299], length 1448
+=> [P.], seq 1449:2897, ack 1, [TS val 3251433112 ecr 945874299], length 1448
+=> [.], seq 2897:4345, ack 1, [TS val 3251433112 ecr 945874299], length 1448
+=> [P.], seq 4345:5793, ack 1, [TS val 3251433112 ecr 945874299], length 1448
+=> [.], seq 5793:7241, ack 1, [TS val 3251433112 ecr 945874299], length 1448
+=> [P.], seq 7241:8193, ack 1, [TS val 3251433112 ecr 945874299], length 952
+<= [.], ack 1449, [TS val 945874300 ecr 3251433112], length 0
+=> [.], seq 8193:9641, ack 1, [TS val 3251433113 ecr 945874300], length 1448
+=> [FP.], seq 9641:10001, ack 1, [TS val 3251433113 ecr 945874300], length 360
+
+<= [.], ack 1449, [TS val 945874300 ecr 3251433112,sack 1 {2897:5793}], length 0
+<= [.], ack 1449, [TS val 945874300 ecr 3251433112,sack 2 {8193:10002}{2897:5793}], length 0
+
+=> [.], seq 1449:2897, ack 1, [TS val 3251433113 ecr 945874300], length 1448
+=> [.], seq 5793:7241, ack 1, [TS val 3251433113 ecr 945874300], length 1448
+----
+
 === SACK Receiver Behavior
 
 A SACK-capable receiver is allowed to generate SACKs if it has received the SACK-Permitted option during the TCP connection establishment.
@@ -362,12 +381,19 @@ The receiver places in the first SACK block the sequence number range contained 
 * Other SACK blocks are listed in the order in which they appeared as first blocks in previous SACK options.
 +
 That is, they are filled in by repeating the most recently sent SACK blocks (in other segments) that are not subsets of another block about to be placed in the option being constructed.
-
++
+[source,console]
+----
+<= [.], ack 1449, [TS val 945874300 ecr 3251433112], length 0
+<= [.], ack 1449, [TS val 945874300 ecr 3251433112,sack 1 {2897:5793}], length 0
+<= [.], ack 1449, [TS val 945874300 ecr 3251433112,sack 2 {8193:10002}{2897:5793}], length 0
+----
++
 The purpose of including more than one SACK block in a SACK option and repeating these blocks across multiple SACKs is to provide some redundancy in the case where SACKs are lost.
 
-* If SACKs were never lost, [RFC2018] points out that only one SACK block would be required per SACK for full SACK functionality.
+** If SACKs were never lost, [RFC2018] points out that only one SACK block would be required per SACK for full SACK functionality.
 
-* Unfortunately, SACKs and regular ACKs are sometimes lost and are not retransmitted by TCP unless they contain data (or the _SYN_ or _FIN_ control bit fields are turned on).
+** Unfortunately, SACKs and regular ACKs are sometimes lost and are not retransmitted by TCP unless they contain data (or the _SYN_ or _FIN_ control bit fields are turned on).
 
 === SACK Sender Behavior
 
@@ -393,15 +419,17 @@ These options are present only at connection setup, and thus they only ever appe
 
 * The ACK at packet 14 for 1449 contains a SACK block of [2897:5793], indicating a hole at the receiver.
 +
-The receiver is missing the sequence number range [1449,7241], which corresponds to the single 1448-byte packet starting with sequence number 1449.
+The receiver is missing the sequence number range [1449,2896], which corresponds to the single 1448-byte packet starting with sequence number 1449.
 
 * The SACK arriving at packet 15 contains two SACK blocks: [8193:10002] and [2897:5793].
 +
 Recall that the first SACK blocks from previous SACKs are repeated in later positions in subsequent SACKs for robustness against ACK loss.
 +
-This SACK is a duplicate ACK for sequence number 1449 and suggests that the receiver now requires two full-size segments starting with sequence numbers 1449 and 5793.
+This SACK is a duplicate ACK for sequence number 1449 and suggests that the receiver now requires the missing segments starting with sequence numbers 1449 and 5793.
 // +
-// The sender reacts immediately by initiating fast retransmit, but because of congestion control procedures, the sender sends only one retransmission, for segment 1449. With the arrival of two additional ACKs, the sender is permitted to send its second retransmission, for segment 5793.
+// The sender reacts immediately by initiating fast retransmit, but because of congestion control procedures, the sender sends only one retransmission, for segment 1449.
+// +
+// With the arrival of two additional ACKs, the sender is permitted to send its second retransmission, for segment 5793.
 
 * The SACK sender has not had to wait an RTT to retransmit lost segment 5793 after retransmitting segment 1449.
 
