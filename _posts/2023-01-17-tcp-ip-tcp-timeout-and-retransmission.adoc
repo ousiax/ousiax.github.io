@@ -261,7 +261,7 @@ ESTAB 0      0      192.168.91.128:33176 192.168.91.135:6666
 
 == Fast Retransmit
 
-*Fast retransmit* [RFC5681] is a TCP procedure that can induce a packet retransmission based on feedback from the receiver instead of requiring a retransmission timer to expire.
+*Fast retransmit* <<RFC5681>> is a TCP procedure that can induce a packet retransmission based on feedback from the receiver instead of requiring a retransmission timer to expire.
 
 A typical TCP implements both fast retransmit and timer-based retransmission.
 
@@ -277,9 +277,13 @@ The reason is to let the sender know that a segment was received out of order, a
 
 * When SACK is used, these duplicate ACKs typically contain SACK blocks as well, which can provide information about more than one hole.
 
-A duplicate ACK (with or without SACK blocks) arriving at a sender is a potential indicator that a packet sent earlier has been lost. It can also appear when there is *_packet reordering_* in the network.
+A duplicate ACK (with or without SACK blocks) arriving at a sender is a potential indicator that a packet sent earlier has been lost. It can also appear when there is *_packet reordering_* in the network—if a receiver receives a packet for a sequence number beyond the one it is expecting next, the expected packet could be either missing or merely delayed.
 
 TCP waits for a small number of duplicate ACKs (called the _duplicate ACK threshold_ or _dupthresh_) to be received before concluding that a packet has been lost and initiating a fast retransmit.
+
+Traditionally, _dupthresh_ has been a constant (with value 3, RFC 5681), but some nonstandard implementations (including Linux) alter this value based on the current measured level of reordering.
+
+A TCP sender observing at least dupthresh duplicate ACKs retransmits one or more packets that appear to be missing without waiting for a retransmission timer to expire. It may also send additional data that has not yet been sent.
 
 Packet loss inferred by the presence of duplicate ACKs is assumed to be related to _network congestion_, and congestion control procedures are invoked along with _fast retransmit_.
 
@@ -629,36 +633,70 @@ This can be beneficial (to IP at least), because IP can choose another path for 
 
 There are other reasons packet reordering may occur. For example, some high-performance routers employ multiple parallel data paths within the hardware [BPS99], and different processing delays among packets can lead to a departure order that does not match the arrival order.
 
-Reordering may take place in the forward path or the reverse path of a TCP connection (or in some cases both). The reordering of data segments has a somewhat different effect on TCP as does reordering of ACK packets.
+Reordering may take place in the _forward path_ or the _reverse path_ of a TCP connection (or in some cases both). The reordering of data segments has a somewhat different effect on TCP as does reordering of ACK packets.
 
-Recall that because of asymmetric routing, it is frequently the case that ACKs travel along different network links (and through different routers) from data packets on the forward path.
+Recall that because of _asymmetric routing_, it is frequently the case that ACKs travel along different network links (and through different routers) from data packets on the forward path.
 
 When traffic is reordered, TCP can be affected in several ways.
 
-If reordering takes place in the reverse (ACK) direction, it causes the sending TCP to receive some ACKs that move the window significantly forward followed by some evidently old redundant ACKs that are discarded. This can lead to an unwanted _burstiness_ (instantaneous high-speed sending) behavior in the sending pattern of TCP and also trouble in taking advantage of available network bandwidth, because of the behavior of TCP's congestion control.
+* If reordering takes place in the reverse (ACK) direction, it causes the sending TCP to receive some ACKs that move the window significantly forward followed by some evidently old redundant ACKs that are discarded.
++
+This can lead to an unwanted _burstiness_ (instantaneous high-speed sending) behavior in the sending pattern of TCP and also trouble in taking advantage of available network bandwidth, because of the behavior of TCP's congestion control.
 
-If reordering occurs in the forward direction, TCP may have trouble distinguishing this condition from loss. Both loss and reordering result in the receiver receiving out-of-order packets that create holes between the next expected packet and the other packets received so far. When reordering is moderate (e.g., two adjacent packets switch order), the situation can be handled fairly quickly. When reorderings are more severe, TCP can be tricked into believing that data has been lost even though it has not. This can result in spurious retransmissions, primarily from the fast retransmit algorithm.
+* If reordering occurs in the forward direction, TCP may have trouble distinguishing this condition from loss.
++
+Both loss and reordering result in the receiver receiving out-of-order packets that create holes between the next expected packet and the other packets received so far.
++
+** When reordering is moderate (e.g., two adjacent packets switch order), the situation can be handled fairly quickly.
++
+** When reorderings are more severe, TCP can be tricked into believing that data has been lost even though it has not.
++
+This can result in spurious retransmissions, primarily from the fast retransmit algorithm.
 
-// Recall from previous discussions that the fast retransmit algorithm relies on observing duplicate acknowledgments from a TCP receiver in order to infer the loss of a packet and to initiate a retransmission without having to wait for a
-// retransmission timer to expire. Because a TCP receiver is supposed to immediately
-// ACK any out-of-sequence data it receives in order to help induce fast retransmit
-// to be triggered on packet loss, any packet that is reordered within the network
-// causes a receiver to produce a duplicate ACK. If fast retransmit were to be invoked
-// whenever any duplicate ACK is received at the sender, a large number of unnecessary
-// retransmissions would occur on network paths where a small amount of
-// reordering is common. To handle this situation, fast retransmit is triggered only
-// after the duplicate threshold (dupthresh) has been reached.
+Because a TCP receiver is supposed to immediately ACK any out-of-sequence data it receives in order to help induce fast retransmit to be triggered on packet loss, any packet that is reordered within the network causes a receiver to produce a duplicate ACK.
 
+If fast retransmit were to be invoked whenever any duplicate ACK is received at the sender, a large number of unnecessary retransmissions would occur on network paths where a small amount of reordering is common.
+
+To handle this situation, fast retransmit is triggered only after the duplicate threshold (_dupthresh_) has been reached.
+
+.Mild reordering (left) is overcome by ignoring a small number of duplicate ACKs. When reordering is more severe (right), as in this case where packet 4 is three places out of sequence, a spurious fast retransmit can be triggered.
+image::/assets/tcp-ip/tcp-timeout-and-retransmission/packet-reordering-fast-retransit.png[,45%,45%]
+
+* The left portion of the figure indicates how TCP behaves with light reordering, where _dupthresh_ is set to 3.
++
+In this case, the single duplicate ACK does not affect TCP. It is effectively ignored and TCP overcomes the reordering.
+
+* The right-hand side indicates what happens when a packet has been more severely reordered.
++
+Because it is three positions out of sequence, three duplicate ACKs are generated. This invokes the fast retransmit procedure in the sending TCP, producing a duplicate segment at the receiver.
+
+The problem of distinguishing loss from reordering is not trivial. Dealing with it involves trying to decide when a sender has waited long enough to try to fill apparent holes at the receiver.
+
+Fortunately, severe reordering on the Internet is not common <<J03>>, so setting _dupthresh_ to a relatively small number (such as the default of 3) handles most circumstances. That said, there are a number of research projects that modify TCP to handle more severe reordering <<LLY07>>. Some of these adjust _dupthresh_ dynamically, as does the Linux TCP implementation.
+
+=== Duplication
+
+Although rare, the IP protocol may deliver a single packet more than one time. This can happen, for example, when a link-layer network protocol performs a retransmission and creates two copies of the same packet.
+
+.Packet (no. 3) duplication in the network has caused a spurious fast retransmission due to the presence of duplicate ACKs.
+image::/assets/tcp-ip/tcp-timeout-and-retransmission/packet-dup-fast-retransit.png[,25%,25%]
+
+The effect of packet 3 being duplicated is to produce a series of duplicate ACKs from the receiver. This is enough to trigger a spurious fast retransmit, as the non-SACK sender may mistakenly believe that packets 5 and 6 have arrived earlier. With SACK (and DSACK, in particular) this is more easily diagnosed at the sender.
+
+With DSACK, each of the duplicate ACKs for A3 contains DSACK information that segment 3 has already been received. Furthermore, none of them contains an indication of any out-of-order data, meaning the arriving packets (or their ACKs) must have been duplicates. TCP can often suppress spurious retransmissions in such cases.
 
 [bibliography]
 == References
 
-* [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens, _TCP/IP Illustrated: The Protocols, Volume 1_ (Addison-Wesley Professional Computing Series) 2nd Edition
-* [[[J88]]] V. Jacobson, _Congestion Avoidance and Control_, https://ee.lbl.gov/papers/congavoid.pdf
+* [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
+* [[[J88]]] V. Jacobson, _Congestion Avoidance and Control_, See https://ee.lbl.gov/papers/congavoid.pdf
 * [[[netem,2]]] https://wiki.linuxfoundation.org/networking/netem
-* [[[iptables,3]]] https://www.netfilter.org/documentation/HOWTO/packet-filtering-HOWTO-7.html
-* [[[emulating-bad-networks,4]]] https://samwho.dev/blog/emulating-bad-networks/
-* [[[dpltc,5]]] https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
+* [[[iptables,3]]] _Using iptables_ [online]. https://www.netfilter.org/documentation/HOWTO/packet-filtering-HOWTO-7.html
+* [[[emulating-bad-networks,4]]] _Emulating Bad Networks_ [online]. https://samwho.dev/blog/emulating-bad-networks/
+* [[[dpltc,5]]] _Dropping Packets in Ubuntu Linux using tc and iptables_ [online]. https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
+* [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
+* [[[J03]]] S. Jaiswal et al. _Measurement and Classification of Out-of-Sequence Packets in a Tier-1 IP Backbone_, Proc. IEEE INFOCOM, Apr. 2003.
+* [[[LLY07]]] K. Leung, V. Li, and D. Yang 'An Overview of Packet Reordering in Transmission Control Protocol (TCP): Problems, Solutions and Challenges'. _IEEE Trans. Parallel and Distributed Systems_, 18(4), Apr. 2007.
 
 [appendix]
 == Dropping Packets in Linux using tc and iptables
