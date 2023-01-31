@@ -685,7 +685,75 @@ The effect of packet 3 being duplicated is to produce a series of duplicate ACKs
 
 With DSACK, each of the duplicate ACKs for A3 contains DSACK information that segment 3 has already been received. Furthermore, none of them contains an indication of any out-of-order data, meaning the arriving packets (or their ACKs) must have been duplicates. TCP can often suppress spurious retransmissions in such cases.
 
-[bibliography]
+== Destination Metrics
+
+Newer TCP implementations maintain many of the metrics such as _srtt_, _rttvar_ and so on. in a routing or forwarding table entry or other systemwide data structure that exists even after TCP connections are closed.
+
+When a new connection is created, TCP consults the data structure to see if there is any preexisting information regarding the path to the destination host with which it will be communicating.
+
+If so, initial values for _srtt_, _rttvar_, and so on can be initialized to some value based on previous, relatively recent experience.
+
+When a TCP connection closes down, it has the opportunity to update the statistics. This can be accomplished by replacing the existing statistics or updating them in some other way.
+
+In the case of Linux 2.6, the values are updated to be the maximum of the existing values and those measured by the most recent TCP. These values can be inspected using the `ip` program available from the iproute2 suite of tools:
+
+[source,console]
+----
+$ ip route show cache 10.170.109.10
+10.170.109.10 via 192.168.91.137 dev ens32 
+    cache expires 558se cmtu 1500 rtt 29ms rttvar 29ms cwnd 2 advmss 1460 hoplimit 64
+----
+
+== Repacketization
+
+When TCP times out and retransmits, it does not have to retransmit the identical segment. Instead, TCP is allowed to perform _repacketization_, sending a bigger segment, which can increase performance. Naturally, this bigger segment cannot exceed the MSS announced by the receiver and should not exceed the path MTU.
+
+This is allowed in the protocol because TCP identifies the data being sent and acknowledged by its byte number, not its segment (or packet) number.
+
+TCP's ability to retransmit a segment with a different size from the original segment provides another way of addressing the retransmission ambiguity problem. This has been the basis of an idea called STODER <<TZZ05>> that uses repacketization to detect spurious timeouts.
+
+We can easily see repacketization in action. We use our `nc` program as a server and connect to it with `telnet`.
+
+* First we type the line `hello there`.
++
+This produces a segment of 13 data bytes, including the carriage-return and newline characters produced when the Enter key is pressed.
+
+* We then disconnect the network and type `line number 2` (14 bytes, including the newline).
+
+* We then wait about 45s, type `and 3`, terminate the connection, and reconnect the network again:
++
+[source,console]
+----
+x@node-0:~$ telnet node-1 6666
+Trying 192.168.91.137...
+Connected to node-1.
+Escape character is '^]'.
+hello there <1>
+line number 2 <2>
+and 3 <3>
+^]
+telnet> q
+Connection closed. <4>
+----
++
+<1> (first line gets sent OK), (then we disconnect the Ethernet cable)
+<2> (this line gets retransmitted)
+<3> (this line gets transmitted and also carries the _FIN_ bit field)
+<4> (reconnect Ethernet)
++
+[source,console,highlight="7"]
+----
+ 00:00:03.941676 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [P.], seq 1:14, ack 1, win 502, options [nop,nop,TS val 3767361706 ecr 1569370162], length 13
+ 00:00:03.942475 IP 192.168.91.137.6666 > 192.168.91.128.36242: Flags [.], ack 14, win 509, options [nop,nop,TS val 1569374104 ecr 3767361706], length 0
+ 00:00:19.901087 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [P.], seq 14:29, ack 1, win 502, options [nop,nop,TS val 3767377666 ecr 1569374104], length 15
+....
+ 00:00:46.705168 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [P.], seq 14:29, ack 1, win 502, options [nop,nop,TS val 3767404470 ecr 1569374104], length 15
+ 00:00:51.189357 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [FP.], seq 29:36, ack 1, win 502, options [nop,nop,TS val 3767408954 ecr 1569374104], length 7
+ 00:01:13.587320 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [FP.], seq 14:36, ack 1, win 502, options [nop,nop,TS val 3767431351 ecr 1569374104], length 22
+ 00:01:13.587777 IP 192.168.91.137.6666 > 192.168.91.128.36242: Flags [F.], seq 1, ack 37, win 509, options [nop,nop,TS val 1569443750 ecr 3767431351], length 0
+ 00:01:13.587800 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3767431352 ecr 1569443750], length 0
+----
+
 == References
 
 * [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
@@ -697,6 +765,7 @@ With DSACK, each of the duplicate ACKs for A3 contains DSACK information that se
 * [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
 * [[[J03]]] S. Jaiswal et al. _Measurement and Classification of Out-of-Sequence Packets in a Tier-1 IP Backbone_, Proc. IEEE INFOCOM, Apr. 2003.
 * [[[LLY07]]] K. Leung, V. Li, and D. Yang 'An Overview of Packet Reordering in Transmission Control Protocol (TCP): Problems, Solutions and Challenges'. _IEEE Trans. Parallel and Distributed Systems_, 18(4), Apr. 2007.
+* [[[TZZ05]]] K. Tan and Q. Zhang _STODER: A Robust and Efficient Algorithm for Handling Spurious Timeouts in TCP_. Proc. IEEE Globecomm, Dec. 2005.
 
 [appendix]
 == Dropping Packets in Linux using tc and iptables
