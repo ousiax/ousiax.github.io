@@ -30,3 +30,153 @@ TIP: Secure shell (`ssh`) is a remote login protocol that provides strong securi
 
 .One possible way to remotely echo an interactive keystroke is a separate ACK and echo packet (a). A typical TCP coalesces the ACK for the data byte and the echo of the byte into a single packet (using _delayed acknowledgments_ with _piggybacking_) (b).
 image::/assets/tcp-ip/tcp-data-flow-and-window-management/ssh-echo.png[,75%,75%]
+
+== Delayed Acknowledgments
+
+In many cases, TCP does not provide an ACK for every incoming packet because of TCP's cumulative ACK field.
+
+Using a cumulative ACK allows TCP to intentionally _delay_ sending an ACK for some amount of time, in the hope that it can combine the ACK it needs to send with some data the local application wishes to send in the other direction. This is a form of *piggybacking* that is used most often in conjunction with bulk data transfers.
+
+[NOTE]
+====
+The Host Requirements RFC [RFC1122] states that TCP should implement a delayed ACK but the delay must be less than 500ms. Many implementations use a maximum of 200ms.
+====
+
+Delaying ACKs causes less traffic to be carried over the network than when ACKs are not delayed because fewer ACKs are used. A ratio of 2 to 1 is fairly common for bulk transfers. The use of delayed ACKs and the maximum amount of time TCP is allowed to wait before sending an ACK can be configured, depending on the host operating system.
+
+Linux uses a dynamic adjustment algorithm whereby it can change between ACKing every segment (called _quickack_ mode) and conventional delayed ACK mode.
+
+[TIP]
+====
+On Red Hat Enterprise Linux, there are two modes used by TCP to acknowledge data reception: <<RHELDELACK>>
+
+* Quick ACK
++
+This mode is used at the start of a TCP connection so that the congestion window can grow quickly.
++
+The acknowledgment (ACK) timeout interval (ATO) is set to `tcp_ato_min`, the minimum timeout value.
++
+To change the default TCP ACK timeout value, write the required value in milliseconds to the `/proc/sys/net/ipv4/tcp_ato_min` file:
++
+[source,console]
+~]# echo 4 > /proc/sys/net/ipv4/tcp_ato_min
+
+* Delayed ACK
++
+After the connection is established, TCP assumes this mode, in which ACKs for multiple received packets can be sent in a single packet.
++
+ATO is set to `tcp_delack_min` to restart or reset the timer.
++
+To change the default TCP Delayed ACK value, write the required value in milliseconds to the `/proc/sys/net/ipv4/tcp_delack_min` file:
++
+[source,console]
+~]# echo 4 > /proc/sys/net/ipv4/tcp_delack_min
+
+TCP switches between the two modes depending on the current congestion. 
+====
+
+== Nagle Algorithm
+
+When using IPv4, sending one single key press across an ssh connection generates TCP/IPv4 packets of about 88 bytes in size (using the encryption and authentication from the example): 20 bytes for the IP header, 20 bytes for the TCP header (assuming no options), and 48 bytes of data.
+
+These small packets (called _tinygrams_) have a relatively high overhead for the network beacuse they contain relatively little useful application data compared to the rest of the packet contents.
+
+* Such high-overhead packets are normally not a problem on LANs, because most LANs are not congested and such packets would not need to be carried very far.
+
+* However, these tinygrams can add to congestion and lead to inefficient use of capacity on wide area networks.
+
+* A simple and elegant solution was proposed by John Nagle in [RFC0896], now called the _Nagle algorithm_.
+
+The *Nagle algorithm* says that when a TCP connection has outstanding data that has not yet been acknowledged, small segments (those smaller than the SMSS) cannot be sent until all outstanding data is acknowledged.
+
+* Instead, small amounts of data are collected by TCP and sent in a single segment when an acknowledgment arrives.
++
+This procedure effectively forces TCP into _stop-and-wait_ behavior—it stops sending until an ACK is received for any outstanding data.
+
+* The beauty of this algorithm is that it is _self-clocking_: the faster the ACKs come back, the faster the data is sent.
++
+On a comparatively high-delay WAN, where reducing the number of tinygrams is desirable, fewer segments are sent per unit time. Said another way, the RTT controls the packet sending rate.
+
+To illustrate the effect of the Nagle algorithm, we can compare the behaviors of an application using TCP with the Nagle algorithm enabled and disabled.
+
+Using a connection with a relatively large RTT of about 190ms, we can see the differences.
+
+[TIP]
+====
+Using the `tc` to emulate the network delay on the destination server:
+
+[source,console]
+----
+$ sudo tc qdisc add dev ens32 root netem delay 190ms
+$ sudo tc qdisc show dev ens32
+qdisc netem 8001: root refcnt 2 limit 1000 delay 190.0ms
+----
+====
+
+First, we examine the case with typing a `date` command when Nagle is disabled (the default for ssh):
+
+[source,console]
+----
+00:00:00.000000 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [P.], seq 3968491625:3968491661, ack 2989677446, win 513, length 36
+00:00:00.172405 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [P.], seq 36:72, ack 1, win 513, length 36
+00:00:00.191476 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 1:37, ack 36, win 501, length 36
+00:00:00.234297 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [.], ack 37, win 513, length 0
+00:00:00.364007 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 37:73, ack 72, win 501, length 36
+00:00:00.371952 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [P.], seq 72:108, ack 73, win 513, length 36
+00:00:00.523976 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [P.], seq 108:144, ack 73, win 513, length 36
+00:00:00.562856 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 73:109, ack 108, win 501, length 36
+00:00:00.609221 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [.], ack 109, win 512, length 0
+00:00:00.714586 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 109:145, ack 144, win 501, length 36
+00:00:00.764111 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [.], ack 145, win 512, length 0
+00:00:01.382426 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [P.], seq 144:180, ack 145, win 512, length 36
+00:00:01.576594 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 145:181, ack 180, win 501, length 36
+00:00:01.584727 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 181:249, ack 180, win 501, length 68
+00:00:01.584731 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 249:285, ack 180, win 501, length 36
+00:00:01.584731 IP 192.168.91.141.22 > 192.168.91.1.17203: Flags [P.], seq 285:353, ack 180, win 501, length 68
+00:00:01.584995 IP 192.168.91.1.17203 > 192.168.91.141.22: Flags [.], ack 353, win 511, length 0
+----
+
+* An ssh trace showing a TCP connection with approximately a 190ms RTT.
+* The Nagle algorithm is disabled.
+* Transmissions and ACKs are intermingled, and the exchange takes 1.58s.
+* Pure ACKs (segments with no data) indicate that command output at the server has been processed by the client.
+
+If we repeat this measurement soon after (i.e., in similar network conditions) when Nagle is enabled:
+
+[source,console]
+----
+00:00:00.000000 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [P.], seq 3369922274:3369922310, ack 3162733327, win 513, length 36
+00:00:00.191032 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 1:37, ack 36, win 501, length 36
+00:00:00.191425 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [P.], seq 36:72, ack 37, win 513, length 36
+00:00:00.381981 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 37:73, ack 72, win 501, length 36
+00:00:00.382316 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [P.], seq 72:108, ack 73, win 513, length 36
+00:00:00.573124 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 73:109, ack 108, win 501, length 36
+00:00:00.573501 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [P.], seq 108:144, ack 109, win 512, length 36
+00:00:00.763985 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 109:145, ack 144, win 501, length 36
+00:00:00.816253 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [.], ack 145, win 512, length 0
+00:00:01.191218 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [P.], seq 144:180, ack 145, win 512, length 36
+00:00:01.382047 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 145:181, ack 180, win 501, length 36
+00:00:01.383712 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 181:249, ack 180, win 501, length 68
+00:00:01.383716 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 249:285, ack 180, win 501, length 36
+00:00:01.383717 IP 192.168.91.141.22 > 192.168.91.1.17263: Flags [P.], seq 285:353, ack 180, win 501, length 68
+00:00:01.384295 IP 192.168.91.1.17263 > 192.168.91.141.22: Flags [.], ack 353, win 511, length 0
+----
+
+An ssh trace showing a TCP connection with a 190ms RTT and the Nagle algorithm in
+operation. Requests are followed in lockstep with responses, and the exchange takes
+0.80s using 11 packets.
+
+* Nagle algorithm forces TCP to operate in a stop-and-wait fashion, so that the TCP sender cannot proceed until ACKs are received.
+
+* If we look at the times for each request/response pair—0.0, 0.19, 0.19, and 0.38—we see that they follow a pattern; each is separated by almost exactly 190ms, which is very close to the RTT of the connection.
++
+This is the trade-off the Nagle algorithm makes: fewer and larger packets are used, but the required delay is higher.
+
+.Comparing the use of the Nagle algorithm for TCP connections with a similar operating environment. With Nagle enabled, at most one packet is allowed to be outstanding at any given time. This reduces the number of small packets but increases delay.
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/nagle-alg-comapring.png[,55%,55%]
+
+[bibliography]
+== References
+
+* [[[TCPIPVOL1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
+* [[[RHELDELACK]]] _Reducing the TCP Delayed ACK Timeout_ [online]. https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/7/html/tuning_guide/reducing_the_tcp_delayed_ack_timeout
