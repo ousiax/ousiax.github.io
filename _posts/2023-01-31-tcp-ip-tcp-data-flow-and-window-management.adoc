@@ -173,10 +173,76 @@ operation. Requests are followed in lockstep with responses, and the exchange ta
 This is the trade-off the Nagle algorithm makes: fewer and larger packets are used, but the required delay is higher.
 
 .Comparing the use of the Nagle algorithm for TCP connections with a similar operating environment. With Nagle enabled, at most one packet is allowed to be outstanding at any given time. This reduces the number of small packets but increases delay.
-image::/assets/tcp-ip/tcp-data-flow-and-window-management/nagle-alg-comapring.png[,55%,55%]
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/nagle-alg-comapring.png[,35%,35%]
+
+=== Delayed ACK and Nagle Algorithm Interaction
+
+.The interaction between the Nagle algorithm and delayed ACKs. A temporary form of deadlock can occur until the delayed ACK timer fires.
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/delayack-nagle-inter.png[,35%,35%]
+
+Here we see that the client, after receiving two packets from the server, withholds an ACK, hoping that additional data headed toward the server can be piggybacked.
+
+TIP: Generally, TCP is required to provide an ACK for two received packets only if they are full-size, and they are not here.
+
+At the server side, because the Nagle algorithm is operating, no additional packets are permitted to be sent to the client until an ACK is returned because at most one _small_ packet is allowed to be outstanding.
+
+The combination of delayed ACKs and the Nagle algorithm leads to a form of _deadlock_ (each side waiting for the other).
+
+Fortunately, this deadlock is not permanent and is broken when the delayed ACK timer fires, which forces the client to provide an ACK even if the client has no additional data to send.
+
+=== Disabling the Nagle Algorithm
+
+The Nagle algorithm can be disabled in a number of ways. The ability to disable it is required by the Host Requirements RFC [RFC1122].
+
+An application can specify the TCP_NODELAY option when using the Berkeley sockets API.
+
+[source,man]
+----
+TCP(7)                     Linux Programmer's Manual                    TCP(7)
+
+NAME
+       tcp - TCP protocol
+.....
+       TCP_NODELAY
+              If set, disable the Nagle algorithm.  This means  that  segments
+              are  always  sent  as  soon as possible, even if there is only a
+              small amount of data.  When not  set,  data  is  buffered  until
+              there  is  a sufficient amount to send out, thereby avoiding the
+              frequent sending of small packets, which results  in  poor  uti‐
+              lization of the network.  This option is overridden by TCP_CORK;
+              however, setting this option forces an explicit flush of pending
+              output, even if TCP_CORK is currently set.
+----
+
+In addition, it is possible to disable the Nagle algorithm on a system-wide basis.
+
+== Flow Control and Window Management
+
+Every TCP segment (except those exchanged during connection establishment) includes a valid _Sequence Number_ field, an _ACK Number_ or _Acknowledgment_ field, and a _Window Size_ field (containing the window advertisement).
+
+.Each TCP connection is bidirectional. Data going in one direction causes the peer to respond with ACKs and window advertisements. The same is true for the reverse direction.
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/flow-control-window-advertisment.png[Flow Control and Window Management,45%,45%]
+
+When TCP-based applications are not busy doing other things, they are typically able to consume any and all data TCP has received and queued for them, leading to no change of the _Window Size_ field as the connection progresses.
+
+On slow systems, or when the application has other things to accomplish, data may have arrived for the application, been acknowledged by TCP, and be sitting in a queue waiting for the application to read or _consume_ it.
+
+* When TCP starts to queue data in this way, the amount of space available to hold new incoming data decreases, and this change is reflected by a decreasing value of the _Window Size_ field.
+
+* Eventually, if the application does not read or otherwise consume the data at all, TCP must take some action to cause the sender to cease sending new data entirely, because there would be no place to put it on arrival.
++
+This is accomplished by sending a window advertisement of zero (no space).
+
+The _Window Size_ field in each TCP header indicates the amount of empty space, in bytes, remaining in the receive buffer.
+
+* The field is 16 bits in TCP, but with the _Window Scale_ option, values larger than 65,535 can be used.
+
+* The largest sequence number the sender of a segment is willing to accept in the reverse direction is equal to the sum of the _Acknowledgment Number_ and _Window Size_ fields in the TCP header (scaled appropriately).
 
 [bibliography]
 == References
 
 * [[[TCPIPVOL1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
 * [[[RHELDELACK]]] _Reducing the TCP Delayed ACK Timeout_ [online]. https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/7/html/tuning_guide/reducing_the_tcp_delayed_ack_timeout
+* [[[WTCP]]] https://en.wikipedia.org/wiki/Transmission_Control_Protocol
+* [[[WSCALE]]] https://en.wikipedia.org/wiki/TCP_window_scale_option
