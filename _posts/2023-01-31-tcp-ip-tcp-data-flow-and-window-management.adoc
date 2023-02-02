@@ -239,6 +239,116 @@ The _Window Size_ field in each TCP header indicates the amount of empty space, 
 
 * The largest sequence number the sender of a segment is willing to accept in the reverse direction is equal to the sum of the _Acknowledgment Number_ and _Window Size_ fields in the TCP header (scaled appropriately).
 
+[source,c]
+----
+/* slow_client.c */
+#include <unistd.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+#define RCVBUFSIZE 4096
+
+int main(void) {
+    /* Create a TCP socket */
+    /* Create a reliable, stream socket using TCP */
+    int client_sock;
+    if ((client_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        perror("socket() failed");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Establish connection */
+    char *serv_ip = "127.0.0.1";
+    int serv_port = 6666;
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;                     /* Internet address family */
+    serv_addr.sin_addr.s_addr = inet_addr(serv_ip);     /* Server IP address*/
+    serv_addr.sin_port = htons(serv_port);              /* Server port */
+    if (connect(client_sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+        perror("connect() failed");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Communicate */
+    char *read_buf = (char*)malloc(RCVBUFSIZE * sizeof(char));
+    int recv_msg_size;
+    for(;;) {
+        /* Sleep 1s */
+        sleep(1);
+
+        /* Receive mesage from server */
+        if ((recv_msg_size = recv(client_sock, read_buf, RCVBUFSIZE, 0)) < 0) {
+            perror("recv() failed");
+            break;
+        }
+
+        /*  EOF */
+        if (recv_msg_size == 0) {
+            break;
+        }
+
+        fputs(read_buf, stdout);
+        memset(read_buf, '\0', RCVBUFSIZE);
+    }
+
+    /* Close the connection */
+    close(client_sock);
+}
+----
+
+[source,console]
+----
+$ zcat /usr/share/doc/linux-doc/Documentation/networking/ip-sysctl.rst.gz | nc -l --send-only 6666
+----
+
+[source,console]
+----
+$ cc slow_client.c -o slow_client
+$ ./slow_client
+----
+
+[source,console]
+----
+ 00:00:00.000000 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [S], seq 732284889, win 65495, options [mss 65495,sackOK,TS val 3010613877 ecr 0,nop,wscale 7], length 0
+ 00:00:00.000022 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [S.], seq 163752444, ack 732284890, win 65483, options [mss 65495,sackOK,TS val 3010613877 ecr 3010613877,nop,wscale 7], length 0
+ 00:00:00.000043 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010613877 ecr 3010613877], length 0
+ 00:00:00.000440 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 1:8193, ack 1, win 512, options [nop,nop,TS val 3010613878 ecr 3010613877], length 8192
+ 00:00:00.000445 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 8193, win 475, options [nop,nop,TS val 3010613878 ecr 3010613878], length 0
+ 00:00:00.000456 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 8193:16385, ack 1, win 512, options [nop,nop,TS val 3010613878 ecr 3010613878], length 8192
+ 00:00:00.000457 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 16385, win 443, options [nop,nop,TS val 3010613878 ecr 3010613878], length 0
+ 00:00:00.000465 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 16385:24577, ack 1, win 512, options [nop,nop,TS val 3010613878 ecr 3010613878], length 8192
+ 00:00:00.000466 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 24577, win 411, options [nop,nop,TS val 3010613878 ecr 3010613878], length 0
+ 00:00:00.000473 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 24577:32769, ack 1, win 512, options [nop,nop,TS val 3010613878 ecr 3010613878], length 8192
+ 00:00:00.000474 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 32769, win 379, options [nop,nop,TS val 3010613878 ecr 3010613878], length 0
+ 00:00:00.000485 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 32769:40961, ack 1, win 512, options [nop,nop,TS val 3010613878 ecr 3010613878], length 8192
+ 00:00:00.000773 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 40961:73729, ack 1, win 512, options [nop,nop,TS val 3010613878 ecr 3010613878], length 32768
+ 00:00:00.015147 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 40961:73729, ack 1, win 512, options [nop,nop,TS val 3010613892 ecr 3010613878], length 32768
+ 00:00:00.047085 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 73729, win 59, options [nop,nop,TS val 3010613924 ecr 3010613878,nop,nop,sack 1 {40961:73729}], length 0
+ 00:00:00.259155 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [P.], seq 73729:81281, ack 1, win 512, options [nop,nop,TS val 3010614136 ecr 3010613924], length 7552
+ 00:00:00.259206 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 0, options [nop,nop,TS val 3010614137 ecr 3010614136], length 0
+ 00:00:00.471128 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010614348 ecr 3010614137], length 0
+ 00:00:00.471140 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 0, options [nop,nop,TS val 3010614349 ecr 3010614136], length 0
+ 00:00:00.918546 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010614796 ecr 3010614349], length 0
+ 00:00:01.782255 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010615660 ecr 3010614349], length 0
+ 00:00:01.782263 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 0, options [nop,nop,TS val 3010615660 ecr 3010614136], length 0
+ 00:00:03.478634 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010617356 ecr 3010615660], length 0
+ 00:00:03.478642 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 0, options [nop,nop,TS val 3010617356 ecr 3010614136], length 0
+ 00:00:06.934944 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010620812 ecr 3010617356], length 0
+ 00:00:06.934972 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 0, options [nop,nop,TS val 3010620812 ecr 3010614136], length 0
+ 00:00:13.846498 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 1, win 512, options [nop,nop,TS val 3010627724 ecr 3010620812], length 0
+ 00:00:13.846506 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 0, options [nop,nop,TS val 3010627724 ecr 3010614136], length 0
+ 00:00:20.017448 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 81281, win 512, options [nop,nop,TS val 3010633895 ecr 3010614136], length 0
+ 00:00:20.017464 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [FP.], seq 81281:91177, ack 1, win 512, options [nop,nop,TS val 3010633895 ecr 3010633895], length 9896
+ 00:00:20.058855 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [.], ack 91178, win 469, options [nop,nop,TS val 3010633936 ecr 3010633895], length 0
+ 00:00:24.020472 IP 127.0.0.1.44640 > 127.0.0.1.6666: Flags [F.], seq 1, ack 91178, win 512, options [nop,nop,TS val 3010637898 ecr 3010633895], length 0
+ 00:00:24.020483 IP 127.0.0.1.6666 > 127.0.0.1.44640: Flags [.], ack 2, win 512, options [nop,nop,TS val 3010637898 ecr 3010637898], length 0
+----
+
 [bibliography]
 == References
 
