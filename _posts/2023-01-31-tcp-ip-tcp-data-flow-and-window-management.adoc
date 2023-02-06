@@ -441,6 +441,79 @@ Window probes are segments that force the receiver to provide an ACK, which also
 
 * As with the TCP retransmission timer, the normal exponential backoff can be used when calculating the timeout for the persist timer. An important difference, however, is that a normal TCP never gives up sending window probes, whereas it may eventually give up trying to perform retransmissions.
 
+=== Silly Window Syndrome (SWS)
+
+Window-based flow control schemes, especially those that do not use fixed-size segments (such as TCP), can fall victim to a condition known as the *silly window syndrome* (SWS). When it occurs, small data segments are exchanged across the connection instead of full-size segments [RFC0813]. This leads to undesirable inefficiency because each segment has relatively high overhead—a small number of data bytes relative to the number of bytes in the headers.
+
+SWS can be caused by either end of a TCP connection: the receiver can advertise small windows (instead of waiting until a larger window can be advertised), and the sender can transmit small data segments (instead of waiting for additional data to send a larger segment).
+
+Correct avoidance of silly window syndrome requires a TCP to implement rules specifically for this purpose, whether operating as a sender or a receiver. TCP never knows ahead of time how a peer TCP will behave. The following rules are applied:
+
+. When operating as a receiver, small windows are not advertised.
++
+The receive algorithm specified by [RFC1122] is to not send a segment advertising a larger window than is currently being advertised (which can be 0) until the window can be increased by either one full-size segment (i.e., the receive MSS) or by one-half of the receiver's buffer space, whichever is smaller.
++
+Note that there are two cases where this rule can come into play: when buffer space has become available because of an application consuming data from the network, and when TCP must respond to a window probe.
+
+. When sending, small segments are not sent and the Nagle algorithm governs when to send.
++
+Senders avoid SWS by not transmitting a segment unless at least one of the following conditions is true:
+
+.. A full-size (send MSS bytes) segment can be sent.
++
+Condition (a) is the most straightforward and directly avoids the high-overhead segment problem.
+
+.. TCP can send at least one-half of the maximum-size window that the other end has ever advertised on this connection.
++
+Condition (b) deals with hosts that always advertise tiny windows, perhaps smaller than the segment size.
+
+.. TCP can send everything it has to send and either (i) an ACK is not currently expected (i.e., we have no outstanding unacknowledged data) or (ii) the Nagle algorithm is disabled for this connection.
++
+Condition (c) prevents TCP from sending small segments when there is unacknowledged data waiting to be ACKed and the Nagle algorithm is enabled. If the sending application is doing small writes (e.g., smaller than the segment size), condition (c) avoids silly window syndrome.
+
+=== Large Buffers and Auto-Tuning
+
+Many TCP stacks now decouple the allocation of the receive buffer from the size specified by the application. In most cases, the size specified by the application is effectively ignored, and the operating system instead uses either a large fixed value or a dynamically calculated value.
+
+In newer versions of Windows (Vista/7) and Linux, receive window _autotuning_ is supported. With auto-tuning, the amount of data that can be outstanding in the connection (its bandwidth-delay product) is continuously estimated, and the advertised window is arranged to always be at least this large (provided enough buffer space remains to do so). This has the advantage of allowing TCP to achieve its maximum available throughput rate (subject to the available network capacity) without having to allocate excessively large buffers at the sender or receiver ahead of time. In Windows, the receiver’s buffer size is auto-sized by the operating system by default.
+
+With Linux 2.4 and later, sender-side auto-tuning is supported. With version 2.6.7 and later, both receiver- and sender-side auto-tuning is supported. However, auto-tuning is subject to limits placed on the buffer sizes.
+
+The following Linux `sysctl` variables control the sender and receiver maximum buffer sizes. The values after the equal sign are the default values (which may vary depending on the particular Linux distribution), which should be increased if the system is to be used in high bandwidth-delay-product environments:
+
+[source,ini]
+----
+net.core.rmem_default = 212992
+net.core.wmem_default = 212992
+net.core.rmem_max = 212992
+net.core.wmem_max = 212992
+----
+
+In addition, the auto-tuning parameters are given by the following variables:
+
+[source,ini]
+----
+net.ipv4.tcp_rmem = 4096	131072	6291456
+net.ipv4.tcp_wmem = 4096	16384	4194304
+----
+
+Each of these variables contains three values: the minimum, default, and maximum buffer size used by auto-tuning.
+
+[source,console]
+----
+$ sudo tcpdump -n "dst port 6666 and tcp[14:2] > 0"
+19:00:52.774633 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [S], seq 4259244136, win 2920, options [mss 1460,sackOK,TS val 1089797899 ecr 0,nop,wscale 7], length 0
+19:00:52.775403 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 1713968064, win 2920, length 0
+19:00:52.911851 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 2921, win 1460, length 0
+19:00:54.776998 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 4381, win 2920, length 0
+19:00:54.777424 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 7301, win 1460, length 0
+19:00:56.777414 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 8761, win 2920, length 0
+19:00:56.777741 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 11681, win 8760, length 0
+19:00:56.778085 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 20441, win 26280, length 0
+19:00:56.778334 IP 192.168.91.128.56256 > 10.170.109.10.6666: Flags [.], ack 46721, win 65535, length 0
+.....
+----
+
 [bibliography]
 == References
 
