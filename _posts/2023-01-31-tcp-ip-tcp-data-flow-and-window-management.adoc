@@ -353,6 +353,94 @@ reading from file /tmp/win.pcap, link-type EN10MB (Ethernet), snapshot length 26
 
 image::/assets/tcp-ip/tcp-data-flow-and-window-management/win-update-wireshark.png[,100%,100%]
 
+=== Sliding Windows
+
+Each endpoint of a TCP connection is capable of sending and receiving data. The amount of data sent or received on a connection is maintained by a set of window structures. For each active connection, each TCP endpoint maintains a _send window structure_ and a _receive window structure_.
+
+.The TCP sender-side sliding window structure keeps track of which sequence numbers have already been acknowledged, which are in flight, and which are yet to be sent. The size of the offered window is controlled by the _Window Size_ field sent by the receiver in each ACK.
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/sender-side-sliding-window-structure.png[Sender Sliding Window,55%,55%]
+
+* TCP maintains its window structures in terms of bytes (not packets).
+
+* The window advertised by the receiver is called the _offered window_ and covers bytes 4 through 9, meaning that the receiver has acknowledged all bytes up through and including number 3 and has advertised a window size of 6.
+
+* The _Window Size_ field contains a byte offset relative to the ACK number.
+
+* The sender computes its _usable window_, which is how much data it can send immediately.
+
+* The usable window is the offered window minus the amount of data already sent but not yet acknowledged.
+
+* The variables SND.UNA and SND.WND are used to hold the values of the left window edge and offered window.
+
+* The variable SND.NXT holds the next sequence number to be sent, so the usable window is equal to (SND.UNA + SND.WND – SND.NXT).
+
+Over time this sliding window moves to the right, as the receiver acknowledges data. The relative motion of the two ends of the window increases or decreases the size of the window. 
+Three terms are used to describe the movement of the right and left edges of the window:
+
+. The window _closes_ as the left edge advances to the right. This happens when data that has been sent is acknowledged and the window size gets smaller.
+
+. The window _opens_ when the right edge moves to the right, allowing more data to be sent. This happens when the receiving process on the other end reads acknowledged data, freeing up space in its TCP receive buffer.
+
+3. The window _shrinks_ when the right edge moves to the left. The Host Requirements RFC [RFC1122] strongly discourages this, but TCP must be able to cope with it.
+
+Because every TCP segment contains both an ACK number and a window advertisement, a TCP sender adjusts the window structure based on both values whenever an incoming segment arrives.
+
+* The left edge of the window cannot move to the left, because this edge is controlled by the ACK number received from the other end that is cumulative and never goes backward.
+
+* When the ACK number advances the window but the window size does not change (a common case), the window is said to advance or _slide_ forward.
+
+* If the ACK number advances but the window advertisement grows smaller with other arriving ACKs, the left edge of the window moves closer to the right edge.
+
+* If the left edge reaches the right edge, it is called a _zero window_. This stops the sender from transmitting any data. If this happens, the sending TCP begins to _probe_ the peer's window to look for an increase in the offered window.
+
+The receiver also keeps a window structure, which is somewhat simpler than the sender's.
+
+* The receiver window structure keeps track of what data has already been received and ACKed, as well as the maximum sequence number it is willing to receive.
+
+* The TCP receiver depends on this structure to ensure the correctness of the data it receives.
++
+In particular, it wishes to avoid storing duplicate bytes it has already received and ACKed, and it also wishes to avoid storing bytes that it should not have received (any bytes beyond the sender's right window edge).
+
+.The TCP receiver-side sliding window structure helps the receiver know which sequence numbers to expect next. Sequence numbers in the receive window are stored when received. Those outside the window are discarded.
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/receiver-side-sliding-window-structure.png[Receiver Sliding Window,55%,55%]
+
+* This structure also contains a left and right window edge like the sender's window, but the in-window bytes (4–9 in this picture) need not be differentiated as they are in the sender's window structure.
+
+* For the receiver,
+
+** any bytes received with sequence numbers less than the left window edge (called RCV.NXT) are discarded as duplicates, and
+** any bytes received with sequence numbers beyond the right window edge (RCV.WND bytes beyond RCV.NXT) are discarded as out of scope.
+
+* Bytes arriving with any sequence number in the receive window range are accepted.
+
+* Note that the ACK number generated at the receiver may be advanced only when segments fill in directly at the left window edge because of TCP's cumulative ACK structure.
+
+* With selective ACKs, other in-window segments can be acknowledged using the TCP SACK option, but ultimately the ACK number itself is advanced only when data contiguous to the left window edge is received.
+
+=== Zero Windows and the TCP Persist Timer
+
+When the receiver's advertised window goes to zero, the sender is effectively stopped from transmitting data until the window becomes nonzero.
+
+When the receiver once again has space available, it provides a _window update_ to the sender to indicate that data is permitted to flow once again.
+
+Because such updates do not generally contain data (they are a form of _pure ACK_), they are not reliably delivered by TCP.
+
+TCP must therefore handle the case where such window updates that would open the window are lost.
+
+If an acknowledgment (containing a window update) is lost, we could end up with both sides waiting for the other: the receiver waiting to receive data (because it provided the sender with a nonzero window and expects to see incoming data) and the sender waiting to receive the window update allowing it to send.
+
+To prevent this form of deadlock from occurring, the sender uses a *persist timer* to query the receiver periodically, to find out if the window size has increased. The persist timer triggers the transmission of *window probes*.
+
+Window probes are segments that force the receiver to provide an ACK, which also necessarily contains a _Window Size_ field.
+
+* The Host Requirements RFC [RFC1122] suggests that the first probe should happen after one RTO and subsequent problems should occur at exponentially spaced intervals.
+
+* Window probes contain a single byte of data and are therefore reliably delivered (retransmitted) by TCP if lost, thereby eliminating the potential deadlock condition caused by lost window updates.
+
+* The probes are sent whenever the TCP persist timer expires, and the byte included may or may not be accepted by the receiver, depending on how much buffer space it has available.
+
+* As with the TCP retransmission timer, the normal exponential backoff can be used when calculating the timeout for the persist timer. An important difference, however, is that a normal TCP never gives up sending window probes, whereas it may eventually give up trying to perform retransmissions.
+
 [bibliography]
 == References
 
