@@ -21,3 +21,76 @@ The basic approach is to have TCP slow down when it has reason to believe the ne
 
 The challenge is to determine exactly when and how TCP should slow down, and when it can speed up again.
 
+[NOTE]
+====
+In today's wired networks, packet loss is caused primarily by congestion in routers or switches.
+
+With wireless networks, transmission and reception errors become a significant cause of packet loss.
+
+Determining whether loss is due to congestion or transmission errors has been an active research topic since the mid-1990s when wireless networks started to attain widespread use.
+====
+
+A value used to hold the estimate of the network's available capacity is called the *congestion window*, written more compactly as simply _cwnd_.
+
+A sender's actual (usable) window _W_ is then written as the minimum of the receiver's advertised window _awnd_ and the congestion window:
+
+[.text-center]
+_W_ = min(_cwnd_, _awnd_)
+
+With this relationship, the TCP sender is not permitted to have more than _W_ unacknowledged packets or bytes outstanding in the network.
+
+The total amount of data a sender has introduced into the network for which it has not yet received an acknowledgment is sometimes called the _flight size_, which is always less than or equal to _W_.
+
+In general, _W_ can be maintained in either packet or byte units.
+
+This all seems logical but is far from the whole story. 
+
+Because both the state of the network and the state of the receiver change with time, the values of both _awnd_ and _cwnd_ change over time.
+
+In addition, because of the lack of explicit signals, the correct value of _cwnd_ is generally not directly available to the sending TCP. Thus, all of the values _W_, _cwnd_, and _awnd_ must be empirically determined and dynamically updated.
+
+In addition, as we said before, we do not want _W_ to be too big or too small—we want it to be set to about the _bandwidth-delay product_ (BDP) of the network path, also called the _optimal_ window size. This is the amount of data that can be stored in the network in transit to the receiver.
+
+On the Internet, determining the BDP for a connection can be challenging, given that routes, delay, and the level of statistical multiplexing (i.e., sharing of capacity) change as a function of time.
+
+[NOTE]
+====
+Although handling congestion at the TCP sender is our primary area of interest, work has been done on handling the cases where congestion occurs on the reverse path, because of ACKs.
+
+In [RFC5690] a method is introduced to inform a TCP receiver of the ACK ratio it should use (i.e., how many packets it should receive before sending an ACK).
+====
+
+== The Classic Algorithms
+
+When a new TCP connection first starts out, it usually has no idea what the initial value for _cwnd_ should be, as it has no idea how much network capacity is available for it to send its data.
+
+TCP learns the value for _awnd_ with one packet exchange to the receiver, but without any explicit signaling, the only obvious way it has to learn a good value for _cwnd_ is to try sending data at faster and faster rates until it experiences a packet drop (or other congestion indicator).
+
+This could be accomplished by either sending immediately at the maximum rate it can (subject to the value of _awnd_), or it could start more slowly.
+
+Because of the detrimental effects on the performance of other TCP connections sharing the same network path that could be experienced when starting at full rate, a TCP generally uses one algorithm to avoid starting so fast when it starts up to get to steady state. It uses a different one once it is in steady state.
+
+The operation of TCP congestion control at a sender is driven or clocked by the receipt of ACKs.
+
+If a TCP is operating at steady state (with an appropriate value of _cwnd_), receipt of an ACK indicates that one or more packets have been removed from the network, and consequently that an opportunity to send more has arisen.
+
+Following this line of reasoning, the TCP congestion behavior in steady state attempts to achieve a _conservation of packets_ in the network.
+
+.TCP congestion control operates on a principle of conservation of packets. Packets (P~b~) are stretched out in time as they are sent from sender to receiver over links with constrained capacity. As they are received at the receiver spaced apart (P~r~), ACKs are generated (A~r~), which return to the sender. ACKs traveling from receiver to sender become spaced out (A~b~) in relation to the inter-packet spacing of the packets. When ACKs reach the sender (A~s~), their arrivals provide a signal or _ACK clock_, used to tell the sender it is time to send more. In steady state, the overall system is said to be _self-clocked_.
+image::/assets/tcp-ip/tcp-congestion-control/conservation-of-packets.png[Conservation of Packets,55%,55%]
+
+* The top funnel holds (larger) data packets traveling along the path from the sender to the receiver.
+* The comparatively narrow width of the funnel depicts how packets are _stretched out_ in time as they travel through a relatively slow link.
+* The ends of the funnels (at sender and receiver) show the queues where packets are held before or after they travel along the path.
+* The bottom funnel holds the ACKs sent by the receiver back to the sender that correspond to the data packets in the top funnel.
+* When operating efficiently at steady state, there are no bunches of packets in the top or bottom funnels.
+* In addition, there is no significant extra space between packets in the top funnel.
+* Note that an arrival of an ACK at the sender _liberates_ another data packet to be sent into the top funnel, and that this happens at just the right time (i.e., when the network is able to accept another packet).
+* This relationship is sometimes called _self-clocking_, because the arrival of an ACK, called the _ACK clock_, triggers the system to take the action of sending another packet.
+
+// === Slow Start
+
+[bibliography]
+== References
+
+* [[[TCPIPVOL1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
