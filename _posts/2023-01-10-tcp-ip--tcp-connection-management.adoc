@@ -515,22 +515,6 @@ TCP-AO improves upon TCP-MD5 by supporting a variety of cryptographic algorithms
 
 However, because it requires creation and distribution of a shared key (and is a relatively new option), it is not yet widely deployed.
 
-== Segmentation Offloading
-
-Unfortunately sometimes what we see in Wireshark is not what we expect. One case in which this occurs is when TCP/IP operations are offloaded by the operating system to the Network Interface Card (NIC). Common operations for offloading are segmentation and checksum calculations. That is, instead of the OS using the CPU to segment TCP packets, it allows the NIC to use its own processor to perform the segmentation. This saves on the CPU and importantly cuts down on the bus communications to/from the NIC. However offloading doesn't change what is sent over the network. In other words, offloading to the NIC can produce performance gains inside your computer, but not across the network. <<segmentation-offloading-with-wireshark-and-ethtool>>
-
-How does this affect what Wireshark captures? Consider the figure below illustrating the normal flow of data through a TCP/IP stack without offloading. Lets assume the application data is 7,300 Bytes. TCP breaks this into five segments. Why five? The Maximum Transmission Unit (MTU) of Ethernet is 1500 Bytes. If we subtract the 20 Byte IP header and 20 Byte TCP header there is 1460 Bytes remaining for data in a TCP segment (this is the TCP Maximum Segment Size (MSS)). 7,300 Bytes can be conveniently segmented into five maximum sized TCP segments. 
-
-image::/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-without-offloading.png[,55%,55%]
-
-After IP adds a header to the TCP segments the resulting IP datagrams are sent one-by-one to the "Ethernet layer". Note that TCP/IP are part of operating system, while most functionality of Ethernet is implemented on the NIC. However network drivers (lets consider them part of the OS) also perform some of the Ethernet functionality. The network driver creates/receives Ethernet frames. So in the above example, assuming segmentation offloading is not used, the 7,300 Bytes of application data is segmented into 5 TCP/IP packets containing 1460 Bytes of data each. The network driver encapsulates each IP datagram in an Ethernet frame and sends the frames to the NIC. It is these Ethernet frames that Wireshark (and other packet capture software, like *tcpdump*) captures. The NIC then sends the frames, one-by-one, over the network.
-
-Now consider when segmentation offloading is used (as in the figure below). The OS does not segment the application data, but instead creates one large TCP/IP packet and sends that to the driver. The TCP and IP headers are in fact template headers. The driver creates a single Ethernet frame (which is captured by Wireshark) and sends it to the NIC. Now the NIC performs the segmentation. It uses the template headers to create 5 Ethernet frames with real TCP/IP/Ethernet headers. The 5 frames are then sent over the network. 
-
-image::/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-with-offloading.png[,55%,55%]
-
-The result: although the same 5 Ethernet frames are sent over the network, Wireshark captures different data depending on the use of segmentation offloading. When not used, the 5 Ethernet frames are captured. When offloading is used, Wireshark only captures the single, large frame (containing 7,300 bytes of data).
-
 == Path MTU Discovery with TCP
 
 The path MTU is the minimum MTU on any network segment that is currently in the path between two hosts.
@@ -1588,6 +1572,61 @@ IP (tos 0x0, ttl 128, id 45741, offset 0, flags [none], proto TCP (6), length 40
     52.38.211.34.2331 > 192.168.91.128.6666: Flags [R], cksum 0x62c3 (correct), seq 1259551604, win 32767, length 0
 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
     192.168.91.128.6666 > 33.27.153.163.2333: Flags [S.], cksum 0xd705 (incorrect -> 0x10d7), seq 1459145616, ack 547114779, win 64240, options [mss 1460], length 0
+----
+
+[appendix]
+== Segmentation Offloading
+
+Unfortunately sometimes what we see in Wireshark is not what we expect. One case in which this occurs is when TCP/IP operations are offloaded by the operating system to the Network Interface Card (NIC). Common operations for offloading are segmentation and checksum calculations. That is, instead of the OS using the CPU to segment TCP packets, it allows the NIC to use its own processor to perform the segmentation. This saves on the CPU and importantly cuts down on the bus communications to/from the NIC. However offloading doesn't change what is sent over the network. In other words, offloading to the NIC can produce performance gains inside your computer, but not across the network. <<segmentation-offloading-with-wireshark-and-ethtool>>
+
+How does this affect what Wireshark captures? Consider the figure below illustrating the normal flow of data through a TCP/IP stack without offloading. Lets assume the application data is 7,300 Bytes. TCP breaks this into five segments. Why five? The Maximum Transmission Unit (MTU) of Ethernet is 1500 Bytes. If we subtract the 20 Byte IP header and 20 Byte TCP header there is 1460 Bytes remaining for data in a TCP segment (this is the TCP Maximum Segment Size (MSS)). 7,300 Bytes can be conveniently segmented into five maximum sized TCP segments. 
+
+image::/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-without-offloading.png[,55%,55%]
+
+After IP adds a header to the TCP segments the resulting IP datagrams are sent one-by-one to the "Ethernet layer". Note that TCP/IP are part of operating system, while most functionality of Ethernet is implemented on the NIC. However network drivers (lets consider them part of the OS) also perform some of the Ethernet functionality. The network driver creates/receives Ethernet frames. So in the above example, assuming segmentation offloading is not used, the 7,300 Bytes of application data is segmented into 5 TCP/IP packets containing 1460 Bytes of data each. The network driver encapsulates each IP datagram in an Ethernet frame and sends the frames to the NIC. It is these Ethernet frames that Wireshark (and other packet capture software, like *tcpdump*) captures. The NIC then sends the frames, one-by-one, over the network.
+
+Now consider when segmentation offloading is used (as in the figure below). The OS does not segment the application data, but instead creates one large TCP/IP packet and sends that to the driver. The TCP and IP headers are in fact template headers. The driver creates a single Ethernet frame (which is captured by Wireshark) and sends it to the NIC. Now the NIC performs the segmentation. It uses the template headers to create 5 Ethernet frames with real TCP/IP/Ethernet headers. The 5 frames are then sent over the network. 
+
+image::/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-with-offloading.png[,55%,55%]
+
+The result: although the same 5 Ethernet frames are sent over the network, Wireshark captures different data depending on the use of segmentation offloading. When not used, the 5 Ethernet frames are captured. When offloading is used, Wireshark only captures the single, large frame (containing 7,300 bytes of data).
+
+Queries the specified network device for the state of protocol offload and other features.
+
+[source,console,highlight="13,20"]
+----
+$ sudo ethtool -k ens32
+Features for ens32:
+rx-checksumming: off
+tx-checksumming: on
+	tx-checksum-ipv4: off [fixed]
+	tx-checksum-ip-generic: on
+	tx-checksum-ipv6: off [fixed]
+	tx-checksum-fcoe-crc: off [fixed]
+	tx-checksum-sctp: off [fixed]
+scatter-gather: on
+	tx-scatter-gather: on
+	tx-scatter-gather-fraglist: off [fixed]
+tcp-segmentation-offload: on
+	tx-tcp-segmentation: on
+	tx-tcp-ecn-segmentation: off [fixed]
+	tx-tcp-mangleid-segmentation: off
+	tx-tcp6-segmentation: off [fixed]
+udp-fragmentation-offload: off
+generic-segmentation-offload: on
+generic-receive-offload: on
+large-receive-offload: off [fixed]
+.....
+----
+
+[source,sh]
+----
+# tso on|off
+#        Specifies whether TCP segmentation offload should be enabled.
+# 
+# gro on|off
+#        Specifies whether generic receive offload should be enabled
+sudo ethtool -K ens32 tso off gro off
 ----
 
 [bibliography]
