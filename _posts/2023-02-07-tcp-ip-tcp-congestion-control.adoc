@@ -30,12 +30,14 @@ With wireless networks, transmission and reception errors become a significant c
 Determining whether loss is due to congestion or transmission errors has been an active research topic since the mid-1990s when wireless networks started to attain widespread use.
 ====
 
-A value used to hold the estimate of the network's available capacity is called the *congestion window*, written more compactly as simply _cwnd_.
+A value used to hold the estimate of the network's available capacity is called the *_congestion window_*, written more compactly as simply _cwnd_.
 
 A sender's actual (usable) window _W_ is then written as the minimum of the receiver's advertised window _awnd_ and the congestion window:
 
-[.text-center]
+[.text-center,subs="+quotes"]
+----
 _W_ = min(_cwnd_, _awnd_)
+----
 
 With this relationship, the TCP sender is not permitted to have more than _W_ unacknowledged packets or bytes outstanding in the network.
 
@@ -59,6 +61,50 @@ Although handling congestion at the TCP sender is our primary area of interest, 
 
 In [RFC5690] a method is introduced to inform a TCP receiver of the ACK ratio it should use (i.e., how many packets it should receive before sending an ACK).
 ====
+
+> Definitions in TCP Congestion Control <<RFC5681>>:
+>
+> [square]
+>
+> * SEGMENT: A segment is ANY TCP/IP data or acknowledgment packet (or both).
+>
+> * SENDER MAXIMUM SEGMENT SIZE (SMSS): The SMSS is the size of the largest segment that the sender can transmit.
+> +
+> This value can be based on the maximum transmission unit of the network, the path MTU discovery [RFC1191, RFC4821] algorithm, RMSS (see next item), or other factors.  The size does not include the TCP/IP headers and options.
+>
+> * RECEIVER MAXIMUM SEGMENT SIZE (RMSS): The RMSS is the size of the largest segment the receiver is willing to accept.
+> +
+> This is the value specified in the MSS option sent by the receiver during connection startup.  Or, if the MSS option is not used, it is 536 bytes [RFC1122].  The size does not include the TCP/IP headers and options.
+>
+> * FULL-SIZED SEGMENT: A segment that contains the maximum number of data bytes permitted (i.e., a segment containing SMSS bytes of data).
+>
+> * RECEIVER WINDOW (rwnd): The most recently advertised receiver window.
+>
+> * CONGESTION WINDOW (cwnd): A TCP state variable that limits the amount of data a TCP can send.
+> +
+> At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd.
+>
+> * INITIAL WINDOW (IW): The initial window is the size of the sender's congestion window after the three-way handshake is completed.
+>
+> * LOSS WINDOW (LW): The loss window is the size of the congestion window after a TCP sender detects loss using its retransmission timer.
+>
+> * RESTART WINDOW (RW): The restart window is the size of the congestion window after a TCP restarts transmission after an idle period (if the slow start algorithm is used; see section 4.1 for more discussion).
+>
+> * FLIGHT SIZE: The amount of data that has been sent but not yet cumulatively acknowledged.
+>
+> * DUPLICATE ACKNOWLEDGMENT: An acknowledgment is considered a "duplicate" in the following algorithms when
+> +
+> (a) the receiver of the ACK has outstanding data,
+> +
+> (b) the incoming acknowledgment carries no data,
+> +
+> (c) the SYN and FIN bits are both off,
+> +
+> (d) the acknowledgment number is equal to the greatest acknowledgment received on the given connection (TCP.UNA from [RFC793]) and
+> +
+> (e) the advertised window in the incoming acknowledgment equals the advertised window in the last incoming acknowledgment.
+> +
+> Alternatively, a TCP that utilizes selective acknowledgments (SACKs) [RFC2018, RFC2883] can leverage the SACK information to determine when an incoming ACK is a "duplicate" (e.g., if the ACK contains previously unknown SACK information).
 
 == The Classic Algorithms
 
@@ -92,21 +138,214 @@ image::/assets/tcp-ip/tcp-congestion-control/conservation-of-packets.png[Conserv
 
 The slow start algorithm is executed when a new TCP connection is created or when a loss has been detected due to a retransmission timeout (RTO). It may also be invoked after a sending TCP has gone idle for some time.
 
-The purpose of slow start is to help TCP find a value for _cwnd_ before probing for more available bandwidth using congestion avoidance and to establish the ACK clock.
+* The purpose of slow start is to help TCP find a value for _cwnd_ before probing for more available bandwidth using congestion avoidance and to establish the ACK clock.
 
-Typically, a TCP begins a new connection in slow start, eventually drops a packet, and then settles into steady-state operation using the congestion avoidance algorithm.
+* Typically, a TCP begins a new connection in slow start, eventually drops a packet, and then settles into steady-state operation using the congestion avoidance algorithm.
 
-To quote from [RFC5681]:
+To quote from <<RFC5681>>:
 
 > Beginning transmission into a network with unknown conditions requires TCP to slowly probe the network to determine the available capacity, in order to avoid congesting the network with an inappropriately large burst of data. The slow start algorithm is used for this purpose at the beginning of a transfer, or after repairing loss detected by the retransmission timer.
 
-A TCP begins in slow start by sending a certain number of segments (after the SYN exchange), called the _initial window_ (IW). The value of IW was originally one SMSS, although with [RFC5681] it is allowed to be larger.
+TCP begins in slow start by sending a certain number of segments (after the SYN exchange), called the _initial window_ (IW).
 
-NOTE: Note that in most cases SMSS is equal to the smaller of the receiver's MSS and the path MTU (less header sizes).
+The value of _IW_ was originally one _SMSS_, although with <<RFC5681>> it is allowed to be larger.
 
-Assuming no packets are lost and each packet causes an ACK to be sent in response, an ACK is returned for the first segment, allowing the sending TCP to send another segment. However, slow start operates by incrementing _cwnd_ by min(_N_, _SMSS_) for each good ACK received, where _N_ is the number of previously unacknowledged bytes ACKed by the received _good ACK_. A good ACK is one that returns a higher ACK number than has been seen so far.
+NOTE: Note that in most cases _SMSS_ is equal to the smaller of the receiver's MSS and the path MTU (less header sizes).
+
+Assuming no packets are lost and each packet causes an ACK to be sent in response, an ACK is returned for the first segment, allowing the sending TCP to send another segment.
+
+However, slow start operates by incrementing _cwnd_ by min(_N_, SMSS) for each good ACK received, where _N_ is the number of previously unacknowledged bytes ACKed by the received _good ACK_.
+
+TIP: A _good ACK_ is one that returns a higher ACK number than has been seen so far.
+
+Thus, after one segment is ACKed, the _cwnd_ value is ordinarily increased to 2, and two segments are sent. If each of those causes new good ACKs to be returned, 2 increases to 4, 4 to 8, and so on.
+
+* In general, assuming no loss and an ACK for every packet, the value of _W_ after _k_ round-trip exchanges is W = 2^k^.
+
+* Rewriting, we can say that _k_ = log~2~_W_ RTTs are required to reach an operating window of _W_.
+
+This growth seems quite fast (increasing as an exponential function) but is still slower than what TCP would do if it were allowed to send immediately a window of packets equal in size to the receiver's advertised window. Recall that _W_ is still never allowed to exceed _awnd_.
+
+Eventually, cwnd (and thus _W_) could become so large that the corresponding window of packets sent overwhelms the network (recall that TCP's throughput rate is proportional to _W/RTT_).
+
+* When this happens, _cwnd_ is reduced substantially (to half of its former value).
+
+* In addition, this is the point at which TCP switches from operating in slow start to operating in congestion avoidance.
+
+The switch point is determined by the relationship between _cwnd_ and a value called the *_slow start threshold_* (or _ssthresh_).
+
+.Operation of the classic slow start algorithm. In the simple case where ACKs are not delayed, every arriving good ACK allows the sender to inject two new packets (left). This leads to an exponential growth in the size of the sender’s window as a function of time (right, upper line). When ACKs are delayed, such as when an ACK is produced for every other packet, the growth is still exponential but slower (right, lower line).
+image::/assets/tcp-ip/tcp-congestion-control/classic-slow-start.png[Operation of the classic slow start algorithm,55%,55%]
+
+=== Congestion Avoidance
+
+To find additional capacity that may become available, but to not do so too aggressively, TCP implements the congestion avoidance algorithm.
+
+Once _ssthresh_ is established and _cwnd_ is at least at this level, a TCP runs the congestion avoidance algorithm, which seeks additional capacity by increasing _cwnd_ by approximately one segment for each window's worth of data that is moved from sender to receiver successfully.
+
+This provides a much slower growth rate than slow start: approximately linear in terms of time, as opposed to slow start's exponential growth.
+
+More precisely, _cwnd_ is usually updated as follows for each received nonduplicate ACK:
+
+[.text-center,subs="+quotes"]
+----
+_cwnd~t+1~_ = _cwnd~t~_ + SMSS * SMSS/_cwnd~t~_
+----
+
+Looking at this relationship briefly, assume _cwnd~0~_ = _k_*_SMSS_ bytes were sent into the network in _k_ segments. After the first ACK arrives, _cwnd_ is updated to be larger by a factor of (1/_k_):
+
+[.text-center,subs="+quotes"]
+----
+_cwnd~1~_ = _cwnd~0~_ + SMSS * SMSS/_cwnd~0~_
+
+= _k_*SMSS + SMSS * (SMSS/(k*SMSS))
+
+= _k_*SMSS + (1/_k_) * SMSS
+
+= (_k_ + (1/_k_))*SMSS
+
+= cwnd~0~ + (1/_k_)*SMSS
+----
+
+Because the value of _cwnd_ grows slightly with each new ACK arrival, and this value is in the denominator of the expression in the first equation above, the overall growth rate of _cwnd_ is slightly sublinear.
+
+.Operation of the congestion avoidance algorithm. In the simple case where ACKs are not delayed, every arriving good ACK allows the sender to inject approximately _1/W_ fraction of a new packet. This leads to approximately linear growth in the size of the sender's window as a function of time (right, upper line). When ACKs are delayed, such as when an ACK is produced for every other packet, the growth is still approximately linear but somewhat slower (right, lower line).
+image::/assets/tcp-ip/tcp-congestion-control/congestion-avoidance.png[Operation of the congestion avoidance algorithm,55%,55%]
+
+The assumption of the algorithm is that packet loss caused by bit errors is very small (much less than 1%), and therefore the loss of a packet signals congestion somewhere in the network between the source and destination.
+
+* If this assumption is false, which it sometimes is for wireless networks, TCP slows down even when no congestion is present.
+
+* In addition, many RTTs may be required for the value of _cwnd_ to grow large, which is required for efficient use of networks with high capacity.
+
+=== Selecting between Slow Start and Congestion Avoidance
+
+In normal operations, a TCP connection is always running either the slow start or the congestion avoidance procedure, but never the two simultaneously.
+
+* When _cwnd < ssthresh_, slow start is used, and when _cwnd > ssthresh_, congestion avoidance is used.
+* When they are equal, either can be used.
+
+The initial value of _ssthresh_ may be set arbitrarily high (e.g., to _awnd_ or higher), which causes TCP to always start with slow start. When a retransmission occurs, caused by either a retransmission timeout or the execution of fast retransmit, _ssthresh_ is updated as follows:
+
+[.text-center,subs="+quotes"]
+----
+_ssthresh_ = max(_flight size_/2, 2*_SMSS_)
+----
+
+=== Tahoe, Reno, and Fast Recovery
+
+The slow start and congestion avoidance constitute the first congestion control algorithms which were introduced in the late 1980s with the 4.2 release of UC Berkeley's version of UNIX, called the _Berkeley Software Distribution_, or _BSD UNIX_.
+
+The 4.2 release of BSD (called _Tahoe_) included a version of TCP that started connections in slow start, and if a packet was lost, detected by either a timeout or the fast retransmit procedure, the slow start algorithm was reinitiated.
+
+Tahoe was implemented by simply reducing _cwnd_ to its starting value (1 SMSS at that time) upon any loss, forcing the connection to slow start until _cwnd_ grew to the value _ssthresh_.
+
+One problem with this approach is that for large BDP paths, this can cause the connection to significantly underutilize the available bandwidth while the sending TCP goes through slow start to get back to the point at which it was operating before the packet loss.
+
+To address this problem, the reinitiation of slow start on any packet loss was reconsidered.
+
+* Ultimately, if packet loss is detected by duplicate ACKs (invoking fast retransmit), _cwnd_ is instead reset to the last value of _ssthresh_ instead of only 1 SMSS.
+* Slow start is still initiated on a timeout, which is generally the case for most TCP variants.
+* This approach allows the TCP to slow down to half of its previous rate without reverting to slow start.
+
+In exploring the issue of large BDP paths further and thinking back to the conservation of packets principle mentioned before, it has been observed that any ACKs that are received, even while recovering after a loss, still represent opportunities to inject new packets into the network.
+
+* This became the basis of the *fast recovery* procedure, which was released in conjunction with the popular 4.3 BSD *Reno* version of BSD UNIX.
+
+* Fast recovery allows _cwnd_ to (temporarily) grow by 1 SMSS for each ACK received while recovering.
+
+* The congestion window is therefore _inflated_ for a period of time, allowing an additional new packet to be sent for each ACK received, until a good ACK is seen.  
+* Any nonduplicate (_good_) ACK causes TCP to exit recovery and reduces the congestion back to its pre-inflated value.
+
+TCP Reno became very popular and ultimately the basis for what might reasonably be called "standard TCP".
+
+=== Standard TCP
+
+To summarize the combined algorithm from <<RFC5681>>, TCP begins a connection in slow start (_cwnd_ = _IW_) with a large value of _ssthresh_, generally at least the value of _awnd_.
+
+Upon receiving a good ACK (one that acknowledges new data), TCP updates the value of _cwnd_ as follows:
+
+[.text-center,subs="+quotes"]
+----
+_cwnd_ += _SMSS_         (if _cwnd_ < _ssthresh_)        Slow start
+_cwnd_ += _SMSS_*_SMSS_/_cwnd_         (if _cwnd_ > _ssthresh_)        Congestion avoidance
+----
+
+When fast retransmit is invoked because of receipt of a third duplicate ACK (or other signal, if conventional fast retransmit initiation is not used), the following actions are performed:
+
+. _ssthresh_ is updated to no more than the value given in equation _ssthresh_ = max(_flight size_/2, 2*_SMSS_).
+
+. The fast retransmit algorithm is performed, and _cwnd_ is set to (_ssthresh_ + 3*_SMSS_).
+
+. _cwnd_ is temporarily increased by _SMSS_ for each duplicate ACK received.
+
+. When a good ACK is received, _cwnd_ is reset back to _ssthresh_.
+
+//-
+
+* The actions in steps 2 and 3 constitute _fast recovery_.
+
+* Step 2 first adjusts _cwnd_, which usually causes it to be reduced to half of its former value, and then temporarily inflates it to take into account the fact that the receipt of each duplicate ACK indicates that some packet has left the network (and thus should permit another to be inserted).
++
+This step is also where _multiplicative decrease_ occurs, as _cwnd_ is ordinarily multiplied by some value (0.5 here) to form its new value.
+
+* Step 3 continues the inflation process, allowing the sender to send additional packets (assuming _awnd_ is not exceeded).
+
+* In step 4, the TCP is assumed to have recovered, so the temporary inflation is removed (and so this step is sometimes called _deflation_).
+
+Slow start is always used in two cases: when a new connection is started, and when a retransmission timeout occurs.
+
+* It can also be invoked when a sender has been idle for a relatively long time or there is some other reason to suspect that _cwnd_ may not accurately reflect the current network congestion state.
++
+In this case, the initial value of _cwnd_ is set to the _restart window_ (_RW_).
++
+In <<RFC5681>>, the recommended value of _RW_ = min(_IW_, _cwnd_).
+
+* Other than this case, when slow start is invoked, _cwnd_ is set to _IW_.
+
+== Evolution of the Standard Algorithms
+
+The classic and standard TCP algorithms made a tremendous contribution to the operation of TCP, essentially addressing the major problem of Internet congestion collapse.
+
+[NOTE]
+====
+The problem of Internet congestion collapse was a serious concern during the
+years 1986–1988. In October 1986 the NSFNET backbone, an important component
+of the early Internet, had been observed to operate with an effective capacity
+some 1000 times less than it should have (called the "NSFNET meltdown").
+The primary reason for the problem was aggressive retransmissions during times
+of loss without any controls. This behavior drove the network into a persistently
+congested state where packet loss was massive (causing more retransmissions)
+and throughput was low. Adoption of the classic congestion control algorithms
+effectively eliminated this problem.
+====
+
+=== NewReno
+
+One problem with fast recovery is that when multiple packets are dropped in a window of data, once one packet is recovered (i.e., successfully delivered and ACKed), a good ACK can be received at the sender that causes the temporary window inflation in fast recovery to be erased before all the packets that were lost have been retransmitted.
+
+NOTE: ACKs that trigger this behavior are called _partial ACKs_ (ACKs that cover previously unacknowledged data, but not all the data outstanding when loss was detected).
+
+A Reno TCP reacting to a partial ACK by reducing its inflated congestion window can go idle until a retransmission timer fires.
+
+* To understand why this happens, recall that (non-SACK) TCP depends on the signal of three (or _dupthresh_) duplicate ACKs to trigger its fast retransmit procedure.
+* If there are not enough packets in the network, it is not possible to trigger this procedure on packet loss, ultimately leading to the expiration of the retransmission timer and invocation of the slow start procedure, which drastically impacts TCP throughput performance.
+
+To address this problem with Reno, a modification called *_NewReno_* <<RFC3782>> has been developed.
+
+* This procedure modifies fast recovery by keeping track of the highest sequence number from the last transmitted window of data (the _recovery point_).
+
+* Only when an ACK with an ACK number at least as large as the recovery point is received is the inflation of fast recovery removed.
+
+* This allows a TCP to continue sending one segment for each ACK it receives while recovering and reduces the occurrence of retransmission timeouts, especially when multiple packets are dropped in a single window of data.
+
+NewReno is a popular variant of modern TCPs—it does not suffer from the problems of the original fast recovery and is significantly less complicated to implement than SACKs.
+
+With SACKs, however, a TCP can perform better than NewReno when multiple packets are lost in a window of data, but doing this requires careful attention to the congestion control procedures.
 
 [bibliography]
 == References
 
 * [[[TCPIPVOL1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
+* [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
+* [[[RFC3782]]] S. Floyd, T. Henderson, and A. Gurtov, _The NewReno Modification to TCP's Fast Recovery Algorithm_, Internet RFC 3782, Apr. 2004, See https://www.rfc-editor.org/rfc/rfc3782
