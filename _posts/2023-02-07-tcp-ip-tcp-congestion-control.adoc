@@ -363,9 +363,66 @@ Importantly, the _pipe_ variable counts bytes (or packets, depending on the impl
 +
 In other words, _cwnd_ is still used to place a limit on the amount of data that can be outstanding in the network, but the amount of data estimated to be in the network is accounted for separately from the window itself.
 
+=== Forward Acknowledgment (FACK) and Rate Halving
+
+// For TCP variants based on Reno (including NewReno), the typical behavior is that when _cwnd_ is reduced after a fast retransmit, ACKs for at least one-half of the current window's outstanding data must be received before the sending TCP is allowed to continue transmitting.
+// 
+// This is an expected consequence of reducing the congestion window by half immediately when a loss is detected.
+// 
+// It causes the sending TCP to wait for about half of an RTT and then send any new data during the second half of the same RTT, a more bursty behavior than is really required.
+// 
+// In an effort to avoid the initial pause after loss but not violate the convention of emerging from recovery with a congestion window set to half of its size on entry, _forward acknowledgment_ (_FACK_) was described in [MM96].
+// 
+// It consists of two algorithms called _overdamping_ and _rampdown_.
+// 
+// Since the initial proposal, the authors updated their approach to form a unified and improved algorithm they call rate halving, based on earlier work by Hoe [H96]. 
+// 
+// To ensure that it works as effectively as possible, they further govern its behavior by adding bounding parameters, resulting in the complete algorithm being called _Rate-Halving with Bounding Parameters_ (_RHBP_) [PSCRH].
+// 
+// The basic operation of RHBP allows the TCP sender to send one packet for every two duplicate ACKs it receives during one RTT.
+// 
+// This causes the recovering TCP to have sent the appropriate amount of data by the end of the recovery period, but it spaces or paces this data evenly, rather than bunching all the transmissions into the second half of the RTT period.
+// 
+// Avoiding the bunching or burstiness is advantageous because bursts tend to persist across multiple RTTs, stressing router buffers more than required.
+// 
+// To keep an accurate estimate of the flight size, RHBP uses information from SACKs to determine the FACK: the highest sequence number known to have reached the receiver, plus 1.
+// 
+// Taking the difference between the highest sequence number about to be sent by the sender (SND.NXT in Figure 15-9) and the FACK gives an estimate of the flight size, not including retransmissions.
+// 
+// With RHBP, a distinction is made between the adjustment interval (the period when cwnd is modified) and the repair interval (when some segments are retransmitted).
+// 
+// The adjustment interval is entered immediately upon a loss or congestion indicator. The final value for cwnd when the interval completes is half of the correctly delivered portion of the window of data in the network at the time of detection.
+// 
+// The following expression allows the RHBP sender to transmit, if satisfied:
+// 
+// 
+// (SND.NXT – fack + retran_data + len) < cwnd
+// 
+// This expression captures the flight size, including retransmissions, and ensures that if injecting another packet of length len, cwnd will not be exceeded.
+// 
+// Provided all the data prior to the FACK is indeed no longer in the network (i.e., is lost or stored at the receiver), this causes the SACK sender to be appropriately controlled by cwnd.
+// 
+// However, it can be overly aggressive if packets have been reordered in the network because the holes indicated by SACK have not been lost.
+// 
+// In Linux, FACK and rate halving are implemented and enabled by default.
+// 
+// FACK is activated only when SACK is enabled and the Boolean configuration variable net.ipv4.tcp_fack is set to 1.
+// 
+// When reordering is detected in the network, the more aggressive behavior of FACK is disabled.
+// 
+// Rate halving is one of several ways of pacing TCP’s sending procedure to avoid or limit burstiness.
+// 
+// Although it offers a number of benefits, it also has a few problems.
+// 
+// In [ASA00], the authors analyze TCP pacing in some detail using simulations, concluding that in many cases it offers inferior performance to TCP Reno.
+// 
+// Furthermore, rate-halving TCP has been known to exhibit poor performance when the connection may become limited by the receiver’s advertised window [MM05].
+
+
 [bibliography]
 == References
 
+* [[[ASA00]]] A. Aggarwal, S. Savage, and T. Anderson, "Understanding the Performance of TCP Pacing", _Proc. INFOCOM_, Mar. 2004.
 * [[[TCPIPV1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
 * [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
 * [[[RFC3782]]] S. Floyd, T. Henderson, and A. Gurtov, _The NewReno Modification to TCP's Fast Recovery Algorithm_, Internet RFC 3782, Apr. 2004, See https://www.rfc-editor.org/rfc/rfc3782
