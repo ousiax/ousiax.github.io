@@ -314,7 +314,7 @@ A duplicate ACK (with or without SACK blocks) arriving at a sender is a potentia
 
 * TCP waits for a small number of duplicate ACKs (called the _duplicate ACK threshold_ or _dupthresh_) to be received before concluding that a packet has been lost and initiating a fast retransmit.
 
-* Traditionally, _dupthresh_ has been a constant (with value 3, RFC 5681), but some nonstandard implementations (including Linux) alter this value based on the current measured level of reordering.
+* Traditionally, _dupthresh_ has been a constant (with value 3 <<RFC5681>>), but some nonstandard implementations (including Linux) alter this value based on the current measured level of reordering.
 
 * A TCP sender observing at least _dupthresh_ duplicate ACKs retransmits one or more packets that appear to be missing without waiting for a retransmission timer to expire. It may also send additional data that has not yet been sent.
 
@@ -377,6 +377,9 @@ When partial ACKs arrive, the sending TCP immediately sends the segments that ap
 If permitted by congestion control procedures, it may also send new data it has not yet sent.
 * Because no SACKs are being used, the sender can learn of at most one receiver hole per round-trip time, indicated by the increase in the ACK number of returning packets, which can only occur once a retransmission filling the receiver’s lowest-numbered hole has been received and ACKed.
 
+.Show tcpdump trace
+[%collapsible]
+====
 [source,console,linenums]
 ----
  00:00:00.000000 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [S], seq 2395807434, win 64240, options [mss 1460,nop,nop,TS val 3245551521 ecr 0,nop,wscale 7], length 0
@@ -415,6 +418,7 @@ If permitted by congestion control procedures, it may also send new data it has 
  00:00:02.717525 IP 192.168.91.137.6666 > 192.168.91.128.58368: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 939995457 ecr 3245554008], length 0
  00:00:02.717540 IP 192.168.91.128.58368 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3245554239 ecr 939995226], length 0
 ----
+====
 
 == Retransmission with Selective Acknowledgments
 
@@ -495,7 +499,7 @@ That is, they are filled in by repeating the most recently sent SACK blocks (in 
 +
 The purpose of including more than one SACK block in a SACK option and repeating these blocks across multiple SACKs is to provide some redundancy in the case where SACKs are lost.
 
-** If SACKs were never lost, [RFC2018] points out that only one SACK block would be required per SACK for full SACK functionality.
+** If SACKs were never lost, <<RFC2018>> points out that only one SACK block would be required per SACK for full SACK functionality.
 
 ** Unfortunately, SACKs and regular ACKs are sometimes lost and are not retransmitted by TCP unless they contain data (or the _SYN_ or _FIN_ control bit fields are turned on).
 
@@ -509,7 +513,7 @@ When a SACK-capable sender has the opportunity to perform a retransmission, usua
 
 * The SACK information provides the sequence number ranges present at the receiver, so the sender can infer what segments likely need to be retransmitted to fill the receiver's holes.
 
-* The simplest approach is to have the sender first fill the holes at the receiver and then move on to send more new data [RFC3517] if the congestion control procedures allow. This is the most common approach.
+* The simplest approach is to have the sender first fill the holes at the receiver and then move on to send more new data <<RFC3517>> if the congestion control procedures allow. This is the most common approach.
 
 === Example
 
@@ -519,7 +523,9 @@ image::/assets/tcp-ip/tcp-timeout-and-retransmission/fast-retransmit-with-sack-w
 
 * The SYN packet from the sender, the first packet of the trace, also contains an identical option.
 +
-These options are present only at connection setup, and thus they only ever appear in segments with the _SYN_ bit field set. Once the connection is permitted to use SACKs, packet loss generally causes the receiver to start producing SACKs.
+These options are present only at connection setup, and thus they only ever appear in segments with the _SYN bit_ field set.
++
+Once the connection is permitted to use SACKs, packet loss generally causes the receiver to start producing SACKs.
 
 * The ACK at packet 14 for 1449 contains a SACK block of [2897:5793], indicating a hole at the receiver.
 +
@@ -537,6 +543,9 @@ This SACK is a duplicate ACK for sequence number 1449 and suggests that the rece
 
 * The SACK sender has not had to wait an RTT to retransmit lost segment 5793 after retransmitting segment 1449.
 
+.Show tcpdump trace
+[%collapsible]
+====
 [source,console,linenums]
 ----
 IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [S], seq 3680115076, win 64240, options [mss 1460,sackOK,TS val 3251432089 ecr 0,nop,wscale 7], length 0
@@ -568,10 +577,13 @@ IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 2, win 502, option
 IP 192.168.91.137.6666 > 192.168.91.128.56276: Flags [F.], seq 1, ack 10002, win 501, options [nop,nop,TS val 945874926 ecr 3251433532], length 0
 IP 192.168.91.128.56276 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3251433739 ecr 945874720], length 0
 ----
+====
 
 == Spurious Timeouts and Retransmissions
 
-Under a number of circumstances, TCP may initiate a retransmission even when no data has been lost. Such undesirable retransmissions are called *spurious retransmissions* and are caused by _spurious timeouts_ (timeouts firing too early) and other reasons such as _packet reordering_, _packet duplication_, or _lost ACKs_.
+Under a number of circumstances, TCP may initiate a retransmission even when no data has been lost.
+
+Such undesirable retransmissions are called *spurious retransmissions* and are caused by _spurious timeouts_ (timeouts firing too early) and other reasons such as _packet reordering_, _packet duplication_, or _lost ACKs_.
 
 Spurious timeouts can occur when the real RTT has recently increased significantly, beyond the RTO. This happens more frequently in environments where lower-layer protocols have widely varying performance (e.g., wireless).
 
@@ -590,7 +602,7 @@ image::/assets/tcp-ip/tcp-timeout-and-retransmission/suprious-timeout-spike-dela
 
 With a non-SACK TCP, an ACK can indicate only the highest in-sequence segment back to the sender. With SACK, it can signal other (out-of-order) segments as well.
 
-_DSACK_ or _D-SACK_ (stands for _duplicate SACK_ [RFC2883]) is a rule, applied at the SACK receiver and interoperable with conventional SACK senders, that causes _the first SACK block to indicate the sequence numbers of a duplicate segment that has arrived at the receiver_, which is usually to determine when a retransmission was not necessary and to learn additional facts about the network.
+_DSACK_ or _D-SACK_ (stands for _duplicate SACK_ <<RFC2883>>) is a rule, applied at the SACK receiver and interoperable with conventional SACK senders, that causes _the first SACK block to indicate the sequence numbers of a duplicate segment that has arrived at the receiver_, which is usually to determine when a retransmission was not necessary and to learn additional facts about the network.
 
 The change to the SACK _receiver_ is to allow a SACK block to be included even if it covers sequence numbers below (or equal to) the cumulative _ACK Number_ field.
 
@@ -600,7 +612,7 @@ The change to the SACK _receiver_ is to allow a SACK block to be included even i
 
 * DSACK information is not repeated across multiple SACKs as conventional SACK information is.
 
-Exactly what a _sender_ given DSACK information is supposed to do with it is not specified by [RFC2883].
+Exactly what a _sender_ given DSACK information is supposed to do with it is not specified by <<RFC2883>>.
 
 === The Eifel Detection Algorithm
 
@@ -951,6 +963,8 @@ Connecting to host node-1, port 6666
 * [[[DPLTC]]] _Dropping Packets in Ubuntu Linux using tc and iptables_ [online]. https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
 * [[[RFC1122]]] R. Braden, ed., _Requirements for Internet Hosts—Communication Layers_, Internet RFC 1122/STD 0003, Oct. 1989, See https://www.rfc-editor.org/rfc/rfc1112
 * [[[RFC2018]]] M. Mathis, J. Mahdavi, S. Floyd, and A. Romanow, _TCP Selective Acknowledgment Options_, Internet RFC 2018, Oct. 1996, See https://www.rfc-editor.org/rfc/rfc2018
+* [[[RFC2883]]] S. Floyd, J. Mahdavi, M. Mathis, and M. Podolsky, _An Extension to the Selective Acknowledgement (SACK) Option for TCP_, Internet RFC 2883, July 2000, See https://www.rfc-editor.org/rfc/rfc2883
+* [[[RFC3517]]] E. Blanton, M. Allman, K. Fall, and L. Wang, _A Conservative Selective Acknowledgment (SACK)-Based Loss Recovery Algorithm for TCP_, Internet RFC 3517, Apr. 2003, See https://www.rfc-editor.org/rfc/rfc3517
 * [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
 * [[[RFC6298]]] V. Paxson, M. Allman, and J. Chu, _Computing TCP’s Retransmission Timer_, Internet RFC 6298, June 2011, See https://www.rfc-editor.org/rfc/rfc6298
 * [[[J03]]] S. Jaiswal et al. _Measurement and Classification of Out-of-Sequence Packets in a Tier-1 IP Backbone_, Proc. IEEE INFOCOM, Apr. 2003.
