@@ -15,14 +15,19 @@ When data segments or acknowledgments are lost, TCP initiates a *retransmission*
 
 TCP has two separate mechanisms for accomplishing retransmission, one based on time and one based on the structure of the acknowledgments.
 
-* TCP sets a timer when it sends data, and if the data is not acknowledged when the timer expires, a *_timeout_* or *_timer-based retransmission_* of data occurs. The timeout occurs after an interval called the *_retransmission timeout_* (RTO).
+* TCP sets a timer when it sends data, and if the data is not acknowledged when the timer expires, a *_timeout_* or *_timer-based retransmission_* of data occurs.
++
+The timeout occurs after an interval called the *_retransmission timeout_* (RTO).
 
 * It has another way of initiating a retransmission called *_fast retransmission_* or *_fast retransmit_*, which usually happens without any delay.
 +
 Fast retransmit is based on inferring losses by noticing
++
+--
+** when TCP's cumulative acknowledgment fails to advance in the (duplicate) ACKs received over time, or
 
-** when TCP's cumulative acknowledgment fails to advance in the ACKs received over time,
-** or when ACKs carrying selective acknowledgment information (SACKs) indicate that out-of-order segments are present at the receiver.
+** when ACKs carrying selective acknowledgment information (SACKs) indicate that out-of-order segments are present at the receiver.
+--
 
 == Simple Timeout and Retransmission (Time-based) Example
 
@@ -84,15 +89,21 @@ x@node-0:~$ sudo tcpdump -tttttSnv -i any icmp or port 6666
     192.168.91.128.50688 > 192.168.91.137.6666: Flags [P.], cksum 0x3888 (incorrect -> 0x8a89), seq 1476981541:1476981548, ack 2021627495, win 502, options [nop,nop,TS val 3361136674 ecr 1682840845], length 7
 ----
 
-Logically, TCP has two thresholds to determine how persistently it will attempt to resend the same segment [RFC1122].
+Logically, TCP has two thresholds `R1` and `R2` to determine how persistently it will attempt to resend the same segment <<RFC1122>>.
 
 * Threshold `R1` indicates the number of tries TCP will make (or the amount of time it will wait) to resend a segment before passing _negative advice_ to the IP layer (e.g., causing it to reevaluate the IP route it is using).
 
 * Threshold `R2` (larger than `R1`) dictates the point at which TCP should abandon the connection.
 
-These thresholds are suggested to be at least three retransmissions and 100s, respectively.
+* `R1` and `R2` might be measured in time units or as a count of retransmissions.
++
+The value of `R1` SHOULD correspond to at least 3 retransmissions, at the current RTO.
++
+The value of `R2` SHOULD correspond to at least 100 seconds.
 
-* For connection establishment (sending SYN segments), these values may be different from those for data segments, and the `R2` value for SYN segments is required to be at least 3 minutes.
+* However, the values of `R1` and `R2` may be different for SYN and data segments.
++
+In particular, `R2` for a SYN segment MUST be set large enough to provide retransmission of the segment for at least 3 minutes. 
 
 In Linux, the `R1` and `R2` values for regular data segments are available to be changed by applications or can be changed using the system-wide configuration variables `net.ipv4.tcp_retries1` and `net.ipv4.tcp_retries2`, respectively.
 
@@ -103,36 +114,51 @@ In Linux, the `R1` and `R2` values for regular data segments are available to be
 * The default value for `net.ipv4.tcp_retries1` is 3.
 
 * For SYN segments, `net.ipv4.tcp_syn_retries` and `net.ipv4.tcp_synack_retries` bounds the number of retransmissions of SYN segments; their default value is 5 (roughly 180s).
-
-Windows also has a number of variables that affect the overall behavior of TCP, including values for `R1` and `R2`. These are all available by modifying values under the following registry keys [WINREG]:
-
++
 [source,console]
 ----
-HKLM\System\CurrentControlSet\Services\Tcpip\Parameters
-HKLM\System\CurrentControlSet\Services\Tcpip6\Parameters
+x@node-1:~$ sudo iptables -A INPUT -p tcp -s 192.168.91.128/32 --dport 6666 --syn -j DROP
+----
++
+[source,console]
+----
+x@node-0:~$ sudo sysctl net.ipv4.tcp_syn_retries 
+net.ipv4.tcp_syn_retries = 6
+x@node-0:~$ time telnet 192.168.91.137 6666
+Trying 192.168.91.137...
+telnet: Unable to connect to remote host: Connection timed out
+
+real	2m9.448s
+user	0m0.003s
+sys	0m0.001s
+----
++
+[source,console]
+----
+ 00:00:00.000000 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991112255 ecr 0,nop,wscale 7], length 0
+ 00:00:01.030071 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991113285 ecr 0,nop,wscale 7], length 0
+ 00:00:03.045544 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991115301 ecr 0,nop,wscale 7], length 0
+ 00:00:07.077396 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991119332 ecr 0,nop,wscale 7], length 0
+ 00:00:15.269455 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991127524 ecr 0,nop,wscale 7], length 0
+ 00:00:31.397938 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991143653 ecr 0,nop,wscale 7], length 0
+ 00:01:03.909769 IP 192.168.91.128.42966 > 192.168.91.137.6666: Flags [S], seq 2460858944, win 1460, options [mss 1460,sackOK,TS val 991176165 ecr 0,nop,wscale 7], length 0
 ----
 
 == Setting the Retransmission Timeout (RTO)
 
 Fundamental to TCP's timeout and retransmission procedures is how to set the RTO based upon measurement of the RTT experienced on a given connection.
 
-If TCP retransmits a segment earlier than the RTT, it may be injecting duplicate traffic into the network unnecessarily.
+* If TCP retransmits a segment earlier than the RTT, it may be injecting duplicate traffic into the network unnecessarily.
 
-Conversely, if it delays sending until much longer than one RTT, the overall network utilization (and single-connection throughput) drops when traffic is lost.
+* Conversely, if it delays sending until much longer than one RTT, the overall network utilization (and single-connection throughput) drops when traffic is lost.
 
 Knowing the RTT is made more complicated because it can change over time, as routes and network usage vary.
 
-TCP must track these changes and modify its timeout accordingly in order to maintain good performance.
+Because TCP sends acknowledgments when it receives data, it is possible to send a byte with a particular sequence number and measure the time (called an _RTT sample_) required to receive an acknowledgment that covers that sequence number.
 
-Because TCP sends acknowledgments when it receives data, it is possible to send a byte with a particular sequence number and measure the time required to receive an acknowledgment that covers that sequence number. Each such measurement is called an _RTT_ *_sample_*.
+* The challenge for TCP is to establish a good estimate for the range of RTT values given a set of samples that vary over time and set the RTO based on these values.
 
-The challenge for TCP is
-
-* to establish a good estimate for the range of RTT values given a set of samples that vary over time.
-
-* The second step is how to set the RTO based on these values.
-
-The RTT is estimated for each TCP connection separately, and one retransmission timer is pending whenever any data is in flight that consumes a sequence number (including SYN and FIN segments).
+* The RTT is estimated for each TCP connection separately, and one retransmission timer is pending whenever any data is in flight that consumes a sequence number (including SYN and FIN segments).
 
 === The Classic Method
 
@@ -170,11 +196,17 @@ For relatively stable distributions of the RTT, this was adequate. However, when
 
 === The Standard Method
 
-In <<J88>>, Jacobson detailed problems with the classic method further—basically, that the timer specified by [RFC0793] cannot keep up with wide fluctuations in the RTT (and in particular, it causes unnecessary retransmissions when the real RTT is much larger than expected). Unnecessary retransmissions add to the network load, when the network is already loaded, as indicated by the increasing sample RTT.
+In <<J88>>, Jacobson detailed problems with the classic method further—basically, that the timer specified by [RFC0793] cannot keep up with wide _fluctuations in the RTT_ (and in particular, it causes unnecessary retransmissions when the real RTT is much larger than expected).
 
-To address this problem, the method used to assign the RTO was enhanced to accommodate a larger variability in the RTT. This is accomplished by keeping track of an estimate of the variability in the RTT measurements in addition to the estimate of its average. Setting the RTO based on both a mean and a variability estimator provides a better timeout response to wide fluctuations in the roundtrip times than just calculating the RTO as a constant multiple of the mean.
+To address this problem, the method used to assign the RTO was enhanced to accommodate a larger variability in the RTT.
 
-If we think of the RTT measurements made by TCP as samples of a statistical process, estimating both the mean and variance (or standard deviation) helps to make better predictions about the possible future values the process may take on. A good prediction for the range of possible values for the RTT helps TCP determine an RTO that is neither too large nor too small in most cases.
+* This is accomplished by keeping track of an estimate of the _variability_ in the RTT measurements in addition to the estimate of its _average_.
+
+* Setting the RTO based on both a mean and a variability estimator provides a better timeout response to wide fluctuations in the roundtrip times than just calculating the RTO as a constant multiple of the mean.
+
+* If we think of the RTT measurements made by TCP as samples of a statistical process, estimating both the mean and variance (or standard deviation) helps to make better predictions about the possible future values the process may take on.
+
+* A good prediction for the range of possible values for the RTT helps TCP determine an RTO that is neither too large nor too small in most cases.
 
 The following equations that are applied to each RTT measurement _M_ (called _RTT~s~_ earlier):
 
@@ -189,7 +221,7 @@ RTO = _srtt_ + 4(_rttvar_)
 
 Here, the value _srtt_ effectively replaces the earlier value of _SRTT_, and the value _rttvar_, which becomes an EWMA of the _mean deviation_, is used instead of _β_ to help determine the RTO.
 
-This is the basis for the way many TCP implementations compute their RTOs to this day, and because of its adoption as the basis for [RFC6298] we shall call it _the standard method_, although there are slight refinements in [RFC6298].
+This is the basis for the way many TCP implementations compute their RTOs to this day, and because of its adoption as the basis for <<RFC6298>> we shall call it _the standard method_, although there are slight refinements in <<RFC6298>>.
 
 == Timer-Based Retransmission
 
@@ -756,24 +788,10 @@ The following highlighted line 7 show how the retransmission for sequence number
  00:01:13.587800 IP 192.168.91.128.36242 > 192.168.91.137.6666: Flags [.], ack 2, win 502, options [nop,nop,TS val 3767431352 ecr 1569443750], length 0
 ----
 
-[bibliography]
-== References
-
-* [[[tcp_ip_vol_1,1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
-* [[[J88]]] V. Jacobson, _Congestion Avoidance and Control_, See https://ee.lbl.gov/papers/congavoid.pdf
-* [[[netem,2]]] https://wiki.linuxfoundation.org/networking/netem
-* [[[iptables,3]]] _Using iptables_ [online]. https://www.netfilter.org/documentation/HOWTO/packet-filtering-HOWTO-7.html
-* [[[emulating-bad-networks,4]]] _Emulating Bad Networks_ [online]. https://samwho.dev/blog/emulating-bad-networks/
-* [[[dpltc,5]]] _Dropping Packets in Ubuntu Linux using tc and iptables_ [online]. https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
-* [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
-* [[[J03]]] S. Jaiswal et al. _Measurement and Classification of Out-of-Sequence Packets in a Tier-1 IP Backbone_, Proc. IEEE INFOCOM, Apr. 2003.
-* [[[LLY07]]] K. Leung, V. Li, and D. Yang "An Overview of Packet Reordering in Transmission Control Protocol (TCP): Problems, Solutions and Challenges". _IEEE Trans. Parallel and Distributed Systems_, 18(4), Apr. 2007.
-* [[[TZZ05]]] K. Tan and Q. Zhang _STODER: A Robust and Efficient Algorithm for Handling Spurious Timeouts in TCP_. Proc. IEEE Globecomm, Dec. 2005.
-
 [appendix]
 == Dropping Packets in Linux using tc and iptables
 
-There are two simple ways to randomly drop packets on a Linux computer: using `tc`, the program dedicated for controlling traffic; and using `iptables`, the built-in firewall. <<netem>><<iptables>><<emulating-bad-networks>><<dpltc>>
+There are two simple ways to randomly drop packets on a Linux computer: using `tc`, the program dedicated for controlling traffic; and using `iptables`, the built-in firewall. <<NETEM>><<IPTABLES>><<EBADNET>><<DPLTC>>
 
 === Dropping Packets with tc
 
@@ -910,3 +928,19 @@ Connecting to host node-1, port 6666
 [  5]   0.00-10.00  sec  1.25 MBytes  1.05 Mbits/sec  0.000 ms  0/906 (0%)  sender
 [  5]   0.00-10.04  sec   962 KBytes   784 Kbits/sec  0.337 ms  226/906 (25%)  receiver
 ----
+
+[bibliography]
+== References
+
+* [[[TCPIP1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
+* [[[J88]]] V. Jacobson, _Congestion Avoidance and Control_, See https://ee.lbl.gov/papers/congavoid.pdf
+* [[[NETEM]]] https://wiki.linuxfoundation.org/networking/netem
+* [[[IPTABLES]]] _Using iptables_ [online]. https://www.netfilter.org/documentation/HOWTO/packet-filtering-HOWTO-7.html
+* [[[EBADNET]]] _Emulating Bad Networks_ [online]. https://samwho.dev/blog/emulating-bad-networks/
+* [[[DPLTC]]] _Dropping Packets in Ubuntu Linux using tc and iptables_ [online]. https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
+* [[[RFC1122]]] R. Braden, ed., _Requirements for Internet Hosts—Communication Layers_, Internet RFC 1122/STD 0003, Oct. 1989, See https://www.rfc-editor.org/rfc/rfc1112
+* [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
+* [[[RFC6298]]] V. Paxson, M. Allman, and J. Chu, _Computing TCP’s Retransmission Timer_, Internet RFC 6298, June 2011, See https://www.rfc-editor.org/rfc/rfc6298
+* [[[J03]]] S. Jaiswal et al. _Measurement and Classification of Out-of-Sequence Packets in a Tier-1 IP Backbone_, Proc. IEEE INFOCOM, Apr. 2003.
+* [[[LLY07]]] K. Leung, V. Li, and D. Yang "An Overview of Packet Reordering in Transmission Control Protocol (TCP): Problems, Solutions and Challenges". _IEEE Trans. Parallel and Distributed Systems_, 18(4), Apr. 2007.
+* [[[TZZ05]]] K. Tan and Q. Zhang _STODER: A Robust and Efficient Algorithm for Handling Spurious Timeouts in TCP_. Proc. IEEE Globecomm, Dec. 2005.
