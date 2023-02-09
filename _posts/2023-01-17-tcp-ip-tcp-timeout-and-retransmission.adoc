@@ -238,6 +238,7 @@ When TCP fails to receive an ACK for a segment it has timed on a connection with
 TCP considers a timer-based retransmission as a fairly major event; it reacts very cautiously when it happens by quickly reducing the rate at which it sends data into the network. It does this in two ways.
 
 * The first way is to reduce its sending window size based on congestion control procedures.
+
 * The other way is to keep increasing a multiplicative backoff factor applied to the RTO each time a retransmitted segment is again retransmitted.
 +
 In particular, the RTO value is (temporarily) multiplied by the value `γ` to form the backed-off timeout when multiple retransmissions of the same segment occur:
@@ -295,8 +296,6 @@ ESTAB 0      0      192.168.91.128:33176 192.168.91.135:6666
 
 *Fast retransmit* <<RFC5681>> is a TCP procedure that can induce a packet retransmission based on feedback from the receiver instead of requiring a retransmission timer to expire.
 
-A typical TCP implements both fast retransmit and timer-based retransmission.
-
 TCP generates an immediate acknowledgment (a _duplicate ACK_) when an *_out-of-order segment_* is received, and that the loss of a segment implies out-of-order arrivals at the receiver when subsequent data arrives.
 
 * When this happens, a *_hole_* is created at the receiver.
@@ -309,23 +308,25 @@ The reason is to let the sender know that a segment was received out of order, a
 
 * When SACK is used, these duplicate ACKs typically contain SACK blocks as well, which can provide information about more than one hole.
 
-A duplicate ACK (with or without SACK blocks) arriving at a sender is a potential indicator that a packet sent earlier has been lost. It can also appear when there is *_packet reordering_* in the network—if a receiver receives a packet for a sequence number beyond the one it is expecting next, the expected packet could be either missing or merely delayed.
+A duplicate ACK (with or without SACK blocks) arriving at a sender is a potential indicator that a packet sent earlier has been lost.
 
-TCP waits for a small number of duplicate ACKs (called the _duplicate ACK threshold_ or _dupthresh_) to be received before concluding that a packet has been lost and initiating a fast retransmit.
+* It can also appear when there is *_packet reordering_* in the network—if a receiver receives a packet for a sequence number beyond the one it is expecting next, the expected packet could be either missing or merely delayed.
 
-Traditionally, _dupthresh_ has been a constant (with value 3, RFC 5681), but some nonstandard implementations (including Linux) alter this value based on the current measured level of reordering.
+* TCP waits for a small number of duplicate ACKs (called the _duplicate ACK threshold_ or _dupthresh_) to be received before concluding that a packet has been lost and initiating a fast retransmit.
 
-A TCP sender observing at least _dupthresh_ duplicate ACKs retransmits one or more packets that appear to be missing without waiting for a retransmission timer to expire. It may also send additional data that has not yet been sent.
+* Traditionally, _dupthresh_ has been a constant (with value 3, RFC 5681), but some nonstandard implementations (including Linux) alter this value based on the current measured level of reordering.
 
-Packet loss inferred by the presence of duplicate ACKs is assumed to be related to _network congestion_, and congestion control procedures are invoked along with _fast retransmit_.
+* A TCP sender observing at least _dupthresh_ duplicate ACKs retransmits one or more packets that appear to be missing without waiting for a retransmission timer to expire. It may also send additional data that has not yet been sent.
 
-Without SACK, no more than one segment is typically retransmitted until an acceptable ACK is received.
+* Packet loss inferred by the presence of duplicate ACKs is assumed to be related to _network congestion_, and _congestion control_ procedures are invoked along with _fast retransmit_.
 
-With SACK, ACKs contain additional information allowing the sender to fill more than one hole in the receiver per RTT.
+* Without SACK, no more than one segment is typically retransmitted until an acceptable ACK is received.
+
+* With SACK, ACKs contain additional information allowing the sender to fill more than one hole in the receiver per RTT.
 
 [source,console]
 ----
-x@node-1:~$ sudo sysctl net.ipv4.tcp_sack=0
+x@node-1:~$ sudo sysctl net.ipv4.tcp_sack=0 # Disable select acknowledgments (SACKS).
 net.ipv4.tcp_sack = 0
 x@node-1:~$ sudo iptables -A INPUT -p tcp --dport 6666 -m statistic --mode nth --every 2 --packet 0 -j DROP
 x@node-1:~$ sudo iptables -L INPUT
@@ -336,13 +337,7 @@ DROP       tcp  --  anywhere             anywhere             tcp dpt:6666 stati
 
 [source,console]
 ----
-x@node-0:~$ sudo ethtool -K ens32 tx on tso off
-Actual changes:
-tx-checksum-ipv4: off [requested on]
-tx-checksum-ipv6: off [requested on]
-tx-tcp-segmentation: off
-tx-checksum-fcoe-crc: off [requested on]
-tx-checksum-sctp: off [requested on]
+x@node-0:~$ sudo ethtool -K ens32 tso off
 x@node-0:~$ sudo sysctl net.ipv4.tcp_sack=0
 net.ipv4.tcp_sack = 0
 x@node-0:~$ head -c 10000 /dev/random | nc -v node-1 6666
@@ -353,13 +348,29 @@ Ncat: 10000 bytes sent, 0 bytes received in 2.50 seconds.
 
 image::/assets/tcp-ip/tcp-timeout-and-retransmission/fast-retransmit-wireshark.png[,100%,100%]
 
-* The packets 23 and 28 are window update ACKs with a duplicate sequence number (because no data is being carried) but contains a change to the TCP flow control window. The window changes from 65,160 bytes to 63,488 bytes. Thus, it is not counted toward the three-duplicate-ACK threshold required to initiate a fast retransmit. Window updates merely provide a copy of the window advertisement.
-* The packets 14 and 15 are all duplicate ACKs for sequence number 1449. The arrival of the second of these duplicate ACKs triggers the fast retransmit of segment 1449 by packets 16 and 17.
-* The retransmissions from packet 19 to 22 are somewhat different from the first two. When the first two retransmissions takes place, the sending TCP notes the highest sequence number it had sent just before it performed the retransmission (9641 + 360 = 10001). This is called the *recovery point*.
+* The packets 23 and 28 are window update ACKs with a duplicate sequence number (because no data is being carried) but contains a change to the TCP flow control window. The window changes from 65,160 bytes to 63,488 bytes.
++
+Thus, it is not counted toward the three-duplicate-ACK threshold required to initiate a fast retransmit.
++
+Window updates merely provide a copy of the window advertisement.
+
+* The packets 14 and 15 are all duplicate ACKs for sequence number 1449.
++
+The arrival of the second of these duplicate ACKs triggers the fast retransmit of segment 1449 by packets 16 and 17.
+
+* The retransmissions from packet 19 to 22 are somewhat different from the first two.
++
+When the first two retransmissions takes place, the sending TCP notes the highest sequence number (called the *recovery point*) it had sent just before it performed the retransmission (9641 + 360 = 10001).
 +
 TCP is considered to be recovering from loss after a retransmission until it receives an ACK that matches or exceeds the sequence number of the recovery point.
 +
-In this example, the ACKs at packet 18 are not for 10001, but instead for 5793. This number is larger than the previous highest ACK value seen (1449), but not enough to meet or exceed the recovery point (10001). This type of ACK is called a *partial ACK* for this reason.
+In this example, the ACKs at packet 18 are not for 10001, but instead for 5793.
++
+--
+** This number is larger than the previous highest ACK value seen (1449), but not enough to meet or exceed the recovery point (10001).
+
+** This type of ACK is called a *partial ACK* for this reason.
+--
 +
 When partial ACKs arrive, the sending TCP immediately sends the segments that appears to be missing (5793 to 9641 in this case) and continues this way until the recovery point is matched or exceeded by an arriving ACK.
 +
@@ -407,7 +418,7 @@ If permitted by congestion control procedures, it may also send new data it has 
 
 == Retransmission with Selective Acknowledgments
 
-With the standardization of the Selective Acknowledgment options in [RFC2018], a SACK-capable TCP receiver is able to describe data it has received with sequence numbers beyond the cumulative _ACK Number_ field it sends in the primary portion of the TCP header.
+With the standardization of the Selective Acknowledgment options in <<RFC2018>>, a SACK-capable TCP receiver is able to describe data it has received with sequence numbers beyond the cumulative _ACK Number_ field it sends in the primary portion of the TCP header.
 
 * The gaps between the ACK number and other in-window data cached at the receiver are called *holes*.
 
@@ -427,7 +438,7 @@ When the SACK option is being used, an ACK can be augmented with up to three or 
 
 * With three distinct blocks, up to three holes can be reported to the sender.
 
-* If not limited by congestion control, all three could be filled within one round-trip time using a SACK-capable sender.
+* If not limited by _congestion control_, all three could be filled within one round-trip time using a SACK-capable sender.
 
 * An ACK packet containing one or more SACK blocks is sometimes called simply a *SACK*.
 
@@ -939,6 +950,7 @@ Connecting to host node-1, port 6666
 * [[[EBADNET]]] _Emulating Bad Networks_ [online]. https://samwho.dev/blog/emulating-bad-networks/
 * [[[DPLTC]]] _Dropping Packets in Ubuntu Linux using tc and iptables_ [online]. https://sandilands.info/sgordon/dropping-packets-in-ubuntu-linux-using-tc-and-iptables
 * [[[RFC1122]]] R. Braden, ed., _Requirements for Internet Hosts—Communication Layers_, Internet RFC 1122/STD 0003, Oct. 1989, See https://www.rfc-editor.org/rfc/rfc1112
+* [[[RFC2018]]] M. Mathis, J. Mahdavi, S. Floyd, and A. Romanow, _TCP Selective Acknowledgment Options_, Internet RFC 2018, Oct. 1996, See https://www.rfc-editor.org/rfc/rfc2018
 * [[[RFC5681]]] M. Allman, V. Paxson, E. Blanton, _TCP Congestion Control_, Internet RFC 5681, Sept. 2009, See https://www.rfc-editor.org/rfc/rfc5681
 * [[[RFC6298]]] V. Paxson, M. Allman, and J. Chu, _Computing TCP’s Retransmission Timer_, Internet RFC 6298, June 2011, See https://www.rfc-editor.org/rfc/rfc6298
 * [[[J03]]] S. Jaiswal et al. _Measurement and Classification of Out-of-Sequence Packets in a Tier-1 IP Backbone_, Proc. IEEE INFOCOM, Apr. 2003.
