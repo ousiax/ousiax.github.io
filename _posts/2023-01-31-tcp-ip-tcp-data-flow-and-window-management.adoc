@@ -35,14 +35,14 @@ image::/assets/tcp-ip/tcp-data-flow-and-window-management/ssh-echo.png[,75%,75%]
 
 In many cases, TCP does not provide an ACK for every incoming packet because of TCP's cumulative ACK field.
 
-Using a cumulative ACK allows TCP to intentionally _delay_ sending an ACK for some amount of time, in the hope that it can combine the ACK it needs to send with some data the local application wishes to send in the other direction. This is a form of *piggybacking* that is used most often in conjunction with bulk data transfers.
+Using a cumulative ACK allows TCP to intentionally _delay_ sending an ACK for some amount of time, in the hope that it can combine the ACK it needs to send with some data the local application wishes to send in the other direction, that is a form of *piggybacking* which is used most often in conjunction with bulk data transfers.
 
 [NOTE]
 ====
 The Host Requirements RFC [RFC1122] states that TCP should implement a delayed ACK but the delay must be less than 500ms. Many implementations use a maximum of 200ms.
 ====
 
-Delaying ACKs causes less traffic to be carried over the network than when ACKs are not delayed because fewer ACKs are used. A ratio of 2 to 1 is fairly common for bulk transfers. The use of delayed ACKs and the maximum amount of time TCP is allowed to wait before sending an ACK can be configured, depending on the host operating system.
+Delaying ACKs causes less traffic to be carried over the network than when ACKs are not delayed because fewer ACKs are used.
 
 Linux uses a dynamic adjustment algorithm whereby it can change between ACKing every segment (called _quickack_ mode) and conventional delayed ACK mode.
 
@@ -79,13 +79,13 @@ TCP switches between the two modes depending on the current congestion.
 
 When using IPv4, sending one single key press across an ssh connection generates TCP/IPv4 packets of about 88 bytes in size (using the encryption and authentication from the example): 20 bytes for the IP header, 20 bytes for the TCP header (assuming no options), and 48 bytes of data.
 
-These small packets (called _tinygrams_) have a relatively high overhead for the network beacuse they contain relatively little useful application data compared to the rest of the packet contents.
+These small packets (called *tinygrams*) have a relatively high overhead for the network beacuse they contain relatively little useful application data compared to the rest of the packet contents.
 
 * Such high-overhead packets are normally not a problem on LANs, because most LANs are not congested and such packets would not need to be carried very far.
 
 * However, these tinygrams can add to congestion and lead to inefficient use of capacity on wide area networks.
 
-* A simple and elegant solution was proposed by John Nagle in [RFC0896], now called the _Nagle algorithm_.
+* A simple and elegant solution was proposed by John Nagle in <<RFC0896>>, now called the _Nagle algorithm_.
 
 The *Nagle algorithm* says that when a TCP connection has outstanding data that has not yet been acknowledged, small segments (those smaller than the SMSS) cannot be sent until all outstanding data is acknowledged.
 
@@ -95,7 +95,9 @@ This procedure effectively forces TCP into _stop-and-wait_ behavior—it stops s
 
 * The beauty of this algorithm is that it is _self-clocking_: the faster the ACKs come back, the faster the data is sent.
 +
-On a comparatively high-delay WAN, where reducing the number of tinygrams is desirable, fewer segments are sent per unit time. Said another way, the RTT controls the packet sending rate.
+On a comparatively high-delay WAN, where reducing the number of tinygrams is desirable, fewer segments are sent per unit time.
++
+Said another way, the RTT controls the packet sending rate.
 
 To illustrate the effect of the Nagle algorithm, we can compare the behaviors of an application using TCP with the Nagle algorithm enabled and disabled.
 
@@ -192,9 +194,9 @@ Fortunately, this deadlock is not permanent and is broken when the delayed ACK t
 
 === Disabling the Nagle Algorithm
 
-The Nagle algorithm can be disabled in a number of ways. The ability to disable it is required by the Host Requirements RFC [RFC1122].
+The Nagle algorithm can be disabled in a number of ways. The ability to disable it is required by the Host Requirements RFC <<RFC1122>>.
 
-An application can specify the TCP_NODELAY option when using the Berkeley sockets API.
+An application can specify the `TCP_NODELAY` option when using the Berkeley sockets API.
 
 [source,man]
 ----
@@ -229,9 +231,7 @@ On slow systems, or when the application has other things to accomplish, data ma
 
 * When TCP starts to queue data in this way, the amount of space available to hold new incoming data decreases, and this change is reflected by a decreasing value of the _Window Size_ field.
 
-* Eventually, if the application does not read or otherwise consume the data at all, TCP must take some action to cause the sender to cease sending new data entirely, because there would be no place to put it on arrival.
-+
-This is accomplished by sending a window advertisement of zero (no space).
+* Eventually, if the application does not read or otherwise consume the data at all, TCP must take some action to cause the sender to cease sending new data entirely, because there would be no place to put it on arrival (zero window).
 
 The _Window Size_ field in each TCP header indicates the amount of empty space, in bytes, remaining in the receive buffer.
 
@@ -239,6 +239,9 @@ The _Window Size_ field in each TCP header indicates the amount of empty space, 
 
 * The largest sequence number the sender of a segment is willing to accept in the reverse direction is equal to the sum of the _Acknowledgment Number_ and _Window Size_ fields in the TCP header (scaled appropriately).
 
+._Show slow_client.c_
+[%collapsible]
+====
 [source,c]
 ----
 /* slow_client.c */
@@ -300,6 +303,7 @@ int main(void) {
     close(client_sock);
 }
 ----
+====
 
 [source,console]
 ----
@@ -312,6 +316,11 @@ $ cc slow_client.c -o slow_client
 $ ./slow_client
 ----
 
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/win-update-wireshark.png[,85%,85%]
+
+._Show tcpdump trace_
+[%collapsible]
+====
 [source,console]
 ----
 $ sudo tcpdump -tttttn -i lo port 6666 -n --number -r /tmp/win.pcap
@@ -350,15 +359,18 @@ reading from file /tmp/win.pcap, link-type EN10MB (Ethernet), snapshot length 26
    32   00:00:24.020231 IP 127.0.0.1.34804 > 127.0.0.1.6666: Flags [F.], seq 1, ack 91178, win 512, options [nop,nop,TS val 3010897809 ecr 3010893806], length 0
    33   00:00:24.020242 IP 127.0.0.1.6666 > 127.0.0.1.34804: Flags [.], ack 2, win 512, options [nop,nop,TS val 3010897809 ecr 3010897809], length 0
 ----
-
-image::/assets/tcp-ip/tcp-data-flow-and-window-management/win-update-wireshark.png[,100%,100%]
+====
 
 === Sliding Windows
 
-Each endpoint of a TCP connection is capable of sending and receiving data. The amount of data sent or received on a connection is maintained by a set of window structures. For each active connection, each TCP endpoint maintains a _send window structure_ and a _receive window structure_.
+Each endpoint of a TCP connection is capable of sending and receiving data.
+
+The amount of data sent or received on a connection is maintained by a set of window structures.
+
+For each active connection, each TCP endpoint maintains a _send window structure_ and a _receive window structure_.
 
 .The TCP sender-side sliding window structure keeps track of which sequence numbers have already been acknowledged, which are in flight, and which are yet to be sent. The size of the offered window is controlled by the _Window Size_ field sent by the receiver in each ACK.
-image::/assets/tcp-ip/tcp-data-flow-and-window-management/sender-side-sliding-window-structure.png[Sender Sliding Window,55%,55%]
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/sender-side-sliding-window-structure.png[Sender Sliding Window,45%,45%]
 
 * TCP maintains its window structures in terms of bytes (not packets).
 
@@ -367,8 +379,8 @@ image::/assets/tcp-ip/tcp-data-flow-and-window-management/sender-side-sliding-wi
 * The _Window Size_ field contains a byte offset relative to the ACK number.
 
 * The sender computes its _usable window_, which is how much data it can send immediately.
-
-* The usable window is the offered window minus the amount of data already sent but not yet acknowledged.
++
+The usable window is the offered window minus the amount of data already sent but not yet acknowledged.
 
 * The variables SND.UNA and SND.WND are used to hold the values of the left window edge and offered window.
 
@@ -381,7 +393,7 @@ Three terms are used to describe the movement of the right and left edges of the
 
 . The window _opens_ when the right edge moves to the right, allowing more data to be sent. This happens when the receiving process on the other end reads acknowledged data, freeing up space in its TCP receive buffer.
 
-3. The window _shrinks_ when the right edge moves to the left. The Host Requirements RFC [RFC1122] strongly discourages this, but TCP must be able to cope with it.
+. The window _shrinks_ when the right edge moves to the left. The Host Requirements RFC <<RFC1122>> strongly discourages this, but TCP must be able to cope with it.
 
 Because every TCP segment contains both an ACK number and a window advertisement, a TCP sender adjusts the window structure based on both values whenever an incoming segment arrives.
 
@@ -391,7 +403,11 @@ Because every TCP segment contains both an ACK number and a window advertisement
 
 * If the ACK number advances but the window advertisement grows smaller with other arriving ACKs, the left edge of the window moves closer to the right edge.
 
-* If the left edge reaches the right edge, it is called a _zero window_. This stops the sender from transmitting any data. If this happens, the sending TCP begins to _probe_ the peer's window to look for an increase in the offered window.
+* If the left edge reaches the right edge, it is called a _zero window_.
++
+This stops the sender from transmitting any data.
++
+If this happens, the sending TCP begins to _probe_ the peer's window to look for an increase in the offered window.
 
 The receiver also keeps a window structure, which is somewhat simpler than the sender's.
 
@@ -402,7 +418,7 @@ The receiver also keeps a window structure, which is somewhat simpler than the s
 In particular, it wishes to avoid storing duplicate bytes it has already received and ACKed, and it also wishes to avoid storing bytes that it should not have received (any bytes beyond the sender's right window edge).
 
 .The TCP receiver-side sliding window structure helps the receiver know which sequence numbers to expect next. Sequence numbers in the receive window are stored when received. Those outside the window are discarded.
-image::/assets/tcp-ip/tcp-data-flow-and-window-management/receiver-side-sliding-window-structure.png[Receiver Sliding Window,55%,55%]
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/receiver-side-sliding-window-structure.png[Receiver Sliding Window,45%,45%]
 
 * This structure also contains a left and right window edge like the sender's window, but the in-window bytes (4–9 in this picture) need not be differentiated as they are in the sender's window structure.
 
@@ -421,19 +437,22 @@ image::/assets/tcp-ip/tcp-data-flow-and-window-management/receiver-side-sliding-
 
 When the receiver's advertised window goes to zero, the sender is effectively stopped from transmitting data until the window becomes nonzero.
 
-When the receiver once again has space available, it provides a _window update_ to the sender to indicate that data is permitted to flow once again.
+When the receiver once again has space available, it provides a *window update* to the sender to indicate that data is permitted to flow once again.
 
-Because such updates do not generally contain data (they are a form of _pure ACK_), they are not reliably delivered by TCP.
+* Because such updates do not generally contain data (they are a form of _pure ACK_), they are not reliably delivered by TCP.
 
-TCP must therefore handle the case where such window updates that would open the window are lost.
+* TCP must therefore handle the case where such window updates that would open the window are lost.
 
-If an acknowledgment (containing a window update) is lost, we could end up with both sides waiting for the other: the receiver waiting to receive data (because it provided the sender with a nonzero window and expects to see incoming data) and the sender waiting to receive the window update allowing it to send.
+* If an acknowledgment (containing a window update) is lost, we could end up with both sides waiting for the other:
 
-To prevent this form of deadlock from occurring, the sender uses a *persist timer* to query the receiver periodically, to find out if the window size has increased. The persist timer triggers the transmission of *window probes*.
+** the receiver waiting to receive data (because it provided the sender with a nonzero window and expects to see incoming data) and
+** the sender waiting to receive the window update allowing it to send.
+
+* To prevent this form of deadlock from occurring, the sender uses a *persist timer* to query the receiver periodically, to find out if the window size has increased. The persist timer triggers the transmission of *window probes*.
 
 Window probes are segments that force the receiver to provide an ACK, which also necessarily contains a _Window Size_ field.
 
-* The Host Requirements RFC [RFC1122] suggests that the first probe should happen after one RTO and subsequent problems should occur at exponentially spaced intervals.
+* The Host Requirements RFC <<RFC1122>> suggests that the first probe should happen after one RTO and subsequent problems should occur at exponentially spaced intervals.
 
 * Window probes contain a single byte of data and are therefore reliably delivered (retransmitted) by TCP if lost, thereby eliminating the potential deadlock condition caused by lost window updates.
 
@@ -441,6 +460,11 @@ Window probes are segments that force the receiver to provide an ACK, which also
 
 * As with the TCP retransmission timer, the normal exponential backoff can be used when calculating the timeout for the persist timer. An important difference, however, is that a normal TCP never gives up sending window probes, whereas it may eventually give up trying to perform retransmissions.
 
+image::/assets/tcp-ip/tcp-data-flow-and-window-management/zero-window-probe.png[ZeroWindowProbe,85%,85%]
+
+._Show tcpdump trace_
+[%collapsible]
+====
 [source,console]
 ----
 00:00:00.000000 IP 192.168.91.128.55534 > 10.170.109.10.6666: Flags [S], seq 1303159618, win 1460, options [mss 1460,sackOK,TS val 1413095399 ecr 0,nop,wscale 7], length 0
@@ -465,18 +489,27 @@ Window probes are segments that force the receiver to provide an ACK, which also
 00:00:20.002875 IP 192.168.91.128.55534 > 10.170.109.10.6666: Flags [.], ack 1461, win 1460, length 0
 .....
 ----
+====
 
 === Silly Window Syndrome (SWS)
 
-Window-based flow control schemes, especially those that do not use fixed-size segments (such as TCP), can fall victim to a condition known as the *silly window syndrome* (SWS). When it occurs, small data segments are exchanged across the connection instead of full-size segments [RFC0813]. This leads to undesirable inefficiency because each segment has relatively high overhead—a small number of data bytes relative to the number of bytes in the headers.
+Window-based flow control schemes, especially those that do not use fixed-size segments (such as TCP), can fall victim to a condition known as the *silly window syndrome* (SWS).
 
-SWS can be caused by either end of a TCP connection: the receiver can advertise small windows (instead of waiting until a larger window can be advertised), and the sender can transmit small data segments (instead of waiting for additional data to send a larger segment).
+* When it occurs, small data segments are exchanged across the connection instead of full-size segments <<RFC0813>>.
+
+* This leads to undesirable inefficiency because each segment has relatively high overhead—a small number of data bytes relative to the number of bytes in the headers.
+
+SWS can be caused by either end of a TCP connection:
+
+* the receiver can advertise small windows (instead of waiting until a larger window can be advertised), and
+
+* the sender can transmit small data segments (instead of waiting for additional data to send a larger segment).
 
 Correct avoidance of silly window syndrome requires a TCP to implement rules specifically for this purpose, whether operating as a sender or a receiver. TCP never knows ahead of time how a peer TCP will behave. The following rules are applied:
 
 . When operating as a receiver, small windows are not advertised.
 +
-The receive algorithm specified by [RFC1122] is to not send a segment advertising a larger window than is currently being advertised (which can be 0) until the window can be increased by either one full-size segment (i.e., the receive MSS) or by one-half of the receiver's buffer space, whichever is smaller.
+The receive algorithm specified by <<RFC1122>> is to not send a segment advertising a larger window than is currently being advertised (which can be 0) until the window can be increased by either one full-size segment (i.e., the receive MSS) or by one-half of the receiver's buffer space, whichever is smaller.
 +
 Note that there are two cases where this rule can come into play: when buffer space has become available because of an application consuming data from the network, and when TCP must respond to a window probe.
 
@@ -498,14 +531,22 @@ Condition (c) prevents TCP from sending small segments when there is unacknowled
 
 === Large Buffers and Auto-Tuning
 
-Many TCP stacks now decouple the allocation of the receive buffer from the size specified by the application. In most cases, the size specified by the application is effectively ignored, and the operating system instead uses either a large fixed value or a dynamically calculated value.
+Many TCP stacks now decouple the allocation of the receive buffer from the size specified by the application.
 
-In newer versions of Windows (Vista/7) and Linux, receive window _autotuning_ is supported. With auto-tuning, the amount of data that can be outstanding in the connection (its bandwidth-delay product) is continuously estimated, and the advertised window is arranged to always be at least this large (provided enough buffer space remains to do so). This has the advantage of allowing TCP to achieve its maximum available throughput rate (subject to the available network capacity) without having to allocate excessively large buffers at the sender or receiver ahead of time. In Windows, the receiver’s buffer size is auto-sized by the operating system by default.
+In most cases, the size specified by the application is effectively ignored, and the operating system instead uses either a large fixed value or a dynamically calculated value.
+
+With auto-tuning, the amount of data that can be outstanding in the connection (its bandwidth-delay product) is continuously estimated, and the advertised window is arranged to always be at least this large (provided enough buffer space remains to do so).
+
+This has the advantage of allowing TCP to achieve its maximum available throughput rate (subject to the available network capacity) without having to allocate excessively large buffers at the sender or receiver ahead of time.
+
+In Windows (Vista/7) , the receiver's buffer size is auto-sized by the operating system by default.
 
 With Linux 2.4 and later, sender-side auto-tuning is supported. With version 2.6.7 and later, both receiver- and sender-side auto-tuning is supported. However, auto-tuning is subject to limits placed on the buffer sizes.
 
-The following Linux `sysctl` variables control the sender and receiver maximum buffer sizes. The values after the equal sign are the default values (which may vary depending on the particular Linux distribution), which should be increased if the system is to be used in high bandwidth-delay-product environments:
+The following Linux `sysctl` variables control the sender and receiver maximum buffer sizes.
 
+* The values after the equal sign are the default values (which may vary depending on the particular Linux distribution), which should be increased if the system is to be used in high bandwidth-delay-product environments:
++
 [source,ini]
 ----
 net.core.rmem_default = 212992
@@ -514,16 +555,16 @@ net.core.rmem_max = 212992
 net.core.wmem_max = 212992
 ----
 
-In addition, the auto-tuning parameters are given by the following variables:
-
+* In addition, the auto-tuning parameters are given by the following variables:
++
 [source,ini]
 ----
 net.ipv4.tcp_rmem = 4096	131072	6291456
 net.ipv4.tcp_wmem = 4096	16384	4194304
 ----
-
++
 Each of these variables contains three values: the minimum, default, and maximum buffer size used by auto-tuning.
-
++
 [source,console]
 ----
 $ sudo tcpdump -n "dst port 6666 and tcp[14:2] > 0"
@@ -546,7 +587,10 @@ An application is able to mark data as urgent by specifying a special option to 
 [bibliography]
 == References
 
-* [[[TCPIPVOL1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
+* [[[TCPIPV1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
+* [[[RFC0813]]] D. Clark, _Window and Acknowledgment Strategy in TCP_, Internet RFC 0813, July 1982.
+* [[[RFC0896]]] J. Nagle, _Congestion Control in IP/TCP Internetworks_, Internet RFC 0896, Jan. 1984. See https://www.rfc-editor.org/rfc/rfc896
+* [[[RFC1112]]] S. E. Deering, _Host Extensions for IP Multicasting_, Internet RFC 1112/STD 0005, Aug. 1989.
 * [[[RHELDELACK]]] _Reducing the TCP Delayed ACK Timeout_ [online]. https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/7/html/tuning_guide/reducing_the_tcp_delayed_ack_timeout
 * [[[WTCP]]] https://en.wikipedia.org/wiki/Transmission_Control_Protocol
 * [[[WSCALE]]] https://en.wikipedia.org/wiki/TCP_window_scale_option
