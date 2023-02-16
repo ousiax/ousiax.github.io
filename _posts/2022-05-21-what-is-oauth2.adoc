@@ -3,107 +3,388 @@
 :page-categories: ['oauth2']
 :page-tags: ['oauth2', 'openid', 'jwt']
 :page-date: 2022-05-21 09:28:55 +0800
-:page-revdate: 2022-05-21 09:28:55 +0800
+:page-revdate: 2023-02-16 18:56:44 +0800
 :toc:
 :sectnums:
 :toclevels: 5
 
+:rfc2616: https://www.rfc-editor.org/rfc/rfc2616
+
 == What is OAuth2
 
-The OAuth 2.0 authorization framework enables a *third-party* application to obtain *limited access* to an HTTP service, either *on behalf of a resource owner* by orchestrating an approval interaction between the resource owner and the HTTP service, or by allowing the third-party application to obtain access on its own behalf.
+In the traditional client-server authentication model, the client requests an access-restricted or protected resource on the server by authenticating with the server using the resource owner's credentials. <<RFC6749>>
 
-The steps to grant permission, or *_consent_*, are often referred to as *_authorization_* or even *_delegated authorization_*. You authorize one application to access your data, or use features in another application on your behalf, without giving them your password. 
+In order to provide third-party applications access to restricted resources, the resource owner shares its credentials with the third party.
 
-* OAuth is about how to *get a token* and how to *use a token*.
-* OAuth is a *delegation* framework that provides authorization across systems.
-* OAuth replaces the password-sharing antipattern with a delegation protocol that’s simultaneously more secure and more usable.
+This creates several problems and limitations:
+
+* Third-party applications are required to store the resource owner's credentials for future use, typically a password in clear-text.
+
+* Servers are required to support password authentication, despite the security weaknesses inherent in passwords.
+
+* Third-party applications gain overly broad access to the resource owner's protected resources, leaving resource owners without any ability to restrict duration or access to a limited subset of resources.
+
+* Resource owners cannot revoke access to an individual third party without revoking access to all third parties, and must do so by changing the third party's password.
+
+* Compromise of any third-party application results in compromise of the end-user's password and all of the data protected by that password.
+
+OAuth addresses these issues by introducing an authorization layer and separating the role of the client from that of the resource owner. In OAuth, the _client_ requests access to resources controlled by the _resource owner_ and hosted by the _resource server_, and is issued a different set of credentials than those of the resource owner.
+
+Instead of using the resource owner's credentials to access protected resources, the client obtains an _access token_ -- a string denoting a specific scope, lifetime, and other access attributes. Access tokens are issued to third-party clients by an _authorization server_ with the approval of the resource owner. The client uses the access token to access the protected resources hosted by the resource server.
+
+For example, an end-user (resource owner) can grant a printing service (client) access to her protected photos stored at a photo- sharing service (resource server), without sharing her username and password with the printing service. Instead, she authenticates directly with a server trusted by the photo-sharing service (authorization server), which issues the printing service delegation- specific credentials (access token).
+
+TIP: This specification is designed for use with HTTP ({rfc2616}[RFC2616]). The use of OAuth over any protocol other than HTTP is out of scope.
+
+The *OAuth 2.0 authorization framework* enables a _third-party_ application to obtain _limited access_ to an HTTP service, either _on behalf of a resource owner_ by orchestrating an approval interaction between the resource owner and the HTTP service, or by allowing the third-party application to obtain access on its own behalf.
+
+The steps to grant permission, or _consent_, are often referred to as _authorization_ or even _delegated authorization_. You authorize one application to access your data, or use features in another application on your behalf, without giving them your password. 
+
+* OAuth is about how to get a _token_ and how to use a token.
+* OAuth is a _delegation_ framework that provides authorization across systems.
+* OAuth replaces the password-sharing antipattern with a delegation protocol that's simultaneously more secure and more usable.
 * OAuth is focused on solving a small set of problems and solving them well, which makes it a suitable component within larger security systems.
 
 === Roles
 
 OAuth defines four roles:
 
-* *resource owner*
+* resource owner
 +
 An entity capable of granting access to a protected resource.
-      When the resource owner is a person, it is referred to as an
-      end-user.
++
+TIP: When the resource owner is a person, it is referred to as an _end-user_.
 
-* *resource server*
+* resource server
 +
 The server hosting the protected resources, capable of accepting and responding to protected resource requests using access tokens.
 
-* *client*
+* client
 +
-An application making protected resource requests on behalf of the resource owner and with its authorization.  The term "client" does not imply any particular implementation characteristics (e.g., whether the application executes on a server, a desktop, or other
-devices).
+An application making protected resource requests on behalf of the resource owner and with its authorization.
++
+TIP: The term "client" does not imply any particular implementation characteristics (e.g., whether the application executes on a server, a desktop, or other devices).
 
-* *authorization server*
+* authorization server
 +
 The server issuing access tokens to the client after successfully authenticating the resource owner and obtaining authorization.
++
+TIP: The authorization server may be the same server as the resource server or a separate entity. A single authorization server may issue access tokens accepted by multiple resource servers.
 
 === Protocol Flow
 
-.Abstract Protocol Flow
 [source,text]
 ----
 +--------+                               +---------------+
-|        |--(1)- Authorization Request ->|   Resource    |
+|        |--(A)- Authorization Request ->|   Resource    |
 |        |                               |     Owner     |
-|        |<-(2)-- Authorization Grant ---|               |
+|        |<-(B)-- Authorization Grant ---|               |
 |        |                               +---------------+
 |        |
 |        |                               +---------------+
-|        |--(3)-- Authorization Grant -->| Authorization |
+|        |--(C)-- Authorization Grant -->| Authorization |
 | Client |                               |     Server    |
-|        |<-(4)----- Access Token -------|               |
+|        |<-(D)----- Access Token -------|               |
 |        |                               +---------------+
 |        |
 |        |                               +---------------+
-|        |--(5)----- Access Token ------>|    Resource   |
+|        |--(E)----- Access Token ------>|    Resource   |
 |        |                               |     Server    |
-|        |<-(6)--- Protected Resource ---|               |
+|        |<-(F)--- Protected Resource ---|               |
 +--------+                               +---------------+
 ----
 
-<1> The client requests authorization from the resource owner. The authorization request can be made directly to the resource owner (as shown), or preferably indirectly via the authorization server as an intermediary.
+The abstract OAuth 2.0 flow describes the interaction between the four roles and includes the following steps:
 
-<2> The client receives an authorization grant, which is a credential representing the resource owner's authorization,expressed using one of four grant types defined in this specification or using an extension grant type. The authorization grant type depends on the method used by the client to request authorization and the types supported by the authorization server.
+[upperalpha]
+. The client requests authorization from the resource owner.
++
+The authorization request can be made directly to the resource owner (as shown), or preferably indirectly via the authorization server as an intermediary.
 
-<3> The client requests an access token by authenticating with the authorization server and presenting the authorization grant.
+. The client receives an _authorization grant_, which is a credential representing the resource owner's authorization,expressed using one of four _grant types_ defined in this specification or using an extension grant type.
++
+The authorization grant type depends on the method used by the client to request authorization and the types supported by the authorization server.
 
-<4> The authorization server authenticates the client and validates the authorization grant, and if valid, issues an access token.
+. The client requests an _access token_ by authenticating with the authorization server and presenting the authorization grant.
 
-<5> The client requests the protected resource from the resource server and authenticates by presenting the access token.
+. The authorization server authenticates the client and validates the authorization grant, and if valid, issues an access token.
 
-<6> The resource server validates the access token, and if valid, serves the request.
+. The client requests the protected resource from the resource server and authenticates by presenting the access token.
 
-=== Obtaining Authorization
+. The resource server validates the access token, and if valid, serves the request.
 
-To request an access token, the client obtains authorization from the
-   resource owner.  The authorization is expressed in the form of an
-   authorization grant, which the client uses to request the access
-   token.  OAuth defines four grant types: *authorization code*, implicit,
-   *resource owner password credentials*, and *client credentials*.  It also
-   provides an extension mechanism for defining additional grant types.
+=== Authorization Grant
 
-=== OpenID Connect
+An authorization grant is a credential representing the resource owner's authorization (to access its protected resources) used by the client to obtain an access token.
 
-OpenID Connect 1.0 is a simple identity layer on top of the OAuth 2.0 protocol. It allows Clients to verify the identity of the End-User based on the authentication performed by an Authorization Server, as well as to obtain basic profile information about the End-User in an interoperable and REST-like manner.
+This specification defines four grant types -- _authorization code_, _implicit_, _resource owner password credentials_, and _client credentials_ -- as well as an extensibility mechanism for defining additional types. <<RFC6749>>
 
-The OpenID Connect flow looks the same as OAuth. The only differences are, in the initial request, a specific scope of *openid* is used, and in the final exchange the *client* receives both an *access token* and an *id token*.
+=== Access Token
+
+Access tokens are credentials used to access protected resources.
+
+An access token is a string representing an authorization issued to the client. The string is usually opaque to the client.
+
+Tokens represent specific scopes and durations of access, granted by the resource owner, and enforced by the resource server and authorization server.
+
+The token may denote an identifier used to retrieve the authorization information or may self-contain the authorization information in a verifiable manner (i.e., a token string consisting of some data and a signature).
+
+The access token provides an abstraction layer, replacing different authorization constructs (e.g., username and password) with a single token understood by the resource server.
+
+This abstraction enables issuing access tokens more restrictive than the authorization grant used to obtain them, as well as removing the resource server's need to understand a wide range of authentication methods.
+
+Access tokens can have different formats, structures, and methods of utilization (e.g., cryptographic properties) based on the resource server security requirements.
+
+Access token attributes and the methods used to access protected resources are beyond the scope of this specification and are defined by companion specifications such as <<RFC6750>>.
+
+===  Refresh Token
+
+Refresh tokens are credentials used to obtain access tokens.
+
+Refresh tokens are issued to the client by the authorization server and are used to obtain a new access token when the current access token becomes invalid or expires, or to obtain additional access tokens with identical or narrower scope (access tokens may have a shorter lifetime and fewer permissions than authorized by the resource owner).
+
+Issuing a refresh token is optional at the discretion of the authorization server.
+
+If the authorization server issues a refresh token, it is included when issuing an access token (i.e., step (D) in the above protocol flow).
+
+A refresh token is a string representing the authorization granted to the client by the resource owner.  The string is usually opaque to the client.
+
+The token denotes an identifier used to retrieve the authorization information.
+
+Unlike access tokens, refresh tokens are intended for use only with authorization servers and are never sent to resource servers.
+
+[source,text]
+----
+  +--------+                                           +---------------+
+  |        |--(A)------- Authorization Grant --------->|               |
+  |        |                                           |               |
+  |        |<-(B)----------- Access Token -------------|               |
+  |        |               & Refresh Token             |               |
+  |        |                                           |               |
+  |        |                            +----------+   |               |
+  |        |--(C)---- Access Token ---->|          |   |               |
+  |        |                            |          |   |               |
+  |        |<-(D)- Protected Resource --| Resource |   | Authorization |
+  | Client |                            |  Server  |   |     Server    |
+  |        |--(E)---- Access Token ---->|          |   |               |
+  |        |                            |          |   |               |
+  |        |<-(F)- Invalid Token Error -|          |   |               |
+  |        |                            +----------+   |               |
+  |        |                                           |               |
+  |        |--(G)----------- Refresh Token ----------->|               |
+  |        |                                           |               |
+  |        |<-(H)----------- Access Token -------------|               |
+  +--------+           & Optional Refresh Token        +---------------+
+----
+
+
+
+The flow refreshing an expired access token includes the following steps:
+
+
+[upperalpha]
+. The client requests an access token by authenticating with the authorization server and presenting an authorization grant.
+
+. The authorization server authenticates the client and validates the authorization grant, and if valid, issues an access token and a refresh token.
+
+. The client makes a protected resource request to the resource server by presenting the access token.
+
+. The resource server validates the access token, and if valid, serves the request.
+
+. Steps +++(C)+++ and (D) repeat until the access token expires.
++
+If the client knows the access token expired, it skips to step (G); otherwise, it makes another protected resource request.
+
+. Since the access token is invalid, the resource server returns an invalid token error.
+
+. The client requests a new access token by authenticating with the authorization server and presenting the refresh token.
++
+The client authentication requirements are based on the client type and on the authorization server policies.
+
+. The authorization server authenticates the client and validates the refresh token, and if valid, issues a new access token (and, optionally, a new refresh token).
+
+== What is OpenID Connect
+
+OpenID Connect 1.0 is a simple identity layer on top of the OAuth 2.0 protocol. It allows Clients to verify the identity of the End-User based on the authentication performed by an Authorization Server, as well as to obtain basic profile information about the End-User in an interoperable and REST-like manner. <<OIDC>>
+
+The OpenID Connect flow looks the same as OAuth. The only differences are, in the initial request, a specific scope of _openid_ is used, and in the final exchange the _client_ receives both an _access token_ and an _id token_. <<IGOID>>
 
 == What is JSON Web Token?
 
-JSON Web Token (JWT) is an open standard (https://tools.ietf.org/html/rfc7519[RFC 7519]) that defines a compact and self-contained way for securely transmitting information between parties as a JSON object. This information can be verified and trusted because it is digitally signed. JWTs can be signed using a secret (with the *HMAC* algorithm) or a public/private key pair using *RSA* or *ECDSA*.
+JSON Web Token (JWT) is a compact, URL-safe means of representing claims to be transferred between two parties. The claims in a JWT are encoded as a JSON object that is used as the payload of a JSON Web Signature (JWS <<RFC7515>>) structure or as the plaintext of a JSON Web Encryption (JWE) structure, enabling the claims to be digitally signed or integrity protected with a Message Authentication Code (MAC) and/or encrypted. <<RFC7519>>
 
+The suggested pronunciation of JWT is the same as the English word "jot".
+
+.Terminology
+[source,text]
+----
+JSON Web Token (JWT)
+   A string representing a set of claims as a JSON object that is
+   encoded in a JWS or JWE, enabling the claims to be digitally
+   signed or MACed and/or encrypted.
+
+JWT Claims Set
+   A JSON object that contains the claims conveyed by the JWT.
+
+Claim
+   A piece of information asserted about a subject.  A claim is
+   represented as a name/value pair consisting of a Claim Name and a
+   Claim Value.
+
+Claim Name
+   The name portion of a claim representation.  A Claim Name is
+   always a string.
+
+Claim Value
+   The value portion of a claim representation.  A Claim Value can be
+   any JSON value.
+----
+
+=== JSON Web Token (JWT) Overview
+
+JWTs represent a set of claims as a JSON object (i.e. JWT Claims Set) that is encoded in a JWS and/or JWE structure.
+
+* The JSON object consists of zero or more name/value pairs (or members), where the names are strings and the values are arbitrary JSON values.
+
+** These members are the claims represented by the JWT.
+
+** The member names within the JWT Claims Set are referred to as Claim Names.
++
+The corresponding values are referred to as Claim Values.
+
+* The contents of the JOSE Header describe the cryptographic operations applied to the JWT Claims Set.
+
+** If the JOSE Header is for a JWS, the JWT is represented as a JWS and the claims are digitally signed or MACed, with the JWT Claims Set being the JWS Payload.
+
+** If the JOSE Header is for a JWE, the JWT is represented as a JWE and the claims are encrypted, with the JWT Claims Set being the plaintext encrypted by the JWE.
+
+** A JWT may be enclosed in another JWE or JWS structure to create a Nested JWT, enabling nested signing and encryption to be performed.
+
+A JWT is represented as a sequence of URL-safe parts separated by period (`.`) characters.
+
+*  Each part contains a base64url-encoded value.
+* The number of parts in the JWT is dependent upon the representation of the resulting JWS using the JWS Compact Serialization or JWE using the JWE Compact Serialization.
+
+=== What is the JSON Web Token structure?
+
+In its compact form, JSON Web Tokens consist of three parts separated by dots (`.`), which are: <<JWTIO>>
+
+* Header
+* Payload
+* Signature
+
+Therefore, a JWT typically looks like the following.
+
+[source,json]
+----
+xxxxx.yyyyy.zzzzz
+----
+
+Let's break down the different parts.
+
+==== Header
+
+The header _typically_ consists of two parts: the type of the token, which is JWT, and the signing algorithm being used, such as HMAC SHA256 or RSA.
+
+For example:
+
+[source,json]
+----
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+----
+
+Then, this JSON is _Base64Url_ encoded to form the first part of the JWT.
+
+[source,console]
+----
+$ cat header.json | base64 -w 0 | tr -d '='
+ewogICJhbGciOiAiSFMyNTYiLAogICJ0eXAiOiAiSldUIgp9Cg
+----
+
+==== Payload
+
+The second part of the token is the payload, which contains the claims. Claims are statements about an entity (typically, the user) and additional data. There are three types of claims: _registered_, _public_, and _private_ claims.
+
+* https://tools.ietf.org/html/rfc7519#section-4.1[Registered claims]
++
+These are a set of predefined claims which are not mandatory but recommended, to provide a set of useful, interoperable claims.
++
+Some of them are: iss (issuer), exp (expiration time), sub (subject), aud (audience), and https://tools.ietf.org/html/rfc7519#section-4.1[others].
++
+NOTE: Notice that the claim names are only three characters long as JWT is meant to be compact.
+
+* https://tools.ietf.org/html/rfc7519#section-4.2[Public claims]
++
+These can be defined at will by those using JWTs.
++
+But to avoid collisions they should be defined in the https://www.iana.org/assignments/jwt/jwt.xhtml[IANA JSON Web Token Registry] or be defined as a URI that contains a collision resistant namespace.
+
+* https://tools.ietf.org/html/rfc7519#section-4.3[Private claims]
++
+These are the custom claims created to share information between parties that agree on using them and are neither registered or public claims.
+
+An example payload could be:
+
+[source,json]
+----
+{
+  "sub": "1234567890",
+  "name": "John Doe",
+  "admin": true
+}
+----
+
+The payload is then _Base64Url_ encoded to form the second part of the JSON Web Token.
+
+[source,console]
+----
+$ cat payload.json | base64 -w 0 | tr -d '='
+ewogICJzdWIiOiAiMTIzNDU2Nzg5MCIsCiAgIm5hbWUiOiAiSm9obiBEb2UiLAogICJhZG1pbiI6IHRydWUKfQo
+----
+
+NOTE: Do note that for signed tokens this information, though protected against tampering, is readable by anyone. Do not put secret information in the payload or header elements of a JWT unless it is encrypted.
+
+==== Signature
+
+To create the signature part you have to take the encoded header, the encoded payload, a secret, the algorithm specified in the header, and sign that.
+
+For example if you want to use the HMAC SHA256 algorithm, the signature will be created in the following way:
+
+[source,js]
+----
+HMACSHA256(
+  base64UrlEncode(header) + "." +
+  base64UrlEncode(payload),
+  secret)
+----
+
+The signature is used to verify the message wasn't changed along the way, and, in the case of tokens signed with a private key, it can also verify that the sender of the JWT is who it says it is.
+
+==== Putting all together
+
+The output is three Base64-URL strings separated by dots that can be easily passed in HTML and HTTP environments, while being more compact when compared to XML-based standards such as SAML.
+
+The following shows a JWT that has the previous header and payload encoded, and it is signed with a secret (`123456`). 
+
+[source,txt]
+----
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.Wwu4TUUE86MPyFGhmv3D0Ct4GqkthRQDPKBwOQAAwJc
+----
+
+[bibliography]
 == References
 
-* https://aaronparecki.com/oauth-2-simplified/
-* https://tools.ietf.org/html/rfc6749[The OAuth 2.0 Authorization Framework, https://tools.ietf.org/html/rfc6749]
-* https://www.oauth.com
-* https://developer.okta.com/blog/2019/10/21/illustrated-guide-to-oauth-and-oidc
-* https://openid.net/connect/
-* https://jwt.io/
+* [[[RFC6749]]] D. Hardt, Ed., _The OAuth 2.0 Authorization Framework_, Internet RFC 7519, Oct 2012.
+* [[[RFC6750]]] M. Jones, D. Hardt, _ The OAuth 2.0 Authorization Framework: Bearer Token Usage_, Internet RFC 6750, Oct 2012.
+* [[[RFC7519]]] M. Jones, J. Bradley, N. Sakimura, _JSON Web Token (JWT)_, Internet RFC 7519, May 2015.
+* [[[OIDC]]] https://openid.net/connect/
+* [[[IGOID]]] _An Illustrated Guide to OAuth and OpenID Connect_ [online]. https://developer.okta.com/blog/2019/10/21/illustrated-guide-to-oauth-and-oidc
+* [[[RFC7515]]] Jones, M., Bradley, J., and N. Sakimura, _JSON Web Signature (JWS)_, RFC 7515, DOI 10.17487/RFC, May 2015.
+* [[[JWTIO]]] https://jwt.io/introduction
+* _OAuth 2 Simplified • Aaron Parecki_ [online]. https://aaronparecki.com/oauth-2-simplified/
+* _OAuth.com - OAuth 2.0 Simplified_ [online]. https://www.oauth.com
 * https://stackoverflow.com/questions/6916805/why-does-a-base64-encoded-string-have-an-sign-at-the-end
 * https://superuser.com/questions/1225134/why-does-the-base64-of-a-string-contain-n
