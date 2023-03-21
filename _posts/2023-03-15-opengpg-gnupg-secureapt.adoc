@@ -534,6 +534,111 @@ TIP: The reason we point to a file instead of a fingerprint is that the latter f
 
 TIP: Serving the repository under HTTPS is OPTIONAL, as it may make running a round-robin network of untrusted mirrors more difficult, and the trust chain provided by SecureApt should suffice. 
 
+==== How to find and add a key
+
+The debian-archive-keyring package is used to distribute keys to apt. Upgrades to this package can add (or remove) OpenPGP keys for the main Debian archive. <<secureapt>>
+
+For other archives, there is not yet a standard location where you can find the key for a given apt repository. There's a rough standard of putting the key up on the web page for the repository or as a file in the repository itself, but no real standard, so you might have to hunt for it.
+
+The current and the retired Debian archive "signing" keys are available from https://ftp-master.debian.org/keys.html.
+
+The OpenPGP ecosystem has a standard way to distribute keys, using a keyserver that OpenPGP implementation can use to download a key from and add it to a keyring. For example with Sequoia-PGP:
+
+[source,console]
+----
+user@host:~> sq keyserver get --binary --output debian-archive-bullseye-stable.pgp 'A428 5295 FC7B 1A81 6000  62A9 605C 66F0 0D6C 9793'
+----
+
+Or with GnuPG:
+
+[source,console]
+----
+user@host:~> gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 'A428 5295 FC7B 1A81 6000  62A9 605C 66F0 0D6C 9793'
+gpg: key 605C66F00D6C9793: public key "Debian Stable Release Key (11/bullseye) <debian-release@lists.debian.org>" imported
+gpg: Total number processed: 1
+gpg:               imported: 1
+user@host:~> gpg --output debian-archive-bullseye-stable.pgp --export 'A428 5295 FC7B 1A81 6000  62A9 605C 66F0 0D6C 9793' 
+----
+
+To install the keyring simply copy it to the apt trusted.gpg.d directory:
+
+[source,console]
+----
+user@host:~> sudo cp -i debian-archive-bullseye-stable.pgp /etc/apt/trusted.gpg.d/
+----
+
+==== Complete example
+
+This example may serve as a template for instructions provided at the root of the archive to help users configure the APT repository.
+
+This is a Debian repository. To install packages from this repository, you should first download a trust anchor into your system using this command:
+
+[source,sh]
+----
+wget -O /usr/share/keyrings/deriv-archive-keyring.pgp https://deriv.example.net/debian/deriv-archive-keyring.pgp
+----
+
+Then you can add the repository to your sources.list by creating a text file in `/etc/apt/sources.list.d/deriv.sources` containing the following:
+
+[source,sh]
+----
+Types: deb deb-src
+URIs: https://deriv.example.net/debian/
+Suites: stable
+Architectures: i386 amd64
+Components: main
+Signed-By: /usr/share/keyrings/deriv-archive-keyring.pgp
+----
+
+Finally, you should also add the following preferences file to restrict what this repository can install, by creating the following file in `/etc/apt/preferences.d/deriv.pref`:
+
+[source,sh]
+----
+Package: *
+Pin: origin deriv.example.net
+Pin-Priority: 100
+----
+
+Once this is done, you can run `apt-get update` for the changes to take effect and use `apt-get install deriv-archive-keyring` to make sure updates to the keyring are received in a timely manner. 
+
+==== Troubleshooting
+
+[source,console]
+----
+$ sudo apt-get update 
+Hit:1 https://mirrors.ustc.edu.cn/debian bullseye InRelease
+Hit:2 https://mirrors.ustc.edu.cn/debian bullseye-updates InRelease                                                              
+Hit:3 https://mirrors.ustc.edu.cn/debian-security bullseye-security InRelease                                                    
+Hit:4 https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial InRelease                               
+Hit:5 https://download.docker.com/linux/debian bullseye InRelease             
+Hit:6 https://packages.microsoft.com/debian/11/prod bullseye InRelease        
+Err:6 https://packages.microsoft.com/debian/11/prod bullseye InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY EB3E94ADBE1229CF
+Reading package lists... Done
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: https://packages.microsoft.com/debian/11/prod bullseye InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY EB3E94ADBE1229CF
+W: Failed to fetch https://packages.microsoft.com/debian/11/prod/dists/bullseye/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY EB3E94ADBE1229CF
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+----
+
+[source,console]
+----
+$ gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys EB3E94ADBE1229CF
+gpg: key EB3E94ADBE1229CF: public key "Microsoft (Release signing) <gpgsecurity@microsoft.com>" imported
+gpg: Total number processed: 1
+gpg:               imported: 1
+$ gpg --output microsoft-prod.gpg --export EB3E94ADBE1229CF
+$ sudo chown root.root microsoft-prod.gpg 
+$ sudo mv microsoft-prod.gpg /etc/apt/trusted.gpg.d/
+$ sudo apt-get update 
+Hit:1 https://download.docker.com/linux/debian bullseye InRelease
+Hit:2 https://packages.microsoft.com/debian/11/prod bullseye InRelease
+Hit:3 https://mirrors.ustc.edu.cn/debian bullseye InRelease
+Hit:4 https://mirrors.ustc.edu.cn/debian bullseye-updates InRelease
+Hit:5 https://mirrors.ustc.edu.cn/debian-security bullseye-security InRelease
+Hit:6 https://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial InRelease
+Reading package lists... Done
+----
+
 [bibliography]
 == References
 
