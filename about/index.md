@@ -5,7 +5,7 @@ title: About
 
 **Legal Info**
 
-This website is published by: **ROY XU**
+This website is published by: **Jon Hsu**
 
 External web sites listed or linked to are listed for information purposes only; listing does not imply agreement with or approval of any view expressed on such external sites;
 
