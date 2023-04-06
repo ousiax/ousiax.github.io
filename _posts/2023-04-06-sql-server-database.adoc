@@ -1,0 +1,309 @@
+= Intro to SQL Server Database
+:page-layout: post
+:page-categories: ['database']
+:page-tags: ['database', 'sqlserver']
+:page-date: 2023-04-06 10:14:18 +0800
+:page-revdate: 2023-04-06 10:14:18 +0800
+:toc:
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+== Deploy and connect to SQL Server Linux containers
+
+:docker-hub-microsoft-mssql-server: https://hub.docker.com/_/microsoft-mssql-server
+:sqldb-troubleshooting: https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-troubleshooting?view=sql-server-ver16
+
+In this quickstart, you'll use Docker to pull and run the SQL Server 2022 (16.x) Linux container image, {docker-hub-microsoft-mssql-server}[mssql-server-linux]. Then you can connect with *sqlcmd* to create your first database and run queries.
+
+=== Pull and run the SQL Server Linux container image
+
+. Pull the SQL Server 2022 (16.x) Linux container image from the Microsoft Container Registry.
++
+[source,bash]
+----
+sudo docker pull mcr.microsoft.com/mssql/server:2022-latest
+----
+
+. To run the Linux container image with Docker, you can use the following command from a bash shell or elevated PowerShell command prompt.
++
+NOTE: The `SA_PASSWORD` environment variable is deprecated. Please use `MSSQL_SA_PASSWORD` instead.
++
+[source,shell]
+----
+sudo docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=<YourStrong@Passw0rd>" \
+   -p 1433:1433 --name sql1 --hostname sql1 \
+   -d \
+   mcr.microsoft.com/mssql/server:2022-latest
+----
++
+Your password should follow the SQL Server default password policy, otherwise the container can't set up SQL Server and will stop working. By default, the password must be at least eight characters long and contain characters from three of the following four sets: uppercase letters, lowercase letters, base-10 digits, and symbols. 
++
+By default, this quickstart creates a container with the Developer edition of SQL Server. The process for running production editions in containers is slightly different.
++
+
+. To view your Docker containers, use the `docker ps` command.
++
+[source,shell]
+----
+docker ps
+----
++
+You should see output similar to the following:
++
+[source,console]
+----
+CONTAINER ID   IMAGE                                        COMMAND                  CREATED          STATUS        PORTS                                       NAMES
+274554ac9f0d   mcr.microsoft.com/mssql/server:2022-latest   "/opt/mssql/bin/perm…"   42 seconds ago   Up 1 second   0.0.0.0:1433->1433/tcp, :::1433->1433/tcp   sql1
+----
+
+. If the `STATUS` column shows a status of `Up`, then SQL Server is running in the container and listening on the port specified in the `PORTS` column. If the `STATUS` column for your SQL Server container shows `Exited`, see the {sqldb-troubleshooting}[Troubleshooting section of the configuration guide]. 
+
+=== Connect to SQL Server
+
+The following steps use the SQL Server command-line tool, sqlcmd, inside the container to connect to SQL Server.
+
+. Use the `docker exec -it` command to start an interactive bash shell inside your running container. In the following example `sql1` is name specified by the `--name` parameter when you created the container.
++
+[source,shell]
+----
+sudo docker exec -it sql1 "bash"
+----
+
+. Once inside the container, connect locally with *sqlcmd*, using its full path.
++
+[source,shell]
+----
+/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "<YourStrong@Passw0rd>"
+----
++
+TIP: You can omit the password on the command-line to be prompted to enter it. Here's an example:
++
+[source,shell]
+----
+/opt/mssql-tools/bin/sqlcmd -S localhost -U SA
+----
+
+. If successful, you should get to a *sqlcmd* command prompt: `1>`.
+
+=== Create and query data
+
+The following sections walk you through using *sqlcmd* and Transact-SQL to create a new database, add data, and run a query.
+
+==== Create a new database
+
+The following steps create a new database named `TestDB`.
+
+. From the sqlcmd command prompt, paste the following Transact-SQL command to create a test database:
++
+[source,sql]
+----
+CREATE DATABASE TestDB;
+----
+
+. On the next line, write a query to return the name of all of the databases on your server:
++
+[source,sql]
+----
+SELECT Name from sys.databases;
+----
+
+. The previous two commands weren't run immediately. Type `GO` on a new line to run the previous commands:
++
+[source,sql]
+----
+GO
+----
+
+==== Insert data
+
+Next create a new table, Inventory, and insert two new rows.
+
+. From the _sqlcmd_ command prompt, switch context to the new _TestDB_ database:
++
+[source,sql]
+----
+USE TestDB;
+----
+
+. Create new table named `Inventory`:
++
+[source,sql]
+----
+CREATE TABLE Inventory (id INT, name NVARCHAR(50), quantity INT);
+----
+
+. Insert data into the new table:
++
+[source,sql]
+----
+INSERT INTO Inventory VALUES (1, 'banana', 150); INSERT INTO Inventory VALUES (2, 'orange', 154);
+----
+
+. Type `GO` to run the previous commands:
++
+[source,sql]
+----
+GO
+----
+
+==== Select data
+
+Now, run a query to return data from the `Inventory` table.
+
+. From the _sqlcmd_ command prompt, enter a query that returns rows from the `Inventory` table where the quantity is greater than 152:
++
+[source,sql]
+----
+SELECT * FROM Inventory WHERE quantity > 152;
+----
+
+. Run the command:
++
+[source,sql]
+----
+GO
+----
+
+. Exit the sqlcmd command prompt
++
+To end your sqlcmd session, type `QUIT`:
++
+[source,sql]
+----
+QUIT
+----
+
+. To exit the interactive command-prompt in your container, type `exit`. Your container continues to run after you exit the interactive bash shell.
+
+== Databases
+
+A _database_ in _SQL Server_ is made up of a collection of _tables_ that stores a specific set of structured data. A tableontains a collection of _rows_, also referred to as _records_ or _tuples_, and _columns_, also referred to as _attributes_. Each column in the table is designed to store a certain type of information, for example, dates, names, dollar amounts, and numbers.
+
+=== Basic Information about Databases
+
+:sqldb-tables: https://learn.microsoft.com/en-us/sql/relational-databases/tables/tables?view=sql-server-ver16
+:sqldb-files-filegroups: https://learn.microsoft.com/en-us/sql/relational-databases/databases/database-files-and-filegroups?view=sql-server-ver16
+:sqldb-tsql: https://learn.microsoft.com/en-us/sql/t-sql/language-reference?view=sql-server-ver16
+:sqldb-authn: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
+:ssms: https://learn.microsoft.com/en-us/sql/ssms/sql-server-management-studio-ssms?view=sql-server-ver16
+
+A computer can have one or more than one instance of _SQL Server_ installed. Each instance of SQL Server can contain one or many _databases_. Within a database, there are one or many object ownership groups called _schemas_. Within each schema there are database objects such as _tables_, _views_, and _stored procedures_. Some objects such as certificates and asymmetric keys are contained within the database, but are not contained within a schema. For more information about creating tables, see {sqldb-tables}[Tables].
+
+SQL Server databases are stored in the file system in _files_. Files can be grouped into _filegroups_. For more information about files and filegroups, see {sqldb-file-filegroups}[Database Files and Filegroups].
+
+When people gain access to an instance of SQL Server they are identified as a _login_. When people gain access to a database they are identified as a _database user_. A database user can be based on a login. If _contained databases_ are enabled, a database user can be created that is not based on a login. For more information about users, see `CREATE USER` ({sqldb-tsql}[Transact-SQL]).
+
+A user that has access to a database can be given _permission_ to access the objects in the database. Though permissions can be granted to _individual users_, we recommend creating _database roles_, adding the database users to the roles, and then grant access permission to the roles. Granting permissions to roles instead of users makes it easier to keep permissions consistent and understandable as the number of users grow and continually change. For more information about roles permissions, see `CREATE ROLE` ({sqldb-tsql}[Transact-SQL]) and {sqldb-authn}[Principals (Database Engine)].
+
+=== Working with Databases
+
+Most people who work with databases use the _SQL Server Management Studio_ tool. The Management Studio tool has a graphical user interface for creating databases and the objects in the databases. Management Studio also has a query editor for interacting with databases by writing Transact-SQL statements. Management Studio can be installed from the SQL Server installation disk, or downloaded from MSDN. For more information about SQL Server Management Studio tool, see {ssms}[SQL Server Management Studio (SSMS)].
+
+=== System Databases
+
+SQL Server includes the following system databases.
+
+:master-database: https://learn.microsoft.com/en-us/sql/relational-databases/databases/master-database?view=sql-server-ver16
+:msdb-database: https://learn.microsoft.com/en-us/sql/relational-databases/databases/msdb-database?view=sql-server-ver16
+:model-database: https://learn.microsoft.com/en-us/sql/relational-databases/databases/model-database?view=sql-server-ver16
+:resource-database: https://learn.microsoft.com/en-us/sql/relational-databases/databases/resource-database?view=sql-server-ver16
+:tempdb-database: https://learn.microsoft.com/en-us/sql/relational-databases/databases/tempdb-database?view=sql-server-ver16
+
+[%header,cols="1,5"]
+|===
+|System database
+|Description
+
+|{master-database}[master Database]
+|Records all the system-level information for an instance of SQL Server.
+
+|{msdb-database}[msdb Database]
+|Is used by SQL Server Agent for scheduling alerts and jobs.
+
+|{model-database}[model Database]
+|Is used as the template for all databases created on the instance of SQL Server. Modifications made to the model database, such as database size, collation, recovery model, and other database options, are applied to any databases created afterward.
+
+|{resource-database}[Resource Database]
+|Is a read-only database that contains system objects that are included with SQL Server. System objects are physically persisted in the Resource database, but they logically appear in the sys schema of every database.
+
+|{tempdb-database}[tempdb Database]
+|Is a workspace for holding temporary objects or intermediate result sets.
+|===
+
+NOTE: For Azure SQL Database single databases and elastic pools, only _master_ Database and _tempdb_ Database apply.
+
+==== master Database
+
+The _master database_ records all the system-level information for a SQL Server system. This includes instance-wide metadata such as logon accounts, endpoints, linked servers, and system configuration settings.
+
+In SQL Server, system objects are no longer stored in the _master_ database; instead, they are stored in the _Resource database_.
+
+Also, _master_ is the database that records the existence of all other databases and the location of those database files and records the initialization information for SQL Server. Therefore, SQL Server cannot start if the master database is unavailable.
+
+=== Contained Databases
+
+A _contained database_ is a database that is isolated from other databases and from the instance of SQL Server that hosts the database. SQL Server helps user to isolate their database from the instance in 4 ways.
+
+* Much of the metadata that describes a database is maintained in the database. (In addition to, or instead of, maintaining metadata in the master database.)
+
+* All metadata are defined using the same collation.
+
+* User authentication can be performed by the database, reducing the databases dependency on the logins of the instance of SQL Server.
+
+* The SQL Server environment (DMV's, XEvents, etc.) reports and can act upon containment information.
+
+
+=== Database Files and Filegroups
+
+At a minimum, every SQL Server database has two operating system files: a _data file_ and a _log file_. Data files contain data and objects such as tables, indexes, stored procedures, and views. Log files contain the information that is required to recover all transactions in the database. Data files can be grouped together in filegroups for allocation and administration purposes.
+
+==== Database Files
+
+SQL Server databases have three types of files, as shown in the following table.
+
+[%header,cols="1,5"]
+|===
+|File
+|Description
+
+|Primary
+|Contains startup information for the database and points to the other files in the database. Every database has one primary data file. The recommended file name extension for primary data files is _.mdf_.
+
+|Secondary
+|Optional user-defined data files. Data can be spread across multiple disks by putting each file on a different disk drive. The recommended file name extension for secondary data files is _.ndf_.
+
+|Transaction Log
+|The log holds information used to recover the database. There must be at least one log file for each database. The recommended file name extension for transaction logs is _.ldf_.
+|===
+
+For example, a simple database named *Sales* has one primary file that contains all data and objects and a log file that contains the transaction log information. A more complex database named *Orders* can be created that includes one primary file and five secondary files. The data and objects within the database spread across all six files, and the four log files contain the transaction log information.
+
+By default, the data and transaction logs are put on the same drive and path to handle single-disk systems. This choice may not be optimal for production environments. We recommend that you _put data and log files on separate disks_.
+
+==== Logical and Physical File Names
+
+:sqldb-file-locations: https://learn.microsoft.com/en-us/sql/sql-server/install/file-locations-for-default-and-named-instances-of-sql-server?view=sql-server-ver16
+
+SQL Server files have two file name types:
+
+*logical_file_name*: The _logical_file_name_ is the name used to refer to the physical file in all Transact-SQL statements. The logical file name must comply with the rules for SQL Server identifiers and must be unique among logical file names in the database.
+
+*os_file_name*: The _os_file_name_ is the name of the physical file including the directory path. It must follow the rules for the operating system file names.
+
+When multiple instances of SQL Server are running on a single computer, each instance receives a different default directory to hold the files for the databases created in the instance. For more information, see {sqldb-file-locations}[File Locations for Default and Named Instances of SQL Server].
+
+== Database Engine Permissions and Principals
+
+_Principals_ are entities that can request SQL Server resources. Like other components of the SQL Server authorization model, principals can be arranged in a hierarchy. The scope of influence of a principal depends on the scope of the definition of the principal: Windows, server, database; and whether the principal is indivisible or a collection. A Windows Login is an example of an indivisible principal, and a Windows Group is an example of a principal that is a collection. Every principal has a security identifier (SID). This topic applies to all versions of SQL Server, but there are some restrictions on server-level principals in SQL Database or Azure Synapse Analytics.
+
+[bibliography]
+== References
+
+* [[[sqlsrvlinux]]] https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver16&pivots=cs1-bash
+* [[[sqlsrvlinuxi]]] https://learn.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-ver16&preserve-view=true&pivots=cs1-bash
+* [[[sqlsrvdbs]]] https://learn.microsoft.com/en-us/sql/relational-databases/databases/databases?view=sql-server-ver16
+* [[[sqlsrvcdbs]]] https://learn.microsoft.com/en-us/sql/relational-databases/databases/contained-databases?view=sql-server-ver16
+* [[[sqlsrvfilelocs]]] https://learn.microsoft.com/en-us/sql/sql-server/install/file-locations-for-default-and-named-instances-of-sql-server?view=sql-server-ver16
+* [[[sqlsrvpermprincipals]]] https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/getting-started-with-database-engine-permissions?view=sql-server-ver16
+* [[sqlsrvprinciplas]]] https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
