@@ -295,15 +295,252 @@ When multiple instances of SQL Server are running on a single computer, each ins
 
 == Database Engine Permissions and Principals
 
-_Principals_ are entities that can request SQL Server resources. Like other components of the SQL Server authorization model, principals can be arranged in a hierarchy. The scope of influence of a principal depends on the scope of the definition of the principal: Windows, server, database; and whether the principal is indivisible or a collection. A Windows Login is an example of an indivisible principal, and a Windows Group is an example of a principal that is a collection. Every principal has a security identifier (SID). This topic applies to all versions of SQL Server, but there are some restrictions on server-level principals in SQL Database or Azure Synapse Analytics.
+_Permissions_ in the Database Engine are managed at the _server level_ through logins and server roles, and at the _database level_ through database users and database roles.
 
-[bibliography]
+The model for SQL Database exposes the same system within each database, but the server level permissions aren't available. This article reviews some basic security concepts and then describes a typical implementation of the permissions.
+
+=== Security principals
+
+_Security principal_ is the official name of the identities that use SQL Server and that can be assigned permission to take actions. They are usually people or groups of people, but can be other entities that pretend to be people.
+
+The security principals can be created and managed using the Transact-SQL listed, or by using SQL Server Management Studio.
+
+==== Logins
+
+:choose-an-authentication-mode: https://learn.microsoft.com/en-us/sql/relational-databases/security/choose-an-authentication-mode?view=sql-server-ver16
+
+_Logins_ are individual user accounts for logging on to the SQL Server Database Engine. SQL Server and SQL Database support logins based on _Windows authentication_ and logins based on _SQL Server authentication_.
+
+For information about the two types of logins, see {choose-an-authentication-mode}[Choose an Authentication Mode].
+
+==== Fixed server roles
+
+:alter-server-role-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-server-role-transact-sql?view=sql-server-ver16
+
+In SQL Server, _fixed server roles_ are a set of pre-configured roles that provide convenient group of server-level permissions. Logins can be added to the roles using the `ALTER SERVER ROLE ... ADD MEMBER` statement.
+
+For more information, see {alter-server-role-transact-sql}[ALTER SERVER ROLE (Transact-SQL)].
+
+SQL Database doesn't support the fixed server roles, but has two roles in the `master` database (`dbmanager` and `loginmanager`) that act like server roles.
+
+==== User-defined server roles
+
+In SQL Server, you can create your own server roles and assign server-level permissions to them. Logins can be added to the server roles using the `ALTER SERVER ROLE ... ADD MEMBER` statement.
+
+For more information, see {alter-server-role-transact-sql}[ALTER SERVER ROLE (Transact-SQL)].
+
+SQL Database doesn't support the user-defined server roles.
+
+==== Database users
+
+:contained-database-users-making-your-database-portable: https://learn.microsoft.com/en-us/sql/relational-databases/security/contained-database-users-making-your-database-portable?view=sql-server-ver16
+:create-user-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-user-transact-sql?view=sql-server-ver16
+
+Logins are granted access to a database by creating a _database user_ in a database and mapping that database user to sign in. Typically the database user name is the same as the login name, though it doesn't have to be the same.
+
+Each database user maps to a single login. A login can be mapped to only one user in a database, but can be mapped as a database user in several different databases.
+
+Database users can also be created that don't have a corresponding login. These users are called _contained database users_. Microsoft encourages the use of contained database users because it makes it easier to move your database to a different server. Like a login, a contained database user can use either Windows authentication or SQL Server authentication. For more information, see {contained-database-users-making-your-database-portable}[Contained Database Users - Making Your Database Portable].
+
+There are 12 types of users with slight differences in how they authenticate, and who they represent. To see a list of users, see {create-user-transact-sql}[CREATE USER (Transact-SQL)].
+
+==== Fixed database roles
+
+:alter-role-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-role-transact-sql?view=sql-server-ver16
+
+_Fixed database roles_ are a set of pre-configured roles that provide convenient group of database-level permissions. Database users and user-defined database roles can be added to the fixed database roles using the `ALTER ROLE ... ADD MEMBER` statement.
+
+For more information, see {alter-role-transact-sql}[ALTER ROLE (Transact-SQL)].
+
+==== User-defined database roles
+
+Users with the `CREATE ROLE` permission can create new _user-defined database roles_ to represent groups of users with common permissions. Typically permissions are granted or denied to the entire role, simplifying permissions management and monitoring. Database users can be added to the database roles by using the `ALTER ROLE ... ADD MEMBER` statement.
+
+For more information, see {alter-role-transact-sql}[ALTER ROLE (Transact-SQL)].
+
+==== Other principals
+
+:create-a-database-user: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/create-a-database-user?view=sql-server-ver16
+
+Additional security principals not discussed here include application roles, and logins and users based on certificates or asymmetric keys.
+
+For a graphic showing the relationships between Windows users, Windows groups, logins, and database users, see {create-a-database-user}[Create a Database User].
+
+=== Assign permissions
+
+:permissions-database-engine: https://learn.microsoft.com/en-us/sql/relational-databases/security/permissions-database-engine?view=sql-server-ver16
+
+Most permission statements have the format:
+
+[source,sql]
+----
+AUTHORIZATION PERMISSION ON SECURABLE::NAME TO PRINCIPAL;
+----
+
+* `AUTHORIZATION` must be `GRANT`, `REVOKE` or `DENY`.
+
+* The `PERMISSION` establishes what action is allowed or prohibited. The exact number of permissions differs between SQL Server and SQL Database. The permissions are listed in the article {permissions-database-engine}[Permissions (Database Engine)] and in the chart referenced below.
+
+* `ON SECURABLE::NAME` is the type of securable (server, server object, database, or database object) and its name. Some permissions don't require `ON SECURABLE::NAME` because it is unambiguous or inappropriate in the context. For example, the `CREATE TABLE` permission doesn't require the `ON SECURABLE::NAME` clause (`GRANT CREATE TABLE TO Mary`; allows Mary to create tables).
+
+* `PRINCIPAL` is the security principal (login, user, or role) which receives or loses the permission. Grant permissions to roles whenever possible.
+
+The following example grant statement, grants the `UPDATE` permission on the `Parts` table or view that is contained in the `Production` schema to the role named `PartsTeam`:
+
+[source,sql]
+----
+GRANT UPDATE ON OBJECT::Production.Parts TO PartsTeam;
+----
+
+The following example grant statement grants the UPDATE permission on the Production schema, and by extension on any table or view contained within this schema to the role named ProductionTeam, which is a more effective and salable approach to assigning permissions than on individual object-level:
+SQL
+
+[source,sql]
+----
+GRANT UPDATE ON SCHEMA::Production TO ProductionTeam;
+----
+
+Permissions are granted to security principals (logins, users, and roles) by using the `GRANT` statement. Permissions are explicitly denied by using the `DENY` command. A previously granted or denied permission is removed by using the `REVOKE` statement. Permissions are cumulative, with the user receiving all the permissions granted to the user, login, and any group memberships; however any permission denial overrides all grants.
+
+[TIP]
+====
+A common mistake is to attempt to remove a `GRANT` by using `DENY` instead of `REVOKE`. This can cause problems when a user receives permissions from multiple sources; which is quite common. The following example demonstrates the principal.
+====
+
+The Sales group receives `SELECT` permissions on the OrderStatus table through the statement `GRANT SELECT ON OBJECT::OrderStatus TO Sales;`. User Jae is a member of the Sales role. Jae has also been granted `SELECT` permission to the `OrderStatus` table under their own user name through the statement `GRANT SELECT ON OBJECT::OrderStatus TO Jae`;. Presume the administer wishes to remove the `GRANT` to the Sales role.
+
+* If the administrator correctly executes `REVOKE SELECT ON OBJECT::OrderStatus TO Sales`;, then Jae will retain `SELECT` access to the OrderStatus table through their individual `GRANT` statement.
+
+* If the administrator incorrectly executes `DENY SELECT ON OBJECT::OrderStatus TO Sales;` then Jae, as a member of the Sales role, will be denied the `SELECT` permission because the `DENY` to Sales overrides their individual `GRANT`.
+
+:permissions-or-securables-page: https://learn.microsoft.com/en-us/sql/relational-databases/security/permissions-or-securables-page?view=sql-server-ver16
+
+[NOTE]
+====
+Permissions can be configured using Management Studio. Find the securable in Object Explorer, right-click the securable, and then select *Properties*. Select the *Permissions* page.
+
+For help on using the permission page, see {permissions-or-securables-page}[Permissions or Securables Page].
+====
+
+=== Permission hierarchy
+
+Permissions have a parent/child hierarchy. That is, if you grant _SELECT_ permission on a database, that permission includes _SELECT_ permission on all (child) schemas in the database. If you grant _SELECT_ permission on a schema, it includes _SELECT_ permission on all the (child) tables and views in the schema. The permissions are transitive; that is, if you grant _SELECT_ permission on a database, it includes _SELECT_ permission on all (child) schemas, and all (grandchild) tables and views.
+
+Permissions also have covering permissions. The _CONTROL_ permission on an object, normally gives you all other permissions on the object.
+
+Because both the parent/child hierarchy and the covering hierarchy can act on the same permission, the permission system can get complicated. For example, let's take a table (Region), in a schema (Customers), in a database (SalesDB).
+
+* `CONTROL` permission on table Region includes all the other permissions on the table Region, including `ALTER`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and some other permissions.
+
+* `SELECT` on the Customers schema that owns the Region table includes the `SELECT` permission on the Region table.
+
+So `SELECT` permission on the Region table can be achieved through any of these six statements:
+
+[source,sql]
+----
+GRANT SELECT ON OBJECT::Region TO Jae;
+
+GRANT CONTROL ON OBJECT::Region TO Jae;
+
+GRANT SELECT ON SCHEMA::Customers TO Jae;
+
+GRANT CONTROL ON SCHEMA::Customers TO Jae;
+
+GRANT SELECT ON DATABASE::SalesDB TO Jae;
+
+GRANT CONTROL ON DATABASE::SalesDB TO Jae;
+----
+
+=== Monitor permissions
+
+:security-catalog-views-transact-sql: https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/security-catalog-views-transact-sql?view=sql-server-ver16
+
+The following views return security information.
+
+* The logins and user-defined server roles on a server can be examined by using the `sys.server_principals` view. This view isn't available in SQL Database.
+
+* The users and user-defined roles in a database can be examined by using the `sys.database_principals` view.
+
+* The permissions granted to logins and user-defined fixed server roles can be examined by using the `sys.server_permissions` view. This view isn't available in SQL Database.
+
+* The permissions granted to users and user-defined fixed database roles can be examined by using the `sys.database_permissions` view.
+
+* Database role membership can be examined by using the `sys.database_role_members` view.
+
+* Server role membership can be examined by using the `sys.server_role_members` view. This view isn't available in SQL Database.
+
+* For additional security related views, see {security-catalog-views-transact-sql}[Security Catalog Views (Transact-SQL)].
+
+== SQL Server Utilities Statements - GO
+
+SQL Server provides commands that are not Transact-SQL statements, but are recognized by the *sqlcmd* and *osql* utilities and SQL Server Management Studio Code Editor. These commands can be used to facilitate the readability and execution of batches and scripts.
+
+`GO` signals the end of a batch of Transact-SQL statements to the SQL Server utilities.
+
+*Syntax*
+
+[source,sql]
+----
+GO [count]  
+----
+
+*Arguments*
+
+_count_
+
+Is a positive integer. The batch preceding GO will execute the specified number of times.
+
+*Remarks*
+
+`GO` is not a Transact-SQL statement; it is a command recognized by the *sqlcmd* and *osql* utilities and SQL Server Management Studio Code editor.
+
+SQL Server utilities interpret `GO` as a signal that they should send the current batch of Transact-SQL statements to an instance of SQL Server. The current batch of statements is composed of all statements entered since the last `GO`, or since the start of the ad hoc session or script if this is the first `GO`.
+
+A Transact-SQL statement cannot occupy the same line as a `GO` command. However, the line can contain comments.
+
+Users must follow the rules for batches. For example, any execution of a stored procedure after the first statement in a batch must include the `EXECUTE` keyword. The scope of local (user-defined) variables is limited to a batch, and cannot be referenced after a `GO` command.
+
+[source,sql]
+----
+USE AdventureWorks2012;  
+GO  
+DECLARE @MyMsg VARCHAR(50)  
+SELECT @MyMsg = 'Hello, World.'  
+GO -- @MyMsg is not valid after this GO ends the batch.  
+  
+-- Yields an error because @MyMsg not declared in this batch.  
+PRINT @MyMsg  
+GO
+  
+SELECT @@VERSION;  
+-- Yields an error: Must be EXEC sp_who if not first statement in   
+-- batch.  
+sp_who  
+GO  
+----
+
+SQL Server applications can send multiple Transact-SQL statements to an instance of SQL Server for execution as a batch. The statements in the batch are then compiled into a single _execution plan_. Programmers executing ad hoc statements in the SQL Server utilities, or building scripts of Transact-SQL statements to run through the SQL Server utilities, use `GO` to signal the end of a batch.
+
+Applications based on the ODBC or OLE DB APIs receive a syntax error if they try to execute a `GO` command. The SQL Server utilities never send a `GO` command to the server.
+
+Do not use a semicolon as a statement terminator after `GO`.
+
+[source,sql]
+----
+-- Yields an error because ; is not permitted after GO  
+SELECT @@VERSION;  
+GO; 
+----
+
 == References
 
-* [[[sqlsrvlinux]]] https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver16&pivots=cs1-bash
-* [[[sqlsrvlinuxi]]] https://learn.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-ver16&preserve-view=true&pivots=cs1-bash
-* [[[sqlsrvdbs]]] https://learn.microsoft.com/en-us/sql/relational-databases/databases/databases?view=sql-server-ver16
-* [[[sqlsrvcdbs]]] https://learn.microsoft.com/en-us/sql/relational-databases/databases/contained-databases?view=sql-server-ver16
-* [[[sqlsrvfilelocs]]] https://learn.microsoft.com/en-us/sql/sql-server/install/file-locations-for-default-and-named-instances-of-sql-server?view=sql-server-ver16
-* [[[sqlsrvpermprincipals]]] https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/getting-started-with-database-engine-permissions?view=sql-server-ver16
-* [[sqlsrvprinciplas]]] https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver16&pivots=cs1-bash
+* https://learn.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-ver16&preserve-view=true&pivots=cs1-bash
+* https://learn.microsoft.com/en-us/sql/relational-databases/databases/databases?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/relational-databases/databases/contained-databases?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/sql-server/install/file-locations-for-default-and-named-instances-of-sql-server?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/getting-started-with-database-engine-permissions?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/t-sql/language-elements/sql-server-utilities-statements-go?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/t-sql/tutorial-writing-transact-sql-statements?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/t-sql/language-elements/transact-sql-syntax-conventions-transact-sql?view=sql-server-ver16
