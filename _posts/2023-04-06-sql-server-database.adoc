@@ -295,9 +295,7 @@ When multiple instances of SQL Server are running on a single computer, each ins
 
 == Database Engine Permissions and Principals
 
-_Permissions_ in the Database Engine are managed at the _server level_ through logins and server roles, and at the _database level_ through database users and database roles.
-
-The model for SQL Database exposes the same system within each database, but the server level permissions aren't available. This article reviews some basic security concepts and then describes a typical implementation of the permissions.
+_Permissions_ in the Database Engine are managed at the _server level_ through _logins_ and _server roles_, and at the _database level_ through _database users_ and _database roles_. The model for SQL Database exposes the same system within each database, but the server level permissions aren't available.
 
 === Security principals
 
@@ -381,7 +379,9 @@ AUTHORIZATION PERMISSION ON SECURABLE::NAME TO PRINCIPAL;
 
 * The `PERMISSION` establishes what action is allowed or prohibited. The exact number of permissions differs between SQL Server and SQL Database. The permissions are listed in the article {permissions-database-engine}[Permissions (Database Engine)] and in the chart referenced below.
 
-* `ON SECURABLE::NAME` is the type of securable (server, server object, database, or database object) and its name. Some permissions don't require `ON SECURABLE::NAME` because it is unambiguous or inappropriate in the context. For example, the `CREATE TABLE` permission doesn't require the `ON SECURABLE::NAME` clause (`GRANT CREATE TABLE TO Mary`; allows Mary to create tables).
+* `ON SECURABLE::NAME` is the type of securable (server, server object, database, or database object) and its name.
++
+Some permissions don't require `ON SECURABLE::NAME` because it is unambiguous or inappropriate in the context. For example, the `CREATE TABLE` permission doesn't require the `ON SECURABLE::NAME` clause (`GRANT CREATE TABLE TO Mary`; allows Mary to create tables).
 
 * `PRINCIPAL` is the security principal (login, user, or role) which receives or loses the permission. Grant permissions to roles whenever possible.
 
@@ -392,8 +392,7 @@ The following example grant statement, grants the `UPDATE` permission on the `Pa
 GRANT UPDATE ON OBJECT::Production.Parts TO PartsTeam;
 ----
 
-The following example grant statement grants the UPDATE permission on the Production schema, and by extension on any table or view contained within this schema to the role named ProductionTeam, which is a more effective and salable approach to assigning permissions than on individual object-level:
-SQL
+The following example grant statement grants the `UPDATE` permission on the `Production` schema, and by extension on any table or view contained within this schema to the role named `ProductionTeam`, which is a more effective and salable approach to assigning permissions than on individual object-level:
 
 [source,sql]
 ----
@@ -587,6 +586,642 @@ SELECT @@VERSION;
 GO; 
 ----
 
+== Transact-SQL syntax conventions (Transact-SQL)
+
+The following table lists and describes conventions that are used in the syntax diagrams in the Transact-SQL reference.
+
+[%header,cols="1,5"]
+|===
+|Convention
+|Used for
+
+|UPPERCASE
+|Transact-SQL keywords.
+
+|_italic_
+|User-supplied parameters of Transact-SQL syntax.
+
+|*bold*
+|Type database names, table names, column names, index names, stored procedures, utilities, data type names, and text exactly as shown.
+
+|\| (vertical bar)
+|Separates syntax items enclosed in brackets or braces. You can use only one of the items.
+
+|[ ] (brackets)
+|Optional syntax item.
+
+|{ } (braces)
+|Required syntax items. Don't type the braces.
+
+|[ , ...n ]
+|Indicates the preceding item can be repeated n number of times. The occurrences are separated by commas.
+
+|[ ...n ]
+|Indicates the preceding item can be repeated n number of times. The occurrences are separated by blanks.
+
+|;
+|Transact-SQL statement terminator. Although the semicolon isn't required for most statements in this version of SQL Server, it will be required in a future version.
+
+|::=
+|The name for a block of syntax. Use this convention to group and label sections of lengthy syntax or a unit of syntax that you can use in more than one location within a statement. Each location in which the block of syntax could be used is indicated with the label enclosed in chevrons: <label>.
+
+A set is a collection of expressions, for example <grouping set>; and a list is a collection of sets, for example <composite element list>.
+|===
+
+=== Multipart names
+
+Unless specified otherwise, all Transact-SQL references to the name of a database object can be a four-part name in the following form:
+
+[subs="+quotes"]
+----
+_server_name.[database_name].[schema_name].object_name_
+
+_| database_name.[schema_name].object_name_
+
+_| schema_name.object_name_
+
+_| object_name_
+----
+
+* server_name
++
+Specifies a linked server name or remote server name.
+
+* database_name
++
+Specifies the name of a SQL Server database when the object resides in a local instance of SQL Server. When the object is in a linked server, database_name specifies an OLE DB catalog.
+
+* schema_name
++
+Specifies the name of the schema that contains the object if the object is in a SQL Server database. When the object is in a linked server, schema_name specifies an OLE DB schema name.
+
+* object_name
++
+Refers to the name of the object.
+
+When referencing a specific object, you don't always have to specify the server, database, and schema for the SQL Server Database Engine to identify the object. However, if the object can't be found, an error is returned.
+
+To avoid name resolution errors, we recommend specifying the schema name whenever you specify a schema-scoped object.
+
+To omit intermediate nodes, use periods to indicate these positions. The following table shows the valid formats of object names.
+
+[%header,cols="1,5"]
+|===
+|Object reference format
+|Description
+
+|_server_name.database_name.schema_name.object_name_
+|Four-part name.
+
+|_server_name.database_name..object_name_
+|Schema name is omitted.
+
+|_server_name..schema_name.object_name_
+|Database name is omitted.
+
+|_server_name...object_name_
+|Database and schema name are omitted.
+
+|_database_name.schema_name.object_name_
+|Server name is omitted.
+
+|_database_name..object_name_
+|Server and schema name are omitted.
+
+|_schema_name.object_name_
+|Server and database name are omitted.
+
+|_object_name_
+|Server, database, and schema name are omitted.
+|===
+
+[source,sql]
+----
+SELECT @@SERVERNAME; -- 8a90e1fbcc1b
+SELECT name FROM [8a90e1fbcc1b].[master].[sys].[servers];
+----
+
+== Tutorial: Write Transact-SQL statements
+
+This tutorial is intended as a brief introduction to the Transact-SQL language and not as a replacement for a Transact-SQL class. The statements in this tutorial are intentionally simple, and aren't meant to represent the complexity found in a typical production database.
+
+=== Lesson 1: Create and query database objects
+
+Transact-SQL statements can be written and submitted to the Database Engine in the following ways:
+
+* By using SQL Server Management Studio.
+
+* By using the *sqlcmd* utility.
+
+* By connecting from an application that you create.
+
+==== Create a database
+
+:create-database-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-database-transact-sql?view=sql-server-ver16
+
+Like many Transact-SQL statements, the {create-database-transact-sql}[CREATE DATABASE] statement has a required parameter: the name of the database.
+
+`CREATE DATABASE` also has many optional parameters, such as the disk location where you want to put the database files.
+
+When you execute `CREATE DATABASE` without the optional parameters, SQL Server uses default values for many of these parameters.
+
+. In a Query Editor window, type but don't execute the following code:
++
+[source,sql]
+----
+CREATE DATABASE TestData;
+GO
+----
+
+. Use the pointer to select the words `CREATE DATABASE`, and then press *F1*.
+
+. In Query Editor, press *F5* to execute the statement and create a database named TestData.
+
+When you create a database, SQL Server makes a copy of the `model` database, and renames the copy to the database name. This operation should only take several seconds, unless you specify a large initial size of the database as an optional parameter.
+
+[NOTE]
+====
+The keyword `GO` separates statements when more than one statement is submitted in a single batch. `GO` is optional when the batch contains only one statement.
+====
+
+==== Create a Table
+
+:database-level-roles: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/database-level-roles?view=sql-server-ver16
+:data-types-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-ver16
+
+To create a table, you must provide a name for the table, and the names and data types of each column in the table.
+
+It is also a good practice to indicate whether null values are allowed in each column.
+
+To create a table, you must have the `CREATE TABLE` permission, and the `ALTER SCHEMA` permission on the schema that will contain the table. The {database-level-roles}[db_ddladmin] fixed database role has these permissions.
+
+Most tables have a primary key, made up of one or more columns of the table. A primary key is always unique. The Database Engine will enforce the restriction that any primary key value can't be repeated in the table.
+
+For a list of data types and links for a description of each, see {data-types-transact-sql}[Data Types (Transact-SQL)].
+
+[NOTE]
+====
+The Database Engine can be installed as case sensitive or non-case sensitive. If the Database Engine is installed as case sensitive, object names must always have the same case. For example, a table named OrderData is a different table from a table named ORDERDATA. If the Database Engine is installed as non-case sensitive, those two table names are considered to be the same table, and that name can only be used one time.
+====
+
+===== Switch the Query Editor connection to the TestData database
+
+In a Query Editor window, type and execute the following code to change your connection to the TestData database.
+
+[source,sql]
+----
+USE TestData;
+GO
+----
+
+===== Create the table
+
+In a Query Editor window, type and execute the following code to create a table named `Products`.
+
+The columns in the table are named `ProductID`, `ProductName`, `Price`, and `ProductDescription`. The `ProductID` column is the primary key of the table. `int`, `varchar(25)`, `money`, and `varchar(max)` are all data types. Only the `Price` and `ProductionDescription` columns can have no data when a row is inserted or changed. 
+This statement contains an optional element (`dbo.`) called a schema. The schema is the database object that owns the table. If you are an administrator, `dbo` is the default schema. `dbo` stands for database owner.
+
+[source,sql]
+----
+CREATE TABLE dbo.Products
+    (ProductID int PRIMARY KEY NOT NULL,
+    ProductName varchar(25) NOT NULL,
+    Price money NULL,
+    ProductDescription varchar(max) NULL);
+GO
+----
+
+==== Insert and update data in a table
+
+Now that you have created the `Products` table, you are ready to insert data into the table by using the INSERT statement. After the data is inserted, you will change the content of a row by using an UPDATE statement. You will use the WHERE clause of the UPDATE statement to restrict the update to a single row. The four statements will enter the following data.
+
+[%header,cols="1,1,1,1"]
+|===
+|ProductID
+|ProductName
+|Price
+|ProductDescription
+
+|1
+|Clamp
+|12.48
+|Workbench clamp
+
+|50
+|Screwdriver
+|3.17
+|Flat head
+
+|75
+|Tire Bar
+|
+|Tool for changing tires.
+
+|3000
+|3
+|mm
+|Bracket
+|0.52 	
+|===
+
+The basic syntax is: INSERT, table name, column list, VALUES, and then a list of the values to be inserted. The two hyphens in front of a line indicate that the line is a comment and the text will be ignored by the compiler. In this case, the comment describes a permissible variation of the syntax.
+
+===== Insert data into a table
+
+:truncate-table-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/statements/truncate-table-transact-sql?view=sql-server-ver16
+
+. Execute the following statement to insert a row into the `Products` table that was created in the previous task.
++
+[source,sql]
+----
+-- Standard syntax
+INSERT dbo.Products (ProductID, ProductName, Price, ProductDescription)
+    VALUES (1, 'Clamp', 12.48, 'Workbench clamp')
+GO
+----
+
+If the insert succeeds, proceed to the next step.
+
+If the insert fails, it may be because the `Product` table already has a row with that product ID in it. To proceed, delete all the rows in the table and repeat the preceding step. {truncate-table-transact-sql}[TRUNCATE TABLE] deletes all the rows in the table.
+
+. Run the following command to delete all the rows in the table:
++
+[source,sql]
+----
+TRUNCATE TABLE TestData.dbo.Products;
+GO
+----
++
+After you truncate the table, repeat the INSERT command in this step.
+
+. The following statement shows how you can change the order in which the parameters are provided by switching the placement of the `ProductID` and `ProductName` in both the field list (in parentheses) and in the values list.
++
+[source,sql]
+----
+-- Changing the order of the columns
+INSERT dbo.Products (ProductName, ProductID, Price, ProductDescription)
+    VALUES ('Screwdriver', 50, 3.17, 'Flat head')
+GO
+----
+
+. The following statement demonstrates that the names of the columns are optional, as long as the values are listed in the correct order. This syntax is common but isn't recommended because it might be harder for others to understand your code. `NULL` is specified for the `Price` column because the price for this product isn't yet known.
++
+[source,sql]
+----
+-- Skipping the column list, but keeping the values in order
+INSERT dbo.Products
+    VALUES (75, 'Tire Bar', NULL, 'Tool for changing tires.')
+GO
+----
+
+. The schema name is optional as long as you are accessing and changing a table in your default schema. Because the `ProductDescription` column allows null values and no value is being provided, the ProductDescription column name and value can be dropped from the statement completely.
+SQL
++
+[source,sql]
+----
+-- Dropping the optional dbo and dropping the ProductDescription column
+INSERT Products (ProductID, ProductName, Price)
+    VALUES (3000, '3 mm Bracket', 0.52)
+GO
+----
+
+===== Update the products table
+
+Type and execute the following UPDATE statement to change the `ProductName` of the second product from `Screwdriver`, to `Flat Head Screwdriver`.
+
+[source,sql]
+----
+UPDATE dbo.Products
+    SET ProductName = 'Flat Head Screwdriver'
+    WHERE ProductID = 50
+GO
+----
+
+==== Read data from a table
+
+Use the SELECT statement to read the data in a table. The SELECT statement is one of the most important Transact-SQL statements, and there are many variations in the syntax. For this tutorial, you will work with five simple versions.
+
+===== Read the data in a table
+
+. Type and execute the following statements to read the data in the `Products` table.
++
+[source,sql]
+----
+-- The basic syntax for reading data from a single table
+SELECT ProductID, ProductName, Price, ProductDescription
+    FROM dbo.Products
+GO
+----
+
+. You can use an asterisk (`*`) to select all the columns in the table. The asterisk is for ad hoc queries. In permanent code, provide the column list so that the statement returns the predicted columns, even if a new column is added to the table later.
++
+[source,sql]
+----
+-- Returns all columns in the table
+-- Does not use the optional schema, dbo
+SELECT * FROM Products
+GO
+----
+
+. You can omit columns that you don't want to return. The columns will be returned in the order that they are listed.
++
+[source,sql]
+----
+-- Returns only two of the columns from the table
+SELECT ProductName, Price
+    FROM dbo.Products
+GO
+----
+
+. Use a `WHERE` clause to limit the rows that are returned to the user.
++
+[source,sql]
+----
+-- Returns only two of the records in the table
+SELECT ProductID, ProductName, Price, ProductDescription
+    FROM dbo.Products
+    WHERE ProductID < 60
+GO
+----
+
+. You can work with the values in the columns as they are returned. The following example performs a mathematical operation on the `Price` column. Columns that have been changed in this way won't have a name unless you provide one by using the `AS` keyword.
++
+[source,sql]
+----
+-- Returns ProductName and the Price including a 7% tax
+-- Provides the name CustomerPays for the calculated column
+SELECT ProductName, Price * 1.07 AS CustomerPays
+    FROM dbo.Products
+GO
+----
+
+===== Useful functions in a SELECT statement
+
+:string-functions-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/functions/string-functions-transact-sql?view=sql-server-ver16
+:date-and-time-data-types-and-functions-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/functions/date-and-time-data-types-and-functions-transact-sql?view=sql-server-ver16
+:mathematical-functions-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/functions/mathematical-functions-transact-sql?view=sql-server-ver16
+:text-and-image-functions-textptr-transact-sql: https://learn.microsoft.com/en-us/sql/t-sql/functions/text-and-image-functions-textptr-transact-sql?view=sql-server-ver16
+
+For information about some functions that you can use to work with data in SELECT statements, see the following articles:
+
+* {string-functions-transact-sql}[String Functions (Transact-SQL)]
+
+* {date-and-time-data-types-and-functions-transact-sql}[Date and Time Data Types and Functions (Transact-SQL)]
+
+* {mathematical-functions-transact-sql}[Mathematical Functions (Transact-SQL)]
+
+* {text-and-image-functions-textptr-transact-sql}[Text and Image Functions (Transact-SQL)]
+
+==== Create views and stored procedures
+
+A view is a stored SELECT statement, and a stored procedure is one or more Transact-SQL statements that execute as a batch.
+
+Views are queried like tables and don't accept parameters. Stored procedures are more complex than views. Stored procedures can have both input and output parameters and can contain statements to control the flow of the code, such as IF and WHILE statements. It is good programming practice to use stored procedures for all repetitive actions in the database.
+
+For this example, you will use CREATE VIEW to create a view that selects only two of the columns in the `Products` table. Then, you will use CREATE PROCEDURE to create a stored procedure that accepts a price parameter and returns only those products that cost less than the specified parameter value.
+
+===== Create a view
+
+Execute the following statement to create a view that executes a select statement, and returns the names and prices of our products to the user.
+
+[source,sql]
+----
+CREATE VIEW vw_Names
+   AS
+   SELECT ProductName, Price FROM Products;
+GO
+----
+
+===== Test the view
+
+Views are treated just like tables. Use a `SELECT` statement to access a view.
+
+[source,sql]
+----
+SELECT * FROM vw_Names;
+GO
+----
+
+===== Create a stored procedure
+
+The following statement creates a stored procedure name `pr_Names`, accepts an input parameter named `@VarPrice` of data type `money`. The stored procedure prints the statement `Products less than` concatenated with the input parameter that is changed from the `money` data type into a `varchar(10)` character data type. Then, the procedure executes a `SELECT` statement on the view, passing the input parameter as part of the `WHERE` clause. This returns all products that cost less than the input parameter value.
+
+[source,sql]
+----
+CREATE PROCEDURE pr_Names @VarPrice money
+   AS
+   BEGIN
+      -- The print statement returns text to the user
+      PRINT 'Products less than ' + CAST(@VarPrice AS varchar(10));
+      -- A second statement starts here
+      SELECT ProductName, Price FROM vw_Names
+            WHERE Price < @VarPrice;
+   END
+GO
+----
+
+===== Test the stored procedure
+
+To test the stored procedure, type and execute the following statement. The procedure should return the names of the two products entered into the `Products` table in Lesson 1 with a price that is less than `10.00`.
+
+[source,sql]
+----
+EXECUTE pr_Names 10.00;
+GO
+----
+
+=== Lesson 2: Configure permissions on database objects
+
+Granting a user access to a database involves three steps.
+
+* First, you create a login. The login lets the user connect to the SQL Server Database Engine.
+* Then you configure the login as a user in the specified database.
+* And finally, you grant that user permission to database objects.
+
+This lesson shows you these three steps, and shows you how to create a view and a stored procedure as the object.
+
+==== Create a login
+
+To access the Database Engine, users require a login. The login can represent the user's identity as a Windows account or as a member of a Windows group, or the login can be a SQL Server login that exists only in SQL Server. Whenever possible you should use Windows Authentication.
+
+===== Create a new Windows account
+
+By default, administrators on your computer have full access to SQL Server. For this lesson, we want to have a less privileged user; therefore, you will create a new local Windows Authentication account on your computer.
+
+To do this, you must be an administrator on your computer. Then you will grant that new user access to SQL Server.
+
+. Select *Start*, select *Run*, in the *Open* box, type `%SystemRoot%\system32\compmgmt.msc /s` and then select *OK* to open the Computer Management program.
+
+. Under *System Tools*, expand *Local Users and Groups*, right-click *Users*, and then select *New User*.
+
+. In the *User* name box type *Mary*.
+
+. In the *Password* and *Confirm password* box, type a strong password, and then select *Create* to create a new local Windows user.
+
+===== Create a SQL login  using Windows Authentication with T-SQL
+
+In a Query Editor window of SQL Server Management Studio, type and execute the following code replacing `computer_name` with the name of your computer. `FROM WINDOWS` indicates that Windows will authenticate the user. The optional `DEFAULT_DATABASE` argument connects `Mary` to the `TestData` database, unless her connection string indicates another database. This statement introduces the semicolon as an optional termination for a Transact-SQL statement.
+
+[source,sql]
+----
+CREATE LOGIN [computer_name\Mary]
+    FROM WINDOWS
+    WITH DEFAULT_DATABASE = [TestData];
+GO
+----
+
+This authorizes a user name `Mary`, authenticated by your computer, to access this instance of SQL Server. If there is more than one instance of SQL Server on the computer, you must create the login on each instance that Mary must access.
+
+[NOTE]
+====
+Because `Mary` is not a domain account, this user name can only be authenticated on this computer.
+====
+
+===== Create a login using SQL Server Authentication with T-SQL
+
+[source,sql]
+----
+-- Creates the user "shcooper" for SQL Server using the security credential "RestrictedFaculty"   
+-- The user login starts with the password "Baz1nga," but that password must be changed after the first login.  
+
+CREATE LOGIN shcooper   
+   WITH PASSWORD = 'Baz1nga' MUST_CHANGE,  
+   CREDENTIAL = RestrictedFaculty;  
+GO
+----
+
+==== Grant access to a database
+
+Mary now has access to this instance of SQL Server, but doesn't have permission to access the databases. She doesn't even have access to her default database `TestData` until you authorize her as a database user.
+
+To grant Mary access, switch to the `TestData` database, and then use the `CREATE USER` statement to map her login to a user named `Mary`.
+
+===== Create a user in a database
+
+Type and execute the following statements (replacing `computer_name` with the name of your computer) to grant `Mary` access to the `TestData` database.
+
+[source,sql]
+----
+USE [TestData];
+GO
+
+CREATE USER [Mary] FOR LOGIN [computer_name\Mary];
+GO
+----
+
+Now, Mary has access to both SQL Server and the `TestData` database.
+
+===== Create views and stored procedures
+
+As an administrator, you can execute the SELECT from the `Products` table and the `vw_Names` view, and execute the `pr_Names` procedure; however, Mary can't. To grant Mary the necessary permissions, use the `GRANT` statement.
+
+*Grant permission to stored procedure*
+
+Execute the following statement to give Mary the EXECUTE permission for the pr_Names stored procedure.
+
+[source,sql]
+----
+GRANT EXECUTE ON pr_Names TO Mary;
+GO
+----
+
+In this scenario, Mary can only access the `Products` table by using the stored procedure. If you want Mary to be able to execute a SELECT statement against the view, then you must also execute `GRANT SELECT ON vw_Names TO Mary`. To remove access to database objects, use the REVOKE statement.
+
+[NOTE]
+====
+If the table, the view, and the stored procedure are not owned by the same schema, granting permissions becomes more complex.
+====
+
+===== About GRANT
+
+You must have EXECUTE permission to execute a stored procedure. You must have SELECT, INSERT, UPDATE, and DELETE permissions to access and change data. The GRANT statement is also used for other permissions, such as permission to create tables.
+
+=== Lesson 3: Delete database objects
+
+This short lesson removes the objects that you created in Lesson 1 and Lesson 2, and then drops the database.
+
+Before you delete objects, make sure you are in the correct database:
+
+[source,sql]
+----
+USE TestData;
+GO
+----
+
+==== Revoke stored procedure permissions
+
+Use the `REVOKE` statement to remove execute permission for `Mary` on the stored procedure:
+
+[source,sql]
+----
+REVOKE EXECUTE ON pr_Names FROM Mary;
+GO
+----
+
+==== Drop permissions
+
+. Use the `DROP` statement to remove permission for `Mary` to access the `TestData` database:
++
+[source,sql]
+----
+DROP USER Mary;
+GO
+----
+
+. Use the `DROP` statement to remove permission for `Mary` to access this instance of SQL Server 2005 (9.x):
++
+[source,sql]
+----
+DROP LOGIN [<computer_name>\Mary];
+GO
+----
+
+. Use the `DROP` statement to remove the store procedure `pr_Names`:
++
+[source,sql]
+----
+DROP PROC pr_Names;
+GO
+----
+
+. Use the `DROP` statement to remove the view `vw_Names`:
++
+[source,sql]
+----
+DROP VIEW vw_Names;
+GO
+----
+
+==== Delete table
+
+. Use the `DELETE` statement to remove all rows from the `Products` table:
++
+[source,sql]
+----
+DELETE FROM Products;
+GO
+----
+
+. Use the `DROP` statement to remove the `Products` table:
++
+[source,sql]
+----
+DROP TABLE Products;
+GO
+----
+
+==== Remove database
+
+You can't remove the `TestData` database while you are in the database; therefore, first switch context to another database, and then use the `DROP` statement to remove the `TestData` database:
+
+[source,sql]
+----
+USE MASTER;
+GO
+DROP DATABASE TestData;
+GO
+----
+
 == References
 
 * https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver16&pivots=cs1-bash
@@ -597,5 +1232,5 @@ GO;
 * https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/getting-started-with-database-engine-permissions?view=sql-server-ver16
 * https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
 * https://learn.microsoft.com/en-us/sql/t-sql/language-elements/sql-server-utilities-statements-go?view=sql-server-ver16
-* https://learn.microsoft.com/en-us/sql/t-sql/tutorial-writing-transact-sql-statements?view=sql-server-ver16
 * https://learn.microsoft.com/en-us/sql/t-sql/language-elements/transact-sql-syntax-conventions-transact-sql?view=sql-server-ver16
+* https://learn.microsoft.com/en-us/sql/t-sql/tutorial-writing-transact-sql-statements?view=sql-server-ver16
