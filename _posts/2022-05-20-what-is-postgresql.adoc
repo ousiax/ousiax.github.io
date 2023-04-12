@@ -185,6 +185,32 @@ Tables are grouped into *databases*, and a collection of databases managed by a 
 
 see also: https://stackoverflow.com/questions/7022755/whats-the-difference-between-a-catalog-and-a-schema-in-a-relational-database
 
+. ceate a login user named 'test' with password 'test'
++
+[source,sql]
+----
+CREATE USER test OWNER test PASSWORD 'test';
+----
+
+. ceate a database/catalog as the user same name, i.e. 'test'
++
+[source,sql]
+----
+CREATE DATABASE test;
+----
+
+. connect the `test` catalog with *psql*
++
+[source,console]
+----
+$ psql --host localhost --user test
+Password for user test: 
+psql (13.9 (Debian 13.9-0+deb11u1), server 13.10 (Debian 13.10-1.pgdg110+1))
+Type "help" for help.
+
+test=>
+----
+
 == Schemas
 
 A PostgreSQL database cluster contains one or more named databases. Roles and a few other object types are shared across the entire cluster. A client connection to the server can only access data in a single database, the one specified in the connection request.
@@ -281,7 +307,9 @@ A user can also be allowed to create objects in someone else's schema. To allow 
 
 === The System Catalog Schema
 
-In addition to public and user-created schemas, each database contains a *pg_catalog* schema, which contains the system tables and all the built-in data types, functions, and operators. pg_catalog is always effectively part of the search path. If it is not named explicitly in the path then it is implicitly searched before searching the path's schemas. This ensures that built-in names will always be findable. However, you can explicitly place pg_catalog at the end of your search path if you prefer to have user-defined names override built-in names.
+In addition to _public_ and _user-created_ schemas, _each database contains a *pg_catalog* schema_, which contains the system tables and all the built-in data types, functions, and operators. _pg_catalog_ is always effectively part of the search path.
+
+If it is not named explicitly in the path then it is implicitly searched before searching the path's schemas. This ensures that built-in names will always be findable. However, you can explicitly place _pg_catalog_ at the end of your search path if you prefer to have user-defined names override built-in names.
 
 Since system table names begin with *pg_*, it is best to avoid such names to ensure that you won't suffer a conflict if some future version defines a system table named the same as your table. (With the default search path, an unqualified reference to your table name would then be resolved as the system table instead.) System tables will continue to follow the convention of having names beginning with *pg_*, so that they will not conflict with unqualified user-table names so long as users avoid the *pg_* prefix.
 
@@ -305,13 +333,23 @@ Second, tablespaces allow an administrator to use knowledge of the usage pattern
 
 == Database Roles
 
-PostgreSQL manages database access permissions using the concept of *roles*. A role can be thought of as either a database user, or a group of database users, depending on how the role is set up. Roles can own database objects (for example, tables and functions) and can assign privileges on those objects to other roles to control who has access to which objects. Furthermore, it is possible to grant membership in a role to another role, thus allowing the member role to use privileges assigned to another role.
+PostgreSQL manages database access permissions using the concept of *roles*.
 
-The concept of roles subsumes the concepts of “users” and “groups”. In PostgreSQL versions before 8.1, users and groups were distinct kinds of entities, but now there are only roles. Any role can act as a user, a group, or both.
+_A role can be thought of as either a database user, or a group of database users, depending on how the role is set up_.
+
+Roles can own database objects (for example, tables and functions) and can assign privileges on those objects to other roles to control who has access to which objects.
+
+Furthermore, it is possible to grant membership in a role to another role, thus allowing the member role to use privileges assigned to another role.
+
+The concept of roles subsumes the concepts of “users” and “groups”. In PostgreSQL versions before 8.1, users and groups were distinct kinds of entities, but now there are only roles. _Any role can act as a user, a group, or both._
 
 === Database Roles
 
-Database roles are conceptually completely separate from operating system users. In practice it might be convenient to maintain a correspondence, but this is not required. Database roles are global across a database cluster installation (and not per individual database). To create a role use the *CREATE ROLE* SQL command:
+Database roles are conceptually completely separate from operating system users. In practice it might be convenient to maintain a correspondence, but this is not required.
+
+_Database roles are global across a database cluster installation (and not per individual database)._
+
+To create a role use the *CREATE ROLE* SQL command:
 
 [source,sql]
 CREATE ROLE name;
@@ -321,24 +359,32 @@ To remove an existing role, use the analogous *DROP ROLE* command:
 [source,sql]
 DROP ROLE name;
 
-To determine the set of existing roles, examine the pg_roles system catalog, for example
+To determine the set of existing roles, examine the _pg_roles_ system catalog, for example
 
 [source,sql]
 SELECT rolname FROM pg_roles;
 
-The psql program's *\du* meta-command is also useful for listing the existing roles.
+The *psql* program's *\du* meta-command is also useful for listing the existing roles.
 
-n order to bootstrap the database system, a freshly initialized system always contains one predefined role. This role is always a “superuser”, and by default (unless altered when running initdb) it will have the same name as the operating system user that initialized the database cluster. Customarily, this role will be named *postgres*. In order to create more roles you first have to connect as this initial role.
+In order to bootstrap the database system, a freshly initialized system always contains one predefined role. This role is always a “superuser”, and by default (unless altered when running _initdb_) it will have the same name as the operating system user that initialized the database cluster. Customarily, this role will be named *postgres*. In order to create more roles you first have to connect as this initial role.
 
-Every connection to the database server is made using the name of some particular role, and this role determines the initial access privileges for commands issued in that connection. The role name to use for a particular database connection is indicated by the client that is initiating the connection request in an application-specific fashion. For example, the psql program uses the *-U* command line option to indicate the role to connect as. Many applications assume the name of the current operating system user by default (including *createuser* and *psql*). Therefore it is often convenient to maintain a naming correspondence between roles and operating system users.
+Every connection to the database server is made using the name of some particular role, and this role determines the initial access privileges for commands issued in that connection. The role name to use for a particular database connection is indicated by the client that is initiating the connection request in an application-specific fashion.
+
+For example, the *psql* program uses the *-U* command line option to indicate the role to connect as.
+
+Many applications assume the name of the current operating system user by default (including *createuser* and *psql*).
+
+Therefore it is often convenient to maintain a naming correspondence between roles and operating system users.
 
 === Role Attributes
 
 A database role can have a number of attributes that define its privileges and interact with the client authentication system.
 
-*login privilege*
+==== login privilege
 
-Only roles that have the *LOGIN* attribute can be used as the initial role name for a database connection. A role with the *LOGIN* attribute can be considered the same as a “**database user**”. To create a role with login privilege, use either:
+Only roles that have the *LOGIN* attribute can be used as the initial role name for a database connection. A role with the *LOGIN* attribute can be considered the same as a “**database user**”.
+
+To create a role with login privilege, use either:
 
 [source,sql]
 ----
@@ -346,32 +392,46 @@ CREATE ROLE name LOGIN;
 CREATE USER name;
 ----
 
-(*CREATE USER* is equivalent to *CREATE ROLE* except that *CREATE USER* includes *LOGIN* by default, while *CREATE ROLE* does not.)
+NOTE: *CREATE USER* is equivalent to *CREATE ROLE* except that *CREATE USER* includes *LOGIN* by default, while *CREATE ROLE* does not.
 
-*superuser status*
+==== superuser status
 
-A database superuser bypasses all permission checks, except the right to log in. This is a dangerous privilege and should not be used carelessly; it is best to do most of your work as a role that is not a superuser. To create a new database superuser, use *CREATE ROLE name SUPERUSER*. You must do this as a role that is already a superuser.
+A database superuser bypasses all permission checks, except the right to log in. This is a dangerous privilege and should not be used carelessly; it is best to do most of your work as a role that is not a superuser.
 
-*database creation*
+To create a new database superuser, use *CREATE ROLE name SUPERUSER*. You must do this as a role that is already a superuser.
 
-A role must be explicitly given permission to create databases (except for superusers, since those bypass all permission checks). To create such a role, use *CREATE ROLE name CREATEDB*.
+==== database creation
 
-*role creation*
+A role must be explicitly given permission to create databases (except for superusers, since those bypass all permission checks).
 
-A role must be explicitly given permission to create more roles (except for superusers, since those bypass all permission checks). To create such a role, use *CREATE ROLE name CREATEROLE*. A role with *CREATEROLE* privilege can alter and drop other roles, too, as well as grant or revoke membership in them. However, to create, alter, drop, or change membership of a superuser role, superuser status is required; *CREATEROLE* is insufficient for that.
+To create such a role, use *CREATE ROLE name CREATEDB*.
 
-*initiating replication*
+==== role creation
 
-A role must explicitly be given permission to initiate streaming replication (except for superusers, since those bypass all permission checks). A role used for streaming replication must have *LOGIN* permission as well. To create such a role, use *CREATE ROLE name REPLICATION LOGIN*.
+A role must be explicitly given permission to create more roles (except for superusers, since those bypass all permission checks).
 
-*password*
+To create such a role, use *CREATE ROLE name CREATEROLE*.
 
-A password is only significant if the client authentication method requires the user to supply a password when connecting to the database. The password and md5 authentication methods make use of passwords. Database passwords are separate from operating system passwords. Specify a password upon role creation with *CREATE ROLE name PASSWORD 'string'*.
+A role with *CREATEROLE* privilege can alter and drop other roles, too, as well as grant or revoke membership in them.
 
-A role's attributes can be modified after creation with *ALTER ROLE*. See the reference pages for the CREATE ROLE and ALTER ROLE commands for details.
+However, to create, alter, drop, or change membership of a superuser role, _superuser status_ is required; *CREATEROLE* is insufficient for that.
+
+==== initiating replication
+
+A role must explicitly be given permission to initiate streaming replication (except for superusers, since those bypass all permission checks). A role used for streaming replication must have *LOGIN* permission as well.
+
+To create such a role, use *CREATE ROLE name REPLICATION LOGIN*.
+
+==== password
+
+A password is only significant if the client authentication method requires the user to supply a password when connecting to the database. The password and md5 authentication methods make use of passwords. Database passwords are separate from operating system passwords.
+
+Specify a password upon role creation with *CREATE ROLE name PASSWORD 'string'*.
 
 [TIP]
 ====
+A role's attributes can be modified after creation with *ALTER ROLE*. See the reference pages for the _CREATE ROLE_ and _ALTER ROLE_ commands for details.
+
 It is good practice to create a role that has the *CREATEDB* and *CREATEROLE* privileges, but is not a superuser, and then use this role for all routine management of databases and roles. This approach avoids the dangers of operating as a superuser for tasks that do not really require it.
 ====
 
@@ -409,7 +469,9 @@ GRANT wheel TO admin;
 
 === Predefined Roles
 
-PostgreSQL provides a set of predefined roles that provide access to certain, commonly needed, privileged capabilities and information. Administrators (including roles that have the CREATEROLE privilege) can GRANT these roles to users and/or other roles in their environment, providing those users with access to the specified capabilities and information.
+PostgreSQL provides a set of predefined roles that provide access to certain, commonly needed, privileged capabilities and information.
+
+Administrators (including roles that have the `CREATEROLE` privilege) can `GRANT` these roles to users and/or other roles in their environment, providing those users with access to the specified capabilities and information.
 
 see also: https://www.postgresql.org/docs/14/predefined-roles.html
 
