@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Alex Petrov - Database Internals</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2020/05/07/alex-petrov-database-internals/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Alex Petrov - Database Internals</h1>
+    
+    
+    <p class="post-meta"><time datetime="2020-05-07T07:53:12+08:00" itemprop="datePublished">May 7, 2020</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <p>Databases are modular systems and consist of multiple parts: a <strong>transport layer</strong>
+accepting requests, a <strong>query processor</strong> determining the most efficient way to
+run queries, an <strong>execution engine</strong> carrying out the operations, and a <strong>storage
+engine</strong>.</p>
+
+<hr />
+
+<p>The storage engine (or database engine) is a software component of a
+database management system responsible for storing, retrieving, and
+managing data in memory and on disk, designed to capture a persistent, long term
+memory of each node. While databases can respond to
+complex queries, storage engines look at the data more granularly and offer a
+simple data manipulation API, allowing users to create, update, delete, and
+retrieve records. One way to look at this is that database management systems
+are applications built on top of storage engines, offering a <strong>schema</strong>, a <strong>query
+language</strong>, <strong>indexing</strong>, <strong>transactions</strong>, and many other useful features.</p>
+
+<hr />
+
+<p>The more knowledge you have about the database before using it, the
+more time you’ll save when running it in production.</p>
+
+<hr />
+
+<p>Online transaction processing (<strong>OLTP</strong>) databases</p>
+
+<ul>
+  <li>
+    <p>These handle a large number of user-facing requests and transactions.</p>
+  </li>
+  <li>
+    <p>Queries are often predefined and short-lived.</p>
+  </li>
+</ul>
+
+<p>Online analytical processing (<strong>OLAP</strong>) databases</p>
+
+<ul>
+  <li>
+    <p>These handle complex aggregations.</p>
+  </li>
+  <li>
+    <p>OLAP databases are often used for analytics and data warehousing, and are capable of handling complex, long-running ad hoc queries.</p>
+  </li>
+</ul>
+
+<p>Hybrid transactional and analytical processing (<strong>HTAP</strong>)</p>
+
+<ul>
+  <li>These databases combine properties of both OLTP and OLAP stores.</li>
+</ul>
+
+<hr />
+
+<p><strong>DBMS Architecture</strong></p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 1-1. architecture of a database management system.png" alt="Figure 1-1. Architecture of a database management system" /></p>
+
+<hr />
+
+<p><strong>Column- Versus Row-Oriented DBMS</strong></p>
+
+<p>Most database systems store a set of data records, consisting of <strong>columns</strong> and
+<strong>rows</strong> in tables. <strong>Field</strong> is an intersection of a column and a row: a single value
+of some type. Fields belonging to the same column usually have the same
+data type. A collection of values that belong logically to the same record (usually identified by the key)
+constitutes a <strong>row</strong>.</p>
+
+<p>One of the ways to classify databases is by how the data is stored on disk:
+row- or column-wise. Tables can be partitioned either horizontally (storing
+values belonging to the same row together), or vertically (storing values
+belonging to the same column together).</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 1-2. data layout in column- and row-oriented stores.png" alt="Figure 1-2. Data layout in column- and row-oriented stores" /></p>
+
+<p><strong>Row-Oriented Data Layout</strong></p>
+
+<p>Row-oriented database management systems store data in records or rows.
+Their layout is quite close to the tabular data representation, where every row
+has the same set of fields.</p>
+
+<pre><code class="language-none">| ID | Name | Birth Date | Phone Number |
+| 10 | John | 01 Aug 1981 | +1 111 222 333 |
+| 20 | Sam | 14 Sep 1988 | +1 555 888 999 |
+| 30 | Keith | 07 Jan 1984 | +1 333 444 555 |
+</code></pre>
+
+<p>This approach works well for cases where several fields constitute the record
+(name, birth date, and a phone number) uniquely identified by the key (in this
+example, a monotonically incremented number). All fields representing a
+single user record are often read together. When creating records (for
+example, when the user fills out a registration form), we write them together
+as well. At the same time, each field can be modified individually.</p>
+
+<p>Since <strong>row-oriented stores are most useful in scenarios when we have to
+access data by row, storing entire rows together</strong> improves <strong>spatial locality</strong>.</p>
+
+<p>Because data on a persistent medium such as a disk is typically accessed
+block-wise (in other words, a minimal unit of disk access is a block), a single
+block will contain data for all columns. This is great for cases when we’d like
+to access an entire user record, but makes queries accessing individual fields
+of multiple user records (for example, queries fetching only the phone
+numbers) more expensive, since data for the other fields will be paged in as
+well.</p>
+
+<p><strong>Column-Oriented Data Layout</strong></p>
+
+<p>Column-oriented database management systems partition data vertically (i.e.,
+by column) instead of storing it in rows. Here, values for the same column
+are stored contiguously on disk (as opposed to storing rows contiguously as
+in the previous example).</p>
+
+<p><strong>Storing values for different columns
+in separate files or file segments allows efficient queries by column, since
+they can be read in one pass rather than consuming entire rows and
+discarding data for columns that weren’t queried.</strong></p>
+
+<p>Column-oriented stores are a good fit for analytical workloads that compute
+aggregates, such as finding trends, computing average values, etc.</p>
+
+<p>From a logical perspective, the data representing stock market price quotes
+can still be expressed as a table:</p>
+
+<pre><code class="language-none">| ID | Symbol | Date | Price |
+| 1 | DOW | 08 Aug 2018 | 24,314.65 |
+| 2 | DOW | 09 Aug 2018 | 24,136.16 |
+| 3 | S&amp;P | 08 Aug 2018 | 2,414.45 |
+| 4 | S&amp;P | 09 Aug 2018 | 2,232.32 |
+</code></pre>
+
+<p>However, the physical column-based database layout looks entirely different.
+Values belonging to the same row are stored closely together:</p>
+
+<pre><code class="language-none">Symbol: 1:DOW; 2:DOW; 3:S&amp;P; 4:S&amp;P
+Date:   1:08 Aug 2018; 2:09 Aug 2018; 3:08 Aug 2018; 4:09 Aug 2018
+Price:  1:24,314.65; 2:24,136.16; 3:2,414.45; 4:2,232.32
+</code></pre>
+
+<p>To reconstruct data tuples, which might be useful for joins, filtering, and
+multirow aggregates, we need to preserve some metadata on the column level
+to identify which data points from other columns it is associated with. If you
+do this explicitly, each value will have to hold a key, which introduces
+duplication and increases the amount of stored data. Some column stores use
+implicit identifiers (virtual IDs) instead and use the position of the value (in
+other words, its offset) to map it back to the related values.</p>
+
+<p><strong>Distinctions and Optimizations</strong></p>
+
+<p>It is not sufficient to say that distinctions between row and column stores are
+only in the way the data is stored. Choosing the data layout is just one of the
+steps in a series of possible optimizations that columnar stores are targeting.</p>
+
+<p>Reading multiple values for the same column in one run significantly
+improves <strong>cache</strong> utilization and <strong>computational</strong> efficiency. On modern CPUs,
+<strong>vectorized instructions</strong> can be used to process multiple data points with a
+single CPU instruction (<strong>SIMD</strong>).</p>
+
+<p>Storing values that have the same data type together (e.g., numbers with other
+numbers, strings with other strings) offers a better <strong>compression</strong> ratio. We can
+use different compression algorithms depending on the data type and pick the
+most effective compression method for each case.</p>
+
+<p>To decide whether to use a column- or a row-oriented store, you need to
+understand your <strong><em>access patterns</em></strong>. If the read data is consumed in records (i.e.,
+most or all of the columns are requested) and the workload consists mostly of
+point queries and range scans, the row-oriented approach is likely to yield
+better results. If scans span many rows, or compute aggregate over a subset of
+columns, it is worth considering a column-oriented approach.</p>
+
+<p><strong>Wide Column Stores</strong></p>
+
+<p>Column-oriented databases should not be mixed up with <strong>wide column stores</strong>,
+such as <code class="language-plaintext highlighter-rouge">BigTable</code> or <code class="language-plaintext highlighter-rouge">HBase</code>, where data is represented as a multidimensional
+map, columns are grouped into <strong>column families</strong> (usually storing data of the
+same type), and inside each column family, data is stored row-wise.</p>
+
+<hr />
+
+<p><strong>Data Files and Index Files</strong></p>
+
+<p>The primary goal of a database system is to store data and to allow quick
+access to it.</p>
+
+<p>Database systems do use files for storing the data, but instead of relying on
+filesystem hierarchies of directories and files for locating records, they
+compose files using implementation-specific formats.</p>
+
+<p>Database systems store <strong>data records</strong>, consisting of multiple fields, in tables,
+where each table is usually represented as a separate file. Each record in the
+table can be looked up using a <strong>search key</strong>. To locate a record, database
+systems use <strong>indexes</strong>: auxiliary data structures that allow it to efficiently locate
+data records without scanning an entire table on every access. Indexes are
+built using a subset of fields identifying the record.</p>
+
+<p>A database system usually separates <strong>data files</strong> and <strong>index files</strong>: data files store
+data records, while index files store record metadata and use it to locate
+records in data files. Index files are typically smaller than the data files. Files
+are partitioned into <strong>pages</strong>, which typically have the size of a single or
+multiple disk blocks. Pages can be organized as sequences of records or as a
+<strong>slotted pages</strong>.</p>
+
+<p>New records (insertions) and updates to the existing records are represented
+by key/value pairs. Most modern storage systems do not delete data from
+pages explicitly. Instead, they use <strong>deletion markers</strong> (also called <strong>tombstones</strong>),
+which contain deletion metadata, such as a key and a timestamp. Space
+occupied by the records <strong>shadowed</strong> by their updates or deletion markers is
+reclaimed during garbage collection, which reads the pages, writes the live
+(i.e., nonshadowed) records to the new place, and discards the shadowed
+ones.</p>
+
+<p><strong>Data Files</strong></p>
+
+<p>Data files (sometimes called <strong>primary files</strong>) can be implemented as <strong>index-organized
+tables</strong> (IOT), <strong>heap-organized tables</strong> (heap files), or <strong>hash-organized
+tables</strong> (hashed files).</p>
+
+<p>Records in heap files are not required to follow any particular order, and most
+of the time they are placed in a write order. This way, no additional work or
+file reorganization is required when new pages are appended. Heap files
+require additional index structures, pointing to the locations where data
+records are stored, to make them searchable.</p>
+
+<p>In hashed files, records are stored in buckets, and the hash value of the key
+determines which bucket a record belongs to. Records in the bucket can be
+stored in append order or sorted by key to improve lookup speed.</p>
+
+<p>Index-organized tables (IOTs) store data records in the index itself. Since
+records are stored in key order, range scans in IOTs can be implemented by
+sequentially scanning its contents.</p>
+
+<p>Storing data records in the index allows us to reduce the number of disk seeks
+by at least one, since after traversing the index and locating the searched key,
+we do not have to address a separate file to find the associated data record.</p>
+
+<p>When records are stored in a separate file, index files hold data entries,
+uniquely identifying data records and containing enough information to
+locate them in the data file. For example, we can store file <strong>offsets</strong> (sometimes
+called <strong>row locators</strong>), locations of data records in the data file, or bucket IDs
+in the case of hash files. In index-organized tables, data entries hold actual
+data records.</p>
+
+<p><strong>Index Files</strong></p>
+
+<p>An index is a structure that organizes data records on disk in a way that
+facilitates efficient retrieval operations. Index files are organized as
+specialized structures that map keys to locations in data files where the
+records identified by these keys (in the case of heap files) or primary keys (in
+the case of index-organized tables) are stored.</p>
+
+<p>An index on a <strong>primary</strong> (data) file is called the <strong>primary index</strong>. However, in
+most cases we can also assume that the primary index is built over a primary
+key or a set of keys identified as primary. All other indexes are called
+<strong>secondary</strong>.</p>
+
+<p>Secondary indexes can point directly to the data record, or simply store its
+primary key. A pointer to a data record can hold an offset to a heap file or an
+index-organized table. Multiple secondary indexes can point to the same
+record, allowing a single data record to be identified by different fields and
+located through different indexes. While primary index files hold a unique
+entry per search key, secondary indexes may hold several entries per search
+key.</p>
+
+<p>If the order of data records follows the search key order, this index is called
+<strong>clustered</strong> (also known as clustering). Data records in the clustered case are
+usually stored in the same file or in a <strong>clustered</strong> file, where the key order is
+preserved. If the data is stored in a separate file, and its order does not follow
+the key order, the index is called <strong>nonclustered</strong> (sometimes called
+unclustered).</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 1-5. storing data records in an index file versus storing offsets to the data file.png" alt="Figure 1-5. Storing data records in an index file versus storing offsets to the data file" /></p>
+
+<p>NOTE: Index-organized tables store information in index order and are clustered by definition.
+Primary indexes are most often clustered. Secondary indexes are nonclustered by
+definition, since they’re used to facilitate access by keys other than the primary one.
+Clustered indexes can be both index-organized or have separate index and data files.</p>
+
+<p><strong>Primary Index as an Indirection</strong></p>
+
+<p>By referencing data directly, we can
+reduce the number of disk seeks, but have to pay a cost of updating the
+pointers whenever the record is updated or relocated during a maintenance
+process. Using indirection in the form of a primary index allows us to reduce
+the cost of pointer updates, but has a higher cost on a read path.</p>
+
+<p>Updating just a couple of indexes might work if the workload mostly consists
+of reads, but this approach does not work well for write-heavy workloads
+with multiple indexes. To reduce the costs of pointer updates, instead of
+payload offsets, some implementations use primary keys for indirection.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 1-6. referencing data tuples directly versus using a primary index as indirection.png" alt="" /></p>
+
+<p>It is also possible to use a hybrid approach and store both data file offsets and
+primary keys. First, you check if the data offset is still valid and pay the extra
+cost of going through the primary key index if it has changed, updating the
+index file after finding a new offset.</p>
+
+<p><strong>Buffering, Immutability, and Ordering</strong></p>
+
+<p>Storage structures have three common variables: they use <strong>buffering</strong> (or avoid
+using it), use <strong>immutable</strong> (or mutable) files, and store values <strong>in order</strong> (or out
+of order). Most of the distinctions and optimizations in storage structures
+discussed are related to one of these three concepts.</p>
+
+<p><strong>Buffering</strong></p>
+
+<p>This defines whether or not the storage structure chooses to collect a
+certain amount of data in memory before putting it on disk. Of course,
+every on-disk structure has to use buffering to some degree, since the
+smallest unit of data transfer to and from the disk is a block, and it is
+desirable to write full blocks.</p>
+
+<p><strong>Mutability (or immutability)</strong></p>
+
+<p>This defines whether or not the storage structure reads parts of the file,
+updates them, and writes the updated results at the same location in the
+file. Immutable structures are append-only: once written, file contents are
+not modified. Instead, modifications are appended to the end of the file.
+There are other ways to implement immutability. One of them is <strong>copy-on-write</strong>
+, where the modified page, holding the
+updated version of the record, is written to the new location in the file,
+instead of its original location. Often the distinction between LSM and B-Trees
+is drawn as immutable against in-place update storage, but there are
+structures (for example, Bw-Trees) that are inspired by B-Trees but are
+immutable.</p>
+
+<p><strong>Ordering</strong></p>
+
+<p>This is defined as whether or not the data records are stored in the key
+order in the pages on disk. In other words, the keys that sort closely are
+stored in contiguous segments on disk. Ordering often defines whether or
+not we can efficiently scan the range of records, not only locate the
+individual data records. Storing data out of order (most often, in insertion
+order) opens up for some write-time optimizations.</p>
+
+<hr />
+
+<p>One of the most popular storage structures is a <strong>B-Tree</strong>. Many open source
+database systems are B-Tree based, and over the years they’ve proven to
+cover the majority of use cases.</p>
+
+<hr />
+
+<p><strong>Binary Search Trees</strong></p>
+
+<p>A <strong>binary search tree</strong> (BST) is a sorted in-memory data structure, used for
+efficient key-value lookups. BSTs consist of multiple nodes. Each tree node
+is represented by a key, a value associated with this key, and two child
+pointers (hence the name binary). BSTs start from a single node, called a <strong>root
+node</strong>. There can be only one root in the tree.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-1. binary search tree.png" alt="Figure 2-1. Binary search tree" /></p>
+
+<p>Each node splits the search space into left and right subtrees, 
+a node key is greater than any key stored in its left subtree and less
+than any key stored in its right subtree</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-2. binary tree node invariants.png" alt="Figure 2-2. Binary tree node invariants" /></p>
+
+<p>Following left pointers from the root of the tree down to the leaf level (the
+level where nodes have no children) locates the node holding the <strong>smallest key</strong>
+within the tree and a value associated with it. Similarly, following right
+pointers locates the node holding the <strong>largest key</strong> within the tree and a value
+associated with it. Values are allowed to be stored in all nodes in the tree.
+Searches start from the root node, and may terminate before reaching the
+bottom level of the tree if the searched key was found on a higher level.</p>
+
+<hr />
+
+<p><strong>Tree Balancing</strong></p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-3. balanced and unbalanced or pathological tree examples.png" alt="Figure 2-3. Balanced (a) and unbalanced or pathological (b) tree examples" /></p>
+
+<p>The balanced tree is defined as one that has a height of log2N, where N is
+the total number of items in the tree, and the difference in height between the
+two subtrees is not greater than one.</p>
+
+<p>One of the ways to keep the tree balanced is to perform a rotation step after
+nodes are added or removed. If the insert operation leaves a branch
+unbalanced (two consecutive nodes in the branch have only one child), we
+can rotate nodes around the middle one.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-4. rotation step example.png" alt="Figure 2-4. Rotation step example" /></p>
+
+<hr />
+
+<p><strong>Trees for Disk-Based Storage</strong></p>
+
+<p>BST, due to
+low fanout (fanout is the maximum allowed number of children per node), we
+have to perform balancing, relocate nodes, and update pointers rather
+frequently. Increased maintenance costs make BSTs impractical as on-disk
+data structures.</p>
+
+<p>If we wanted to maintain a BST on disk, we’d face several problems.</p>
+
+<ul>
+  <li>
+    <p>One
+problem is <strong>locality</strong>: since elements are added in random order, there’s no
+guarantee that a newly created node is written close to its parent, which
+means that node child pointers may span across several disk pages.</p>
+  </li>
+  <li>
+    <p>Another problem, closely related to the cost of following child pointers, is
+tree height. Since binary trees have a fanout of just two, height is a binary
+logarithm of the number of the elements in the tree, and we have to perform
+O(log2N) seeks to locate the searched element and, subsequently, perform
+the same number of disk transfers. 2-3-Trees and other low-fanout trees have
+a similar limitation: <strong>while they are useful as in-memory data structures, small
+node size makes them impractical for external storage</strong>.</p>
+  </li>
+  <li>
+    <p>A naive on-disk BST implementation would require as many disk seeks as
+comparisons, since there’s no built-in concept of locality.</p>
+  </li>
+</ul>
+
+<hr />
+
+<p>Fanout and height are inversely correlated: the higher the fanout, the lower the height. If
+fanout is high, each node can hold more children, reducing the number of nodes and,
+subsequently, reducing height.</p>
+
+<hr />
+
+<p>On-disk data structures are often used when the amounts of data are so large
+that keeping an entire dataset in memory is impossible or not feasible. Only a
+fraction of the data can be <strong>cached</strong> in memory at any time, and the rest has to
+be stored on disk in a manner that allows efficiently accessing it.</p>
+
+<hr />
+
+<p><strong>Hard Disk Drives</strong></p>
+
+<p>On spinning disks, <strong>seeks</strong> increase costs of random reads because they require
+disk rotation and mechanical head movements to position the read/write head
+to the desired location. However, once the expensive part is done, reading or
+writing contiguous bytes (i.e., sequential operations) is <strong>relatively</strong> cheap.</p>
+
+<p>The smallest transfer unit of a spinning drive is a <strong>sector</strong>, so when some
+operation is performed, at least an entire sector can be read or written. Sector
+sizes typically range from 512 bytes to 4 Kb.</p>
+
+<p>Head positioning is the most expensive part of an operation on the HDD.
+This is one of the reasons we often hear about the positive effects of
+<strong>sequential I/O</strong>: reading and writing contiguous memory segments from disk.</p>
+
+<p><strong>Solid State Drives</strong></p>
+
+<p>Solid state drives (SSDs) do not have moving parts: there’s no disk that spins,
+or head that has to be positioned for the read. A typical SSD is built of
+<strong>memory cells</strong>, connected into <strong>strings</strong> (typically 32 to 64 cells per string),
+strings are combined into <strong>arrays</strong>, arrays are combined into <strong>pages</strong>, and pages
+are combined into <strong>blocks</strong>.</p>
+
+<p>Depending on the exact technology used, a cell can hold one or multiple bits
+of data. Pages vary in size between devices, but typically their sizes range
+from 2 to 16 Kb. Blocks typically contain 64 to 512 pages. Blocks are
+organized into <strong>planes</strong> and, finally, planes are placed on a <strong>die</strong>. SSDs can have
+one or more dies.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-5. ssd organization schematics.png" alt="Figure 2-5. SSD organization schematics" /></p>
+
+<p><strong>The smallest unit that can be written (programmed) or read is a page</strong>.
+However, <strong>we can only make changes to the empty memory cells</strong> (i.e., to ones
+that have been erased before the write). <strong>The smallest erase entity is</strong> not a
+page, but <strong>a block that holds multiple pages</strong>, which is why it is often called an
+<strong>erase block</strong>. Pages in an empty block have to be written sequentially.</p>
+
+<p>The part of a flash memory controller responsible for mapping page IDs to
+their physical locations, tracking empty, written, and discarded pages, is
+called the Flash Translation Layer (<strong>FTL</strong>).
+It is also responsible for <strong>garbage collection</strong>, during which
+FTL finds blocks it can safely erase. Some blocks might still contain live
+pages. In this case, it <strong>relocates</strong> live pages from these blocks to new locations
+and <strong>remaps</strong> page IDs to point there. After this, it erases the now-unused
+blocks, making them available for writes.</p>
+
+<p>Since in both device types (HDDs and SSDs) we are addressing chunks of
+memory rather than individual bytes (i.e., accessing data block-wise), most
+operating systems have a block device abstraction. It hides an
+internal disk structure and buffers I/O operations internally, so <strong>when we’re
+reading a single word from a block device, the whole block containing it is
+read</strong>. This is a constraint we cannot ignore and should always take into
+account when working with disk-resident data structures.</p>
+
+<p><strong>In SSDs, we don’t have a strong emphasis on random versus sequential I/O,
+as in HDDs, because the difference in latencies between random and
+sequential reads is not as large.</strong></p>
+
+<p>Writing only full blocks, and combining subsequent writes to the same block,
+can help to reduce the number of required I/O operations.</p>
+
+<p><strong>On-Disk Structures</strong></p>
+
+<p>Besides the cost of disk access itself, the main limitation and design condition
+for building efficient on-disk structures is the fact that <strong>the smallest unit of
+disk operation is a block</strong>. To follow a pointer to the specific location within
+the block, we have to fetch an entire block. Since we already have to do that,
+we can change the layout of the data structure to take advantage of it.</p>
+
+<p>In summary, on-disk structures (B-Tree: <strong>high fanout</strong> and <strong>low height</strong>) are designed with their target storage
+specifics in mind and generally optimize for <strong>fewer disk accesses</strong>. We can do
+this by improving locality, optimizing the internal representation of the
+structure, and reducing the number of out-of-page pointers.</p>
+
+<hr />
+
+<p><strong>Ubiquitous B-Trees</strong></p>
+
+<p>B-Trees can be thought of as a vast catalog room in the library: you first have
+to pick the correct cabinet, then the correct shelf in that cabinet, then the
+correct drawer on the shelf, and then browse through the cards in the drawer
+to find the one you’re searching for. Similarly, a B-Tree builds a hierarchy
+that helps to navigate and locate the searched items quickly.</p>
+
+<p>In most of the literature, binary tree nodes are drawn as circles. Since each
+node is responsible just for one key and splits the range into two parts, this
+level of detail is sufficient and intuitive. At the same time, B-Tree nodes are
+often drawn as rectangles, and pointer blocks are also shown explicitly to
+highlight the relationship between child nodes and separator keys.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-7. binary tree, 2-3-tree, and b-tree nodes side by side.png" alt="Figure 2-7. Binary tree, 2-3-Tree, and B-Tree nodes side by side" /></p>
+
+<p><strong>B-Trees are sorted: keys inside the B-Tree nodes are stored in order</strong>. Because
+of that, to locate a searched key, we can use an algorithm like binary search.
+This also implies that lookups in B-Trees have logarithmic complexity.</p>
+
+<p>Using B-Trees, we can efficiently execute both <strong>point and range queries</strong>. Point
+queries, expressed by the equality (=) predicate in most query languages,
+locate a single item. On the other hand, range queries, expressed by
+comparison (&lt;, &gt;, ≤, and ≥) predicates, are used to query multiple data items
+in order.</p>
+
+<p><strong>B-Tree Hierarchy</strong></p>
+
+<p>B-Trees consist of multiple nodes. <strong>Each node holds up to N keys and N + 1
+pointers to the child nodes</strong>. These nodes are logically grouped into three
+groups:</p>
+
+<ul>
+  <li>
+    <p>Root node</p>
+
+    <p>This has no parents and is the top of the tree.</p>
+  </li>
+  <li>
+    <p>Leaf nodes</p>
+
+    <p>These are the bottom layer nodes that have no child nodes.</p>
+  </li>
+  <li>
+    <p>Internal nodes</p>
+
+    <p>These are all other nodes, connecting root with leaves. There is usually
+more than one level of internal nodes.</p>
+  </li>
+</ul>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-9. b-tree node hierarchy.png" alt="Figure 2-9. B-Tree node hierarchy" /></p>
+
+<p>Since B-Trees are a page organization technique (i.e., they are used to
+organize and navigate fixed-size pages), we often use terms <strong>node</strong> and <strong>page</strong>
+interchangeably.</p>
+
+<p>The relation between the node capacity and the number of keys it actually
+holds is called <strong>occupancy</strong>.</p>
+
+<p>B-Trees are characterized by their fanout: the number of keys stored in each
+node. Higher fanout helps to amortize the cost of structural changes required
+to keep the tree balanced and to reduce the number of seeks by storing keys
+and pointers to child nodes in a single block or multiple consecutive blocks.
+Balancing operations (namely, <strong>splits</strong> and <strong>merges</strong>) are triggered when the
+nodes are full or nearly empty.</p>
+
+<p>B-Trees allow storing values on any level: in root, internal, and leaf
+nodes. <strong>B<sup>+</sup>-Trees store values only in leaf nodes</strong>. Internal nodes store only
+<strong>separator keys</strong> used to guide the search algorithm to the associated value
+stored on the leaf level.</p>
+
+<p><strong>Separator Keys</strong></p>
+
+<p>Keys stored in B-Tree nodes are called <strong>index entries</strong>, <strong>separator keys</strong>, or
+<strong>divider cells</strong>. They split the tree into subtrees (also called <strong>branches</strong> or
+<strong>subranges</strong>), holding corresponding key ranges. Keys are stored in sorted
+order to allow binary search. A subtree is found by locating a key and
+following a corresponding pointer from the higher to the lower level.</p>
+
+<p>The first pointer in the node points to the subtree holding items <strong>less than</strong> the
+first key, and the last pointer in the node points to the subtree holding items
+<strong>greater than or equal to</strong> the last key. Other pointers are reference subtrees
+between the two keys: K<sub>i-1</sub> ≤ K<sub>s</sub> &lt; K<sub>i</sub> , where K is a set of keys, and K<sub>s</sub> is a
+key that belongs to the subtree.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-10. how separator keys split a tree into subtrees.png" alt="Figure 2-10. How separator keys split a tree into subtrees" /></p>
+
+<p><strong>B-Tree Lookup Complexity</strong></p>
+
+<p>To find an
+item in a B-Tree, we have to perform a single traversal from root to leaf. The
+objective of this search is to find a searched key or its predecessor. Finding
+an exact match is used for point queries, updates, and deletions; finding its
+predecessor is useful for range scans and inserts.</p>
+
+<p>The algorithm starts from the root and performs a <strong>binary search</strong>, comparing
+the searched key with the keys stored in the root node until it finds the first
+separator key that is greater than the searched value. This locates a searched
+subtree. As soon as we find the
+subtree, we follow the pointer that corresponds to it and continue the same
+search process (locate the separator key, follow the pointer) until we reach a
+target leaf node, where we either find the searched key or conclude it is not
+present by locating its predecessor.</p>
+
+<p>During the <strong>point query</strong>, the search is done after finding or failing to find the
+searched key. During the <strong>range scan</strong>, iteration starts from the closest found
+key-value pair and continues by following sibling pointers until the end of the
+range is reached or the range predicate is exhausted.</p>
+
+<p><strong>B-Tree Node Splits</strong></p>
+
+<p>If the target node to insert or update doesn’t have enough room available, we say that the node
+has <strong>overflowed</strong> and has to be split in two to fit the new data.
+More precisely, the node is split if the following conditions hold:</p>
+
+<ul>
+  <li>
+    <p>For <strong>leaf nodes</strong>: if the node can hold up to N key-value pairs, and
+inserting one more key-value pair brings it over its maximum
+capacity N.</p>
+  </li>
+  <li>
+    <p>For <strong>nonleaf nodes</strong>: if the node can hold up to N + 1 pointers, and
+inserting one more pointer brings it over its maximum capacity N +
+1.</p>
+  </li>
+</ul>
+
+<p><strong>Splits are done by allocating the new node, transferring half the elements
+from the splitting node to it, and adding its first key and pointer to the parent
+node.</strong> In this case, we say that the key is <strong>promoted</strong>. The index at which the
+split is performed is called the <strong>split point</strong> (also called the <strong>midpoint</strong>). All
+elements after the split point (including split point in the case of nonleaf node
+split) are transferred to the newly created sibling node, and the rest of the
+elements remain in the splitting node.</p>
+
+<p>If the parent node is full and does not have space available for the promoted
+key and pointer to the newly created node, it has to be split as well. This
+operation might propagate recursively all the way to the root.</p>
+
+<p>As soon as the tree reaches its capacity (i.e., split propagates all the way up to
+the root), we have to split the root node. When the root node is split, a new
+root, holding a split point key, is allocated. The old root (now holding only
+half the entries) is demoted to the next level along with its newly created
+sibling, increasing the tree height by one. <strong>The tree height changes when the
+root node is split and the new root is allocated, or when two nodes are
+merged to form a new root.</strong> On the leaf and internal node levels, the tree only
+grows horizontally.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-11. leaf node split during the insertion of 11. new element and promoted key are shown in gray.png" alt="Figure 2-11. Leaf node split during the insertion of 11. New element and promoted key are shown in gray." /></p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-12. nonleaf node split during the insertion of 11. new element and promoted key are shown in gray.png" alt="Figure 2-12. Nonleaf node split during the insertion of 11. New element and promoted key are shown in gray." /></p>
+
+<p>To summarize, node splits are done in four steps:</p>
+
+<ol>
+  <li>
+    <p>Allocate a new node.</p>
+  </li>
+  <li>
+    <p>Copy half the elements from the splitting node to the new one.</p>
+  </li>
+  <li>
+    <p>Place the new element into the corresponding node.</p>
+  </li>
+  <li>
+    <p>At the parent of the split node, add a separator key and a pointer to the new node.</p>
+  </li>
+</ol>
+
+<p><strong>B-Tree Node Merges</strong></p>
+
+<p>Deletions are done by first locating the target leaf. When the leaf is located,
+the key and the value associated with it are removed.</p>
+
+<p>If neighboring nodes have too few values (i.e., their occupancy falls under a
+threshold), the sibling nodes are merged. This situation is called <strong>underflow</strong>:
+if two adjacent nodes have a
+common parent and their contents fit into a single node, their contents should
+be merged (concatenated); if their contents do not fit into a single node, keys
+are redistributed between them to restore balance.</p>
+
+<ul>
+  <li>
+    <p>For leaf nodes: if a node can hold up to N key-value pairs, and a
+combined number of key-value pairs in two neighboring nodes is
+less than or equal to N.</p>
+  </li>
+  <li>
+    <p>For nonleaf nodes: if a node can hold up to N + 1 pointers, and a
+combined number of pointers in two neighboring nodes is less than
+or equal to N + 1.</p>
+  </li>
+</ul>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-13. leaf node merge.png" alt="Figure 2-13. Leaf node merge" /></p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 2-14. nonleaf node merge.png" alt="Figure 2-14. Nonleaf node merge" /></p>
+
+<p>To summarize, node merges are done in three steps, assuming the element is
+already removed:</p>
+
+<ol>
+  <li>
+    <p>Copy all elements from the right node to the left one.</p>
+  </li>
+  <li>
+    <p>Remove the right node pointer from the parent (or demote it in the case of a nonleaf merge).</p>
+  </li>
+  <li>
+    <p>Remove the right node.</p>
+  </li>
+</ol>
+
+<hr />
+
+<p><strong>File Formats</strong></p>
+
+<p>Disks are accessed using system calls. We usually have to specify the offset inside the target file, and then interpret on-disk representation into a form sutable for main memory. To to that, we have to come up with a file format that’s easy to construct, modify, and interpret.</p>
+
+<p><strong>Binary Encoding</strong></p>
+
+<p>Keys and values have a type, such as <code class="language-plaintext highlighter-rouge">integer</code>, <code class="language-plaintext highlighter-rouge">date</code>, or <code class="language-plaintext highlighter-rouge">string</code> and can be represented (serialized to and deserialized from) in their raw binary forms.</p>
+
+<p>Most numeric data types are represented as fixed-size values. When working with multibyte numeric values, it is important to use the same <em>byte-order</em> (<em>endianness</em>) for both encoding and decoding.</p>
+
+<p><strong>Big-endian</strong></p>
+
+<p>The order starts from the most-significant byte (MSB), followed by the bytes in <em>decreasing</em> significance order. In other words, MSB has the <em>lowest</em> address.</p>
+
+<p><strong>Little-endian</strong></p>
+
+<p>The order starts form the least-significant byte (LSB), followed by the bytes in <em>increasing</em> significance order.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 3-1. big- and little-endian byte order.png" alt="Figure 3-1. Big- and little-endian byte order. " /></p>
+
+<p>Records consist of primitives like numbers, strings, booleans, and their combinations. However, when transferring data over the network or storing it on disk, we can only use byte sequences. This means that, in order to send or write the record, we have to <em>serialize</em> it (convert it to an interpretable sequence of bytes) and, before we can use it after receiving or reading, we have to <em>deserialize</em> it (translate the sequence of bytes back to the original record).</p>
+
+<p>In binary data formats, we always start with primitives that serve as building blocks for more complex structures. Different numeric types may vary in size. <code class="language-plaintext highlighter-rouge">byte</code> value is 8 bits, <code class="language-plaintext highlighter-rouge">short</code> is 2 bytes (16bits), <code class="language-plaintext highlighter-rouge">int</code> is 4 bytes (32 bits), and <code class="language-plaintext highlighter-rouge">long</code> is 8 bytes (64bits).</p>
+
+<p>Floating-point numbers (such as <code class="language-plaintext highlighter-rouge">float</code> and <code class="language-plaintext highlighter-rouge">double</code>) are represented by their <em>sign</em>, <em>fraction</em>, and <em>exponent</em>. The IEEE Standard for Binary Floating-Point Arithmetic (IEEE 754) standard describes widely accepted floating-point number representation.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 3-2. binary representation of single-precision float number.png" alt="Figure 3-2. Binary representation of single-precision float number" /></p>
+
+<p>Strings and other variables-size data types (such as arrays of fixed-size data) can be serialized as a number, representing the length of the array or string, followed by <strong>size</strong> bytes: the actual data. For strings, this representation is often called UCSD String or Pascal String, named after the popular implementation of the Pascal programming language. We can express it in pseudocode as follows:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">String</span>
+<span class="p">{</span>
+    <span class="n">size</span> <span class="n">uint_16</span>
+    <span class="n">data</span> <span class="n">byte</span><span class="p">[</span><span class="n">size</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>An alternative to Pascal strings is null-terminated strings, where the reader consumes the string byte-wise until the end-of-string symbol is reached. The Pascal string approach has several advantages: it allows finding out a length of a string in constant time, instead of iterating through string contents, and a language-specific string can be composed by slicing <strong>size</strong> bytes from memory and passing the byte array to a string constructor.</p>
+
+<p><strong>Bit-Packed</strong> Data: Booleans, Enums, and Flags</p>
+
+<p>Booleans can be represented either by using a single byte, or encoding <strong>true</strong> and <strong>false</strong> as <strong>1</strong> and <strong>0</strong> values. Since a boolean has only two values, using an entire byte for its representation is wasteful, and developers often batch boolean values together in groups of eight, each boolean occupying just one bit. We say that every 1 bit is <em>set</em> and every 0 bit is <em>unset</em> or <em>empty</em>.</p>
+
+<p>Enums, short for <strong>enumerated types</strong>, can be represented as integers and are often used in binary formats and communication protocols.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">enum</span> <span class="n">NodeType</span> <span class="p">{</span>
+   <span class="n">ROOT</span><span class="p">,</span>     <span class="c1">// 0x00h</span>
+   <span class="n">INTERNAL</span><span class="p">,</span> <span class="c1">// 0x01h</span>
+   <span class="n">LEAF</span>      <span class="c1">// 0x02h</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<p>Another closely related concept is <em>flags</em>, kind of a combination of packed booleans and enums. Flags can represent nonmutually exclusive named boolean parameters.</p>
+
+<p>Just like packed booleans, flag values can be read and written from the packed value using <em>bitmasks</em> and bitwise operators.</p>
+
+<p><strong>General Principles</strong></p>
+
+<p>Usually, you start designing a file format by deciding how the addressing is going to be done: whether the file is going to be split into same-sized pages, which are repre‐ sented by a single block or multiple contiguous blocks. Most in-place update storage structures use pages of the same size, since it significantly simplifies read and write access. Append-only storage structures often write data page-wise, too: records are appended one after the other and, as soon as the page fills up in memory, it is flushed on disk.</p>
+
+<p>The file usually starts with a fixed-size header and may end with a fixed-size trailer, which hold auxiliary information that should be accessed quickly or is required for decoding the rest of the file. The rest of the file is split into pages.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 3-3. file organization.png" alt="Figure 3-3. File organization" /></p>
+
+<p>Many data stores have a fixed schema, specifying the number, order, and type of fields the table can hold. Having a fixed schema helps to reduce the amount of data stored on disk: instead of repeatedly writing field names, we can use their positional identifiers.</p>
+
+<pre><code class="language-none">Fixed-size fields:
+| (4 bytes) employee_id                |
+| (4 bytes) tax_number                 |
+| (3 bytes) date                       |
+| (1 byte)  gender                     |
+| (2 bytes) first_name_length          |
+| (2 bytes) last_name_length           |
+
+Variable-size fields:
+| (first_name_length bytes) first_name |
+| (last_name_length bytes) last_name   |
+</code></pre>
+<p>Database files often consist of multiple parts, with a <strong>lookup table</strong> aiding navigation and pointing to the start offsets of these parts written either in the file header, trailer, or in the separate file.</p>
+
+<p><strong>Page Structure</strong></p>
+
+<p>Database systems store data records in data and index files. These files are partitioned into fixed-size units called <em>pages</em>, which often have a size of multiple filesystem blocks. Page sizes usually range from 4 to 16 Kb.</p>
+
+<p>Let’s take a look at the example of an on-disk B-Tree node. From a structure perspective, in B-Trees, we distinguish between the <em>leaf nodes</em> that hold keys and data records pairs, and <em>nonleaf nodes</em> that hold keys and pointers to other nodes. Each B-Tree node occupies one page or multiple pages linked together, so in the context of B-Trees the terms <em>node</em> and <em>page</em> (and even <em>block</em>) are often used interchangeably.</p>
+
+<p><img src="/assets/alex-petrov-database-internals/figure 3-4. page organization for fixed-size records.png" alt="Figure 3-4. Page organization for fixed-size records" /></p>
+
+<p>This approach is easy to follow, but has some downsides:</p>
+
+<ul>
+  <li>
+    <p>Appending a key anywhere but the right side requires relocating elements.</p>
+  </li>
+  <li>
+    <p>It doesn’t allow managing or accessing variable-size records efficiently and works only for fixed-size data.</p>
+  </li>
+</ul>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2020/04/07/golang-learning-notes/">&laquo; Golang Learning Notes</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2020/11/18/greenplum-operation-notes/">Greenplum 运维札记 &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

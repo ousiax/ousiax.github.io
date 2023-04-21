@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>数字签名和数字证书</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2019/04/12/cryptography-signature-certificate/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">数字签名和数字证书</h1>
+    
+    
+    <p class="post-meta"><time datetime="2019-04-12T13:55:20+08:00" itemprop="datePublished">Nov 10, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#密码系统">1. 密码系统</a>
+<ul class="sectlevel2">
+<li><a href="#对称加密算法">1.1. 对称加密算法</a></li>
+<li><a href="#公钥加密">1.2. 公钥加密</a></li>
+</ul>
+</li>
+<li><a href="#数字签名">2. 数字签名</a></li>
+<li><a href="#数字证书">3. 数字证书</a>
+<ul class="sectlevel2">
+<li><a href="#openssl">3.1. OpenSSL</a></li>
+<li><a href="#references">3.2. References</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="密码系统">1. 密码系统</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>在密码学（cryptography）中，密码系统（cryptosystem）是用于特定安全服务（通常是实现保密性，即加密）所需的一套算法。</p>
+</div>
+<div class="paragraph">
+<p>密码系统通常由三种算法组成：一种用于<strong>密钥的生成</strong>（key generation），一种用于<strong>加密</strong>（encryption），一种用于<strong>解密</strong>（decryption）。单词 cipher 或 cypher 通常指一对加密和解密的算法，所以单词 cryptosystem 通常用于强调密钥生成算法的重要性，表示<strong>公钥加密</strong>（public key）。但 cipher 和 cryptosystem 都可以指<strong>对称加密</strong>（symmetric key）。</p>
+</div>
+<div class="paragraph">
+<p>在密码学中，<strong>明文</strong>（plaintext  or cleartext）是指未加密的消息，<strong>密文</strong>（cipher text）指通过加密算法（encryption algorithm），将明文进行扰乱并转换为不可读的消息，密文可以通过解密算法（decryption algorithm）转换为明文。密钥（key）是指用于限定密码算法（cryptographic alogrithm）输出的一段信息，在加密算法中，密钥用于将明文转换为密文，而在解密算法中，密钥用于将密文转换为明文。</p>
+</div>
+<div class="sect2">
+<h3 id="对称加密算法">1.1. 对称加密算法</h3>
+<div class="paragraph">
+<p>对称加密算法（symmetric key algorithm）是指在明文加密和密文解密中使用同一个的密钥的密码算法。实际上，对称加密的密钥由两个或多个参与方共享，并用于在参与方之间维护一条私有的信息链路。对称加密算法的通信双方都有密钥的访问权，相对于公钥加密，对称加密的密钥的共享成为对称加密算法的一个主要缺点。</p>
+</div>
+<div class="paragraph">
+<p>对称加密算法有 AES, RC4, DES, RC5 和 RC6 等，常用的算法是 AES-128，AES-192 和 AES-256。</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="公钥加密">1.2. 公钥加密</h3>
+<div class="paragraph">
+<p>公钥加密（public key cryptography）或非对称加密（asymmetric cryptography）是一种使用一对公钥（public key）和私钥（private key）的密码系统，其中，公钥可以广泛的公开传播，但私钥只有所有者持有。公钥加密系统的安全的有效性只需要对私钥保密，而公钥的公开和发布不会影响安全性。</p>
+</div>
+<div class="paragraph">
+<p>在公钥加密系统中，任何人都可以用接收者的公钥加密明文，而只有接收者使用其持有的私钥才能将密文解密。</p>
+</div>
+<div class="paragraph">
+<p>非对称加密的常见算法有 RSA，DSA，PKCS 等。</p>
+</div>
+<div class="paragraph">
+<p>RSA 是最早的公钥加密算法之一，并广泛用于数据的安全传输。RSA 由在1978年公开发表该算法的三个发明人（Ron Rivest，Adi Shamir，和 Leonard Adleman）的姓氏的首字母组成。</p>
+</div>
+<div class="paragraph">
+<p>RSA 是相对比较慢的算法，因此很少直接用于数据的加密，更多是用于对称加密算法中共享密钥的传递，然后由对称加密算法进行大量的更加快速高效的加解密操作。</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="数字签名">2. 数字签名</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>数字签名（digital signature）用于检验数字消息或电子文档的可靠性的一种数学方案（mathematical scheme）。有效的数字签名可以让接收者有非常强的理由相信其接收到的消息是由已知或者认证的发送者创建，并且消息在传输的过程并没有被篡改。</p>
+</div>
+<div class="paragraph">
+<p>数字签名利用公钥加密系统，很多情况中，用于在非安全的信息通道中提供一层对消息的校验和安全层，并用于鉴定（authentication）消息的可靠来源，提供消息的完整性（integrity）以及消息的不可抵赖性（non-repudiation）保证。</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="数字证书">3. 数字证书</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>在密码学中，公钥证书（public key certificate）或数字证书（digital certificate）或者身份证书（identity certificate）是用于证明公钥所有权的一种电子文档。证书中包含公钥的信息，所有者或者主体（subject）的信息，以及验证证书内容的实体即证书的签发者（issuer）的数字签名。如果签名有效，并核验了证书的信任签发者，则可以使用证书的公钥进行安全的信息通信。数字证书保证了公钥发布和传播的安全性和可靠性。</p>
+</div>
+<div class="paragraph">
+<p>在电子邮件加密、代码签名和电子签名系统中，证书的主体通常是个人或组织。但是，在安全传输协议层 TLS（Transport Layer Security）中，证书的主体通常是指计算机或者其他设备。当然，TSL 证书除了标识设备的核心角色外，还可以标识个人或组织。TLS 有时也用其旧称，即安全套接字层 SSL（Secure Sockets Layer），并因作为 Web 浏览器安全访问的HTTPS协议的一部分而闻名。</p>
+</div>
+<div class="paragraph">
+<p>在一个典型的公钥基础设施 PKI（public key infrastructure）中，证书的签发者是一个证书签发机构 CA（certificate authority），通常是一个向客户收取费用并为其签发证书的公司。</p>
+</div>
+<div class="paragraph">
+<p>在密码学中，<strong>X.509</strong> 是一种最常见的标准的公钥证书的定义格式。X.509 证书在许多互联网协议中都有使用，例如用于 Web 浏览器安全访问的 HTTPS 协议中的 TLS 或 SSL，以及一些如电子签名的离线应用。X.509 证书中包含公钥和主体身份（主机名，组织或个人），并由可信的签发机构（CA）签名或自签名（self-signed）。当证书由可信任的签发机构签名或者其他方式核验后，证书的持有者可以根据证书中的公钥和证书的主体建立安全的通信，或者验证由证书中公钥对应的私钥所签名的电子文档。</p>
+</div>
+<div class="paragraph">
+<p>X.509 证书有几种常见的文件扩展名：</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>.pem（Privacy-enhanced Electronic Mail）基于 Base64 编码的 DER （Distinguished Encoding Rules）格式的证书，以 <code>-----BEGIN CERTIFICATE-----</code> 开始，并以 <code>-----END CERTIFICATE-----</code> 结束。</p>
+</li>
+<li>
+<p>.cer, .crt, .der 扩展名通常是指二进制的 DER 格式的证书</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>在公钥基础设施 PKI 系统中，证书签名请求 CSR（certificate signing request），或证书请求（certificate request）是由证书申请人发送给证书的签发机构（CA)以便申请数字证书的身份消息。CSR 通常包含被签发者的证书的公钥，标识信息（如域名）以及完整性保护（integrity protection，如数字签名）。CSR 最常见的格式是 <strong>PKCS #10</strong> 规范，以及另一种由某些 Web 浏览器生成的签名公钥和质询 SPKAC（Signed Public Key and Challenge）格式。</p>
+</div>
+<div class="sect2">
+<h3 id="openssl">3.1. OpenSSL</h3>
+<div class="paragraph">
+<p>OpenSSL 是一个应用程序软件库，用于保护计算机网络的通信安全，防止窃听或者识别通信另一端的参与方。 OpenSSL 广泛用于互联网服务器，并为大多数网站提供服务。OpenSSL 包含了一个 TLS/SSL 协议的开源实现。大多数 Unix 和 Unix-like 的操作系统(包括 Solaris, Linux, macOS, QNX 和各种开源 BSD 操作系统)，OpenVMS 和 Microsoft Windows 都有可用的版本。</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>使用 OpenSSL 创建自签名根证书（996.icu）</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># Generate a self signed root certificate</span>
+openssl req <span class="se">\</span>
+    <span class="nt">-x509</span> <span class="se">\</span>
+    <span class="nt">-nodes</span> <span class="se">\</span>
+    <span class="nt">-newkey</span> rsa:2048 <span class="se">\</span>
+    <span class="nt">-subj</span> <span class="s2">"/C=CN/ST=Shanghai/L=Shanghai/O=996/CN=996.icu"</span> <span class="se">\</span>
+    <span class="nt">-addext</span> <span class="s2">"subjectAltName=DNS:996.icu,DNS:*.996.icu"</span> <span class="se">\</span>
+    <span class="nt">-keyout</span> 996.icu.key <span class="se">\</span>
+    <span class="nt">-out</span> 996.icu.pem</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>使用 996.icu 根证书签发 955.wlb 证书</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># Generate a certificate signing request</span>
+openssl req <span class="se">\</span>
+    <span class="nt">-nodes</span> <span class="se">\</span>
+    <span class="nt">-newkey</span> rsa:2048 <span class="se">\</span>
+    <span class="nt">-subj</span> <span class="s2">"/C=CN/ST=Shanghai/L=Shanghai/O=955/CN=955.wlb"</span> <span class="se">\</span>
+    <span class="nt">-addext</span> <span class="s2">"subjectAltName=DNS:955.wlb,DNS:*.955.wlb"</span> <span class="se">\</span>
+    <span class="nt">-keyout</span> 955.wlb.key <span class="se">\</span>
+    <span class="nt">-out</span> 955.wlb.csr
+
+<span class="c"># Verifies the signature on the request</span>
+openssl req <span class="nt">-in</span> 955.wlb.csr <span class="nt">-verify</span> <span class="nt">-noout</span>
+
+<span class="c"># Sign a certificate request using the CA certificate above</span>
+<span class="c">#!/bin/bash</span>
+openssl x509 <span class="se">\</span>
+    <span class="nt">-req</span> <span class="se">\</span>
+    <span class="nt">-extfile</span> &lt;<span class="o">(</span><span class="nb">printf</span> <span class="s1">'subjectAltName=DNS:955.wlb,DNS:*.955.wlb'</span><span class="o">)</span> <span class="se">\</span>
+    <span class="nt">-CA</span> 996.icu.pem <span class="se">\</span>
+    <span class="nt">-CAkey</span> 996.icu.key <span class="se">\</span>
+    <span class="nt">-CAcreateserial</span> <span class="se">\</span>
+    <span class="nt">-days</span> 10000 <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.csr <span class="se">\</span>
+    <span class="nt">-out</span> 955.wlb.pem</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>查看 955.wlb 证书的内容</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">openssl x509 <span class="nt">-in</span> 955.wlb.pem <span class="nt">-noout</span> <span class="nt">-issuer</span> <span class="nt">-subject</span> <span class="nt">-ext</span> subjectAltName</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">issuer=C = CN, ST = Shanghai, L = Shanghai, O = 996, CN = 996.icu
+subject=C = CN, ST = Shanghai, L = Shanghai, O = 955, CN = 955.wlb
+X509v3 Subject Alternative Name:
+    DNS:955.wlb, DNS:*.955.wlb</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>验证证书 955.wlb.pem 的数字签名有效性</p>
+<div class="paragraph">
+<p>证书签发机构 CA 在签名证书时，实际上是先用哈希算法计算证书内容的摘要信息（digest message），然后再利用公钥加密系统的私钥对摘要信息加密，并将摘要信息的密文嵌入到证书中。所以，要校验由 CA 签发的证书的签名信息，只需要 CA 的公钥，证书的签名信息以及摘要算法。</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>提取签发机构 CA (995.icu)的公钥</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># extract the Issuer's Public Key</span>
+openssl x509 <span class="se">\</span>
+    <span class="nt">-in</span> 996.icu.pem<span class="se">\</span>
+    <span class="nt">-noout</span> <span class="se">\</span>
+    <span class="nt">-pubkey</span> <span class="se">\</span>
+    <span class="o">&gt;</span> 996.icu.pubkey</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>查看证书（955.wlb）的数字签名和哈希算法</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># show the signature and cryptographic hash algorithm (SHA-256)</span>
+<span class="c"># and the encryption algorithm (RSA)</span>
+openssl x509 <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.pem <span class="se">\</span>
+    <span class="nt">-text</span> <span class="se">\</span>
+    <span class="nt">-noout</span> <span class="se">\</span>
+    <span class="nt">-certopt</span> ca_default <span class="se">\</span>
+    <span class="nt">-certopt</span> no_validity <span class="se">\</span>
+    <span class="nt">-certopt</span> no_serial <span class="se">\</span>
+    <span class="nt">-certopt</span> no_subject <span class="se">\</span>
+    <span class="nt">-certopt</span> no_extensions <span class="se">\</span>
+    <span class="nt">-certopt</span> no_signame</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">Signature Algorithm: sha256WithRSAEncryption
+     4c:20:59:24:c0:49:cc:8a:36:bc:fa:88:7e:74:7e:19:29:ec:
+     67:20:b1:cd:32:31:5d:bc:ec:97:d6:a5:e7:f3:c3:b0:c5:93:
+     f9:61:4c:62:83:63:de:67:3a:1d:07:f1:d4:3e:80:e1:36:66:
+     ec:73:51:cc:19:b2:d5:81:64:ea:4f:9d:6f:c5:ad:e8:f2:3f:
+     53:5c:ce:31:58:21:a3:b1:e7:15:8d:21:ba:61:e3:fc:ce:df:
+     45:96:81:5c:0d:4a:75:cb:5c:4a:66:d0:6e:26:e4:ec:0f:7a:
+     72:47:64:3d:92:01:36:10:5f:b4:59:5d:d8:77:1c:1c:6f:21:
+     1d:95:e2:a2:f8:cb:4d:08:06:be:c2:ee:3e:c8:42:ba:ff:47:
+     85:e7:41:da:a2:ec:8a:80:83:3a:85:d5:4d:e4:93:fe:cf:2d:
+     18:c0:dc:60:1a:6f:ba:56:c4:e3:8b:42:37:61:6d:3c:c5:28:
+     b7:bf:e1:4b:65:e0:73:5e:f9:e6:07:f6:14:60:57:61:cc:06:
+     0f:13:62:1a:17:02:02:9b:5c:aa:6a:12:d3:11:36:eb:0e:a1:
+     04:5e:6e:67:d6:a3:05:0c:29:3b:da:a9:15:91:6b:14:83:31:
+     a0:2f:27:7b:02:8a:ba:55:eb:42:9b:44:21:6d:8f:c3:f8:53:
+     b3:3f:40:db</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>提取证书（ 955.wlb）的 16 进制编码的签名并转换为二进制编码格式</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">openssl x509 <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.pem <span class="se">\</span>
+    <span class="nt">-text</span> <span class="se">\</span>
+    <span class="nt">-noout</span> <span class="se">\</span>
+    <span class="nt">-certopt</span> ca_default <span class="se">\</span>
+    <span class="nt">-certopt</span> no_validity <span class="se">\</span>
+    <span class="nt">-certopt</span> no_serial <span class="se">\</span>
+    <span class="nt">-certopt</span> no_subject <span class="se">\</span>
+    <span class="nt">-certopt</span> no_extensions <span class="se">\</span>
+    <span class="nt">-certopt</span> no_signame | <span class="se">\</span>
+    <span class="nb">grep</span> <span class="nt">-v</span> <span class="s1">'Signature Algorithm'</span> | <span class="se">\</span>
+    <span class="nb">tr</span> <span class="nt">-d</span> <span class="s1">'[:space:]:'</span> | <span class="se">\</span>
+    xxd <span class="nt">-r</span> <span class="nt">-p</span> <span class="o">&gt;</span> 955.wlb.cert-sig.bin</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>解密（RSA）证书（955.wlb）的数字签名</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># decrypty the Signature (RSA)</span>
+openssl rsautl <span class="se">\</span>
+    <span class="nt">-verify</span> <span class="se">\</span>
+    <span class="nt">-inkey</span> 996.icu.pubkey <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.cert-sig.bin <span class="se">\</span>
+    <span class="nt">-pubin</span> <span class="o">&gt;</span> 955.wlb.cert-sig-decrypted.bin</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>查看解密后签名摘要信息</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># view the decrypted signature hash (digest)</span>
+openssl asn1parse <span class="se">\</span>
+    <span class="nt">-inform</span> der <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.cert-sig-decrypted.bin</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">    0:d=0  hl=2 l=  49 cons: SEQUENCE
+    2:d=1  hl=2 l=  13 cons: SEQUENCE
+    4:d=2  hl=2 l=   9 prim: OBJECT            :sha256
+   15:d=2  hl=2 l=   0 prim: NULL
+   17:d=1  hl=2 l=  32 prim: OCTET STRING      [HEX DUMP]:0E272DFFF886B134FEF9349A23589553DD1208C04A2815E64BBA58FCFEE5174B</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># print only the digest</span>
+openssl asn1parse <span class="se">\</span>
+    <span class="nt">-inform</span> der <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.cert-sig-decrypted.bin | <span class="se">\</span>
+    <span class="nb">grep</span> <span class="s1">'DUMP'</span> | <span class="se">\</span>
+    <span class="nb">cut</span> <span class="nt">-d</span> <span class="s1">':'</span> <span class="nt">-f4</span> | <span class="se">\</span>
+    <span class="nb">tr </span>A-Z a-z</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">0e272dfff886b134fef9349a23589553dd1208c04a2815e64bba58fcfee5174b</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>计算原始的证书的摘要信息（和上面的摘要匹配）</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># extract the certifcate body and compute the hash (digest)</span>
+openssl asn1parse <span class="se">\</span>
+    <span class="nt">-in</span> 955.wlb.pem <span class="se">\</span>
+    <span class="nt">-strparse</span> 4 <span class="se">\</span>
+    <span class="nt">-noout</span> <span class="se">\</span>
+    <span class="nt">-out</span> - <span class="se">\</span>
+    | openssl dgst <span class="se">\</span>
+    <span class="nt">-sha256</span> - <span class="se">\</span>
+    | <span class="nb">cut</span> <span class="nt">-d</span> <span class="s1">' '</span> <span class="nt">-f2</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">0e272dfff886b134fef9349a23589553dd1208c04a2815e64bba58fcfee5174b</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="references">3.2. References</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="/2019/01/31/public-key-cryptography-and-x509/">Public-key cryptography and X.509</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Cryptosystem" class="bare">https://en.wikipedia.org/wiki/Cryptosystem</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Symmetric-key_algorithm" class="bare">https://en.wikipedia.org/wiki/Symmetric-key_algorithm</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Public-key_cryptography" class="bare">https://en.wikipedia.org/wiki/Public-key_cryptography</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/RSA_(cryptosystem" class="bare">https://en.wikipedia.org/wiki/RSA_(cryptosystem</a>)</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Certificate_signing_request" class="bare">https://en.wikipedia.org/wiki/Certificate_signing_request</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/X.509" class="bare">https://en.wikipedia.org/wiki/X.509</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/OpenSSL" class="bare">https://en.wikipedia.org/wiki/OpenSSL</a></p>
+</li>
+<li>
+<p><a href="https://linuxctl.com/2017/02/x509-certificate-manual-signature-verification/" class="bare">https://linuxctl.com/2017/02/x509-certificate-manual-signature-verification/</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/04/02/subtraction-complement-signed-number/">&laquo; 补数与减法</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2019/04/21/anonymous-functions-in-go/">匿名函数、闭包、柯里化与高阶函数 &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

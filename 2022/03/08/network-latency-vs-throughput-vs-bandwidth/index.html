@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Network Latency vs. Throughput vs. Bandwidth</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2022/03/08/network-latency-vs-throughput-vs-bandwidth/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Network Latency vs. Throughput vs. Bandwidth</h1>
+    
+    
+    <p class="post-meta"><time datetime="2022-03-08T14:30:33+08:00" itemprop="datePublished">Mar 8, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="preamble">
+<div class="sectionbody">
+<div class="imageblock">
+<div class="content">
+<img src="https://www.dnsstuff.com/wp-content/uploads/2020/12/image-11.png" alt="image 11">
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="use-qperf-to-measure-network-throughput-and-latency">Use qperf to measure network throughput and latency</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-2:~#</span><span class="w"> </span>apt <span class="nb">install </span>qperf
+<span class="go">Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+qperf is already the newest version (0.4.11-2).
+0 upgraded, 0 newly installed, 0 to remove and 15 not upgraded.
+
+
+</span><span class="gp">root@node-2:~#</span><span class="w"> </span>qperf</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>qperf <span class="nt">-ip</span> 19766 <span class="nt">-t</span> 10 <span class="nt">-ub</span> <span class="nt">-vvs</span> node-2 tcp_bw tcp_lat
+<span class="go">tcp_bw:
+    bw          =    1.94 Gb/sec
+    msg_rate    =     3.7 K/sec
+    send_bytes  =    2.43 GB
+    send_msgs   =  37,046
+    recv_bytes  =    2.43 GB
+    recv_msgs   =  37,011
+tcp_lat:
+    latency         =     366 us
+    msg_rate        =    2.73 K/sec
+    loc_send_bytes  =    13.7 KB
+    loc_recv_bytes  =    13.7 KB
+    loc_send_msgs   =  13,659
+    loc_recv_msgs   =  13,658
+    rem_send_bytes  =    13.7 KB
+    rem_recv_bytes  =    13.7 KB
+    rem_send_msgs   =  13,658
+    rem_recv_msgs   =  13,658</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="use-iperf-to-measure-network-throughput">Use iperf to measure network throughput</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-2:~#</span><span class="w"> </span>apt <span class="nb">install </span>iperf3
+<span class="go">Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  libiperf0 libsctp1
+Suggested packages:
+  lksctp-tools
+The following NEW packages will be installed:
+  iperf3 libiperf0 libsctp1
+0 upgraded, 3 newly installed, 0 to remove and 33 not upgraded.
+Need to get 143 kB of archives.
+After this operation, 361 kB of additional disk space will be used.
+Do you want to continue? [Y/n] y
+</span><span class="c">...
+</span><span class="go">Setting up iperf3 (3.9-1) ...
+Processing triggers for man-db (2.9.4-2) ...
+Processing triggers for libc-bin (2.31-13+deb11u2) ...
+
+</span><span class="gp">root@node-2:~#</span><span class="w"> </span>iperf3 <span class="nt">-s</span>
+<span class="go">-----------------------------------------------------------
+Server listening on 5201
+-----------------------------------------------------------</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>iperf3 <span class="nt">-c</span> node-2
+<span class="go">Connecting to host node-2, port 5201
+[  5] local 192.168.91.128 port 44372 connected to 192.168.91.129 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   239 MBytes  2.00 Gbits/sec    6   1.50 MBytes
+[  5]   1.00-2.00   sec   285 MBytes  2.39 Gbits/sec    0   1.61 MBytes
+[  5]   2.00-3.00   sec   255 MBytes  2.14 Gbits/sec    0   1.71 MBytes
+[  5]   3.00-4.00   sec   248 MBytes  2.07 Gbits/sec    0   1.79 MBytes
+[  5]   4.00-5.00   sec   271 MBytes  2.28 Gbits/sec   14   1.31 MBytes
+[  5]   5.00-6.00   sec   254 MBytes  2.13 Gbits/sec    0   1.43 MBytes
+[  5]   6.00-7.00   sec   234 MBytes  1.96 Gbits/sec    0   1.54 MBytes
+[  5]   7.00-8.00   sec   265 MBytes  2.22 Gbits/sec    0   1.65 MBytes
+[  5]   8.00-9.00   sec   256 MBytes  2.15 Gbits/sec    0   1.75 MBytes
+[  5]   9.00-10.00  sec   260 MBytes  2.18 Gbits/sec    0   1.84 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  2.51 GBytes  2.15 Gbits/sec   20             sender
+[  5]   0.00-10.01  sec  2.50 GBytes  2.15 Gbits/sec                  receiver
+
+iperf Done.
+</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Network_delay" class="bare">https://en.wikipedia.org/wiki/Network_delay</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Latency_(engineering)" class="bare">https://en.wikipedia.org/wiki/Latency_(engineering)</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Round-trip_delay" class="bare">https://en.wikipedia.org/wiki/Round-trip_delay</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/End-to-end_delay" class="bare">https://en.wikipedia.org/wiki/End-to-end_delay</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Bandwidth_(computing)" class="bare">https://en.wikipedia.org/wiki/Bandwidth_(computing)</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Throughput" class="bare">https://en.wikipedia.org/wiki/Throughput</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Goodput" class="bare">https://en.wikipedia.org/wiki/Goodput</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Measuring_network_throughput" class="bare">https://en.wikipedia.org/wiki/Measuring_network_throughput</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Binary_prefix" class="bare">https://en.wikipedia.org/wiki/Binary_prefix</a></p>
+</li>
+<li>
+<p><a href="https://www.dnsstuff.com/latency-throughput-bandwidth" class="bare">https://www.dnsstuff.com/latency-throughput-bandwidth</a></p>
+</li>
+<li>
+<p><a href="https://www.keycdn.com/blog/network-bandwidth" class="bare">https://www.keycdn.com/blog/network-bandwidth</a></p>
+</li>
+<li>
+<p><a href="https://www.allconnect.com/blog/difference-between-bandwidth-and-latency" class="bare">https://www.allconnect.com/blog/difference-between-bandwidth-and-latency</a></p>
+</li>
+<li>
+<p><a href="https://flexnetworks.ca/latency-and-bandwidth/" class="bare">https://flexnetworks.ca/latency-and-bandwidth/</a></p>
+</li>
+<li>
+<p><a href="https://www.highspeedinternet.com/resources/bandwidth-vs-latency-what-is-the-difference" class="bare">https://www.highspeedinternet.com/resources/bandwidth-vs-latency-what-is-the-difference</a></p>
+</li>
+<li>
+<p><a href="https://iperf.fr/" class="bare">https://iperf.fr/</a></p>
+</li>
+<li>
+<p><a href="https://www.ateam-oracle.com/post/testing-latency-and-throughput" class="bare">https://www.ateam-oracle.com/post/testing-latency-and-throughput</a></p>
+</li>
+<li>
+<p><a href="https://access.redhat.com/solutions/2122681" class="bare">https://access.redhat.com/solutions/2122681</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2022/02/11/overview-of-linux-kernel-security-features/">&laquo; Overview of Linux Kernel Security Features</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2022/05/01/scala-in-action/">Scala in Action &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

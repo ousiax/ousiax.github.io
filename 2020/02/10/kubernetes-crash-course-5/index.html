@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>5 - Kubernetes StatefulSet</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2020/02/10/kubernetes-crash-course-5/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">5 - Kubernetes StatefulSet</h1>
+    
+    
+    <p class="post-meta"><time datetime="2020-02-10T10:46:33+08:00" itemprop="datePublished">Feb 10, 2020</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#statefulset" id="markdown-toc-statefulset">StatefulSet</a></li>
+  <li><a href="#limitations" id="markdown-toc-limitations">Limitations</a></li>
+  <li><a href="#pod-identity" id="markdown-toc-pod-identity">Pod Identity</a></li>
+  <li><a href="#pvsmongodb-data-0-pvyaml" id="markdown-toc-pvsmongodb-data-0-pvyaml">pvs/mongodb-data-0-pv.yaml</a></li>
+  <li><a href="#pvsmongodb-data-1-pvyaml" id="markdown-toc-pvsmongodb-data-1-pvyaml">pvs/mongodb-data-1-pv.yaml</a></li>
+  <li><a href="#pvsmongodb-data-2-pvyaml" id="markdown-toc-pvsmongodb-data-2-pvyaml">pvs/mongodb-data-2-pv.yaml</a></li>
+  <li><a href="#mongodb-svcyaml" id="markdown-toc-mongodb-svcyaml">mongodb-svc.yaml</a></li>
+  <li><a href="#mongodb-stsyaml-1" id="markdown-toc-mongodb-stsyaml-1">mongodb-sts.yaml (1)</a></li>
+  <li><a href="#mongod-keyfile-secretyaml" id="markdown-toc-mongod-keyfile-secretyaml">mongod-keyfile-secret.yaml</a></li>
+  <li><a href="#network-utils-podyaml" id="markdown-toc-network-utils-podyaml">network-utils-pod.yaml</a></li>
+  <li><a href="#rs-initjs" id="markdown-toc-rs-initjs">rs-init.js</a></li>
+  <li><a href="#lets-do-it-0" id="markdown-toc-lets-do-it-0">Let’s do IT (0)</a></li>
+  <li><a href="#lets-do-it-1" id="markdown-toc-lets-do-it-1">Let’s do IT (1)</a></li>
+  <li><a href="#lets-do-it-2" id="markdown-toc-lets-do-it-2">Let’s do IT (2)</a></li>
+  <li><a href="#lets-do-it-3" id="markdown-toc-lets-do-it-3">Let’s do IT (3)</a></li>
+  <li><a href="#lets-do-it-4" id="markdown-toc-lets-do-it-4">Let’s do IT (4)</a></li>
+  <li><a href="#lets-do-it-5" id="markdown-toc-lets-do-it-5">Let’s do IT (5)</a></li>
+  <li><a href="#lets-do-it-6" id="markdown-toc-lets-do-it-6">Let’s do IT (6)</a></li>
+  <li><a href="#quit-or-not-quit-" id="markdown-toc-quit-or-not-quit-">Quit or not quit ?</a></li>
+</ul>
+
+<hr />
+
+<h3 id="statefulset">StatefulSet</h3>
+
+<ul>
+  <li>StatefulSet is the workload API object used to manage stateful applications.</li>
+  <li>Like a Deployment , a StatefulSet manages Pods that are based on an identical container spec.</li>
+  <li>Unlike a Deployment, a StatefulSet maintains a sticky identity for each of their Pods. These pods are created from the same spec, but are not interchangeable: <strong>each has a persistent identifier that it maintains across any rescheduling</strong>.</li>
+  <li>A StatefulSet operates under the same pattern as any other Controller. You define your desired state in a StatefulSet object, and the StatefulSet controller makes any necessary updates to get there from the current state.</li>
+  <li>StatefulSets are valuable for applications that require one or more of the following.
+    <ul>
+      <li>Stable, <strong>unique network identifiers</strong>.</li>
+      <li>Stable, <strong>persistent storage</strong>.</li>
+      <li>Ordered, graceful deployment and scaling.</li>
+      <li>Ordered, automated rolling updates.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="limitations">Limitations</h3>
+
+<ul>
+  <li>The storage for a given Pod must either be provisioned by a PersistentVolume Provisioner based on the requested storage class, or pre-provisioned by an admin.</li>
+  <li><strong>Deleting and/or scaling a StatefulSet down will not delete the volumes associated with the StatefulSet</strong>. This is done to ensure data safety, which is generally more valuable than an automatic purge of all related StatefulSet resources.</li>
+  <li>StatefulSets currently <strong>require a Headless Service</strong> to be responsible for the network identity of the Pods. You are responsible for creating this Service.</li>
+  <li>StatefulSets do not provide any guarantees on the termination of pods when a StatefulSet is deleted. To achieve ordered and graceful termination of the pods in the StatefulSet, it is possible to scale the StatefulSet down to 0 prior to deletion.</li>
+</ul>
+
+<h3 id="pod-identity">Pod Identity</h3>
+
+<ul>
+  <li>StatefulSet Pods have a unique identity that is comprised of an <strong>ordinal</strong>, a <strong>stable network identity</strong>, and <strong>stable storage</strong>. The identity sticks to the Pod, regardless of which node it’s (re)scheduled on.</li>
+  <li>For a StatefulSet with N replicas, each Pod in the StatefulSet will be assigned an integer ordinal, <strong>from 0 up through N-1</strong>, that is unique over the Set.</li>
+  <li>Each Pod in a StatefulSet derives its hostname from the name of the StatefulSet and the ordinal of the Pod. The pattern for the constructed hostname is <strong>$(statefulset name)-$(ordinal)</strong>.</li>
+  <li>A StatefulSet can use a Headless Service to control the domain of its Pods. The domain managed by this Service takes the form: <strong>$(service name).$(namespace).svc.cluster.local</strong>, where “cluster.local” is the cluster domain. As each Pod is created, it gets a matching DNS subdomain, taking the form: <strong>$(podname).$(governing service domain)</strong>, where the governing service is defined by the serviceName field on the StatefulSet.</li>
+</ul>
+
+<h3 id="pvsmongodb-data-0-pvyaml">pvs/mongodb-data-0-pv.yaml</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PersistentVolume</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongodb-data-0</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">local</span>
+  <span class="na">capacity</span><span class="pi">:</span>
+    <span class="na">storage</span><span class="pi">:</span> <span class="s">64Mi</span>
+  <span class="na">accessModes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+  <span class="na">local</span><span class="pi">:</span>
+    <span class="na">path</span><span class="pi">:</span> <span class="s">/tmp/data/db/0</span>
+ <span class="na">nodeAffinity</span><span class="pi">:</span>
+    <span class="na">required</span><span class="pi">:</span>
+      <span class="na">nodeSelectorTerms</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">matchExpressions</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="na">key</span><span class="pi">:</span> <span class="s">node.kubernetes.io/mongodb-data-0-ready</span>
+            <span class="na">operator</span><span class="pi">:</span> <span class="s">In</span>
+            <span class="na">values</span><span class="pi">:</span>
+              <span class="pi">-</span> <span class="s2">"</span><span class="s">true"</span>
+</code></pre></div></div>
+
+<h3 id="pvsmongodb-data-1-pvyaml">pvs/mongodb-data-1-pv.yaml</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PersistentVolume</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongodb-data-1</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">local</span>
+  <span class="na">capacity</span><span class="pi">:</span>
+    <span class="na">storage</span><span class="pi">:</span> <span class="s">64Mi</span>
+  <span class="na">accessModes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+  <span class="na">local</span><span class="pi">:</span>
+    <span class="na">path</span><span class="pi">:</span> <span class="s">/tmp/data/db/1</span>
+ <span class="na">nodeAffinity</span><span class="pi">:</span>
+    <span class="na">required</span><span class="pi">:</span>
+      <span class="na">nodeSelectorTerms</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">matchExpressions</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="na">key</span><span class="pi">:</span> <span class="s">node.kubernetes.io/mongodb-data-1-ready</span>
+            <span class="na">operator</span><span class="pi">:</span> <span class="s">In</span>
+            <span class="na">values</span><span class="pi">:</span>
+              <span class="pi">-</span> <span class="s2">"</span><span class="s">true"</span>
+</code></pre></div></div>
+
+<h3 id="pvsmongodb-data-2-pvyaml">pvs/mongodb-data-2-pv.yaml</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PersistentVolume</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongodb-data-2</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">local</span>
+  <span class="na">capacity</span><span class="pi">:</span>
+    <span class="na">storage</span><span class="pi">:</span> <span class="s">64Mi</span>
+  <span class="na">accessModes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+  <span class="na">local</span><span class="pi">:</span>
+    <span class="na">path</span><span class="pi">:</span> <span class="s">/tmp/data/db/2</span>
+ <span class="na">nodeAffinity</span><span class="pi">:</span>
+    <span class="na">required</span><span class="pi">:</span>
+      <span class="na">nodeSelectorTerms</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">matchExpressions</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="na">key</span><span class="pi">:</span> <span class="s">node.kubernetes.io/mongodb-data-2-ready</span>
+            <span class="na">operator</span><span class="pi">:</span> <span class="s">In</span>
+            <span class="na">values</span><span class="pi">:</span>
+              <span class="pi">-</span> <span class="s2">"</span><span class="s">true"</span>
+</code></pre></div></div>
+
+<h3 id="mongodb-svcyaml">mongodb-svc.yaml</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongodb</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">clusterIP</span><span class="pi">:</span> <span class="s">None</span>
+  <span class="na">selector</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">mongodb</span>
+  <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+</code></pre></div></div>
+
+<h3 id="mongodb-stsyaml-1">mongodb-sts.yaml (1)</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">apps/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">StatefulSet</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongodb</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">replicas</span><span class="pi">:</span> <span class="m">3</span>
+  <span class="na">serviceName</span><span class="pi">:</span> <span class="s">mongodb</span>
+  <span class="na">volumeClaimTemplates</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">metadata</span><span class="pi">:</span>
+        <span class="na">name</span><span class="pi">:</span> <span class="s">data</span>
+      <span class="na">spec</span><span class="pi">:</span>
+        <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">local</span>
+        <span class="na">accessModes</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+        <span class="na">resources</span><span class="pi">:</span>
+          <span class="na">requests</span><span class="pi">:</span>
+            <span class="na">storage</span><span class="pi">:</span> <span class="s">16Mi</span>
+ <span class="na">template</span><span class="pi">:</span>
+    <span class="na">metadata</span><span class="pi">:</span>
+      <span class="na">labels</span><span class="pi">:</span>
+        <span class="na">app</span><span class="pi">:</span> <span class="s">mongodb</span>
+    <span class="na">spec</span><span class="pi">:</span>
+      <span class="na">volumes</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">etc-mongod-keyfile</span>
+          <span class="na">secret</span><span class="pi">:</span>
+            <span class="na">defaultMode</span><span class="pi">:</span> <span class="m">0400</span>
+            <span class="na">secretName</span><span class="pi">:</span> <span class="s">mongod-keyfile</span>
+      <span class="na">containers</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">mongo</span>
+          <span class="na">image</span><span class="pi">:</span> <span class="s">mongo:3.6</span>
+          <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">mongod"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">--bind_ip_all"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">--auth"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">--replSet"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">rs0"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">--keyFile"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">/etc/mongod.keyfile"</span><span class="pi">]</span>
+          <span class="na">volumeMounts</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/data/db</span>
+              <span class="na">name</span><span class="pi">:</span> <span class="s">data</span>
+            <span class="pi">-</span> <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/etc/mongod.keyfile</span>
+              <span class="na">name</span><span class="pi">:</span> <span class="s">etc-mongod-keyfile</span>
+              <span class="na">subPath</span><span class="pi">:</span> <span class="s">mongod.keyfile</span>
+</code></pre></div></div>
+
+<h3 id="mongod-keyfile-secretyaml">mongod-keyfile-secret.yaml</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Secret</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongod-keyfile</span>
+<span class="na">type</span><span class="pi">:</span> <span class="s">Opaque</span>
+<span class="na">data</span><span class="pi">:</span>
+  <span class="na">mongod.keyfile</span><span class="pi">:</span> <span class="s">QkpTUGEveElKNU9UTXRXcGZiSjl0M253SDMzZHJCSG9idEczYmtvN3RmMCtkVENKR1o4R0pRNS9oekFQdksxYgpLMHNqZExKNi9ZY3l1TFI4NDlsUEl6aUtIVFpiZWI4a0ZYR1Fnb0s3QkE4VlBqaHFySnhTVUxHb1YyQkNvZElsCmtqeE5nc29JOW1PTmxsMmh2WTJxYWlrOFMzVnBOc1orNlVjV0lXYk90ekE0ZFJXb3ZISTZZS0xrU3RTMlRoakwKM3lMQUlPM1ZUVlJ5bEptcFVwNFJiMzd5QUVPYlR6VHg2dStURjg2L1p3OEFGM2NGZ1JLdHgxQ0pKMTlOVjZ2NAowZ051ZEhUSXNkZXJSNWViSkhKMTZsY2I2ZGdPOUxxaWlBaXBxQmNPdzB2TXlsalVtZHpQRVN2VXhzbmtaRy9KCmRNbkJGYitOV2owelQ0aGpyLzJCTUZwTTYvcjlMYnpocnVGem5XOTBXb0JEZGRFdnNvVWwrU1lLMWJiUE1yTVIKekovc0pTa2t3eDZ2NUlZc2NmdnFrRllqSS9TaFNHQ0FWMXlXcS9pZ3ptSGg3b2ZLUXVHSHBoWVNVNzlwVTNqagpBRVN4VHhaMDJSTmZNOExRdU42eGl5dWRLbWF0TDBuWlp6VlAySnFSeTNiRGtpTVFhcmJLbzVRZ2JsNk0xSmlwClhVSElPUWFSQytlRU1weGxycWM5cGtaYVVqZEZEUmlEWDBUcHZISWNVaWNuVGxOeTFRMVpHYmczY09SVmo0R2sKZGZmRXdjRHNubWwyZS9oUFJpejZxQTJURGpBb3B6di9MakhZUWZ1U0JVREVwTkpIMytPQUlKcWJFeWpHWFdlQgp5L0dVL0w5OHpPN21mYWlrbG52SW5jR0M2czVtalVNS1JWVW8yaytMdXU2VVV3NkRYa1hjVXhvYzVkemQzNy94CitiNDZJN1YzUXJ5cnI0UWtDb3ZnbHBHVmtBa3lKamVZQnVUckY2MnV4bDlCaTM2MkwrMWdnWjVJZE1IYTErV0wKWGZOZXR6c1FqanFlWlNzdWxsaHRJaWFDMjZ5azQ5NXFHMks0T1N5bDBhbjZQQkdldmtpOE5xTm11UlY3N2M5YwpQM2wvdElJNUlhMllHdFFyNGZHU3BuQ1U5bHIxelRmUzYrZUFPNGxjNk85SXljQnEwU1VNd3IvUDhCTFVOYk96CndrR09NQTB1Vy8zMVR3RllNUE9vY0R6WHF5ejE2NTFUc0dHY0xEWnR5bUx1eEdqTitDbGNMVlN2K0lrMVBRa3gKV2FML2pCVzJCL2g4OXNaY21Zak9PTVQrUVdvTWo2WEtXSWsvNUpEOERpa28rNzA3Cg==</span>
+</code></pre></div></div>
+
+<h3 id="network-utils-podyaml">network-utils-pod.yaml</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">network-utils</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">containers</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">network-utils</span>
+      <span class="na">image</span><span class="pi">:</span> <span class="s">amouat/network-utils</span>
+      <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">sleep'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">10h'</span><span class="pi">]</span>
+</code></pre></div></div>
+
+<h3 id="rs-initjs">rs-init.js</h3>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// 1. init replication set</span>
+<span class="nx">rs</span><span class="p">.</span><span class="nx">initiate</span><span class="p">(</span> <span class="p">{</span>
+  <span class="na">_id</span> <span class="p">:</span> <span class="dl">"</span><span class="s2">rs0</span><span class="dl">"</span><span class="p">,</span>
+  <span class="na">members</span><span class="p">:</span> <span class="p">[</span> <span class="p">{</span> <span class="na">_id</span> <span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="na">host</span> <span class="p">:</span> <span class="dl">"</span><span class="s2">mongodb-0.mongodb</span><span class="dl">"</span> <span class="p">}</span> <span class="p">]</span>
+<span class="p">});</span>
+<span class="c1">// 2. create cluster admin</span>
+<span class="nx">use</span> <span class="nx">admin</span><span class="p">;</span>
+<span class="nx">db</span><span class="p">.</span><span class="nx">createUser</span><span class="p">({</span>
+  <span class="na">user</span><span class="p">:</span><span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">,</span>
+  <span class="na">pwd</span><span class="p">:</span><span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">,</span>
+  <span class="na">roles</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span><span class="na">role</span><span class="p">:</span> <span class="dl">"</span><span class="s2">userAdmin</span><span class="dl">"</span><span class="p">,</span> <span class="na">db</span><span class="p">:</span><span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">},</span>
+      <span class="p">{</span><span class="na">role</span><span class="p">:</span> <span class="dl">"</span><span class="s2">clusterAdmin</span><span class="dl">"</span><span class="p">,</span> <span class="na">db</span><span class="p">:</span> <span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">});</span>
+
+<span class="c1">// 3. login with cluster admin user</span>
+<span class="nx">db</span><span class="p">.</span><span class="nx">auth</span><span class="p">(</span><span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">);</span>
+<span class="c1">// 3. add slave nodes</span>
+<span class="nx">rs</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="dl">"</span><span class="s2">mongodb-1.mongodb</span><span class="dl">"</span><span class="p">);</span>
+<span class="nx">rs</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="dl">"</span><span class="s2">mongodb-2.mongodb</span><span class="dl">"</span><span class="p">);</span>
+<span class="nx">db</span><span class="p">.</span><span class="nx">runCommand</span><span class="p">(</span><span class="dl">'</span><span class="s1">isMaster</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="c1">// 4. create database user</span>
+<span class="nx">db</span><span class="p">.</span><span class="nx">createUser</span><span class="p">({</span>
+    <span class="na">user</span><span class="p">:</span> <span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">,</span>
+    <span class="na">pwd</span><span class="p">:</span> <span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">,</span>
+    <span class="na">roles</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span> <span class="na">role</span><span class="p">:</span> <span class="dl">"</span><span class="s2">readWriteAnyDatabase</span><span class="dl">"</span><span class="p">,</span> <span class="na">db</span><span class="p">:</span> <span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span> <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="lets-do-it-0">Let’s do IT (0)</h3>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">sudo mkdir</span> /tmp/data/db/<span class="o">{</span>0,1,2<span class="o">}</span> <span class="nt">-p</span>
+<span class="nv">$ </span>kubectl label no <span class="o">[</span>NODE-0-NAME] node.kubernetes.io/mongodb-data-0-ready<span class="o">=</span><span class="nb">true
+</span>node/NODE-0-NAME labeled
+<span class="nv">$ </span>kubectl label no <span class="o">[</span>NODE-1-NAME] node.kubernetes.io/mongodb-data-1-ready<span class="o">=</span><span class="nb">true
+</span>node/NODE-1-NAME labeled
+<span class="nv">$ </span>kubectl label no <span class="o">[</span>NODE-2-NAME] node.kubernetes.io/mongodb-data-2-ready<span class="o">=</span><span class="nb">true
+</span>node/NODE-2-NAME labeled
+<span class="nv">$ </span>kubectl create <span class="nt">-f</span> pvs/
+persistentvolume/mongodb-data-0 created
+persistentvolume/mongodb-data-1 created
+persistentvolume/mongodb-data-2 created
+</code></pre></div></div>
+
+<h3 id="lets-do-it-1">Let’s do IT (1)</h3>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongodb-svc.yaml 
+service/mongodb created
+<span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongod-keyfile-secret.yaml 
+secret/mongod-keyfile created
+<span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongodb-sts.yaml 
+statefulset.apps/mongodb created
+</code></pre></div></div>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get po <span class="nt">-w</span>
+NAME        READY   STATUS    RESTARTS   AGE
+mongodb-0   1/1     Running   0          4s
+mongodb-1   0/1     Pending   0          0s
+mongodb-1   0/1     Pending   0          1s
+mongodb-1   0/1     ContainerCreating   0          1s
+mongodb-1   1/1     Running             0          3s
+mongodb-2   0/1     Pending             0          0s
+mongodb-2   0/1     Pending             0          1s
+mongodb-2   0/1     ContainerCreating   0          1s
+mongodb-2   1/1     Running             0          3s
+</code></pre></div></div>
+
+<h3 id="lets-do-it-2">Let’s do IT (2)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get pv,pvc
+NAME                              CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                    STORAGECLASS   REASON   AGE
+persistentvolume/mongodb-data-0   64Mi       RWO            Retain           Bound    default/data-mongodb-0   <span class="nb">local                   </span>70s
+persistentvolume/mongodb-data-1   64Mi       RWO            Retain           Bound    default/data-mongodb-1   <span class="nb">local                   </span>70s
+persistentvolume/mongodb-data-2   64Mi       RWO            Retain           Bound    default/data-mongodb-2   <span class="nb">local                   </span>70s
+
+NAME                                   STATUS   VOLUME           CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/data-mongodb-0   Bound    mongodb-data-0   64Mi       RWO            <span class="nb">local          </span>43s
+persistentvolumeclaim/data-mongodb-1   Bound    mongodb-data-1   64Mi       RWO            <span class="nb">local          </span>40s
+persistentvolumeclaim/data-mongodb-2   Bound    mongodb-data-2   64Mi       RWO            <span class="nb">local          </span>36s
+</code></pre></div></div>
+
+<h3 id="lets-do-it-3">Let’s do IT (3)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> network-utils-pod.yaml 
+pod/network-utils created
+<span class="nv">$ </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> network-utils bash
+root@network-utils:/# nslookup mongodb-0.mongodbclear
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   mongodb-0.mongodb.default.svc.cluster.local
+Address: 10.244.0.136
+root@network-utils:/# nslookup mongodb          
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   mongodb.default.svc.cluster.local
+Address: 10.244.0.138
+Name:   mongodb.default.svc.cluster.local
+Address: 10.244.0.137
+Name:   mongodb.default.svc.cluster.local
+Address: 10.244.0.136
+</code></pre></div></div>
+
+<h3 id="lets-do-it-4">Let’s do IT (4)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl describe po mongodb-0
+Volumes:
+  data:
+    Type:       PersistentVolumeClaim <span class="o">(</span>a reference to a PersistentVolumeClaim <span class="k">in </span>the same namespace<span class="o">)</span>
+    ClaimName:  data-mongodb-0
+    ReadOnly:   <span class="nb">false
+  </span>etc-mongod-keyfile:
+    Type:        Secret <span class="o">(</span>a volume populated by a Secret<span class="o">)</span>
+    SecretName:  mongod-keyfile
+    Optional:    <span class="nb">false</span>
+</code></pre></div></div>
+
+<h3 id="lets-do-it-5">Let’s do IT (5)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl delete <span class="nt">-f</span> mongodb-sts.yaml 
+statefulset.apps <span class="s2">"mongodb"</span> deleted
+<span class="nv">$ </span>kubectl get po
+NAME            READY   STATUS    RESTARTS   AGE
+network-utils   1/1     Running   0          7m4s
+<span class="nv">$ </span>kubectl get pv,pvc
+NAME                              CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                    STORAGECLASS   REASON   AGE
+persistentvolume/mongodb-data-0   64Mi       RWO            Retain           Bound    default/data-mongodb-0   <span class="nb">local                   </span>11m
+persistentvolume/mongodb-data-1   64Mi       RWO            Retain           Bound    default/data-mongodb-1   <span class="nb">local                   </span>11m
+persistentvolume/mongodb-data-2   64Mi       RWO            Retain           Bound    default/data-mongodb-2   <span class="nb">local                   </span>11m
+
+NAME                                   STATUS   VOLUME           CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/data-mongodb-0   Bound    mongodb-data-0   64Mi       RWO            <span class="nb">local          </span>11m
+persistentvolumeclaim/data-mongodb-1   Bound    mongodb-data-1   64Mi       RWO            <span class="nb">local          </span>11m
+persistentvolumeclaim/data-mongodb-2   Bound    mongodb-data-2   64Mi       RWO            <span class="nb">local          </span>11m
+</code></pre></div></div>
+
+<h3 id="lets-do-it-6">Let’s do IT (6)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongodb-sts.yaml 
+statefulset.apps/mongodb created
+<span class="nv">$ </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> mongodb-0 bash
+root@mongodb-0:/# mongo <span class="nt">--quiet</span>
+<span class="o">&gt;</span> rs.initiate<span class="o">(</span> <span class="o">{</span>
+...   _id : <span class="s2">"rs0"</span>,
+...   members: <span class="o">[</span> <span class="o">{</span> _id : 0, host : <span class="s2">"mongodb-0.mongodb"</span> <span class="o">}</span> <span class="o">]</span>
+... <span class="o">})</span><span class="p">;</span>
+<span class="o">{</span> <span class="s2">"ok"</span> : 1 <span class="o">}</span>
+</code></pre></div></div>
+
+<h3 id="quit-or-not-quit-">Quit or not quit ?</h3>
+
+<p><a href="https://kubernetes.io/">https://kubernetes.io/</a></p>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/09/18/get-started-aws/">&laquo; Get Started with AWS</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2020/02/10/kubernetes-crash-course-6/">6 - Kubernetes Monitoring &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Capturing Iteration Variables in Go Language</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/05/15/capturing-iteration-variables-in-go-language/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Capturing Iteration Variables in Go Language</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-05-15T19:33:03+08:00" itemprop="datePublished">May 15, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <p>Named functions can be declared only at the package level, but we can use a <em>function literal</em> to denote a function value within any expression. A function literal is written like a function declaration, but without a name following the <code class="language-plaintext highlighter-rouge">func</code> keyword. It is an expression, and its value is called an <strong><em>anonymous function</em></strong>.</p>
+
+<p>Function literals let us define a function at its point of use. As an example, the call to <code class="language-plaintext highlighter-rouge">strings.Map</code> can be rewritten as</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">strings</span><span class="o">.</span><span class="n">Map</span><span class="p">(</span><span class="k">func</span><span class="p">(</span><span class="n">r</span> <span class="kt">rune</span><span class="p">)</span> <span class="kt">rune</span> <span class="p">{</span> <span class="k">return</span> <span class="n">r</span> <span class="o">+</span> <span class="m">1</span><span class="p">},</span> <span class="s">"HAL-9000"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>More importantly, functions defined in this way have access to the entire lexical environment, so the inner function can refer to variables from the enclosing funciton, as this example shows:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="c">// squares returns a function that returns</span>
+<span class="c">// the next square number each time it is called.</span>
+<span class="k">func</span> <span class="n">squares</span><span class="p">()</span> <span class="k">func</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+	<span class="k">var</span> <span class="n">x</span> <span class="kt">int</span>
+	<span class="k">return</span> <span class="k">func</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+		<span class="n">x</span><span class="o">++</span>
+		<span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">f</span> <span class="o">:=</span> <span class="n">squares</span><span class="p">()</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">f</span><span class="p">())</span> <span class="c">// "1"</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">f</span><span class="p">())</span> <span class="c">// "4"</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">f</span><span class="p">())</span> <span class="c">// "9"</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">f</span><span class="p">())</span> <span class="c">// "16"</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The function <code class="language-plaintext highlighter-rouge">squares</code> returns another function, of type <code class="language-plaintext highlighter-rouge">func() int</code>. A call to <code class="language-plaintext highlighter-rouge">squares</code> creates a local variable <code class="language-plaintext highlighter-rouge">x</code> and returns an anonymous function that, each time it is called, increments <code class="language-plaintext highlighter-rouge">x</code> and return its square. A second call to <code class="language-plaintext highlighter-rouge">squares</code> would create a second variable <code class="language-plaintext highlighter-rouge">x</code> and return a new anonymous function with increments that variable.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">squares</code> example demonstrates that <strong>function values are not just code but can have state.</strong> The anonymous inner function can access and update the local variables of the enclosing function <code class="language-plaintext highlighter-rouge">squares</code>. These hidden variable references are why we classify functions as reference types and why function values are not comparable. Function values like these are implemented using a technique called <strong><em>closures</em></strong>, and Go programmerrs often use this term for function values.</p>
+
+<p>Here again we see an example where the lifetime of a variable is not determined by its scope: the variable <code class="language-plaintext highlighter-rouge">x</code> exists after <code class="language-plaintext highlighter-rouge">squares</code> has returned within <code class="language-plaintext highlighter-rouge">main</code>, even though <code class="language-plaintext highlighter-rouge">x</code> is hidden inside <code class="language-plaintext highlighter-rouge">f</code>.</p>
+
+<hr />
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">var</span> <span class="n">fb</span> <span class="k">func</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span> <span class="kt">int</span>
+	<span class="n">fb</span> <span class="o">=</span> <span class="k">func</span><span class="p">(</span><span class="n">n</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="m">0</span> <span class="o">||</span> <span class="n">n</span> <span class="o">==</span> <span class="m">1</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="m">1</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="n">fb</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="m">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">fb</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="m">2</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="c">// 0:1 1:1 2:2 3:3 4:5 5:8 6:13 7:21 8:34 9:55</span>
+	<span class="k">for</span> <span class="n">n</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="m">10</span><span class="p">;</span> <span class="n">n</span><span class="o">++</span> <span class="p">{</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"%d:%d "</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">fb</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>When an anonymous function requires recursion, as in this example, we must first declare a variable, and then assign the anonymous function to that variable. Had these two steps been combined in the declaration, the function literal would not be within the scope of the variable <code class="language-plaintext highlighter-rouge">fb</code> so it would have no way to call itself recursively:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="c">// var fb func(int) int</span>
+	<span class="n">fb</span> <span class="o">:=</span> <span class="k">func</span><span class="p">(</span><span class="n">n</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="m">0</span> <span class="o">||</span> <span class="n">n</span> <span class="o">==</span> <span class="m">1</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="m">1</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="n">fb</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="m">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">fb</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="m">2</span><span class="p">)</span> <span class="c">// compile error: undefined: fb</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<hr />
+
+<p>In this section, we’ll look at a pitfall of Go’s lexical scope rules that can cause surprising results. We urge you to understand the problem before proceeding, because the trap can ensnare even experienced programmers.</p>
+
+<p>Consider a program that must create a set of directories and later remove them. We can use a slice of function values to hold the clean-up operations. (For brevity, we have ommited all error handling in this example.)</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="k">var</span> <span class="n">rmdirs</span> <span class="p">[]</span><span class="k">func</span><span class="p">()</span>
+	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">d</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">tempDirs</span><span class="p">()</span> <span class="p">{</span>
+		<span class="n">dir</span> <span class="o">:=</span> <span class="n">d</span>               <span class="c">// NOTE: necessary!</span>
+		<span class="n">os</span><span class="o">.</span><span class="n">MkdirAll</span><span class="p">(</span><span class="n">dir</span><span class="p">,</span> <span class="m">0755</span><span class="p">)</span> <span class="c">// creates parent directories too</span>
+		<span class="n">rmdirs</span> <span class="o">=</span> <span class="nb">append</span><span class="p">(</span><span class="n">rmdirs</span><span class="p">,</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+			<span class="n">os</span><span class="o">.</span><span class="n">RemoveAll</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span>
+		<span class="p">})</span>
+	<span class="p">}</span>
+	<span class="c">// ...do some work...</span>
+	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">rmdir</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">rmdirs</span> <span class="p">{</span>
+		<span class="n">rmdir</span><span class="p">()</span> <span class="c">// clean up</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>You may wondering why we assigned the loop variable <code class="language-plaintext highlighter-rouge">d</code> to a new local variable <code class="language-plaintext highlighter-rouge">dir</code> within the loop body, instead of just naming the loop variable <code class="language-plaintext highlighter-rouge">dir</code> as in this subtly incorrect variant:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="k">var</span> <span class="n">rmdirs</span> <span class="p">[]</span><span class="k">func</span><span class="p">()</span>
+	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">dir</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">tempDirs</span><span class="p">()</span> <span class="p">{</span>
+		<span class="n">os</span><span class="o">.</span><span class="n">MkdirAll</span><span class="p">(</span><span class="n">dir</span><span class="p">,</span> <span class="m">0755</span><span class="p">)</span>
+		<span class="n">rmdirs</span> <span class="o">=</span> <span class="nb">append</span><span class="p">(</span><span class="n">rmdirs</span><span class="p">,</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+			<span class="n">os</span><span class="o">.</span><span class="n">RemoveAll</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span> <span class="c">// NOTE: incorrect!</span>
+		<span class="p">})</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The reason is a consequence of the scope rules for loop variables. In this program immediately above, the <code class="language-plaintext highlighter-rouge">for</code> loop introduces a new lexical block in which the variable <code class="language-plaintext highlighter-rouge">dir</code> is declared. All function values created by this loop “capture” and share the same variable—an addressable storage location, not its value at that particular moment. The value of <code class="language-plaintext highlighter-rouge">dir</code> is updated in successive iterations, so by the time the cleanup functions are called, the <code class="language-plaintext highlighter-rouge">dir</code> variable has been updated serval times by the now-completed <code class="language-plaintext highlighter-rouge">for</code> loop. Thus <code class="language-plaintext highlighter-rouge">dir</code> holds the value from the final iteration, and consequently all calls to <code class="language-plaintext highlighter-rouge">os.RemoveAll</code> will attempt to remove the same directory.</p>
+
+<p>Frequently, the inner variable introduced to work around this problem—<code class="language-plaintext highlighter-rouge">dir</code> in out example—is given the exact same name as the outer variable of which it is a copy, leading to odd-looking but crucial variable declarations like this:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">dir</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">tempDirs</span><span class="p">()</span> <span class="p">{</span>
+		<span class="n">dir</span> <span class="o">:=</span> <span class="n">dir</span> <span class="c">// declares inner dir, intialized to outer dir</span>
+        <span class="c">// ...</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The rist is not uique to <code class="language-plaintext highlighter-rouge">range</code>-based <code class="language-plaintext highlighter-rouge">for</code> loops. The loop in the example below suffers from the same problem due to unitended capture of the index variable <code class="language-plaintext highlighter-rouge">i</code>.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="k">var</span> <span class="n">rmdirs</span> <span class="p">[]</span><span class="k">func</span><span class="p">()</span>
+	<span class="n">dirs</span> <span class="o">:=</span> <span class="n">tempDirs</span><span class="p">()</span>
+	<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">dirs</span><span class="p">);</span> <span class="n">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="n">os</span><span class="o">.</span><span class="n">MkdirAll</span><span class="p">(</span><span class="n">dirs</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="m">0755</span><span class="p">)</span> <span class="c">// OK</span>
+		<span class="n">rmdirs</span> <span class="o">=</span> <span class="nb">append</span><span class="p">(</span><span class="n">rmdirs</span><span class="p">,</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+			<span class="n">os</span><span class="o">.</span><span class="n">RemoveAll</span><span class="p">(</span><span class="n">dirs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="c">// NOTE: incorrect!</span>
+		<span class="p">})</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The problem of iteration variable capture is most often encountered when using the <code class="language-plaintext highlighter-rouge">go</code> statement or with <code class="language-plaintext highlighter-rouge">defer</code> since both may delay the execution of a function value until after the loop has finished. But the problem is not inherent to <code class="language-plaintext highlighter-rouge">go</code> or <code class="language-plaintext highlighter-rouge">defer</code>.</p>
+
+<hr />
+
+<h3 id="references">References</h3>
+
+<ol>
+  <li>Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.</li>
+  <li><a href="https://golang.org/ref/spec#Blocks">Blocks, declarations and scope</a>, The Go Programming Language Specification.</li>
+  <li><a href="/2016/04/03/anonymous-functions-and-closures/">Anonymous functions and closures</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/05/15/errors-in-go-language/">&laquo; Errors in Go language</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/05/21/deffered-function-calls-in-go-language/">Deffered Function Calls in Go Language &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

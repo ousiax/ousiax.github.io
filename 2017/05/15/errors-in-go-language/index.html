@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Errors in Go language</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/05/15/errors-in-go-language/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Errors in Go language</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-05-15T13:52:44+08:00" itemprop="datePublished">May 15, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <p><strong>Some functions always succeed at their task.</strong> For example, <code class="language-plaintext highlighter-rouge">strings.Contains</code> and <code class="language-plaintext highlighter-rouge">strconv.FromatBool</code> have well-defined results for all possible argument values and cannot fail—barring catastrophic and unpredictable scenarios like running out of memory, where the sympthom is far from the cause and from which there’s little hope of recovery.</p>
+
+<p><strong>Other functions always succeed so long as their preconditions are met.</strong> For example, the <code class="language-plaintext highlighter-rouge">time.Date</code> function always constructs a <code class="language-plaintext highlighter-rouge">time.Time</code> from its components— year, month, and so on— unless the last argument (the time zone) is <code class="language-plaintext highlighter-rouge">nil</code>, in which case it panics. This panic is a sure sign of a bug in the calling code and should never happen in a well-writen program.</p>
+
+<p><strong>For many other functions, even in a well-writen program, success is not assured because it depends on factors beyond the programmer’s control.</strong> Any function that does I/O, for example, must confront the possibility of error, and only a naive programmer believes a simple read or write cannot fail. Indeed, it’s when the most reliable operations fail unexpectedly that we most need to know why.</p>
+
+<p>Errors are thus an important part of a package’s API or an application’s user interface, and failure is just one of several expected behaviors. This is the approach Go takes to error handling.</p>
+
+<p>A function for which failure is an expected behavior returns an additional result, conventionally the last one. <strong>If the failure has only one possible cause, the result is a boolean, usually call <code class="language-plaintext highlighter-rouge">ok</code></strong>, as in this example of a cache lookup that always succeeds unless there was no entry for that key:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">value</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="n">cache</span><span class="o">.</span><span class="n">Lookup</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<span class="k">if</span> <span class="o">!</span><span class="n">ok</span> <span class="p">{</span>
+    <span class="c">// ...cache[key] does not exist.</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p><strong>More often, and especially for I/O, the failure may have a variety of causes for which the caller will need an explanation. In such cases, the type of the additional result is <code class="language-plaintext highlighter-rouge">error</code>.</strong></p>
+
+<p>The built-in type <code class="language-plaintext highlighter-rouge">error</code> is an interface type, that an <code class="language-plaintext highlighter-rouge">error</code> may be nil or non-nil, that nil implies success and non-nil implies failure, and that a non-nil <code class="language-plaintext highlighter-rouge">error</code> has an error message string which we can obtain by calling its <code class="language-plaintext highlighter-rouge">Error</code> method or print by calling <code class="language-plaintext highlighter-rouge">fmt.Println(err)</code> or <code class="language-plaintext highlighter-rouge">fmt.Printf("%v", err)</code>.</p>
+
+<p>Usually when a function returns a non-nil error, its other results are undefined and should be ignored. However, a few functions may return partial results in error cases. For example, if an error occurs while reading from a file, a call to <code class="language-plaintext highlighter-rouge">Read</code> returns the number of bytes it was able to read <em>and</em> an <code class="language-plaintext highlighter-rouge">error</code> value describing the problem. For correct behavior, some callers may need to process the incomplete data before handling the error, so it is important that such functions clearly document their results.</p>
+
+<p>Go’s approach sets it apart from many other languages in which failures are reported using <code class="language-plaintext highlighter-rouge">exceptions</code>, not ordinary values. Although Go does have an exception mechanism of sorts, the <code class="language-plaintext highlighter-rouge">panic</code>, it is used only for reporting truly unexpected errors that indicate a bug, not the routine errors that a robust program should be built to expect.</p>
+
+<p>The reason for this design is that exceptions tend to entangle the description of an error with the control flow required to handle it, often leading to an undesirable outcome: routine errors are reported to end user in the form of an incomprehensible stack trace, full of information about the structure of the program but lacking intelligible context about what went wrong.</p>
+
+<p>By contrast, <strong>Go programs use ordinary contro-flow mechanisms like <code class="language-plaintext highlighter-rouge">if</code> and <code class="language-plaintext highlighter-rouge">return</code> to respond to errors.</strong> This style undenably demands that more attention be paid to error-handling logic, but that is precisely the point.</p>
+
+<hr />
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">url</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">os</span><span class="o">.</span><span class="n">Args</span><span class="p">[</span><span class="m">1</span><span class="o">:</span><span class="p">]</span> <span class="p">{</span>
+		<span class="n">links</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">findLinks</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+		<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Fprintf</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">Stderr</span><span class="p">,</span> <span class="s">"findlinks2: %v</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+			<span class="k">continue</span>
+		<span class="p">}</span>
+		<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">link</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">links</span> <span class="p">{</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">link</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c">// findLinks performs an HTTP GET request for url, parses the</span>
+<span class="c">// response as HTML, and extracts and returns the links.</span>
+<span class="k">func</span> <span class="n">findLinks</span><span class="p">(</span><span class="n">url</span> <span class="kt">string</span><span class="p">)</span> <span class="p">([]</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">resp</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">http</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">defer</span> <span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+	<span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">StatusCode</span> <span class="o">!=</span> <span class="n">http</span><span class="o">.</span><span class="n">StatusOK</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"getting %s: %s"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">Status</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="n">doc</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">html</span><span class="o">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"parsing %s as HTML: %v"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="n">visit</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">doc</span><span class="p">),</span> <span class="no">nil</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>When a function call returns an error, it’s the caller’s resposibility to check it and take appropriate action. Depending on the situation, there may be a number of possibilities. Let’s take a look at five of them.</p>
+
+<p><strong>First, and most common, is to <em>propagate</em> the error, so that a failure in a subroutine becomes a failure of the calling routine.</strong> We saw the above example in the <code class="language-plaintext highlighter-rouge">findLinks</code> function. If the call to <code class="language-plaintext highlighter-rouge">http.Get</code> fails, <code class="language-plaintext highlighter-rouge">findLinks</code> returns the HTTP error to the caller without further ado:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">resp</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">http</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">err</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In contrast, if the call to <code class="language-plaintext highlighter-rouge">htmp.Parse</code> fails, <code class="language-plaintext highlighter-rouge">findLinks</code> does not return the HTML parser’s error directly because it lack two crucial pieces of information: that the error occured in the parser, and the URL of the document that was being parsed. In this case, <code class="language-plaintext highlighter-rouge">findLinks</code> constructs a new error message that includes both pieces of information as well as the underlying parse error:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">doc</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">html</span><span class="o">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="p">)</span>
+<span class="k">defer</span> <span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"parsing %s as HTML: %v"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">fmt.Errorf</code> function formats an error message using <code class="language-plaintext highlighter-rouge">fmt.Sprintf</code> and returns a new <code class="language-plaintext highlighter-rouge">error</code> value. We use it to build descriptive errors by successively prefixing additional context information to the orignal error message. When the error is ultimately handled by the program’s <code class="language-plaintext highlighter-rouge">main</code> function, it should provide a clear <strong>causal chain</strong> from the root problem to the overall failure, reminiscent of a NASA accident investigation:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>genesis: crashed: no parachute: G-switch failed: bad relay orientation
+</code></pre></div></div>
+
+<p>Because error message are frequently chained together, message strings should not be capitalized and newlines should be avoided. The resulting errors may be long, but they will be selfcontained when found by tools like <code class="language-plaintext highlighter-rouge">grep</code>.</p>
+
+<p>When designing error messages, be deliberate, so that each one is meaningful description of the problem with sufficient and relevant detail, and be consistent, so that errors returned b y the same function or by a group of functions in the same package are similar in form and can be dealt with in the same way.</p>
+
+<p>For example, the <code class="language-plaintext highlighter-rouge">os</code> package guarantees that every error returned by a file operation, such as <code class="language-plaintext highlighter-rouge">os.Open</code> or the <code class="language-plaintext highlighter-rouge">Read</code>, <code class="language-plaintext highlighter-rouge">Write</code>, or <code class="language-plaintext highlighter-rouge">Close</code> of an open file, describes not just the nature of the failure (permission denied, no such directory, and so on) but also the name of the file, so the caller needn’t include this information in the error message it constructs.</p>
+
+<p>In general, the call <code class="language-plaintext highlighter-rouge">f(x)</code> is responsible for reporting the attempted operation <code class="language-plaintext highlighter-rouge">f</code> and the argument value <code class="language-plaintext highlighter-rouge">x</code> as they relate to the context of the error. The caller is responsible for adding further information that it has but the call <code class="language-plaintext highlighter-rouge">f(x)</code> does not, such as the URL in the call to <code class="language-plaintext highlighter-rouge">html.Parse</code> above.</p>
+
+<p>Let’s move on to the second strategy for handling errors. For errors that represent transient or unpredictable problems, it may make sense to <em>retry</em> the failed operation, possibly with a delay between tries, and perhaps with a limit on the number of attempts or the time spent trying before giving up entirely.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// WaitForServer attemts to contact the server of a URL.</span>
+<span class="c">// It tries for one minute using exponential back-off.</span>
+<span class="c">// It reports an error if all attempts fail.</span>
+<span class="k">func</span> <span class="n">WaitForServer</span><span class="p">(</span><span class="n">url</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">const</span> <span class="n">timeout</span> <span class="o">=</span> <span class="m">1</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Minute</span>
+	<span class="n">deadline</span> <span class="o">:=</span> <span class="n">time</span><span class="o">.</span><span class="n">Now</span><span class="p">()</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+	<span class="k">for</span> <span class="n">tries</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">time</span><span class="o">.</span><span class="n">Now</span><span class="p">()</span><span class="o">.</span><span class="n">Before</span><span class="p">(</span><span class="n">deadline</span><span class="p">);</span> <span class="n">tries</span><span class="o">++</span> <span class="p">{</span>
+		<span class="n">_</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">http</span><span class="o">.</span><span class="n">Head</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+		<span class="k">if</span> <span class="n">err</span> <span class="o">==</span> <span class="no">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="no">nil</span> <span class="c">// success</span>
+		<span class="p">}</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"server not responding (%s); retrying..."</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+		<span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">Second</span> <span class="o">&lt;&lt;</span> <span class="kt">uint</span><span class="p">(</span><span class="n">tries</span><span class="p">))</span> <span class="c">// exponential back-off</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"server %s failed to respond after %s"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Third, if progress is impossible, the caller can print the error and stop the program gracefully, but this course of action should generally be reserved for the main package of a program. Libraries funtions should usually propagate errors to the caller, unless the error is a sign of an internal inconsistency—that is, a bug.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// (In function main.)</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">WaitForServer</span><span class="p">(</span><span class="n">url</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Fprintf</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">Stderr</span><span class="p">,</span> <span class="s">"Site is donw: %v</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">Exit</span><span class="p">(</span><span class="m">1</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>A more convenient way to achieve the same effect is to call <code class="language-plaintext highlighter-rouge">log.Fatalf</code>. As with all the <code class="language-plaintext highlighter-rouge">log</code> functions, by default it prefixes the time and date to the error message.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">WaitForServer</span><span class="p">(</span><span class="n">url</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">Fatalf</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">Stderr</span><span class="p">,</span> <span class="s">"Site is donw: %v</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Fourth, in some cases, it’s sufficient just to log the error and then continue, perhaps with reduced functionality. Again there’s a choice between using the <code class="language-plaintext highlighter-rouge">log</code> package, which adds the usual prefix:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">Ping</span><span class="p">();</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"ping failed: %v; networking disabled"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>and printing directly to the standard error stream:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">Ping</span><span class="p">();</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+<span class="n">fmt</span><span class="o">.</span><span class="n">Fprintf</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">Stderr</span><span class="p">,</span> <span class="s">"ping failed: %v; networking disabled</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>And fifth and finally, in rare cases we can safely ignore an error entirely:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">dir</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">ioutil</span><span class="o">.</span><span class="n">TempDir</span><span class="p">(</span><span class="s">""</span><span class="p">,</span> <span class="s">"scrath"</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"failed to create temp dir: %v"</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c">// ...use temp dir...</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">RemoveAll</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span>   <span class="c">// ignore errors; $TMPDIR is cleaned periodically</span>
+</code></pre></div></div>
+
+<p>The call to <code class="language-plaintext highlighter-rouge">os.RemoveAll</code> may fail, but the program ignores it because the operating system periodically cleans out the temproray directory. In this case, discarding the error was intentional, but the program logic would be the same had we forgotten to deal with it. Get into the habit of considering errors after every function call, and when you deliberately ignore one, document your intention clearly.</p>
+
+<p>Error handling in Go has a particular rhythm. After checking an error, failure is usually dealt with before success. If failure causes the function to return, the logic for success is not indented with an <code class="language-plaintext highlighter-rouge">else</code> block but follows at the outer level. Function tend to exhibit a common structure, with a series of initial checks to reject errors, followed by the substance of the function at the end, minimally indented.</p>
+
+<h3 id="the-error-interface">The error Interface</h3>
+
+<p>The type of <strong>error</strong> is an interface type with a single method that returns an error message:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">type</span> <span class="kt">error</span> <span class="k">interface</span> <span class="p">{</span>
+	<span class="n">Error</span><span class="p">()</span> <span class="kt">string</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The simplest way to create an <strong>error</strong> is by calling <strong>errors.New</strong>, which return a new <strong>error</strong> for a given error message. The entire <strong>errors</strong> package is only four lines long:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">errors</span>
+
+<span class="k">func</span> <span class="n">New</span><span class="p">(</span><span class="n">text</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span> <span class="k">return</span> <span class="o">&amp;</span><span class="n">errorString</span><span class="p">{</span><span class="n">text</span><span class="p">}</span> <span class="p">}</span>
+
+<span class="k">type</span> <span class="n">errorString</span> <span class="k">struct</span><span class="p">{</span> <span class="n">text</span> <span class="kt">string</span> <span class="p">}</span>
+
+<span class="k">func</span> <span class="p">(</span><span class="n">e</span> <span class="o">*</span><span class="n">errorString</span><span class="p">)</span> <span class="n">Error</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span> <span class="k">return</span> <span class="n">e</span><span class="o">.</span><span class="n">text</span> <span class="p">}</span>
+</code></pre></div></div>
+
+<p>The underlying type of <strong>errorString</strong> is a struct, not a string, to protect its representation from inadvertent (or premeditated) update.</p>
+
+<p>Calls to <strong>errors.New</strong> are relatively infrequent because there’s a conveninent wrapper function, <strong>fmt.Errorf</strong>, that does string formatting too.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">fmt</span>
+
+<span class="k">import</span> <span class="s">"errors"</span>
+
+<span class="k">func</span> <span class="n">Errorf</span><span class="p">(</span><span class="n">format</span> <span class="kt">string</span><span class="p">,</span> <span class="n">args</span> <span class="o">...</span><span class="k">interface</span><span class="p">{})</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="n">Sprintf</span><span class="p">(</span><span class="n">format</span><span class="p">,</span> <span class="n">args</span><span class="o">...</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<hr />
+
+<h3 id="references">References</h3>
+
+<ol>
+  <li>Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.</li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/04/17/gopherchina-2017/">&laquo; GopherChina 2017</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/05/15/capturing-iteration-variables-in-go-language/">Capturing Iteration Variables in Go Language &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

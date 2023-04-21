@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Understanding the Linux Kernel 02</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/11/26/understanding-the-linux-kernel-02-memory-addressing/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Understanding the Linux Kernel 02</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-11-26T15:47:35+08:00" itemprop="datePublished">Nov 26, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <p><small><em>对枯燥的事情有所坚持—耗子</em></small></p>
+
+<ul id="markdown-toc">
+  <li><a href="#21-memory-addresses" id="markdown-toc-21-memory-addresses">2.1 Memory Addresses</a></li>
+  <li><a href="#22-segmentation-in-hardware" id="markdown-toc-22-segmentation-in-hardware">2.2 Segmentation in Hardware</a>    <ul>
+      <li><a href="#221-segmentation-registers" id="markdown-toc-221-segmentation-registers">2.2.1 Segmentation Registers</a></li>
+      <li><a href="#222-segment-descriptors" id="markdown-toc-222-segment-descriptors">2.2.2 Segment Descriptors</a></li>
+    </ul>
+  </li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+</ul>
+
+<hr />
+
+<h2 id="21-memory-addresses">2.1 Memory Addresses</h2>
+
+<p>Programmers casually refer to a <em>memory address</em> as the way to access the contents of a memory cell. But when dealing with Intel 80x86 microprocessors, we have to distinguish among three kinds of addresses:</p>
+
+<ul>
+  <li>
+    <p><strong>Logical address</strong></p>
+
+    <p>Included in the machine language instructions to specify the address of an operand or of an instruction. This type of address embodies the well-known Intel segmented architecture that forces MS-DOS and Windows programmers to divide their programs into segments. Each logical address consists a <em>segment</em> and an <em>offset</em> (or <em>displacement</em>) that denotes the distance from the start of the segment to the actual address.</p>
+  </li>
+  <li>
+    <p><strong>Linear address</strong></p>
+
+    <p>A single 32-bit unsigned integer that can be used to address up 4 GB, that is, up to 4,294,967,296 memory cells. Linear addresses are usually represented in hexadecimal notation; their values range from 0x00000000 to 0xffffffff.</p>
+  </li>
+  <li>
+    <p><strong>Physical address</strong></p>
+
+    <p>Used to address memory cells included in memory chips. They correspond to the electrical signals sent along the address pins of the microprocessor to the memory bus. Physical addresses are represented as 32-bit unsigned integers.</p>
+  </li>
+</ul>
+
+<p>The CPU control unit transforms a logical address into a linear address by means of a hardware circuit called a <em>segmentation unit</em>; successively, a second hardware circuit called a <em>paging unit</em> transforms the linear address into a physical address.</p>
+
+<p><img src="/assets/images/understanding-the-linux-kernel/Logical address translation.png" alt="An example of a directory tree" /></p>
+
+<h2 id="22-segmentation-in-hardware">2.2 Segmentation in Hardware</h2>
+
+<p>Starting with the 80386 model, Intel microprocessors perform address translation in two different ways called <em>real mode</em> and <em>protected mode</em>. Real mode exists mostly to maintain processor compatibility with older models and to allow the operating system to bootstrap.</p>
+
+<h3 id="221-segmentation-registers">2.2.1 Segmentation Registers</h3>
+
+<p>A logical address consists of two parts: a segment identifier and an offset that specifies the relative address within the segment. The segment identifier is a 16-bit field called <em>Segment Selector</em>, while the offset is a 32-bit field.</p>
+
+<p>To make it easy to retrieve segment selectors quickly, the processor provides <em>segmentation registers</em> whose only purpose is to hold Segment Selectors: these registers are called <em>cs</em>, <em>ss</em>, <em>ds</em>, <em>es</em>, <em>fs</em> and <em>gs</em>. Although there are only six of them, a program can reuse the same segmentation register for different purposes by saving its content in memory and then restoring it later.</p>
+
+<p>Three of the six segmentation registers have specific purposes:</p>
+
+<ul>
+  <li>
+    <p><strong>cs</strong></p>
+
+    <p>The code segment register, which points to a segment containing program instructions</p>
+  </li>
+  <li>
+    <p><strong>ss</strong></p>
+
+    <p>The stack segment register, which points to a segment containing the current progam stack</p>
+  </li>
+  <li>
+    <p><strong>ds</strong></p>
+
+    <p>The data segment register, which points to a segment containing static and external data</p>
+  </li>
+</ul>
+
+<p>The remaining three segmentation registers are general purpose and may refer to arbitrary segments.</p>
+
+<p>The <em>cs</em> register has another important function: it includes a 2-bit field that specifies the Current Privilege Level (<em>CPL</em>) of the CPU. The value 0 denotes the highest privilege level, while the value 3 denotes the lowest one. Linux uses only levels 0 and 3, which are respectively called <em>Kernel Mode</em> and <em>User Mode</em>.</p>
+
+<h3 id="222-segment-descriptors">2.2.2 Segment Descriptors</h3>
+
+<p>Each segment is represented by an 8-byte <em>Segment Descriptor</em> that describes the segment characteristics. Segment Descriptors are stored either in the <em>Global Descriptor Table(GDT)</em> or in the <em>Local Descriptor Table(LDT)</em>.</p>
+
+<p><img src="/assets/images/understanding-the-linux-kernel/Segment Descriptor format.png" alt="Segment Descriptor format" /></p>
+
+<p>Usually only one GDT is defined, while each process have its onw LDT. The address of the GDT in main memory is contained in the <em>gdtr</em> processor register and the address of the currently used LDT is contained in the <em>ldtr</em> processor register.</p>
+
+<p>Each Segment Descriptor consists of the following fields:</p>
+
+<ul>
+  <li>
+    <p>A 32-bit <em>Base</em> field contains the linear address of the first byte of the segment.</p>
+  </li>
+  <li>A <em>G</em> grannularity flag: if it is cleared, the segment size is expressed in bytes; otherwise, it is expressed in multiples of 4096 bytes.</li>
+  <li>A 20-bit <em>Limit</em> field that denotes the segment length in bytes. If <em>G</em> is set to 0, the size of a non-null segment may vary between 1 byte and 1 MB; otherwise, it may vary between 4KB and 4 GB.</li>
+  <li>An <em>S</em> system flag: if it is cleared, the segment is a system segment that stores kernel data structures; otherwise, it is a normal code or data segment.</li>
+  <li>
+    <p>A 4-bit <em>Type</em> field that characterize the segment type and its access rights. The following Segment Descriptor type are widely used:</p>
+
+    <ul>
+      <li>
+        <p><strong>Code Segment Descritpor</strong></p>
+
+        <p>Indicates that the Segment Descriptor refers to a code segment; it may be included either in the GDT or in the LDT. The descriptor has the <em>S</em> flag set.</p>
+      </li>
+      <li>
+        <p><strong>Data Segment Decriptor</strong></p>
+
+        <p>Indicates that the Segment Descriptor refers to a data segment; it may be included either in the GDT or in the LDT. The descriptor has the <em>S</em> flag set. Stack segments are implemented by means of generic data segment.</p>
+      </li>
+      <li>
+        <p><strong>Task State Segment Descriptor (TSSD)</strong></p>
+
+        <p>Indicates that the Segment Descriptor refers to a Task State Segment (TSS), that is, a segment used to save the contents of the processor registers, it can apear only in the GDT. The corresponding <em>Type</em> field has the value 11 or 9, depending on whether the corresponding process is currently executing on the CPU. The <em>S</em> flag of such descriptors is set to 0.</p>
+      </li>
+      <li>
+        <p><strong>Local Descritpor Table Descritpor (LDTD)</strong></p>
+
+        <p>Indicates that the Segment Descriptor refers to a segment containing an LDT; it can apear only in the GDT. The corresponding <em>Type</em> field has the value 2. The <em>S</em> flag of such descriptors is set to 0.</p>
+      </li>
+    </ul>
+  </li>
+  <li>A <em>DPL</em> (Descriptor Privilege Level) 2-bit field used to restrict accesses to the segment. It represent the minimal CPU privilege level requested for accessing the segment. Therefore, a segment with it <em>DPL</em> set to 0 is accssible only when the <em>CPL</em> is 0, that is, in Kernel Mode, while a segment with its <em>DPL</em> set to 3 is accessible with every <em>CPL</em> value.</li>
+  <li>A <em>Segment-Present</em> flag that is set to if the segment is currently not stored in main memory. Linux always set this filed to 1, since it never swaps out whole segments to disk.</li>
+  <li>An additional flag called <em>D</em> or <em>B</em> depending on whether the segment contains code or data. Its meaning is slightly different in the two cases, but it is basically set if the address used as segment offsets are 32 bits long and it is cleared if they are 16 bits long.</li>
+  <li>A reseved bit (bit 53) always set to 0.</li>
+  <li>An <em>AVL</em> flag that may be used by the operating system but is ignored in Linux.</li>
+</ul>
+
+<hr />
+
+<h2 id="references">References</h2>
+
+<ol>
+  <li>Daniel P. Bovet、 Marco Cesati (2005-11), “Chapter 2: Understanding the Linux Kernel”</li>
+  <li>Real mode - Wikipedia, <a href="https://en.wikipedia.org/wiki/Real_mode">https://en.wikipedia.org/wiki/Real_mode</a></li>
+  <li>Protected mode - Wikipedia, <a href="https://en.wikipedia.org/wiki/Protected_mode">https://en.wikipedia.org/wiki/Protected_mode</a></li>
+  <li>Difference between real mode and protected mode - Geek.com, <a href="https://www.geek.com/chips/difference-between-real-mode-and-protected-mode-574665/">https://www.geek.com/chips/difference-between-real-mode-and-protected-mode-574665/</a></li>
+  <li>Memory segmentation - Wikipedia, <a href="https://en.wikipedia.org/wiki/Memory_segmentation">https://en.wikipedia.org/wiki/Memory_segmentation</a></li>
+  <li>x86 memory segmentation - Wikipedia, <a href="https://en.wikipedia.org/wiki/X86_memory_segmentation">https://en.wikipedia.org/wiki/X86_memory_segmentation</a></li>
+  <li>x86 assembly language - Wikipedia, <a href="https://en.wikipedia.org/wiki/X86_assembly_language">https://en.wikipedia.org/wiki/X86_assembly_language</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/11/16/cloudera-odbc-driver-for-impala-on-debian-linux-with-.net-core-2.0/">&laquo; Cloudera ODBC Driver for Impala on Debian/Linux with .NET Core 2.0</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/12/23/call-ret-x86-assembly/">Calling Convention in x86 Assembly &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

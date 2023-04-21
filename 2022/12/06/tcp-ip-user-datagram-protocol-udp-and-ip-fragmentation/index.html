@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>TCP/IP: User Datagram Protocol (UDP) and IP Fragmentation</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2022/12/06/tcp-ip-user-datagram-protocol-udp-and-ip-fragmentation/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">TCP/IP: User Datagram Protocol (UDP) and IP Fragmentation</h1>
+    
+    
+    <p class="post-meta"><time datetime="2022-12-06T08:37:47+08:00" itemprop="datePublished">Dec 6, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>UDP is a simple, datagram-oriented, transport-layer protocol that preserves message boundaries.</p>
+</div>
+<div class="paragraph">
+<p>It does not provide error correction, sequencing, duplicate elimination, flow control, or congestion control.</p>
+</div>
+<div class="paragraph">
+<p>It can provide error detection, and it includes the first true <em>end-to-end</em> checksum at the transport layer that we have encountered.</p>
+</div>
+<div class="paragraph">
+<p>This protocol provides minimal functionality itself, so applications using it have a great deal of control over how packets are sent and processed.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/udp-and-ip-fragmentation/ipv4-udp-datagram-message-format.png" alt="IPv4 UDP Datagram" width="45%" height="45%">
+</div>
+<div class="title">Figure 1. Encapsulation of a UDP datagram in a single IPv4 datagram (the typical case with no IPv4 options). The IPv6 encapsulation is similar; the UDP header follows the header chain.</div>
+</div>
+</div>
+<div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#udp-header">1. UDP Header</a></li>
+<li><a href="#udp-checksum">2. UDP Checksum</a></li>
+<li><a href="#udp-and-ipv6">3. UDP and IPv6</a></li>
+<li><a href="#udp-lite">4. UDP-Lite</a></li>
+<li><a href="#ip-fragmentation">5. IP Fragmentation</a>
+<ul class="sectlevel2">
+<li><a href="#example-udpipv4-fragmentation">5.1. Example: UDP/IPv4 Fragmentation</a></li>
+<li><a href="#reassembly-timeout">5.2. Reassembly Timeout</a></li>
+</ul>
+</li>
+<li><a href="#path-mtu-discovery-with-udp">6. Path MTU Discovery with UDP</a></li>
+<li><a href="#interaction-between-ip-fragmentation-and-arpnd">7. Interaction between IP Fragmentation and ARP/ND</a></li>
+<li><a href="#maximum-udp-datagram-size">8. Maximum UDP Datagram Size</a>
+<ul class="sectlevel2">
+<li><a href="#implementation-limitations">8.1. Implementation Limitations</a></li>
+<li><a href="#datagram-truncation">8.2. Datagram Truncation</a></li>
+</ul>
+</li>
+<li><a href="#udp-server-design">9. UDP Server Design</a>
+<ul class="sectlevel2">
+<li><a href="#ip-addresses-and-udp-port-numbers">9.1. IP Addresses and UDP Port Numbers</a></li>
+<li><a href="#restricting-local-ip-addresses">9.2. Restricting Local IP Addresses</a></li>
+<li><a href="#using-multiple-addresses">9.3. Using Multiple Addresses</a></li>
+<li><a href="#restricting-foreign-ip-address">9.4. Restricting Foreign IP Address</a></li>
+<li><a href="#using-multiple-servers-per-port">9.5. Using Multiple Servers per Port</a></li>
+<li><a href="#spanning-address-families-ipv4-and-ipv6">9.6. Spanning Address Families: IPv4 and IPv6</a></li>
+<li><a href="#lack-of-flow-and-congestion-control">9.7. Lack of Flow and Congestion Control</a></li>
+</ul>
+</li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+</div>
+<div class="sect1">
+<h2 id="udp-header">1. UDP Header</h2>
+<div class="sectionbody">
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/udp-and-ip-fragmentation/udp-header-and-payload.png" alt="UDP Header and Payload" width="35%" height="35%">
+</div>
+<div class="title">Figure 2. The UDP header and payload (data) area. The Checksum field is end-to-end and is computed over the UDP pseudo-header, which includes the Source and Destination IP Address fields from the IP header. Thus, any modification made to those fields (e.g., by NAT) requires a modification to the UDP checksum.</div>
+</div>
+<div class="paragraph">
+<p>Port numbers act as <em>mailboxes</em> and help a protocol implementation identify the sending and receiving processes. They are purely <em>abstract</em>—they do not correspond to any physical entity on a host.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In UDP, port numbers are positive 16-bit numbers, and the source port number is optional; it may be set to 0 if the sender of the datagram never requires a reply.</p>
+</li>
+<li>
+<p>Transport protocols such as TCP, UDP, and SCTP [RFC4960] use the destination port number to help demultiplex incoming data from IP.</p>
+</li>
+<li>
+<p>Because IP demultiplexes the incoming IP datagram to a particular transport protocol based on the value of the <em>Protocol</em> field in the IPv4 header or <em>Next Header</em> field in the IPv6 header, this means that the port numbers can be made independent among the transport protocols.</p>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Despite this independence, if a well-known service is provided (or can conceivably be provided) by both TCP and UDP, the port number is normally allocated to be the same for both transport protocols. This is purely for convenience and is not required by the protocols.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The UDP <em>Length</em> field is the length of the UDP header and the UDP data in bytes. The minimum value for this field is 8 except when UDP is used with IPv6 jumbograms.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Note that the UDP <em>Length</em> field is redundant; the IPv4 header contains the datagram&#8217;s total length, and the IPv6 header contains the payload length.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The length of a UDP/IPv4 datagram is then the <em>Total Length</em> of the IPv4 datagram minus the length of the IPv4 header.</p>
+</li>
+<li>
+<p>A UDP/IPv6 datagram&#8217;s length is the value of the <em>Payload Length</em> field contained in the IPv6 header minus the lengths of any extension headers (unless jumbograms are being used).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In either case, the UDP <em>Length</em> field should match the length computed from the IP-layer information.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="udp-checksum">2. UDP Checksum</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The UDP checksum is the first end-to-end transport-layer checksum we have encountered (ICMP has an end-to-end checksum but is not a true transport protocol). It covers the UDP header, the UDP data, and a pseudo-header.</p>
+</div>
+<div class="paragraph">
+<p>It is computed at the initial sender and checked at the final destination. It is not modified in transit (except when it passes through a NAT).</p>
+</div>
+<div class="paragraph">
+<p>Recall that the checksum in the IPv4 header covers only the header (i.e.,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>it does not cover any data in the IP packet)</p>
+</li>
+<li>
+<p>and is recomputed at each IP hop (required because the IPv4 <em>TTL</em> field is decremented by routers when the datagram is forwarded).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Transport protocols (e.g., TCP, UDP) use checksums to cover their headers and data.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>With UDP, the checksum is optional (although strongly suggested), while with the others it is mandatory.</p>
+</li>
+<li>
+<p>When UDP is used with IPv6, computation and use of the checksum are mandatory because there is no header checksum at the IP layer.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To provide error-free data to applications, a transport-layer protocol such as UDP must always compute a checksum or use some other error detection mechanism before delivering the data to a receiving application.</p>
+</div>
+<div class="paragraph">
+<p>The pseudo-header is virtual and is used only for purposes of the checksum computation (at both the sender and the receiver).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It is never actually transmitted.</p>
+</li>
+<li>
+<p>This pseudo-header includes the source and destination addresses and <em>Protocol</em> or <em>Next Header</em> field (which should contain the value 17) from the IP header.</p>
+</li>
+<li>
+<p>Its purpose is to let the UDP layer verify that the data has arrived at the correct destination (i.e., that IP has not accepted a misaddressed datagram, and that IP has not given UDP a datagram that is for another transport protocol).</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/udp-and-ip-fragmentation/ipv4-udp-pesudo-header-checksum.png" alt="UDP pseduo-header checksum" width="40%" height="40%">
+</div>
+<div class="title">Figure 3. Fields used in computing the checksum for UDP/IPv4 datagrams, including the pseudo-header, the UDP header, and data. If the data is not an even number of bytes, it is padded with one 0 byte for purposes of computing the checksum. The pseudo-header and any pad bytes are not transmitted with the datagram.</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">echo</span> <span class="nt">-n</span> <span class="s2">"hello"</span> | nc <span class="nt">-4u</span> <span class="nt">-w0</span> 192.168.91.137 330</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-tnv</span> <span class="nt">-X</span> host 192.168.91.137 and <span class="se">\(</span> udp or icmp <span class="se">\)</span>
+<span class="go">IP (tos 0x0, ttl 64, id 38490, offset 0, flags [DF], proto UDP (17), length 33)
+</span><span class="gp">    192.168.91.128.58585 &gt;</span><span class="w"> </span>192.168.91.137.330: UDP, length 5
+<span class="go">	0x0000:  4500 0021 965a 4000 4011 6c17 c0a8 5b80  E..!.Z@.@.l...[.
+	0x0010:  c0a8 5b89 e4d9 014a 000d 9d83 6865 6c6c  ..[....J....hell
+	0x0020:  6f                                       o
+IP (tos 0xc0, ttl 64, id 62130, offset 0, flags [none], proto ICMP (1), length 61)
+</span><span class="gp">    192.168.91.137 &gt;</span><span class="w"> </span>192.168.91.128: ICMP 192.168.91.137 udp port 330 unreachable, length 41
+<span class="go">	IP (tos 0x0, ttl 64, id 38490, offset 0, flags [DF], proto UDP (17), length 33)
+</span><span class="gp">    192.168.91.128.58585 &gt;</span><span class="w"> </span>192.168.91.137.330: UDP, length 5
+<span class="go">	0x0000:  45c0 003d f2b2 0000 4001 4ef3 c0a8 5b89  E..=....@.N...[.
+	0x0010:  c0a8 5b80 0303 3576 0000 0000 4500 0021  ..[...5v....E..!
+	0x0020:  965a 4000 4011 6c17 c0a8 5b80 c0a8 5b89  .Z@.@.l...[...[.
+	0x0030:  e4d9 014a 000d 9d83 6865 6c6c 6f         ...J....hello</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="udp-and-ipv6">3. UDP and IPv6</h2>
+<div class="sectionbody">
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/udp-and-ip-fragmentation/ipv6-udp-tcp-pesudo-header-checksum.png" alt="UDP/TCP IPv6 pseduo-header" width="45%" height="45%">
+</div>
+<div class="title">Figure 4. The UDP (and TCP) pseudo-header used with IPv6 ([RFC2460]). The pseudo-header includes the source and destination IPv6 addresses and a larger 32-bit <em>Length</em> field value. The pseudo-header checksum is required when UDP is used with IPv6 because the IPv6 header lacks a checksum. The <em>Next Header</em> field is copied from the last IPv6 header of the chain.</div>
+</div>
+<div class="paragraph">
+<p>A related but more subtle distinction is that in IPv6, no IP-layer header checksum is present.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If UDP were to operate with checksums disabled, there would be no <em>end-to-end check whatsoever</em> on the correctness of the IP-layer addressing information.</p>
+</li>
+<li>
+<p>When UDP is used with IPv6, a pseudo-header checksum, common to both UDP and TCP, is required.</p>
+</li>
+<li>
+<p>In IPv6, the minimum MTU size is 1280 bytes (as opposed to the 576 bytes required by IPv4 as the minimum size required to be supported by all hosts).</p>
+</li>
+<li>
+<p>IPv6 supports jumbograms (packets larger than 65,535 bytes).</p>
+<div class="paragraph">
+<p>When encapsulated in IPv6, a UDP/IPv6 datagram exceeding 65,535 bytes has its UDP <em>Length</em> field value set to 0.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">echo</span> <span class="nt">-n</span> <span class="s1">' '</span> |  nc <span class="nt">-6u</span> <span class="nt">-w0</span> fe80::20c:29ff:fe85:2610%ens32 330</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-tnv</span> host fe80::20c:29ff:fe85:2610 and <span class="se">\(</span> udp or icmp6 <span class="se">\)</span> <span class="nt">-X</span>
+<span class="go">tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+</span><span class="gp">IP6 (flowlabel 0x6b6e1, hlim 64, next-header UDP (17) payload length: 9) fe80::20c:29ff:fe8c:df3f.33297 &gt;</span><span class="w"> </span>fe80::20c:29ff:fe85:2610.330: <span class="o">[</span>udp <span class="nb">sum </span>ok] UDP, length 1
+<span class="go">	0x0000:  6006 b6e1 0009 1140 fe80 0000 0000 0000  `......@........
+	0x0010:  020c 29ff fe8c df3f fe80 0000 0000 0000  ..)....?........
+	0x0020:  020c 29ff fe85 2610 8211 014a 0009 0506  ..)...&amp;....J....
+	0x0030:  20
+</span><span class="gp">IP6 (flowlabel 0xa4c7d, hlim 64, next-header ICMPv6 (58) payload length: 57) fe80::20c:29ff:fe85:2610 &gt;</span><span class="w"> </span>fe80::20c:29ff:fe8c:df3f: <span class="o">[</span>icmp6 <span class="nb">sum </span>ok] ICMP6, destination unreachable, unreachable port, fe80::20c:29ff:fe85:2610 udp port 330
+<span class="go">	0x0000:  600a 4c7d 0039 3a40 fe80 0000 0000 0000  `.L}.9:@........
+	0x0010:  020c 29ff fe85 2610 fe80 0000 0000 0000  ..)...&amp;.........
+	0x0020:  020c 29ff fe8c df3f 0104 7ef6 0000 0000  ..)....?..~.....
+	0x0030:  6006 b6e1 0009 1140 fe80 0000 0000 0000  `......@........
+	0x0040:  020c 29ff fe8c df3f fe80 0000 0000 0000  ..)....?........
+	0x0050:  020c 29ff fe85 2610 8211 014a 0009 0506  ..)...&amp;....J....
+	0x0060:  20</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="udp-lite">4. UDP-Lite</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Some applications are tolerant of bit errors that may be introduced in the data they send and receive. Often, these types of applications wish to use UDP in order to avoid connection setup overhead or to use broadcast or multicast addressing, but UDP uses a checksum that covers either the entire payload or none of it (i.e., when no checksum is computed by the sender).</p>
+</div>
+<div class="paragraph">
+<p>A protocol called <strong>UDP-Lite</strong> or <strong>UDPLite</strong> [RFC3828] addresses this issue by modifying the conventional UDP protocol to provide partial checksums. Such checksums cover only a portion of the payload in each UDP datagram.</p>
+</div>
+<div class="paragraph">
+<p>UDP-Lite has its own IPv4 Protocol and IPv6 Next Header field value (136), so it effectively counts as a separate transport protocol.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/udp-and-ip-fragmentation/udp-lite-message-format.png" alt="UDP-Lite Message" width="45%" height="45%">
+</div>
+<div class="title">Figure 5. UDP-Lite includes a Checksum Coverage field that gives the number of bytes (starting with the first byte of the UDP-Lite header) covered by the checksum. The minimum value is 0, indicating that the whole datagram is covered. Values 1 through 7 are invalid, as the header is always covered. UDP-Lite uses a different IPv4 protocol number (136) from UDP (17). IPv6 uses the same values in the <em>Next Header</em> field.</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="ip-fragmentation">5. IP Fragmentation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The link-layer framing normally imposes an upper limit on the maximum size of a frame that can be transmitted.</p>
+</div>
+<div class="paragraph">
+<p>To keep the IP datagram abstraction consistent and isolated from link-layer details, IP employs <em>fragmentation</em> and <em>reassembly</em>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Whenever the IP layer receives an IP datagram to send, it determines which local interface the datagram is to be sent over next (via a forwarding table lookup) and what MTU is required.</p>
+<div class="paragraph">
+<p>IP compares the outgoing interface&#8217;s MTU with the datagram size and performs fragmentation if the datagram is too large.</p>
+</div>
+</li>
+<li>
+<p>Fragmentation in IPv4 can take place at the original sending host and at any intermediate routers along the end-to-end path. Note that datagram fragments can themselves be fragmented.</p>
+</li>
+<li>
+<p>Fragmentation in IPv6 is somewhat different because only the source is permitted to perform fragmentation.</p>
+</li>
+<li>
+<p>When an IP datagram is fragmented, it is not reassembled until it reaches its final destination.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="example-udpipv4-fragmentation">5.1. Example: UDP/IPv4 Fragmentation</h3>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/udp-and-ip-fragmentation/udp-datagram-fragmentation-sample.png" alt="UDP datagram fragmentation sample" width="50%" height="50%">
+</div>
+<div class="title">Figure 6. A single UDP datagram with 2992 UDP payload bytes is fragmented into three UDP/IPv4 packets (no options). The UDP header that contains the source and destination port numbers appears only in the first fragment (a complicating factor for firewalls and NATs). Fragmentation is controlled by the <em>Identification</em>, <em>Fragment Offset</em>, and <em>More Fragments</em> (MF) fields in the IPv4 header.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The original UDP datagram included 2992 bytes of application (UDP payload) data and 8 bytes of UDP header, resulting in an IPv4 <em>Total Length</em> field value of 3020 bytes (recall that this size includes a 20-byte IPv4 header as well).</p>
+<div class="paragraph">
+<p>When this datagram was fragmented into three packets, 40 extra bytes were created (20 bytes for each of the newly created IPv4 fragment headers). Thus, the total number of bytes sent is 3060, an increase in IP-layer overhead of about 1.3%.</p>
+</div>
+</li>
+<li>
+<p>The <em>Identification</em> field value (set by the original sender) is copied to each fragment and is used to group them together when they arrive.</p>
+</li>
+<li>
+<p>The <em>Fragment Offset</em> field gives the offset of the first byte of the fragment payload byte in the original IPv4 datagram (<em>in 8-byte units</em>).</p>
+</li>
+<li>
+<p>Finally, the <em>MF</em> bit field indicates whether more fragments in the datagram should be expected and is 0 only in the final fragment.</p>
+<div class="paragraph">
+<p>Because each <em>Offset</em> field is relative to the original datagram, the reassembly process can handle fragments that arrive out of order.</p>
+</div>
+<div class="paragraph">
+<p>When a datagram is fragmented, the <em>Total Length</em> field in the IPv4 header of each fragment is changed to be the total size of that fragment.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:$</span><span class="w"> </span>ip addr show ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+
+</span><span class="gp">x@node-0:$</span><span class="w"> </span><span class="nb">dd </span><span class="nv">bs</span><span class="o">=</span>2992 <span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">count</span><span class="o">=</span>1 <span class="nv">status</span><span class="o">=</span>none | nc <span class="nt">-w0</span> <span class="nt">-u</span> <span class="nt">-s</span> 192.168.91.128 192.168.91.137 330</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-tnvvv</span> <span class="nt">-i</span> ens32 host 192.168.91.137 and udp
+<span class="go">IP (tos 0x0, ttl 64, id 4494, offset 0, flags [+], proto UDP (17), length 1500)
+</span><span class="gp">    192.168.91.128.45401 &gt;</span><span class="w"> </span>192.168.91.137.330: UDP, length 2992
+<span class="go">IP (tos 0x0, ttl 64, id 4494, offset 1480, flags [+], proto UDP (17), length 1500)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-17
+<span class="go">IP (tos 0x0, ttl 64, id 4494, offset 2960, flags [none], proto UDP (17), length 60)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-17</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Using UDP, it is easy to generate IP fragmentation. On an Ethernet,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the maximum amount of data in a frame is ordinarily 1500 bytes,</p>
+</li>
+<li>
+<p>which leaves at most 1472 bytes for application data to avoid fragmentation, assuming 20 bytes for the IPv4 header and 8 bytes for the UDP header.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip addr show  ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>nping <span class="nt">-c</span> 1 <span class="nt">--udp</span> <span class="nt">-g</span> 2022 <span class="nt">--data-length</span> 1473 <span class="nt">--mtu</span> 1600 <span class="nt">--df</span> <span class="nt">-p</span> 2019 192.168.91.137
+<span class="go">
+Warning: fragmentation (mtu=1600) requested but the payload is too small already (1481)
+</span><span class="gp">sendto in send_ip_packet_sd: sendto(4, packet, 1501, 0, 192.168.91.137, 16) =&gt;</span><span class="w"> </span>Message too long
+<span class="gp">Offending packet: UDP 192.168.91.128:2022 &gt;</span><span class="w"> </span>192.168.91.137:2019 <span class="nv">ttl</span><span class="o">=</span>64 <span class="nb">id</span><span class="o">=</span>47461 <span class="nv">iplen</span><span class="o">=</span>1501
+<span class="gp">SENT (0.0286s) UDP 192.168.91.128:2022 &gt;</span><span class="w"> </span>192.168.91.137:2019 <span class="nv">ttl</span><span class="o">=</span>64 <span class="nb">id</span><span class="o">=</span>47461 <span class="nv">iplen</span><span class="o">=</span>1501
+<span class="go">nping_event_handler(): READ-PCAP killed: Message too long
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>nping <span class="nt">-c</span> 1 <span class="nt">--udp</span> <span class="nt">-g</span> 2022 <span class="nt">--data-length</span> 1472 <span class="nt">--mtu</span> 1600 <span class="nt">--df</span> <span class="nt">-p</span> 2019 192.168.91.137
+<span class="go">
+Warning: fragmentation (mtu=1600) requested but the payload is too small already (1480)
+</span><span class="gp">SENT (0.0275s) UDP 192.168.91.128:2022 &gt;</span><span class="w"> </span>192.168.91.137:2019 <span class="nv">ttl</span><span class="o">=</span>64 <span class="nb">id</span><span class="o">=</span>30623 <span class="nv">iplen</span><span class="o">=</span>1500
+<span class="gp">RCVD (0.0286s) ICMP [192.168.91.137 &gt;</span><span class="w"> </span>192.168.91.128 Port 2019 unreachable <span class="o">(</span><span class="nb">type</span><span class="o">=</span>3/code<span class="o">=</span>3<span class="o">)</span> <span class="o">]</span> IP <span class="o">[</span><span class="nv">ttl</span><span class="o">=</span>64 <span class="nb">id</span><span class="o">=</span>8055 <span class="nv">iplen</span><span class="o">=</span>576 <span class="o">]</span>
+<span class="go">
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>nping <span class="nt">-c</span> 1 <span class="nt">--udp</span> <span class="nt">-g</span> 2022 <span class="nt">--data-length</span> 1473 <span class="nt">--mtu</span> 1472 <span class="nt">--df</span> <span class="nt">-p</span> 2019 192.168.91.137
+<span class="go">
+Starting Nping 0.7.80 ( https://nmap.org/nping ) at 2022-12-07 16:22 CST
+</span><span class="gp">SENT (0.0214s) UDP 192.168.91.128:2022 &gt;</span><span class="w"> </span>192.168.91.137:2019 <span class="nv">ttl</span><span class="o">=</span>64 <span class="nb">id</span><span class="o">=</span>29894 <span class="nv">iplen</span><span class="o">=</span>1501
+<span class="gp">RCVD (0.0218s) ICMP [192.168.91.137 &gt;</span><span class="w"> </span>192.168.91.128 Port 2019 unreachable <span class="o">(</span><span class="nb">type</span><span class="o">=</span>3/code<span class="o">=</span>3<span class="o">)</span> <span class="o">]</span> IP <span class="o">[</span><span class="nv">ttl</span><span class="o">=</span>64 <span class="nb">id</span><span class="o">=</span>8998 <span class="nv">iplen</span><span class="o">=</span>576 <span class="o">]</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-ntv</span> host 192.168.91.128 and udp
+<span class="go">IP (tos 0x0, ttl 64, id 30623, offset 0, flags [DF], proto UDP (17), length 1500)
+</span><span class="gp">    192.168.91.128.2022 &gt;</span><span class="w"> </span>192.168.91.137.2019: UDP, length 1472
+<span class="go">
+IP (tos 0x0, ttl 64, id 29894, offset 0, flags [+], proto UDP (17), length 1492)
+</span><span class="gp">    192.168.91.128.2022 &gt;</span><span class="w"> </span>192.168.91.137.2019: UDP, length 1473
+<span class="go">IP (tos 0x0, ttl 64, id 29894, offset 1472, flags [none], proto UDP (17), length 29)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-17</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If one fragment is lost, the entire datagram is lost.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>There is no way to resend only one fragment of a datagram.</p>
+</li>
+<li>
+<p>When a fragment of a TCP segment is lost, TCP retransmits the entire TCP segment, which corresponds to an entire IP datagram.</p>
+</li>
+<li>
+<p>Some UDP-based applications perform timeout and retransmission themselves, but this happens at a layer above UDP.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Indeed, if the fragmentation was done by an intermediate router, and not the originating system, there is no way for the originating system to know how the datagram was fragmented.</p>
+</div>
+<div class="paragraph">
+<p>For this reason, fragmentation is often avoided.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="reassembly-timeout">5.2. Reassembly Timeout</h3>
+<div class="paragraph">
+<p>The IP layer must start a timer when any fragment of a datagram first arrives. If this were not done, fragments that never arrive could eventually cause the receiver to run out of buffers and can constitute a form of attack opportunity.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="path-mtu-discovery-with-udp">6. Path MTU Discovery with UDP</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For a protocol such as UDP, in which the calling application is generally in control of the outgoing datagram size, it is useful if there is some way to determine an appropriate datagram size if fragmentation is to be avoided.</p>
+</div>
+<div class="paragraph">
+<p>Conventional PMTUD uses ICMP PTB messages in determining the largest packet size along a routing path that can be used without inducing fragmentation. These messages are typically processed below the UDP layer and are not directly visible to an application, so</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>either an API call is used for the application to learn the best current estimate of the path MTU size for each destination with which it has communicated,</p>
+</li>
+<li>
+<p>or the IP layer can perform PMTUD independently without the application knowing.</p>
+<div class="paragraph">
+<p>The IP layer often caches PMTUD information on a per-destination basis and times it out if it is not refreshed.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.ip_forward
+<span class="go">net.ipv4.ip_forward = 1
+
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span>ip a show ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 900 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:85:26:10 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip r
+<span class="go">default via 192.168.91.137 dev ens32
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ping <span class="nt">-M</span> <span class="k">do</span> <span class="nt">-s</span> 1472 <span class="nt">-c</span> 1 10.170.109.10
+<span class="go">PING 10.170.109.10 (10.170.109.10) 1472(1500) bytes of data.
+ping: local error: message too long, mtu=900
+
+--- 10.170.109.10 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ip r show cache
+<span class="go">10.170.109.10 via 192.168.91.137 dev ens32
+    cache expires 578sec mtu 900</span></code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Path MTU discovery can sometimes cause problems because firewalls and filtering gateways may drop ICMP traffic indiscriminately, which can harm the PMTU discovery algorithm.</p>
+</div>
+<div class="paragraph">
+<p>Because of this, it is possible to disable PMTU discovery on a system-wide or finer-granularity basis.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>On Linux, the file <code>/proc/sys/net/ipv4/ip_no_pmtu_disc</code> can have a <code>1</code> written to it to disable the feature.</p>
+</li>
+<li>
+<p>On Windows, it involves editing the registry entry <code>HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\EnablePMTUDiscovery</code> to include the value <code>0</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>An alternative to conventional PMTUD that does not use ICMP has also been developed [RFC4821].</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="interaction-between-ip-fragmentation-and-arpnd">7. Interaction between IP Fragmentation and ARP/ND</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using UDP, we can see the relationship between induced IP fragmentation and typical implementations of ARP.</p>
+</div>
+<div class="paragraph">
+<p>Recall that ARP is used to map IP-layer addresses to corresponding MAC-layer addresses on the same IPv4 subnet.</p>
+</div>
+<div class="paragraph">
+<p>The questions with which we are concerned include, When multiple fragments are to be sent, how many ARP messages should be generated, and how many of the fragments are held until a pending ARP request/response is completed? (Similar questions apply with IPv6 ND.)</p>
+</div>
+<div class="paragraph">
+<p>Returning to our host and LAN using a 1500-byte MTU, we use the following two commands to see the answer:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ping <span class="nt">-s</span> 8192 <span class="nt">-c</span> 1 192.168.91.110
+<span class="go">PING 192.168.91.110 (192.168.91.110) 8192(8220) bytes of data.
+From 192.168.91.128 icmp_seq=1 Destination Host Unreachable
+
+--- 192.168.91.110 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ping <span class="nt">-s</span> 8192 <span class="nt">-c</span> 1 192.168.91.137
+<span class="go">PING 192.168.91.137 (192.168.91.137) 8192(8220) bytes of data.
+8200 bytes from 192.168.91.137: icmp_seq=1 ttl=64 time=1.13 ms
+
+--- 192.168.91.137 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 1.129/1.129/1.129/0.000 ms</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-i</span> ens32 <span class="nt">-tttnv</span> icmp or arp
+<span class="go">tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+ 00:00:00.000000 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.110 tell 192.168.91.128, length 28
+ 00:00:01.030208 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.110 tell 192.168.91.128, length 28
+ 00:00:01.024150 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.110 tell 192.168.91.128, length 28
+
+ 00:00:06.177783 ARP, Ethernet (len 6), IPv4 (len 4), Request who-has 192.168.91.137 tell 192.168.91.128, length 28
+ 00:00:00.000262 ARP, Ethernet (len 6), IPv4 (len 4), Reply 192.168.91.137 is-at 00:0c:29:85:26:10, length 46
+
+ 00:00:00.000009 IP (tos 0x0, ttl 64, id 21330, offset 0, flags [+], proto ICMP (1), length 1500)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ICMP <span class="nb">echo </span>request, <span class="nb">id </span>2725, <span class="nb">seq </span>1, length 1480
+<span class="go"> 00:00:00.000030 IP (tos 0x0, ttl 64, id 21330, offset 1480, flags [+], proto ICMP (1), length 1500)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-1
+<span class="go"> 00:00:00.000022 IP (tos 0x0, ttl 64, id 21330, offset 2960, flags [+], proto ICMP (1), length 1500)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-1
+<span class="go"> 00:00:00.000022 IP (tos 0x0, ttl 64, id 21330, offset 4440, flags [+], proto ICMP (1), length 1500)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-1
+<span class="go"> 00:00:00.000023 IP (tos 0x0, ttl 64, id 21330, offset 5920, flags [+], proto ICMP (1), length 1500)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-1
+<span class="go"> 00:00:00.000019 IP (tos 0x0, ttl 64, id 21330, offset 7400, flags [none], proto ICMP (1), length 820)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.137: ip-proto-1
+<span class="c">...</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="maximum-udp-datagram-size">8. Maximum UDP Datagram Size</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Theoretically, the maximum size of an IPv4 datagram is 65,535 bytes, imposed by the 16-bit <em>Total Length</em> field in the IPv4 header. With an optionless IPv4 header of 20 bytes and a UDP header of 8 bytes, this leaves a maximum of 65,507 bytes of user data in a UDP datagram.</p>
+</div>
+<div class="paragraph">
+<p>For IPv6, the 16-bit <em>Payload Length</em> field permits an effective UDP payload of 65,527 bytes (8 of the 65,535 IPv6 payload bytes are used for the UDP header), assuming jumbograms are not being used.</p>
+</div>
+<div class="paragraph">
+<p>There are two main reasons why a full-size datagram of these sizes may not be delivered end-to-end, however.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>First, the system&#8217;s local protocol implementation may have some limitation.</p>
+</li>
+<li>
+<p>Second, the receiving application may not be prepared to handle such large datagrams.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="implementation-limitations">8.1. Implementation Limitations</h3>
+<div class="paragraph">
+<p>Protocol implementations provide an API to applications that pick some default buffer size for sending and receiving.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Some implementations provide defaults that are less than the maximum IP datagram size,</p>
+</li>
+<li>
+<p>and some actually do not support sending datagrams larger than a few tens of kilobytes (although this problem is not common).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The sockets API provides a set of functions that an application can call to set or query the size of the receive and send buffers.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For a UDP socket, this size is directly related to the maximum size of UDP datagram the application can read or write.</p>
+</li>
+<li>
+<p>Typical default values are 8192 bytes or 65,535 bytes, but these can generally be made larger by invoking the <code>setsockopt()</code> API call.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Many UDP applications (e.g. DNS, DHCP, etc.) are designed to restrict their application data size to 512 bytes or less (resulting in IPv4 datagrams under 576 bytes), to stay below this limit.</p>
+</div>
+<div class="listingblock">
+<div class="title"><a href="https://www.rfc-editor.org/rfc/rfc791#section-3.1" class="bare">https://www.rfc-editor.org/rfc/rfc791#section-3.1</a></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Total Length:  16 bits
+
+    Total Length is the length of the datagram, measured in octets,
+    including internet header and data.  This field allows the length of
+    a datagram to be up to 65,535 octets.  Such long datagrams are
+    impractical for most hosts and networks.  All hosts must be prepared
+    to accept datagrams of up to 576 octets (whether they arrive whole
+    or in fragments).  It is recommended that hosts only send datagrams
+    larger than 576 octets if they have assurance that the destination
+    is prepared to accept the larger datagrams.
+
+    The number 576 is selected to allow a reasonable sized data block to
+    be transmitted in addition to the required header information.  For
+    example, this size allows a data block of 512 octets plus 64 header
+    octets to fit in a datagram.  The maximal internet header is 60
+    octets, and a typical internet header is 20 octets, allowing a
+    margin for headers of higher level protocols.</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="datagram-truncation">8.2. Datagram Truncation</h3>
+<div class="paragraph">
+<p>Just because UDP/IP is capable of sending and receiving a datagram of a given (large) size does not mean the receiving application is prepared to read that size.</p>
+</div>
+<div class="paragraph">
+<p>UDP programming interfaces allow the application to specify the maximum number of bytes to return each time a network read operation completes.</p>
+</div>
+<div class="paragraph">
+<p>What happens if the received datagram exceeds the size specified?</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In most cases, the answer to this question is that the API truncates the datagram, discarding any excess data in the datagram beyond the number of bytes specified by the receiving application.</p>
+</li>
+<li>
+<p>However, the exact behavior varies from implementation to implementation.</p>
+<div class="paragraph">
+<p>Some systems provide the unconsumed portion of the datagram in subsequent read operations,</p>
+</div>
+<div class="paragraph">
+<p>and others inform the caller of how much data was truncated (or, in yet other cases, that some data was truncated, but not exactly how much).</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+In Linux, the <code>MSG_TRUNC</code> option may be given to the sockets API to discover how much data was truncated.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="udp-server-design">9. UDP Server Design</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are some characteristics of UDP that affect the design and implementation of networking application software wishing to use it [<a href="https://www.rfc-editor.org/rfc/rfc5405">RFC5405</a>].</p>
+</div>
+<div class="paragraph">
+<p>Servers typically interact with the operating system, and most need a way to handle multiple clients at the same time.</p>
+</div>
+<div class="paragraph">
+<p>In the typical client/server scenario, a client starts, immediately communicates with a single server, and is done. Servers, on the other hand, start and then go to sleep, waiting for a client&#8217;s request to arrive. They awaken when a client&#8217;s datagram arrives, which usually requires the server to evaluate the request and possibly perform further processing.</p>
+</div>
+<div class="sect2">
+<h3 id="ip-addresses-and-udp-port-numbers">9.1. IP Addresses and UDP Port Numbers</h3>
+<div class="paragraph">
+<p>What arrives at a UDP server from a client is a UDP datagram.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The IP header contains the source and destination IP addresses,</p>
+</li>
+<li>
+<p>and the UDP header contains the source and destination UDP port numbers.</p>
+</li>
+<li>
+<p>When an application receives a UDP message,</p>
+<div class="ulist">
+<ul>
+<li>
+<p>the IP and UDP headers have been stripped off;</p>
+</li>
+<li>
+<p>the application must be told by the operating system in some other way who sent the message (the source IP address and port number), if it intends to furnish a reply. This feature allows a UDP server to handle multiple clients.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Some servers need to know to <em>whom</em> the datagram was sent, that is, the destination IP address.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Any server wishing to perform its tasks differently depending on the destination IP address selected by the client would require access to the destination IP address information.</p>
+</li>
+<li>
+<p>In addition, some services may respond differently if the destination address is broadcast or multicast.</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+A DNS server is one type of server that is sensitive to the destination IP address. It can use this information to arrange a particular sorting order on the address mappings it returns.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="restricting-local-ip-addresses">9.2. Restricting Local IP Addresses</h3>
+<div class="paragraph">
+<p>Most UDP servers <em>wildcard</em> their local IP address when they bind a UDP endpoint. This means that an incoming UDP datagram destined for the server&#8217;s port is accepted on any local IP address (any IP address in use on the local machine, including the local loopback address).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-vlu</span> 7777
+<span class="go">Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on :::7777
+Ncat: Listening on 0.0.0.0:7777</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-lun</span>
+<span class="go">Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+udp        0      0 0.0.0.0:7777            0.0.0.0:*
+udp6       0      0 :::7777                 :::*</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When the server creates its endpoint, it can specify one of the host&#8217;s local IP addresses, including a broadcast address, as the local IP address for the endpoint. In such cases, incoming UDP datagrams are then passed to this endpoint only if the destination IP address matches the specified local address.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-vlu</span> 127.0.0.1 7777
+<span class="go">Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 127.0.0.1:7777</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-lun</span>
+<span class="go">Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+udp        0      0 127.0.0.1:7777          0.0.0.0:*</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>nping <span class="nt">-c</span> 1 <span class="nt">--udp</span> <span class="nt">-p</span> 7777 192.168.91.128
+<span class="go">SENT (0.0026s) UDP packet with 4 bytes to 192.168.91.128:7777
+ERR: (0.0026s) READ to 192.168.91.128:7777 failed: Connection refused</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnv</span> udp or icmp <span class="nt">-i</span> any
+<span class="go">lo    In  IP (tos 0x0, ttl 64, id 23511, offset 0, flags [DF], proto UDP (17), length 32)
+</span><span class="gp">    192.168.91.128.49849 &gt;</span><span class="w"> </span>192.168.91.128.7777: UDP, length 4
+<span class="go">lo    In  IP (tos 0xc0, ttl 64, id 60067, offset 0, flags [none], proto ICMP (1), length 60)
+</span><span class="gp">    192.168.91.128 &gt;</span><span class="w"> </span>192.168.91.128: ICMP 192.168.91.128 udp port 7777 unreachable, length 40
+<span class="go">	IP (tos 0x0, ttl 64, id 23511, offset 0, flags [DF], proto UDP (17), length 32)
+</span><span class="gp">    192.168.91.128.49849 &gt;</span><span class="w"> </span>192.168.91.128.7777: UDP, length 4</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="using-multiple-addresses">9.3. Using Multiple Addresses</h3>
+<div class="paragraph">
+<p>It is possible to start different servers on the same port number, each with a different local IP address.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip a show ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+    inet 192.168.91.129/24 brd 192.168.91.255 scope global secondary ens32
+       valid_lft forever preferred_lft forever
+    inet 192.168.91.134/24 brd 192.168.91.255 scope global secondary dynamic ens32
+       valid_lft 1543sec preferred_lft 1543sec
+    inet6 fe80::20c:29ff:fe8c:df3f/64 scope link
+       valid_lft forever preferred_lft forever
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-lu</span> 8888
+<span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-lu</span> 192.168.91.129 8888
+<span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-lu</span> 192.168.91.128 8888</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-nlu</span>
+<span class="go">Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+udp        0      0 192.168.91.129:8888     0.0.0.0:*
+udp        0      0 192.168.91.128:8888     0.0.0.0:*
+udp        0      0 0.0.0.0:8888            0.0.0.0:*
+udp6       0      0 :::8888                 :::*</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>There is a priority implied when an endpoint with a wildcard address exists.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An endpoint with a specific IP address that matches the destination IP address is always chosen over a wildcard.</p>
+</li>
+<li>
+<p>The wildcard endpoint is used only when a specific match is not found.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="restricting-foreign-ip-address">9.4. Restricting Foreign IP Address</h3>
+<div class="paragraph">
+<p>In all the netstat output that we showed earlier, the foreign IP address (i.e., the one not local to the host where the server is running) and foreign port number are shown as <em>0.0.0.0:*</em>, meaning that the endpoint will accept an incoming UDP datagram from any IPv4 address and any port number.</p>
+</div>
+<div class="paragraph">
+<p>However, there is an option to restrict the foreign address. This means that the endpoint receives UDP datagrams only from that specific IPv4 address and port number.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 1. Types of address bindings for a UDP server</caption>
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Local Address</th>
+<th class="tableblock halign-left valign-top">Foreign Address</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">local_IP.local_port</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">foreign_IP.foreign_port</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restricted to one client</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">local_IP.local_port</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">*.* (wildcard)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restricted to one local IP
+address and port (but for
+any client)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">*.local_port</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">*.* (wildcard)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restricted to local port
+only</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="using-multiple-servers-per-port">9.5. Using Multiple Servers per Port</h3>
+<div class="paragraph">
+<p>Although it is not specified in the RFCs, by default most implementations allow only one application endpoint at a time to be associated with any one (local IP address, UDP port number) pair for a given address family (i.e., IPv4 or IPv6).</p>
+</div>
+<div class="paragraph">
+<p>When a UDP datagram arrives at a host destined for its IP address and an active port number, one copy is delivered to that single endpoint (e.g., a listening application).</p>
+</div>
+<div class="paragraph">
+<p>The IP address of the endpoint can be the wildcard, as shown earlier, but only a single application can receive datagrams for the address(es) specified.</p>
+</div>
+<div class="paragraph">
+<p>If we then try to start another server with the same wildcarded local address and the same port using the same address family, it does not work:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>socat - udp-listen:8888 &amp; socat - udp-listen:8888
+<span class="go">[1] 38249
+2022/12/08 16:57:19 socat[38250] E bind(5, {AF=2 0.0.0.0:8888}, 16): Address already in use</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In support of multicasting, multiple endpoints can be allowed to use the same (local IP address, UDP port number) pair, although the application normally must tell the API (i.e., specifing the <code>SO_REUSEADDR</code> option).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>socat - udp-listen:8888,reuseaddr &amp; socat - udp-listen:8888,reuseaddr
+<span class="go">[2] 38270</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When a UDP datagram arrives whose destination IP address is a broadcast or multicast address, and there are multiple endpoints at the destination IP address and port number, one copy of the incoming datagram is passed to each endpoint.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The endpoint&#8217;s local IP address can be the wildcard, which matches any destination IP address.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-vlu4</span> 192.168.91.255 9999
+<span class="go">Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 192.168.91.255:9999
+Ncat: Connection from 192.168.91.137.
+hello
+hello</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ncat <span class="nt">-vlu4</span> 9999
+<span class="go">Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 0.0.0.0:9999
+Ncat: Connection from 192.168.91.137.
+hello
+hello</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-nlu4</span>
+<span class="go">Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+udp        0      0 192.168.91.255:9999     0.0.0.0:*
+udp        0      0 0.0.0.0:9999            0.0.0.0:*</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">echo</span> <span class="s1">'hello'</span> | nc <span class="nt">-u</span> 192.168.91.255 9999</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>But if a UDP datagram arrives whose destination IP address is a unicast address (i.e., an ordinary address), only a single copy of the datagram is delivered to one of the endpoints.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="spanning-address-families-ipv4-and-ipv6">9.6. Spanning Address Families: IPv4 and IPv6</h3>
+<div class="paragraph">
+<p>It is possible to write servers that span not only protocols (such as servers that respond to both TCP and UDP) but also across address families. That is, we may write a UDP server that responds to incoming requests for IPv4 as well as for IPv6.</p>
+</div>
+<div class="paragraph">
+<p>While this may seem entirely straightforward (IPv6 addresses are just additional IP addresses on the same host that happen to be 128 bits long), there is a subtlety related to the sharing of the port space.</p>
+</div>
+<div class="paragraph">
+<p>On some systems, the port space between IPv6 and IPv4 for UDP (and TCP) is <em>shared</em>. This means that if a service binds to a UDP port using IPv4, it is also allocated the same port in the IPv6 port space (and vice versa), preventing other services from using it (unless the <code>SO_REUSEADDR</code> socket option is used).</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, because IPv6 addresses can encode IPv4 addresses in an interoperable way, wildcard bindings in IPv6 may receive incoming IPv4 traffic.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="lack-of-flow-and-congestion-control">9.7. Lack of Flow and Congestion Control</h3>
+<div class="paragraph">
+<p>Most UDP servers are <em>iterative</em> servers.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This means that a single server thread (or process) handles all the client requests on a single UDP port (e.g., the server&#8217;s well-known port).</p>
+</li>
+<li>
+<p>Normally there is a limited-size input queue associated with each UDP port that an application is using.</p>
+<div class="paragraph">
+<p>This means that requests arriving at about the same time from different clients are automatically queued by UDP.</p>
+</div>
+</li>
+<li>
+<p>The received UDP datagrams are passed to the application (when it asks for the next one) in the order in which they were received (i.e., FCFS—first come, first served).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is possible, however, for this queue to overflow, causing the UDP implementation to discard incoming datagrams.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This can happen even if only one client is being served because UDP provides no <strong>flow control</strong> (that is, no way for the server to tell the client to slow down).</p>
+</li>
+<li>
+<p>Because <strong>UDP is a connectionless protocol</strong> with no reliability mechanism of its own, applications are not told when the UDP input queue overflows. The excess datagrams are just discarded by UDP.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Another concern arises from the fact that queues are also present in the IP routers between the sender and the receiver—in the middle of the network.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When these queues become full, traffic may be discarded in a fashion similar to that of the UDP input queue.</p>
+</li>
+<li>
+<p>When this happens, the network is said to be <strong>congested</strong>.</p>
+<div class="paragraph">
+<p>Congestion is undesirable because it affects all network users with traffic that traverses the point where congestion is occurring, as opposed to the UDP case previously, where only a single application server was affected.</p>
+</div>
+<div class="paragraph">
+<p>UDP poses a special concern for congestion because it has no way of being informed that it should slow down its sending rate if the network is being driven into congestion. It also has no mechanism for slowing down, even if it were told to do so. Thus, it is said to lack <strong>congestion control</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Congestion control is a complex subject and still an active area of research.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist bibliography">
+<ul class="bibliography">
+<li>
+<p><a id="tcp_ip_vol_1"></a>[1] Kevin Fall, W. Stevens <em>TCP/IP Illustrated: The Protocols, Volume 1</em>. 2nd edition, Addison-Wesley Professional, 2011</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2022/12/05/tcp-ip-broadcasting-and-local-multicasting-igmp-and-mld/">&laquo; TCP/IP: Broadcasting and Local Multicasting (IGMP and MLD)</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2022/12/09/tcp-ip-name-resolution-and-the-domain-name-system/">TCP/IP: Name Resolution and the Domain Name System (DNS) &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

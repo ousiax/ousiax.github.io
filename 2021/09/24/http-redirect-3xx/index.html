@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>HTTP 3xx Redirect and NGINX Rewrite Directives</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/09/24/http-redirect-3xx/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">HTTP 3xx Redirect and NGINX Rewrite Directives</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-09-24T16:38:38+08:00" itemprop="datePublished">Sep 24, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#location">Location</a></li>
+<li><a href="#300-multiple-choices">300 Multiple Choices</a></li>
+<li><a href="#301-moved-permanently">301 Moved Permanently</a></li>
+<li><a href="#302-found">302 Found</a></li>
+<li><a href="#303-see-other">303 See Other</a></li>
+<li><a href="#304-not-modified">304 Not Modified</a></li>
+<li><a href="#307-temporary-redirect">307 Temporary Redirect</a></li>
+<li><a href="#308-permanent-redirect">308 Permanent Redirect</a></li>
+<li><a href="#nginx-rewrite-directives">NGINX Rewrite Directives</a>
+<ul class="sectlevel2">
+<li><a href="#the-return-directive">The <code>return</code> Directive</a></li>
+<li><a href="#the-rewrite-directive">The <code>rewrite</code> Directive</a></li>
+<li><a href="#the-try_files-directive">The <code>try_files</code> directive</a></li>
+<li><a href="#examples-standardizing-the-domain-name">Examples – Standardizing the Domain Name</a></li>
+<li><a href="#example-forcing-all-requests-to-use-ssltls">Example – Forcing all Requests to Use SSL/TLS</a></li>
+<li><a href="#example-dropping-requests-for-unsupported-file-extensions">Example – Dropping Requests for Unsupported File Extensions</a></li>
+<li><a href="#example-configuring-custom-rerouting">Example – Configuring Custom Rerouting</a></li>
+</ul>
+</li>
+<li><a href="#exampine">Exampine</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="location">Location</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <strong>Location</strong> response header indicates the URL to redirect a page to. It only provides a meaning when served with a <code>3xx</code> (redirection) or <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201">201</a> (created) status response.</p>
+</div>
+<div class="paragraph">
+<p>In cases of redirection, the HTTP method used to make the new request to fetch the page pointed to by <code>Location</code> depends of the original method and of the kind of redirection:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303">303</a> (See Other) responses <strong>always</strong> lead to the use of a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a> method.</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307">307</a> (Temporary Redirect) and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308">308</a> (Permanent Redirect) <strong>don&#8217;t change the method used in the original request</strong>.</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301">301</a> (Moved Permanently) and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302">302</a> (Found) <strong>don&#8217;t change the method most of the time</strong>, though older user-agents may (so you basically don&#8217;t know).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>All responses with one of these status codes send a <code>Location</code> header.</p>
+</div>
+<div class="paragraph">
+<p>In cases of resource creation, it indicates the URL to the newly created resource.</p>
+</div>
+<div class="paragraph">
+<p>Location and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Location">Content-Location</a> are different: <code>Location</code> indicates the target of a redirection (or the URL of a newly created resource), while <code>Content-Location</code> indicates the direct URL to use to access the resource when <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation">content negotiation</a> happened, without the need of further content negotiation. Location is a header associated with the response, while Content-Location is associated with the entity returned.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iIL</span> http://www.example.com
+<span class="hll"><span class="go">HTTP/1.1 302 Moved Temporarily</span>
+</span><span class="go">Server: openresty</span>
+<span class="go">Date: Fri, 24 Sep 2021 09:27:27 GMT</span>
+<span class="go">Content-Type: text/html</span>
+<span class="go">Content-Length: 142</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">Location: https://www.example.com/</span>
+</span>
+<span class="hll"><span class="go">HTTP/2 308</span>
+</span><span class="go">date: Fri, 24 Sep 2021 09:27:27 GMT</span>
+<span class="go">content-type: text/html</span>
+<span class="go">content-length: 164</span>
+<span class="hll"><span class="go">location: http://example.com</span>
+</span><span class="go">server: openresty</span>
+
+<span class="hll"><span class="go">HTTP/1.1 302 Moved Temporarily</span>
+</span><span class="go">Server: openresty</span>
+<span class="go">Date: Fri, 24 Sep 2021 09:27:27 GMT</span>
+<span class="go">Content-Type: text/html</span>
+<span class="go">Content-Length: 142</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">Location: https://example.com/</span>
+</span>
+<span class="go">HTTP/2 200</span>
+<span class="go">date: Fri, 24 Sep 2021 09:27:27 GMT</span>
+<span class="go">content-type: text/plain</span>
+<span class="go">server: openresty</span>
+<span class="go">x-req-id: d24227ea3c4e43efe84e96153ff2f56e</span>
+<span class="go">cache-control: public,max-age=30</span>
+<span class="go">etag: "29c3c7731ace3b21be2"</span>
+<span class="go">last-modified: Thu, 23 Sep 2021 22:26:11 GMT</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="300-multiple-choices">300 Multiple Choices</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The HTTP <strong>300 Multiple Choices</strong> redirect status response code indicates that the request has more than one possible responses. The user-agent or the user should choose one of them. As there is no standardized way of choosing one of the responses, this response code is very rarely used.</p>
+</div>
+<div class="paragraph">
+<p>If the server has a preferred choice, it should generate a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location">Location</a> header.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="301-moved-permanently">301 Moved Permanently</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The HyperText Transfer Protocol (HTTP) <strong>301 Moved Permanently</strong> redirect status response code indicates that the resource requested has been definitively moved to the URL given by the <code>Location</code> headers. A browser redirects to this page and <strong>search engines update their links to the resource</strong> (in 'SEO-speak', it is said that the 'link-juice' is sent to the new URL).</p>
+</div>
+<div class="paragraph">
+<p>Even if the specification requires the method (and the body) not to be altered when the redirection is performed, not all user-agents align with it - you can still find this type of bugged software out there. It is therefore recommended to <strong>use the <code>301</code> code only as a response for <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a> or <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD">HEAD</a> methods</strong> and to use the <code>308 Permanent Redirect</code> for <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST">POST</a> methods instead, as the method change is explicitly prohibited with this status.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="302-found">302 Found</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The HyperText Transfer Protocol (HTTP) <strong>302 Found</strong> redirect status response code indicates that the resource requested has been temporarily moved to the URL given by the <code>Location</code> header. A browser redirects to this page but <strong>search engines don&#8217;t update their links to the resource</strong> (in 'SEO-speak', it is said that the 'link-juice' is not sent to the new URL).</p>
+</div>
+<div class="paragraph">
+<p>Even if the specification requires the method (and the body) not to be altered when the redirection is performed, not all user-agents conform here - you can still find this type of bugged software out there. It is therefore recommended to <strong>set the <code>302</code> code only as a response for <code>GET</code> or <code>HEAD</code> methods</strong> and to use <code>307 Temporary Redirect</code> instead, as the method change is explicitly prohibited in that case.</p>
+</div>
+<div class="paragraph">
+<p>In the cases where you want the method used to be changed to <code>GET</code>, use <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303"><strong>303 See Other</strong></a> instead. This is useful when you want to give a response to a <code>PUT</code> method that is not the uploaded resource but a confirmation message such as: 'you successfully uploaded XYZ'.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="303-see-other">303 See Other</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The HyperText Transfer Protocol (HTTP) <strong>303 See Other</strong> redirect status response code indicates that the redirects don&#8217;t link to the newly uploaded resources, but to another page (such as a confirmation page or an upload progress page). This response code is usually sent back as a result of <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PUT">PUT</a> or <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST">POST</a>. <strong>The method used to display this redirected page is always <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a></strong>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="304-not-modified">304 Not Modified</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The HTTP <strong>304 Not Modified</strong> client redirection response code indicates that there is no need to retransmit the requested resources. It is an implicit redirection to a cached resource. This happens when the request method is safe, like a <code>GET</code> or a <code>HEAD</code> request, or when the request is <em>conditional</em> and uses a <code>If-None-Match</code> or a <code>If-Modified-Since</code> header.</p>
+</div>
+<div class="paragraph">
+<p>The equivalent <code>200 OK</code> response would have included the headers <code>Cache-Control</code>, <code>Content-Location</code>, <code>Date</code>, <code>ETag</code>, <code>Expires</code>, and <code>Vary</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="307-temporary-redirect">307 Temporary Redirect</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>HTTP <strong>307 Temporary Redirect</strong> redirect status response code indicates that the resource requested has been temporarily moved to the URL given by the <code>Location</code> headers.</p>
+</div>
+<div class="paragraph">
+<p><strong>The method and the body of the original request are reused to perform the redirected request.</strong> In the cases where you want the method used to be changed to <code>GET</code>, use <code>303 See Other</code> instead. This is useful when you want to give an answer to a <code>PUT</code> method that is not the uploaded resources, but a confirmation message (like "You successfully uploaded XYZ").</p>
+</div>
+<div class="paragraph">
+<p>The only difference between <code>307</code> and <code>302</code> is that <code>307</code> guarantees that the method and the body will not be changed when the redirected request is made. With <code>302</code>, some old clients were incorrectly changing the method to <code>GET</code>: the behavior with non-GET methods and <code>302</code> is then unpredictable on the Web, whereas the behavior with <code>307</code> is predictable. For <code>GET</code> requests, their behavior is identical.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="308-permanent-redirect">308 Permanent Redirect</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The HyperText Transfer Protocol (HTTP) <strong>308 Permanent Redirect</strong> redirect status response code indicates that the resource requested has been definitively moved to the URL given by the Location headers. A browser redirects to this page and search engines update their links to the resource (in 'SEO-speak', it is said that the 'link-juice' is sent to the new URL).</p>
+</div>
+<div class="paragraph">
+<p>The request method and the body will not be altered, whereas <code>301</code> may incorrectly sometimes be changed to a <code>GET</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="nginx-rewrite-directives">NGINX Rewrite Directives</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The two directives for general‑purpose NGINX rewrite are <strong>return</strong> and <strong>rewrite</strong>, and the <strong>try_files</strong> directive is a handy way to direct requests to application servers. Let’s review what the directives do and how they differ.</p>
+</div>
+<div class="sect2">
+<h3 id="the-return-directive">The <code>return</code> Directive</h3>
+<div class="paragraph">
+<p>The <strong>return</strong> directive is the simpler of the two general‑purpose directives and for that reason we recommend using it instead of rewrite when possible (more later about the why and when). You enclose the <code>return</code> in a <code>server</code> or <code>location</code> context that specifies the URLs to be rewritten, and it defines the corrected (rewritten) URL for the client to use in future requests for the resource.</p>
+</div>
+<div class="paragraph">
+<p>Here’s a very simple example that redirects clients to a new domain name:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">80</span>;
+    <span class="n">listen</span> <span class="m">443</span> <span class="n">ssl</span>;
+    <span class="n">server_name</span> <span class="n">www</span>.<span class="n">old</span>-<span class="n">name</span>.<span class="n">com</span>;
+    <span class="n">return</span> <span class="m">301</span> $<span class="n">scheme</span>://<span class="n">www</span>.<span class="n">new</span>-<span class="n">name</span>.<span class="n">com</span>$<span class="n">request_uri</span>;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>listen</code> directives mean the server block applies to both <code>HTTP</code> and <code>HTTPS</code> traffic. The <code>server_name</code> directive matches request URLs that have domain name <code>www.old‑name.com</code>. The <code>return</code> directive tells NGINX to stop processing the request and immediately send code <code>301</code> (Moved Permanently) and the specified rewritten URL to the client. The rewritten URL uses two <a href="https://nginx.org/en/docs/varindex.html">NGINX variables</a> to capture and replicate values from the original request URL: <code>$scheme</code> is the protocol (http or https) and <code>$request_uri</code> is the full URI including arguments.</p>
+</div>
+<div class="paragraph">
+<p>For a code in the <strong><em>3xx</em></strong> series, the <strong><em>url</em></strong> parameter defines the new (rewritten) URL.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">return</span> (<span class="m">301</span> | <span class="m">302</span> | <span class="m">303</span> | <span class="m">307</span>) <span class="n">url</span>;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For other codes, you optionally define a text string which appears in the body of the response (the standard text for the HTTP code, such as <code>Not Found</code> for <code>404</code>, is still included in the header). The text can contain NGINX variables.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">return</span> (<span class="m">1</span><span class="n">xx</span> | <span class="m">2</span><span class="n">xx</span> | <span class="m">4</span><span class="n">xx</span> | <span class="m">5</span><span class="n">xx</span>) [<span class="s2">"text"</span>];</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For example, this directive might be appropriate when rejecting requests that don’t have a valid authentication token:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">return</span> <span class="m">401</span> <span class="s2">"Access denied because token is expired or invalid"</span>;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>There are also a couple syntactic shortcuts you can use, such as omitting the code if it is <code>302</code>; see the reference documentation for the <a href="https://nginx.org/r/return">return</a> directive.</p>
+</div>
+<div class="paragraph">
+<p>(In some cases, you might want to return a response that is more complex or nuanced than you can achieve in a text string. With the <a href="https://nginx.org/r/error_page">error_page</a> directive, you can return a complete custom HTML page for each HTTP code, as well as change the response code or perform a redirect.)</p>
+</div>
+<div class="paragraph">
+<p>So the <code>return</code> directive is simple to use, and suitable when the redirect meets two conditions: the rewritten URL is appropriate for every request that matches the <code>server</code> or <code>location</code> block, and you can build the rewritten URL with standard NGINX variables.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-rewrite-directive">The <code>rewrite</code> Directive</h3>
+<div class="paragraph">
+<p>But what if you need to test for more complicated distinctions between URLs, capture elements in the original URL that don’t have corresponding NGINX variables, or change or add elements in the path? You can use the <code>rewrite</code> directive in such cases.</p>
+</div>
+<div class="paragraph">
+<p>Like the <code>return</code> directive, you enclose the <code>rewrite</code> directive in a <code>server</code> or <code>location</code> context that defines the URLs to be rewritten. Otherwise, the two directives are rather more different than similar, and the <code>rewrite</code> directive can be more complicated to use correctly. Its syntax is simple enough:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">rewrite</span> <span class="n">regex</span> <span class="n">URL</span> [<span class="n">flag</span>];</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>But the first argument, <code>regex</code>, means that NGINX Plus and NGINX rewrite the URL only if it matches the specified regular expression (in addition to matching the <code>server</code> or <code>location</code> directive). The additional test means NGINX must do more processing.</p>
+</div>
+<div class="paragraph">
+<p>A second difference is that the <code>rewrite</code> directive can return only code <code>301</code> or <code>302</code>. To return other codes, you need to include a <code>return</code> directive after the <code>rewrite</code> directive (see the example below).</p>
+</div>
+<div class="paragraph">
+<p>And finally the <code>rewrite</code> directive does not necessarily halt NGINX&#8217;s processing of the request as return does, and it doesn’t necessarily send a redirect to the client. Unless you explicitly indicate (with <code>flags</code> or the syntax of the URL) that you want NGINX to halt processing or send a redirect, it runs through the entire configuration looking for directives that are defined in the <a href="https://nginx.org/en/docs/http/ngx_http_rewrite_module.html">Rewrite</a> module (<code>break</code>, <code>if</code>, <code>return</code>, <code>rewrite</code>, and <code>set</code>), and processes them in order. If a rewritten URL matches a subsequent directive from the Rewrite module, NGINX performs the indicated action on the rewritten URL (often rewriting it again).</p>
+</div>
+<div class="paragraph">
+<p>This is where things can get complicated, and you need to plan carefully how you order the directives to get the desired result. For instance, if the original <code>location</code> block and the NGINX rewrite rules in it match the rewritten URL, NGINX can get into a loop, applying the rewrite over and over up to the built‑in limit of 10 times. To learn all the details, see the documentation for the Rewrite module. As previously noted, we recommend that where possible you use the <code>return</code> directive instead.</p>
+</div>
+<div class="paragraph">
+<p>Here’s a sample NGINX rewrite rule that uses the <code>rewrite</code> directive. It matches URLs that begin with the string <code>/download</code> and then include the <code>/media/</code> or <code>/audio/</code> directory somewhere later in the path. It replaces those elements with <code>/mp3/</code> and adds the appropriate file extension, <code>.mp3</code> or <code>.ra</code>. The <code>$1</code> and <code>$2</code> variables capture the path elements that aren&#8217;t changing. As an example, <code>/download/cdn-west/media/file1</code> becomes <code>/download/cdn-west/mp3/file1.mp3</code>. If there is an extension on the filename (such as <code>.flv</code>), the expression strips it off and replaces it with <code>.mp3</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">server</span> {
+    <span class="c"># ...
+</span>    <span class="n">rewrite</span> ^(/<span class="n">download</span>/.*)/<span class="n">media</span>/(\<span class="n">w</span>+)\.?.*$ $<span class="m">1</span>/<span class="n">mp3</span>/$<span class="m">2</span>.<span class="n">mp3</span> <span class="n">last</span>;
+    <span class="n">rewrite</span> ^(/<span class="n">download</span>/.*)/<span class="n">audio</span>/(\<span class="n">w</span>+)\.?.*$ $<span class="m">1</span>/<span class="n">mp3</span>/$<span class="m">2</span>.<span class="n">ra</span>  <span class="n">last</span>;
+    <span class="n">return</span>  <span class="m">403</span>;
+    <span class="c"># ...
+</span>}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>We mentioned above that you can add flags to a <code>rewrite</code> directive to control the flow of processing. The <code>last</code> flag in the example is one of them: it tells NGINX to skip any subsequent Rewrite‑module directives in the current <code>server</code> or <code>location</code> block and start a search for a new location that matches the rewritten URL.</p>
+</div>
+<div class="paragraph">
+<p>The final <code>return</code> directive in this example means that if the URL doesn’t match either <code>rewrite</code> directive, code <code>403</code> is returned to the client.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-try_files-directive">The <code>try_files</code> directive</h3>
+<div class="paragraph">
+<p>Like the <code>return</code> and <code>rewrite</code> directives, the <a href="https://nginx.org/r/try_files">try_files</a> directive is placed in a <code>server</code> or <code>location</code> block. As parameters, it takes a list of one or more files and directories and a final URI:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">try_files</span> <span class="n">file</span> ... <span class="n">uri</span>;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>NGINX checks for the existence of the files and directories in order (constructing the full path to each file from the settings of the <a href="https://nginx.org/r/root">root</a> and <a href="https://nginx.org/r/alias">alias</a> directives), and serves the first one it finds. To indicate a directory, add a slash at the end of the element name. If none of the files or directories exist, NGINX performs an <strong><em>internal redirect</em></strong> to the URI defined by the final element (<code>uri</code>).</p>
+</div>
+<div class="paragraph">
+<p>For the <code>try_files</code> directive to work, you also need to define a <code>location</code> block that captures the internal redirect, as shown in the following example. The final element can be a named location, indicated by an initial at‑sign (<code>@</code>).</p>
+</div>
+<div class="paragraph">
+<p>The <code>try_files</code> directive commonly uses the <a href="https://nginx.org/en/docs/http/ngx_http_core_module.html#var_uri">$uri</a> variable, which represents the part of the URL after the domain name.</p>
+</div>
+<div class="paragraph">
+<p>In the following example, NGINX serves a default GIF file if the file requested by the client doesn&#8217;t exist. When the client requests (for example) <code><a href="http://www.domain.com/images/image1.gif" class="bare">http://www.domain.com/images/image1.gif</a></code>, NGINX first looks for <code>image1.gif</code> in the local directory specified by the root or alias directive that applies to the location (not shown in the snippet). If <code>image1.gif</code> doesn&#8217;t exist, NGINX looks for <code>image1.gif/</code>, and if that doesn&#8217;t exist, it redirects to <code>/images/default.gif</code>. That value exactly matches the second <code>location</code> directive, so processing stops and NGINX serves that file and marks it to be cached for 30 seconds.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">location</span> /<span class="n">images</span>/ {
+    <span class="n">try_files</span> $<span class="n">uri</span> $<span class="n">uri</span>/ /<span class="n">images</span>/<span class="n">default</span>.<span class="n">gif</span>;
+}
+
+<span class="n">location</span> = /<span class="n">images</span>/<span class="n">default</span>.<span class="n">gif</span> {
+    <span class="n">expires</span> <span class="m">30</span><span class="n">s</span>;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="examples-standardizing-the-domain-name">Examples – Standardizing the Domain Name</h3>
+<div class="paragraph">
+<p>One of the most common uses of NGINX rewrite rules is to capture deprecated or nonstandard versions of a website’s domain name and redirect them to the current name. There are several related use cases.</p>
+</div>
+<div class="sect3">
+<h4 id="redirecting-from-a-former-name-to-the-current-name">Redirecting from a Former Name to the Current Name</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">80</span>;
+    <span class="n">listen</span> <span class="m">443</span> <span class="n">ssl</span>;
+    <span class="n">server_name</span> <span class="n">www</span>.<span class="n">old</span>-<span class="n">name</span>.<span class="n">com</span> <span class="n">old</span>-<span class="n">name</span>.<span class="n">com</span>;
+    <span class="n">return</span> <span class="m">301</span> $<span class="n">scheme</span>://<span class="n">www</span>.<span class="n">new</span>-<span class="n">name</span>.<span class="n">com</span>$<span class="n">request_uri</span>;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="c"># NOT RECOMMENDED
+</span><span class="n">rewrite</span> ^ $<span class="n">scheme</span>://<span class="n">www</span>.<span class="n">new</span>-<span class="n">name</span>.<span class="n">com</span>$<span class="n">request_uri</span> <span class="n">permanent</span>;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="adding-and-removing-the-www-prefix">Adding and Removing the www Prefix</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="c"># add 'www'
+</span><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">80</span>;
+    <span class="n">listen</span> <span class="m">443</span> <span class="n">ssl</span>;
+    <span class="n">server_name</span> <span class="n">domain</span>.<span class="n">com</span>;
+    <span class="n">return</span> <span class="m">301</span> $<span class="n">scheme</span>://<span class="n">www</span>.<span class="n">domain</span>.<span class="n">com</span>$<span class="n">request_uri</span>;
+}
+
+<span class="c"># remove 'www'
+</span><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">80</span>;
+    <span class="n">listen</span> <span class="m">443</span> <span class="n">ssl</span>;
+    <span class="n">server_name</span> <span class="n">www</span>.<span class="n">domain</span>.<span class="n">com</span>;
+    <span class="n">return</span> <span class="m">301</span> $<span class="n">scheme</span>://<span class="n">domain</span>.<span class="n">com</span>$<span class="n">request_uri</span>;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="c"># NOT RECOMMENDED
+</span><span class="n">rewrite</span> ^(.*)$ $<span class="n">scheme</span>://<span class="n">www</span>.<span class="n">domain</span>.<span class="n">com</span>$<span class="m">1</span> <span class="n">permanent</span>;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="redirecting-all-traffic-to-the-correct-domain-name">Redirecting All Traffic to the Correct Domain Name</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">80</span> <span class="n">default_server</span>;
+    <span class="n">listen</span> <span class="m">443</span> <span class="n">ssl</span> <span class="n">default_server</span>;
+    <span class="n">server_name</span> <span class="err">_</span>;
+    <span class="n">return</span> <span class="m">301</span> $<span class="n">scheme</span>://<span class="n">www</span>.<span class="n">domain</span>.<span class="n">com</span>;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="example-forcing-all-requests-to-use-ssltls">Example – Forcing all Requests to Use SSL/TLS</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">80</span>;
+    <span class="n">server_name</span> <span class="n">www</span>.<span class="n">domain</span>.<span class="n">com</span>;
+    <span class="n">return</span> <span class="m">301</span> <span class="n">https</span>://<span class="n">www</span>.<span class="n">domain</span>.<span class="n">com</span>$<span class="n">request_uri</span>;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="c"># NOT RECOMMENDED
+</span><span class="n">if</span> ($<span class="n">scheme</span> != <span class="s2">"https"</span>) {
+    <span class="n">rewrite</span> ^ <span class="n">https</span>://<span class="n">www</span>.<span class="n">mydomain</span>.<span class="n">com</span>$<span class="n">uri</span> <span class="n">permanent</span>;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="example-dropping-requests-for-unsupported-file-extensions">Example – Dropping Requests for Unsupported File Extensions</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">location</span> ~ .(<span class="n">aspx</span>|<span class="n">php</span>|<span class="n">jsp</span>|<span class="n">cgi</span>)$ {
+    <span class="n">return</span> <span class="m">410</span>; <span class="c"># Gone
+</span>}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">location</span> ~ .(<span class="n">aspx</span>|<span class="n">php</span>|<span class="n">jsp</span>|<span class="n">cgi</span>)$ {
+    <span class="n">deny</span> <span class="n">all</span>; <span class="c"># 403 Forbidden
+</span>}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="example-configuring-custom-rerouting">Example – Configuring Custom Rerouting</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">rewrite</span> ^/<span class="n">listings</span>/(.*)$ /<span class="n">listing</span>.<span class="n">html</span>?<span class="n">listing</span>=$<span class="m">1</span> <span class="n">last</span>;</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="exampine">Exampine</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf"><span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">8080</span>         ;
+    <span class="n">listen</span> [::]:<span class="m">8080</span>    ;
+    <span class="n">listen</span> <span class="m">8083</span>         <span class="n">ssl</span>;
+    <span class="n">listen</span> [::]:<span class="m">8083</span>    <span class="n">ssl</span>;
+    <span class="n">ssl_certificate</span>     <span class="n">local</span>.<span class="n">io</span>.<span class="n">crt</span>;
+    <span class="n">ssl_certificate_key</span> <span class="n">local</span>.<span class="n">io</span>.<span class="n">key</span>;
+
+    <span class="n">server_name</span>         <span class="n">www</span>.<span class="n">local</span>.<span class="n">io</span>;
+    <span class="n">return</span> <span class="m">308</span> $<span class="n">scheme</span>://<span class="n">local</span>.<span class="n">io</span>:$<span class="n">server_port</span>$<span class="n">request_uri</span>;
+}
+
+<span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">8080</span>         ;
+    <span class="n">listen</span> [::]:<span class="m">8080</span>    ;
+
+    <span class="n">server_name</span>         <span class="n">local</span>.<span class="n">io</span>; <span class="c"># www.local.io;
+</span>
+    <span class="n">return</span> <span class="m">308</span> <span class="n">https</span>://<span class="n">local</span>.<span class="n">io</span>:<span class="m">8083</span>$<span class="n">request_uri</span>;
+}
+
+<span class="n">server</span> {
+    <span class="n">listen</span> <span class="m">8083</span>         <span class="n">ssl</span>;
+    <span class="n">listen</span> [::]:<span class="m">8083</span>    <span class="n">ssl</span>;
+
+    <span class="n">server_name</span>         <span class="n">local</span>.<span class="n">io</span>; <span class="c"># www.local.io;
+</span>
+    <span class="n">ssl_certificate</span>     <span class="n">local</span>.<span class="n">io</span>.<span class="n">crt</span>;
+    <span class="n">ssl_certificate_key</span> <span class="n">local</span>.<span class="n">io</span>.<span class="n">key</span>;
+
+    <span class="c"># NOT RECOMMENDED
+</span>    <span class="n">location</span> / {
+        <span class="n">rewrite</span> ^/$ /<span class="n">ingress</span>-<span class="n">nginx</span>/;
+        <span class="n">rewrite</span> ^/<span class="n">ingress</span>-<span class="n">nginx</span>/?$ /<span class="n">ingress</span>-<span class="n">nginx</span>/<span class="n">echoserver</span> <span class="n">last</span>;
+        <span class="n">deny</span> <span class="n">all</span>;
+    }
+
+    <span class="n">location</span> /<span class="n">ingress</span>-<span class="n">nginx</span>/<span class="n">echoserver</span> {
+        <span class="n">proxy_pass</span>      <span class="n">http</span>://<span class="n">localhost</span>:<span class="m">8090</span>;
+
+        <span class="n">proxy_http_version</span>              <span class="m">1</span>.<span class="m">1</span>;
+        <span class="n">proxy_set_header</span> <span class="n">Connection</span>     <span class="s2">""</span>;
+
+        <span class="n">include</span> <span class="s2">"/etc/nginx/proxy-set-headers.conf"</span>;
+    }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-ikL</span> www.local.io:8080
+<span class="go">HTTP/1.1 308 Permanent Redirect</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 24 Sep 2021 11:18:53 GMT</span>
+<span class="go">Content-Type: text/html</span>
+<span class="go">Content-Length: 187</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">Location: http://local.io:8080/</span>
+
+<span class="go">HTTP/1.1 308 Permanent Redirect</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 24 Sep 2021 11:18:53 GMT</span>
+<span class="go">Content-Type: text/html</span>
+<span class="go">Content-Length: 187</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">Location: https://local.io:8083/</span>
+
+<span class="go">HTTP/1.1 200 OK</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 24 Sep 2021 11:18:53 GMT</span>
+<span class="go">Content-Type: text/plain</span>
+<span class="go">Transfer-Encoding: chunked</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">Cache-Control: public, max-age=3600</span>
+<span class="gp">Strict-Transport-Security: max-age=63072000;</span><span class="w"> </span>includeSubDomains<span class="p">;</span> preload
+
+
+
+<span class="go">Hostname: echoserver-9d94d584f-2pl9j</span>
+
+<span class="go">Pod Information:</span>
+<span class="go">    -no pod information available-</span>
+
+<span class="go">Server values:</span>
+<span class="go">    server_version=nginx: 1.13.3 - lua: 10008</span>
+
+<span class="go">Request Information:</span>
+<span class="go">    client_address=10.244.0.11</span>
+<span class="go">    method=GET</span>
+<span class="go">    real path=/ingress-nginx/echoserver</span>
+<span class="go">    query=</span>
+<span class="go">    request_version=1.1</span>
+<span class="go">    request_scheme=http</span>
+<span class="hll"><span class="go">    request_uri=http://local.io:8080/ingress-nginx/echoserver</span>
+</span>
+<span class="go">Request Headers:</span>
+<span class="go">    accept=*/*</span>
+<span class="go">    host=local.io:8083</span>
+<span class="go">    user-agent=curl/7.64.0</span>
+<span class="go">    x-forwarded-for=10.244.0.1</span>
+<span class="go">    x-forwarded-host=local.io:8083</span>
+<span class="go">    x-forwarded-port=80</span>
+<span class="go">    x-forwarded-proto=http</span>
+<span class="go">    x-forwarded-scheme=http</span>
+<span class="go">    x-original-forwarded-for=192.168.91.128, ::1</span>
+<span class="go">    x-real-ip=10.244.0.1</span>
+<span class="go">    x-request-id=9fb4005e14b26900a495964e3d948dba</span>
+<span class="go">    x-scheme=http</span>
+
+<span class="go">Request Body:</span>
+<span class="go">    -no body in request-</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Location" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Location</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/303</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308</a></p>
+</li>
+<li>
+<p><a href="https://www.nginx.com/blog/creating-nginx-rewrite-rules/" class="bare">https://www.nginx.com/blog/creating-nginx-rewrite-rules/</a></p>
+</li>
+<li>
+<p><a href="https://nginx.org/en/docs/http/ngx_http_rewrite_module.html" class="bare">https://nginx.org/en/docs/http/ngx_http_rewrite_module.html</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/09/18/vpc-and-cloud-computing/">&laquo; VPC and Cloud Computing</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/09/25/computer-networking/">Computer Network &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

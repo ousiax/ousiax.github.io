@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Forwarded Headers and Kubernetes Ingress Nginx</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/10/28/forwarded-http-extension-ingress-nginx-spring/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Forwarded Headers and Kubernetes Ingress Nginx</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-10-28T17:17:01+08:00" itemprop="datePublished">Oct 28, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#setup-environment-at-local-vm">1. Setup environment at local VM</a>
+<ul class="sectlevel2">
+<li><a href="#setup-cert-for-https">1.1. Setup cert for HTTPS</a></li>
+<li><a href="#install-echo-server">1.2. Install echo server</a></li>
+<li><a href="#setup-nginx-as-proxy-server">1.3. Setup Nginx as Proxy Server</a></li>
+<li><a href="#setup-hosts-for-hostname-local-io">1.4. Setup <code>hosts</code> for hostname <code>local.io</code></a></li>
+<li><a href="#test-echo-server">1.5. Test echo server</a></li>
+</ul>
+</li>
+<li><a href="#redirect-within-spring-boot-servlet">2. Redirect within Spring Boot (Servlet)</a>
+<ul class="sectlevel2">
+<li><a href="#spring-webapp-demo-code">2.1. Spring WebApp Demo Code</a></li>
+<li><a href="#deploy-spring-webapp-into-kubernetes">2.2. Deploy Spring WebApp into Kubernetes</a></li>
+<li><a href="#test-webapp-that-runs-behind-http-proxy">2.3. Test WebApp that runs behind HTTP proxy</a></li>
+</ul>
+</li>
+<li><a href="#the-proxy_redirect-directive">3. The <code>proxy_redirect</code> directive</a></li>
+<li><a href="#references">4. References</a></li>
+</ul>
+</div>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>GitHub: <a href="https://github.com/qqbuby/spring-ingress-nginx-xf/" class="bare">https://github.com/qqbuby/spring-ingress-nginx-xf/</a></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="setup-environment-at-local-vm">1. Setup environment at local VM</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="setup-cert-for-https">1.1. Setup cert for HTTPS</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Create a self-signed cert with openssl</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>openssl req <span class="nt">-x509</span> <span class="se">\</span>
+<span class="go">  -nodes \</span>
+<span class="go">  -newkey rsa:4096 \</span>
+<span class="go">  -days 3650 \</span>
+<span class="go">  -keyout loca.io.ca.key \</span>
+<span class="go">  -out local.io.ca.crt \</span>
+<span class="go">  -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Global Security/OU=IT Department/CN=*.local.io" \</span>
+<span class="hll"><span class="go">  -addext "subjectAltName=DNS:local.io,DNS:*.local.io"</span>
+</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Import to CA root certificates</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo mkdir</span> /usr/local/share/ca-certificates/extra
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo cp </span>local.io.crt /usr/local/share/ca-certificates/extra/
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>update-ca-certificates</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Install cert as <code>secret</code> to kubernetes</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-n</span> default secret tls local.io <span class="nt">--cert</span><span class="o">=</span>local.io.crt <span class="nt">--key</span><span class="o">=</span>local.io.key</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="install-echo-server">1.2. Install echo server</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> echoserver/</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="setup-nginx-as-proxy-server">1.3. Setup Nginx as Proxy Server</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># install nginx server</span>
+<span class="nv">$ </span><span class="nb">sudo </span>apt-get <span class="nb">install </span>nginx <span class="nt">-y</span>
+<span class="c"># remove the default site (80)</span>
+<span class="nv">$ </span><span class="nb">sudo rm</span> /etc/nginx/site-enabled/<span class="k">*</span>
+<span class="nv">$ </span><span class="nb">sudo cp </span>etc/nginx/sites-enabled/<span class="k">*</span>.conf /etc/nginx/sites-enabled/
+<span class="nv">$ </span><span class="nb">sudo cp </span>etc/nginx/conf.d/forwarded.conf /etc/nginx/conf.d/
+<span class="nv">$ </span><span class="nb">sudo cp </span>etc/nginx/proxy_params /etc/nginx/
+<span class="nv">$ </span><span class="nb">sudo </span>nginx <span class="nt">-s</span> reload</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="setup-hosts-for-hostname-local-io">1.4. Setup <code>hosts</code> for hostname <code>local.io</code></h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nv">$ </span><span class="nb">cat</span> <span class="o">&lt;&lt;</span> <span class="no">EOF</span><span class="sh"> &gt;&gt; /etc/hosts
+&gt; 127.0.0.1 local.io
+&gt; 127.0.0.1 default.local.io
+&gt; 127.0.0.1 native.local.io
+&gt; 127.0.0.1 framework.local.io
+&gt; 127.0.0.1 relative.local.io
+&gt; EOF</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="test-echo-server">1.5. Test echo server</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://local.io:8083
+<span class="go">HTTP/1.1 200 OK</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:16:07 GMT</span>
+<span class="go">Content-Type: text/plain</span>
+<span class="go">Transfer-Encoding: chunked</span>
+<span class="go">Connection: keep-alive</span>
+
+
+
+<span class="go">Hostname: echoserver-9d94d584f-q855h</span>
+
+<span class="go">Pod Information:</span>
+<span class="go">    -no pod information available-</span>
+
+<span class="go">Server values:</span>
+<span class="go">    server_version=nginx: 1.13.3 - lua: 10008</span>
+
+<span class="go">Request Information:</span>
+<span class="go">    client_address=10.244.0.115</span>
+<span class="go">    method=GET</span>
+<span class="go">    real path=/</span>
+<span class="go">    query=</span>
+<span class="go">    request_version=1.1</span>
+<span class="go">    request_scheme=http</span>
+<span class="go">    request_uri=http://local.io:8080/</span>
+
+<span class="go">Request Headers:</span>
+<span class="go">    accept=*/*</span>
+<span class="hll"><span class="go">    host=local.io:8083 </span><i class="conum" data-value="1"></i><b>(1)</b>
+</span><span class="go">    user-agent=curl/7.64.0</span>
+<span class="go">    x-forwarded-for=127.0.0.1, 10.244.0.1</span>
+<span class="hll"><span class="go">    x-forwarded-host=local.io:8083 </span><i class="conum" data-value="2"></i><b>(2)</b>
+</span><span class="hll"><span class="go">    x-forwarded-port=80 </span><i class="conum" data-value="3"></i><b>(3)</b>
+</span><span class="hll"><span class="go">    x-forwarded-proto=https </span><i class="conum" data-value="4"></i><b>(4)</b>
+</span><span class="go">    x-forwarded-scheme=https</span>
+<span class="go">    x-original-forwarded-for=127.0.0.1</span>
+<span class="go">    x-real-ip=127.0.0.1</span>
+<span class="go">    x-request-id=8b0d54087c07c53de1adb5f10a7b9398</span>
+<span class="go">    x-scheme=https</span>
+
+<span class="go">Request Body:</span>
+<span class="go">    -no body in request-</span></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>The <strong>Host</strong> request header specifies the <mark>host</mark> and <mark>port</mark> number of the server to which the request is being sent. If no port is included, the default port for the service requested is implied (e.g., 443 for an HTTPS URL, and 80 for an HTTP URL).</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>The <strong>X-Forwarded-Host</strong> header is a de-facto standard header for identifying the original host requested by the client in the Host HTTP request header. Host names and ports of <em>reverse proxies</em> (load balancers, CDNs) may differ from the origin server handling the request, in that case the X-Forwarded-Host header is useful to determine which Host was originally used.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="3"></i><b>3</b></td>
+<td>The <strong><em>X-Forwarded-Port</em></strong> header is not a standard header, but also usually used to identify the port that a client used to connect to your proxy or load balancer.
+<div class="paragraph">
+<p>In the above example, the orignal <code>port</code> was <code>8083</code>, but the <code>x-forwarded-port</code> was <code>80</code> writed by <strong>Ingress Nginx</strong> Controller in Kubernetes.</p>
+</div></td>
+</tr>
+<tr>
+<td><i class="conum" data-value="4"></i><b>4</b></td>
+<td>The <strong>X-Forwarded-Proto</strong> header is a de-facto standard header for identifying the protocol (HTTP or HTTPS) that a client used to connect to your proxy or load balancer.</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="redirect-within-spring-boot-servlet">2. Redirect within Spring Boot (Servlet)</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="spring-webapp-demo-code">2.1. Spring WebApp Demo Code</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="java"><span class="c1">// src/main/java/com/example/springingressnginx/SpringIngressNginxApplication.java</span>
+<span class="nd">@RestController</span>
+<span class="nd">@SpringBootApplication</span>
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">SpringIngressNginxApplication</span> <span class="o">{</span>
+
+    <span class="kd">public</span> <span class="kd">static</span> <span class="kt">void</span> <span class="nf">main</span><span class="o">(</span><span class="nc">String</span><span class="o">[]</span> <span class="n">args</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">SpringApplication</span><span class="o">.</span><span class="na">run</span><span class="o">(</span><span class="nc">SpringIngressNginxApplication</span><span class="o">.</span><span class="na">class</span><span class="o">,</span> <span class="n">args</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="nd">@GetMapping</span><span class="o">(</span><span class="n">value</span> <span class="o">=</span> <span class="s">"/echo"</span><span class="o">)</span>
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">echo</span><span class="o">(</span><span class="nc">HttpServletRequest</span> <span class="n">request</span><span class="o">,</span> <span class="nc">HttpServletResponse</span> <span class="n">response</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">Enumeration</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">&gt;</span> <span class="n">headerNames</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="na">getHeaderNames</span><span class="o">();</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">headerNames</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+            <span class="k">while</span> <span class="o">(</span><span class="n">headerNames</span><span class="o">.</span><span class="na">hasMoreElements</span><span class="o">())</span> <span class="o">{</span>
+                <span class="nc">String</span> <span class="n">headerName</span> <span class="o">=</span> <span class="n">headerNames</span><span class="o">.</span><span class="na">nextElement</span><span class="o">();</span>
+                <span class="n">response</span><span class="o">.</span><span class="na">setHeader</span><span class="o">(</span><span class="nc">String</span><span class="o">.</span><span class="na">format</span><span class="o">(</span><span class="s">"x-echo-%s"</span><span class="o">,</span> <span class="n">headerName</span><span class="o">.</span><span class="na">toLowerCase</span><span class="o">()),</span> <span class="n">request</span><span class="o">.</span><span class="na">getHeader</span><span class="o">(</span><span class="n">headerName</span><span class="o">));</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+
+    <span class="nd">@GetMapping</span><span class="o">(</span><span class="n">value</span> <span class="o">=</span> <span class="s">"/302"</span><span class="o">)</span>
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">redirect</span><span class="o">(</span><span class="nc">HttpServletResponse</span> <span class="n">response</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">IOException</span> <span class="o">{</span>
+<span class="hll">        <span class="n">response</span><span class="o">.</span><span class="na">sendRedirect</span><span class="o">(</span><span class="s">"/echo"</span><span class="o">);</span>
+</span>    <span class="o">}</span>
+<span class="o">}</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="ini"><span class="c">#src/main/resources/application.properties
+</span><span class="py">management.endpoint.health.probes.enabled</span><span class="p">=</span><span class="s">true</span>
+<span class="py">management.endpoint.health.group.health.include</span><span class="p">=</span><span class="s">readiness,liveness</span>
+<span class="py">management.endpoints.web.exposure.include</span><span class="p">=</span><span class="s">health,env</span>
+<span class="py">server.port</span><span class="p">=</span><span class="s">8080</span>
+<span class="py">server.servlet.context-path</span><span class="p">=</span><span class="s">/</span>
+<span class="c">#---
+</span><span class="py">spring.config.activate.on-profile</span><span class="p">=</span><span class="s">native</span>
+<span class="py">server.forward-headers-strategy</span><span class="p">=</span><span class="s">native</span>
+<span class="c">#---
+</span><span class="py">spring.config.activate.on-profile</span><span class="p">=</span><span class="s">framework</span>
+<span class="py">server.forward-headers-strategy</span><span class="p">=</span><span class="s">framework</span>
+<span class="c">#---
+</span><span class="py">spring.config.activate.on-profile</span><span class="p">=</span><span class="s">relative</span>
+<span class="py">server.tomcat.use-relative-redirects</span><span class="p">=</span><span class="s">true</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="deploy-spring-webapp-into-kubernetes">2.2. Deploy Spring WebApp into Kubernetes</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>mvn spring-boot:build-image
+<span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> kubernetes/</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="test-webapp-that-runs-behind-http-proxy">2.3. Test WebApp that runs behind HTTP proxy</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>server.forward-headers-strategy=none</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://default.local.io:8083/echo
+<span class="go">HTTP/1.1 200</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:17:48 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">x-echo-host: default.local.io:8083</span>
+<span class="go">x-echo-x-request-id: ff430717d3bfc9c4dd13af52c38d0f6c</span>
+<span class="go">x-echo-x-real-ip: 127.0.0.1</span>
+<span class="go">x-echo-x-forwarded-host: default.local.io:8083</span>
+<span class="hll"><span class="go">x-echo-x-forwarded-port: 80</span>
+</span><span class="go">x-echo-x-forwarded-proto: https</span>
+<span class="go">x-echo-x-forwarded-scheme: https</span>
+<span class="go">x-echo-x-scheme: https</span>
+<span class="go">x-echo-x-original-forwarded-for: 127.0.0.1</span>
+<span class="go">x-echo-user-agent: curl/7.64.0</span>
+<span class="go">x-echo-accept: */*</span>
+
+<span class="hll"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iL</span> https://default.local.io:8083/302
+</span><span class="go">HTTP/1.1 302</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:17:50 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">Location: https://default.local.io:80/echo</span>
+</span>
+<span class="go">curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>server.forward-headers-strategy=native</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://native.local.io:8083/echo
+<span class="go">HTTP/1.1 200</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:18:19 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">x-echo-host: native.local.io:8083</span>
+<span class="go">x-echo-x-request-id: 6cb7ad640e49d8fe1cdf61da56bd835a</span>
+<span class="go">x-echo-x-real-ip: 127.0.0.1</span>
+<span class="go">x-echo-x-forwarded-host: native.local.io:8083</span>
+<span class="hll"><span class="go">x-echo-x-forwarded-port: 80</span>
+</span><span class="go">x-echo-x-forwarded-proto: https</span>
+<span class="go">x-echo-x-forwarded-scheme: https</span>
+<span class="go">x-echo-x-scheme: https</span>
+<span class="go">x-echo-x-original-forwarded-for: 127.0.0.1</span>
+<span class="go">x-echo-user-agent: curl/7.64.0</span>
+<span class="go">x-echo-accept: */*</span>
+
+<span class="hll"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iL</span> https://native.local.io:8083/302
+</span><span class="go">HTTP/1.1 302</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:18:28 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">Location: https://native.local.io:80/echo</span>
+</span>
+<span class="go">curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>server.forward-headers-strategy=framework</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://framework.local.io:8083/echo
+<span class="go">HTTP/1.1 200</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:18:59 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">x-echo-host: framework.local.io:8083</span>
+</span><span class="go">x-echo-x-request-id: 9671ac40270af9f3dc89cdfcb29ea77d</span>
+<span class="go">x-echo-x-real-ip: 127.0.0.1</span>
+<span class="go">x-echo-x-forwarded-scheme: https</span>
+<span class="go">x-echo-x-scheme: https</span>
+<span class="go">x-echo-x-original-forwarded-for: 127.0.0.1</span>
+<span class="go">x-echo-user-agent: curl/7.64.0</span>
+<span class="go">x-echo-accept: */*</span>
+
+<span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iL</span> https://framework.local.io:8083/302
+<span class="go">HTTP/1.1 302</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:19:01 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">Location: https://framework.local.io:80/echo</span>
+</span>
+<span class="go">curl: (35) error:1408F10B:SSL routines:ssl3_get_record:wrong version number</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>server.tomcat.use-relative-redirects=true</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://relative.local.io:8083/echo
+<span class="go">HTTP/1.1 200</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:19:59 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">x-echo-host: relative.local.io:8083</span>
+<span class="go">x-echo-x-request-id: 42f3771e0a730d6d6b9dc745f17dd807</span>
+<span class="go">x-echo-x-real-ip: 127.0.0.1</span>
+<span class="go">x-echo-x-forwarded-host: relative.local.io:8083</span>
+<span class="hll"><span class="go">x-echo-x-forwarded-port: 80</span>
+</span><span class="go">x-echo-x-forwarded-proto: https</span>
+<span class="go">x-echo-x-forwarded-scheme: https</span>
+<span class="go">x-echo-x-scheme: https</span>
+<span class="go">x-echo-x-original-forwarded-for: 127.0.0.1</span>
+<span class="go">x-echo-user-agent: curl/7.64.0</span>
+<span class="go">x-echo-accept: */*</span>
+
+<span class="hll"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iL</span> https://relative.local.io:8083/302
+</span><span class="go">HTTP/1.1 302</span>
+<span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:20:02 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="hll"><span class="go">Location: /echo</span>
+</span>
+<span class="hll"><span class="go">HTTP/1.1 200</span>
+</span><span class="go">Server: nginx/1.14.2</span>
+<span class="go">Date: Fri, 29 Oct 2021 11:20:02 GMT</span>
+<span class="go">Content-Length: 0</span>
+<span class="go">Connection: keep-alive</span>
+<span class="go">x-echo-host: relative.local.io:8083</span>
+<span class="go">x-echo-x-request-id: 925a533fa0e52336f0eb1a216eb0a289</span>
+<span class="go">x-echo-x-real-ip: 127.0.0.1</span>
+<span class="go">x-echo-x-forwarded-host: relative.local.io:8083</span>
+<span class="go">x-echo-x-forwarded-port: 80</span>
+<span class="go">x-echo-x-forwarded-proto: https</span>
+<span class="go">x-echo-x-forwarded-scheme: https</span>
+<span class="go">x-echo-x-scheme: https</span>
+<span class="go">x-echo-x-original-forwarded-for: 127.0.0.1</span>
+<span class="go">x-echo-user-agent: curl/7.64.0</span>
+<span class="go">x-echo-accept: */*</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-proxy_redirect-directive">3. The <code>proxy_redirect</code> directive</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Proxy redirect</strong></p>
+<div class="paragraph">
+<p>With the annotations <code>nginx.ingress.kubernetes.io/proxy-redirect-from</code> and <code>nginx.ingress.kubernetes.io/proxy-redirect-to</code> it is possible to set the text that should be changed in the <code>Location</code> and <code>Refresh</code> header fields of a <a href="http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_redirect">proxied server response</a>.</p>
+</div>
+<div class="paragraph">
+<p>Setting "off" or "default" in the annotation <code>nginx.ingress.kubernetes.io/proxy-redirect-from</code> disables <code>nginx.ingress.kubernetes.io/proxy-redirect-to</code>, otherwise, both annotations must be used in unison. Note that each annotation must be a string without spaces.</p>
+</div>
+<div class="paragraph">
+<p>By default the value of each annotation is "off".</p>
+</div>
+</li>
+<li>
+<p><strong>Use <code>proxy_redirect</code> to correct the <code>Location</code> response header field.</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="c1"># kubernetes/ingress.yaml</span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">networking.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Ingress</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">spring-ingress</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">spring-ingress</span>
+  <span class="na">annotations</span><span class="pi">:</span>
+    <span class="na">kubernetes.io/ingress.class</span><span class="pi">:</span> <span class="s2">"</span><span class="s">nginx"</span>
+<span class="hll">    <span class="na">nginx.ingress.kubernetes.io/proxy-redirect-from</span><span class="pi">:</span> <span class="s2">"</span><span class="s">default"</span>
+</span><span class="hll">    <span class="na">nginx.ingress.kubernetes.io/configuration-snippet</span><span class="pi">:</span> <span class="pi">|</span>
+</span><span class="hll">      <span class="s">proxy_redirect https://local.io:80 https://local.io:8083;</span>
+</span><span class="hll">      <span class="s">proxy_redirect http://local.io:443 https://local.io:8083;</span>
+</span><span class="na">spec</span><span class="pi">:</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Try again with <strong>server.forward-headers-strategy=default</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://default.local.io:8083/302
+<span class="go">HTTP/1.1 302
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://default.local.io:8083/echo
+</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Try again with <strong>server.forward-headers-strategy=native</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://native.local.io:8083/302
+<span class="go">HTTP/1.1 302
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://native.local.io:8083/echo
+</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Try again with <strong>server.forward-headers-strategy=framework</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-i</span> https://framework.local.io:8083/302
+<span class="go">HTTP/1.1 302
+Server: nginx/1.14.2
+Date: Fri, 29 Oct 2021 11:34:05 GMT
+Content-Length: 0
+Connection: keep-alive
+Location: https://framework.local.io:8083/echo
+</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">4. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="/2021/09/16/proxy-server-forwarded-http-extensions/">Proxy Server and Forwarded HTTP Extension</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#use-forwarded-headers" class="bare">https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#use-forwarded-headers</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#compute-full-forwarded-for" class="bare">https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#compute-full-forwarded-for</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#proxy-redirect" class="bare">https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#proxy-redirect</a></p>
+</li>
+<li>
+<p><a href="http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_redirect" class="bare">http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_redirect</a></p>
+</li>
+<li>
+<p><a href="http://nginx.org/en/docs/http/ngx_http_map_module.html" class="bare">http://nginx.org/en/docs/http/ngx_http_map_module.html</a></p>
+</li>
+<li>
+<p><a href="https://nginx.org/en/docs/http/ngx_http_core_module.html#var_http_" class="bare">https://nginx.org/en/docs/http/ngx_http_core_module.html#var_http_</a></p>
+</li>
+<li>
+<p><a href="https://nginx.org/en/docs/varindex.html" class="bare">https://nginx.org/en/docs/varindex.html</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/10/20/sockets-programming-in-c-using-tcp-ip/">&laquo; Sockets Programming in C using TCP/IP</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/11/01/compile-and-run-java-in-container/">How to compile and run Java in Container &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

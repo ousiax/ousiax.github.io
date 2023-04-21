@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Proxy Server and Forwarded HTTP Extensions</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/09/16/proxy-server-forwarded-http-extensions/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Proxy Server and Forwarded HTTP Extensions</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-09-16T22:26:49+08:00" itemprop="datePublished">Sep 16, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#proxy-server">Proxy Server</a>
+<ul class="sectlevel2">
+<li><a href="#open-proxies">Open proxies</a></li>
+<li><a href="#reverse-proxies">Reverse proxies</a></li>
+<li><a href="#proxy-chaining">Proxy chaining</a></li>
+</ul>
+</li>
+<li><a href="#forwarded-http-extension">Forwarded HTTP Extension</a>
+<ul class="sectlevel2">
+<li><a href="#forwarded">Forwarded</a></li>
+<li><a href="#x-forwarded-for">X-Forwarded-For</a></li>
+<li><a href="#x-forwarded-host">X-Forwarded-Host</a></li>
+<li><a href="#x-forwarded-proto">X-Forwarded-Proto</a></li>
+<li><a href="#via">Via</a></li>
+</ul>
+</li>
+<li><a href="#examples">Examples</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="proxy-server">Proxy Server</h2>
+<div class="sectionbody">
+<div class="imageblock">
+<div class="content">
+<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Proxy_concept_en.svg/277px-Proxy_concept_en.svg.png" alt="277px Proxy concept en.svg">
+</div>
+<div class="title">Figure 1. Communication between two computers (shown in grey) connected through a third computer (shown in red) which acts as a proxy server. Bob does not know to whom the information is going, which is the reason that proxies can be used to protect privacy.</div>
+</div>
+<div class="paragraph">
+<p>In <a href="https://en.wikipedia.org/wiki/Computer_networking">computer networking</a>, a <strong>proxy server</strong> is a <a href="https://en.wikipedia.org/wiki/Server_application">server application</a> that acts as an <a href="https://en.wikipedia.org/wiki/Intermediary">intermediary</a> between a <a href="https://en.wikipedia.org/wiki/Client_(computing)">client</a> requesting a <a href="https://en.wikipedia.org/wiki/Web_resource">resource</a> and the server providing that resource.</p>
+</div>
+<div class="paragraph">
+<p>Instead of connecting directly to a server that can fulfill a requested resource, such as a file or <a href="https://en.wikipedia.org/wiki/Web_page">web page</a>, the client directs the request to the proxy server, which evaluates the request and performs the required network transactions. This serves as a method to simplify or control the complexity of the request, or provide additional benefits such as load balancing, privacy, or security. Proxies were devised to add structure and <a href="https://en.wikipedia.org/wiki/Encapsulation_(networking)">encapsulation</a> to <a href="https://en.wikipedia.org/wiki/Distributed_computing">distributed systems</a>. A proxy server thus functions on behalf of the client when requesting service, potentially masking the true origin of the request to the resource server.</p>
+</div>
+<div class="paragraph">
+<p>A proxy server may reside on the user&#8217;s local computer, or at any point between the user&#8217;s computer and destination servers on the Internet. A proxy server that passes unmodified requests and responses is usually called a <a href="https://en.wikipedia.org/wiki/Gateway_(computer_networking)">gateway</a> or sometimes a <strong>tunneling proxy</strong>. A <strong>forward proxy</strong> is an Internet-facing proxy used to retrieve data from a wide range of sources (in most cases anywhere on the Internet). A <strong>reverse proxy</strong> is usually an internal-facing proxy used as a front-end to control and protect access to a server on a private network. A <strong><a href="https://en.wikipedia.org/wiki/Reverse_proxy">reverse proxy</a></strong> commonly also performs tasks such as <a href="https://en.wikipedia.org/wiki/Load_balancing_(computing)">load-balancing</a>, authentication, decryption and <a href="https://en.wikipedia.org/wiki/Cache_(computing)">caching</a>.</p>
+</div>
+<div class="sect2">
+<h3 id="open-proxies">Open proxies</h3>
+<div class="paragraph">
+<p>An <a href="https://en.wikipedia.org/wiki/Open_proxy">open proxy</a> is a <a href="https://en.wikipedia.org/wiki/Store_and_forward">forwarding</a> proxy server that is accessible by any Internet user.</p>
+</div>
+<div class="paragraph">
+<p><span class="image"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Open_proxy_h2g2bob.svg/280px-Open_proxy_h2g2bob.svg.png" alt="280px Open proxy h2g2bob.svg" title="An open proxy forwarding requests from and to anywhere on the Internet."></span></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><em>Anonymous proxy</em> – This server reveals its identity as a proxy server but does not disclose the originating IP address of the client. Although this type of server can be discovered easily, it can be beneficial for some users as it hides the originating IP address.</p>
+</li>
+<li>
+<p><em>Transparent proxy</em> – This server not only identifies itself as a proxy server but with the support of HTTP header fields such as <code>X-Forwarded-For</code>, the originating IP address can be retrieved as well. The main benefit of using this type of server is its ability to cache a website for faster retrieval.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="reverse-proxies">Reverse proxies</h3>
+<div class="paragraph">
+<p>A <a href="https://en.wikipedia.org/wiki/Reverse_proxy">reverse proxy</a> (or surrogate) is a proxy server that appears to clients to be an ordinary server. Reverse proxies forward requests to one or more ordinary servers that handle the request. The response from the proxy server is returned as if it came directly from the original server, leaving the client with no knowledge of the original server. Reverse proxies are installed in the neighborhood of one or more web servers. All traffic coming from the Internet and with a destination of one of the neighborhood&#8217;s web servers goes through the proxy server. The use of reverse originates in its counterpart forward proxy since the reverse proxy sits closer to the web server and serves only a restricted set of websites. There are several reasons for installing reverse proxy servers:</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Reverse_proxy_h2g2bob.svg/280px-Reverse_proxy_h2g2bob.svg.png" alt="280px Reverse proxy h2g2bob.svg">
+</div>
+<div class="title">Figure 2. A reverse proxy taking requests from the Internet and forwarding them to servers in an internal network. Those making requests connect to the proxy and may not be aware of the internal network.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><em>Encryption/SSL acceleration</em>: when secure websites are created, the Secure Sockets Layer (SSL) encryption is often not done by the web server itself, but by a reverse proxy that is equipped with SSL acceleration hardware. Furthermore, a host can provide a single "SSL proxy" to provide SSL encryption for an arbitrary number of hosts, removing the need for a separate SSL server certificate for each host, with the downside that all hosts behind the SSL proxy have to share a common DNS name or IP address for SSL connections. This problem can partly be overcome by using the SubjectAltName feature of X.509 certificates.</p>
+</li>
+<li>
+<p><em><a href="https://en.wikipedia.org/wiki/Load_balancing_(computing)">Load balancing</a></em>: the reverse proxy can distribute the load to several web servers, each web server serving its own application area. In such a case, the reverse proxy may need to rewrite the URLs in each web page (translation from externally known URLs to the internal locations).</p>
+</li>
+<li>
+<p><em>Serve/cache static content:</em> A reverse proxy can offload the web servers by caching static content like pictures and other static graphical content.</p>
+</li>
+<li>
+<p><em><a href="https://en.wikipedia.org/wiki/Data_compression">Compression</a></em>: the proxy server can optimize and compress the content to speed up the load time.</p>
+</li>
+<li>
+<p><em>Spoon feeding</em>: reduces resource usage caused by slow clients on the web servers by caching the content the web server sent and slowly "spoon feeding" it to the client. This especially benefits dynamically generated pages.</p>
+</li>
+<li>
+<p><em>Security</em>: the proxy server is an additional layer of defense and can protect against some OS and web-server-specific attacks. However, it does not provide any protection from attacks against the web application or service itself, which is generally considered the larger threat.
+Extranet publishing: a reverse proxy server facing the Internet can be used to communicate to a firewall server internal to an organization, providing extranet access to some functions while keeping the servers behind the firewalls. If used in this way, security measures should be considered to protect the rest of your infrastructure in case this server is compromised, as its web application is exposed to attack from the Internet.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="proxy-chaining">Proxy chaining</h3>
+<div class="paragraph">
+<p>A proxy chain uses two or more proxy servers to assist in server and protocol performance and network security. Proxy chaining is not a type of proxy, but a use of reverse and forward proxy servers across multiple networks. In addition to the benefits to security and performance, proxy chaining allows requests from <em>different protocols</em> to be fulfilled in cases where, without chaining, such requests would not be possible or permitted. For example, a request using HTTP is sent to a server that can only handle FTP requests. In order for the request to be processed, it must pass through a server that can handle both protocols. This can be accomplished by making use of proxy chaining which allows the request to be passed from a server that is not able to fulfill such a request (perhaps due to security or networking issues, or its own limited capabilities) to a server that can fulfill such a request.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://www.ibm.com/docs/en/ssw_ibm_i_72/rzaie/rzal8504.gif" alt="rzal8504">
+</div>
+<div class="title">Figure 3. The above image shows a proxy chaining configuration. The intranet client makes a request to Server C (Content Server FTP). Server A (Proxy Server HTTP) does not contain the requested information in cache, so the request is passed through the firewall to Server B (proxy server HTTP/FTP). Server B has both HTTP and FTP protocols and is able to change the HTTP request to an FTP request. Server C receives the FTP request and passes back the requested information to Server B. Server B, in turn, passes the fulfilled request back to the intranet client using the HTTP protocol. The request is sent through the firewall and Server A where the request is cached and given to the intranet client.</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="forwarded-http-extension">Forwarded HTTP Extension</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Proxies can make requests appear as if they originated from the proxy&#8217;s IP address. This can be useful if a proxy is used to provide client anonymity, but in other cases information from the original request is lost. The IP address of the original client is often used for debugging, statistics, or generating location-dependent content. A common way to disclose this information is by using the following HTTP headers.</p>
+</div>
+<div class="sect2">
+<h3 id="forwarded">Forwarded</h3>
+<div class="paragraph">
+<p>The <em>standardized</em> <strong>Forwarded</strong> header contains information from the reverse proxy servers that is altered or lost when a proxy is involved in the path of the request.</p>
+</div>
+<div class="paragraph">
+<p>The alternative and de-facto standard versions of this header are the <code>X-Forwarded-For</code>, <code>X-Forwarded-Host</code> and <code>X-Forwarded-Proto</code> headers.</p>
+</div>
+<div class="paragraph">
+<p>This header is used for debugging, statistics, and generating location-dependent content and by design it exposes privacy sensitive information, such as the IP address of the client. Therefore the user&#8217;s privacy must be kept in mind when deploying this header.</p>
+</div>
+<div class="listingblock">
+<div class="title"><em>Syntax</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Forwarded: by=&lt;identifier&gt;;for=&lt;identifier&gt;;host=&lt;host&gt;;proto=&lt;http|https&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<div class="title"><em>Examples</em></div>
+<p>Using the Forwarded header</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Forwarded: for="_mdn"
+
+# case insensitive
+Forwarded: For="[2001:db8:cafe::17]:4711"
+
+# separated by semicolon
+Forwarded: for=192.0.2.60;proto=http;by=203.0.113.43
+
+# multiple values can be appended using a comma
+Forwarded: for=192.0.2.43, for=198.51.100.17</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Transitioning from X-Forwarded-For to Forwarded</p>
+</div>
+<div class="paragraph">
+<p>If your application, server, or proxy supports the standardized Forwarded header, the X-Forwarded-For header can be replaced. Note that IPv6 address are quoted and enclosed in square brackets in Forwarded.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-For: 123.34.567.89
+Forwarded: for=123.34.567.89
+
+X-Forwarded-For: 192.0.2.43, "[2001:db8:cafe::17]"
+Forwarded: for=192.0.2.43, for="[2001:db8:cafe::17]"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="x-forwarded-for">X-Forwarded-For</h3>
+<div class="paragraph">
+<p>The <strong>X-Forwarded-For</strong> (XFF) header is a <em>de-facto standard</em> header for identifying the originating IP address of a client connecting to a web server through an HTTP proxy or a load balancer. When traffic is intercepted between clients and servers, server access logs contain the IP address of the proxy or load balancer only. To see the original IP address of the client, the <code>X-Forwarded-For</code> request header is used.</p>
+</div>
+<div class="paragraph">
+<p>This header is used for debugging, statistics, and generating location-dependent content and by design it exposes privacy sensitive information, such as the IP address of the client. Therefore the user&#8217;s privacy must be kept in mind when deploying this header.</p>
+</div>
+<div class="listingblock">
+<div class="title"><em>Syntax</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-For: &lt;client&gt;, &lt;proxy1&gt;, &lt;proxy2&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><em>Examples</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-For: 2001:db8:85a3:8d3:1319:8a2e:370:7348
+
+X-Forwarded-For: 203.0.113.195
+
+X-Forwarded-For: 203.0.113.195, 70.41.3.18, 150.172.238.178</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>The usefulness of XFF depends on the proxy server truthfully reporting the original host&#8217;s IP address; for this reason, effective use of XFF requires knowledge of which proxies are trustworthy, for instance by looking them up in a whitelist of servers whose maintainers can be trusted.</strong></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="x-forwarded-host">X-Forwarded-Host</h3>
+<div class="paragraph">
+<p>The <strong>X-Forwarded-Host</strong> (XFH) header is a <em>de-facto standard</em> header for identifying the original host requested by the client in the Host HTTP request header.</p>
+</div>
+<div class="paragraph">
+<p>Host names and ports of reverse proxies (<em>load balancers</em>, <em>CDNs</em>) may differ from the origin server handling the request, in that case the <code>X-Forwarded-Host</code> header is useful to determine which Host was originally used.</p>
+</div>
+<div class="paragraph">
+<p>The <strong>Host</strong> request header specifies the host and port number of the server to which the request is being sent.</p>
+</div>
+<div class="paragraph">
+<p>If no port is included, the default port for the service requested is implied (e.g., 443 for an HTTPS URL, and 80 for an HTTP URL).</p>
+</div>
+<div class="paragraph">
+<p>This header is used for debugging, statistics, and generating location-dependent content and by design it exposes privacy sensitive information, such as the IP address of the client. Therefore the user&#8217;s privacy must be kept in mind when deploying this header.</p>
+</div>
+<div class="listingblock">
+<div class="title"><em>Syntax</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-Host: &lt;host&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><em>Examples</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-Host: id42.example-cdn.com</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="x-forwarded-proto">X-Forwarded-Proto</h3>
+<div class="paragraph">
+<p>The <strong>X-Forwarded-Proto</strong> (XFP) header is a de-facto standard header for identifying the protocol (HTTP or HTTPS) that a client used to connect to your proxy or load balancer. Your server access logs contain the protocol used between the server and the load balancer, but not the protocol used between the client and the load balancer. To determine the protocol used between the client and the load balancer, the <code>X-Forwarded-Proto</code> request header can be used.</p>
+</div>
+<div class="listingblock">
+<div class="title"><em>Syntax</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-Proto: &lt;protocol&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><em>Examples</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">X-Forwarded-Proto: https</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="via">Via</h3>
+<div class="paragraph">
+<p>The <strong>Via</strong> general header is added by proxies, both forward and reverse proxies, and can appear in the request headers and the response headers. It is used for tracking message forwards, avoiding request loops, and identifying the protocol capabilities of senders along the request/response chain.</p>
+</div>
+<div class="listingblock">
+<div class="title"><em>Syntax</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Via: [ &lt;protocol-name&gt; "/" ] &lt;protocol-version&gt; &lt;host&gt; [ ":" &lt;port&gt; ]
+Via: [ &lt;protocol-name&gt; "/" ] &lt;protocol-version&gt; &lt;pseudonym&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><em>Examples</em></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Via: 1.1 vegur
+Via: HTTP/1.1 GWA
+Via: 1.0 fred, 1.1 p.example.net</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="examples">Examples</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iL</span> http://echo.example.com
+<span class="go">HTTP/1.1 302 Moved Temporarily
+Server: openresty
+Date: Fri, 17 Sep 2021 15:45:31 GMT
+Content-Type: text/html
+Content-Length: 142
+Connection: keep-alive
+Location: https://echo.example.com/
+via: CHN-SH-CT3-CACHE4[2] <i class="conum" data-value="1"></i><b>(1)</b>
+
+HTTP/2 200
+date: Fri, 17 Sep 2021 15:31:25 GMT
+content-type: text/plain
+server: openresty
+</span><span class="gp">set-cookie: HWWAFSESID=3300f73e34d9b1b66d;</span><span class="w"> </span><span class="nv">path</span><span class="o">=</span>/
+<span class="gp">set-cookie: HWWAFSESTIME=1631892685891;</span><span class="w"> </span><span class="nv">path</span><span class="o">=</span>/
+<span class="go">x-ccdn-origin-time: 26
+age: 1
+via: CHN-SH-CT3-CACHE4[363],CHN-SH-CT3-CACHE4[297,TCP_MISS,304],CHN-SH-GLOBAL1-CACHE53[293],CHN-SH-GLOBAL1-CACHE153[26,TCP_MISS,233] <i class="conum" data-value="1"></i><b>(1)</b>
+x-hcs-proxy-type: 0
+x-ccdn-cachettl: 0
+
+
+
+Hostname: echoserver-5676b759f8-gjd7p
+
+Pod Information:
+	-no pod information available-
+
+Server values:
+	server_version=nginx: 1.13.3 - lua: 10008
+
+Request Information:
+	client_address=172.25.0.103
+	method=GET
+	real path=/
+	query=
+	request_version=1.1
+	request_scheme=http
+	request_uri=http://echo.example.com:8080/
+
+Request Headers:
+	accept=*/*
+	cdn-src-ip=119.237.236.174
+	host=echo.example.com
+	user-agent=curl/7.64.1
+	via=CHN-SH-CT3-CACHE4, CHN-SH-GLOBAL1-CACHE153 <i class="conum" data-value="1"></i><b>(1)</b>
+	x-cloudwaf-traffic-tag=1
+	x-forwarded-for=119.237.236.174, 218.78.185.5, 119.3.112.189, 100.125.24.54 <i class="conum" data-value="2"></i><b>(2)</b>
+	x-forwarded-host=echo.example.com <i class="conum" data-value="3"></i><b>(3)</b>
+	x-forwarded-port=443 <i class="conum" data-value="4"></i><b>(4)</b>
+	x-forwarded-proto=https <i class="conum" data-value="5"></i><b>(5)</b>
+	x-hwwaf-client-ip=119.237.236.174
+	x-hwwaf-real-ip=119.3.112.189
+	x-original-forwarded-for=119.237.236.174, 218.78.185.5, 119.3.112.189
+	x-real-ip=119.237.236.174
+	x-request-id=f68939fb016d99a209317985ae50010f
+	x-scheme=https
+
+Request Body:
+	-no body in request-</span></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>Via: Added by proxies, both forward and reverse proxies, and can appear in the request headers and the response headers.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>X-Forwarded-For: Identifies the originating IP addresses of a client connecting to a web server through an HTTP proxy or a load balancer.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="3"></i><b>3</b></td>
+<td>X-Forwarded-Host: Identifies the original host requested that a client used to connect to your proxy or load balancer.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="4"></i><b>4</b></td>
+<td>X-Forwarded-Port: Identifies the port that a client used to connect to your proxy or load balancer.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="5"></i><b>5</b></td>
+<td>X-Forwarded-Proto: Identifies the protocol (HTTP or HTTPS) that a client used to connect to your proxy or load balancer.</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.ibm.com/docs/en/i/7.2?topic=concepts-proxy-server-types" class="bare">https://www.ibm.com/docs/en/i/7.2?topic=concepts-proxy-server-types</a>, Proxy server types and uses for HTTP Server - IBM Documentation</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling</a>, Proxy servers and tunneling - HTTP | MDN</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling/Proxy_Auto-Configuration_PAC_fil" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling/Proxy_Auto-Configuration_PAC_fil</a>, Proxy Auto-Configuration (PAC) file - HTTP | MDN</p>
+</li>
+<li>
+<p><a href="https://www.rfc-editor.org/rfc/rfc7239" class="bare">https://www.rfc-editor.org/rfc/rfc7239</a>, RFC 7239: Forwarded HTTP Extension</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded</a>, Forwarded - HTTP | MDNN</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For</a>, X-Forwarded-For - HTTP | MDNN</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/X-Forwarded-For" class="bare">https://en.wikipedia.org/wiki/X-Forwarded-For</a>, X-Forwarded-For - Wikipedia</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host</a>, X-Forwarded-Host - HTTP | MDNN</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto</a>, X-Forwarded-Proto - HTTP | MDNN</p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host</a></p>
+</li>
+<li>
+<p><a href="https://httpwg.org/specs/rfc7230.html#header.via" class="bare">https://httpwg.org/specs/rfc7230.html#header.via</a>, Hypertext Transfer Protocol (HTTP/1.1): Message Syntax and Routing</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Proxy_server" class="bare">https://en.wikipedia.org/wiki/Proxy_server</a></p>
+</li>
+<li>
+<p><a href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#var_proxy_add_x_forwarded_for" class="bare">https://nginx.org/en/docs/http/ngx_http_proxy_module.html#var_proxy_add_x_forwarded_for</a></p>
+</li>
+<li>
+<p><a href="https://www.nginx.com/resources/wiki/start/topics/examples/forwarded/" class="bare">https://www.nginx.com/resources/wiki/start/topics/examples/forwarded/</a></p>
+</li>
+<li>
+<p><a href="https://stackoverflow.com/questions/224664/whats-the-difference-between-a-proxy-server-and-a-reverse-proxy-server" class="bare">https://stackoverflow.com/questions/224664/whats-the-difference-between-a-proxy-server-and-a-reverse-proxy-server</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/SOCKS" class="bare">https://en.wikipedia.org/wiki/SOCKS</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/09/15/domain-name-resolver/">&laquo; Domain Name Resolver</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/09/17/http-caching/">HTTP Caching and Conditional Requests &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

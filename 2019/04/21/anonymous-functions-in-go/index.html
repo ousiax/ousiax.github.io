@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>匿名函数、闭包、柯里化与高阶函数</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2019/04/21/anonymous-functions-in-go/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">匿名函数、闭包、柯里化与高阶函数</h1>
+    
+    
+    <p class="post-meta"><time datetime="2019-04-21T17:01:16+08:00" itemprop="datePublished">Apr 21, 2019</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <h3 id="匿名函数">匿名函数</h3>
+
+<p>在计算机编程语言中，匿名函数（anonymous function），又称 lambda 表达式（lambda expression），lambda 抽象（lambda abstraction）或函数字面量（function literal），是在声明定义时没有绑定标识符的一种函数。简单点说，匿名函数就是没有名字的函数（不配拥有姓名？）。</p>
+
+<p>匿名函数常见的几中使用场景：</p>
+
+<ul>
+  <li>头等函数（first-class function）</li>
+  <li>闭包（closure）</li>
+  <li>柯里化（currying）</li>
+  <li>高阶函数（higher-order function）</li>
+</ul>
+
+<h3 id="头等函数">头等函数</h3>
+
+<p>头等函数是指在编程语言中，可以把一个函数作为参数传入其他的函数，并且可以把函数作为其他函数的返回值，以及可以把函数赋值给变量的函数。</p>
+
+<p>以 Go 语言为例，说明如下：</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+    <span class="s">"fmt"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">sayHi</span><span class="p">()()</span>
+
+    <span class="c">// anonymous function: a function definition without name</span>
+    <span class="n">cmp</span> <span class="o">:=</span> <span class="k">func</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">b</span> <span class="o">-</span> <span class="n">a</span>
+    <span class="p">}</span>
+
+    <span class="n">x</span> <span class="o">:=</span> <span class="m">4</span>
+    <span class="n">y</span> <span class="o">:=</span> <span class="m">21</span>
+    <span class="c">// pass function `cmp` as arguments to function `max`</span>
+    <span class="n">m</span> <span class="o">:=</span> <span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">cmp</span><span class="p">)</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"max(%d, %d) = %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+
+    <span class="c">// output:</span>
+    <span class="c">// Hi!</span>
+    <span class="c">// max(4, 21) = 4</span>
+<span class="p">}</span>
+
+<span class="c">// return function as value from other function</span>
+<span class="k">func</span> <span class="n">sayHi</span><span class="p">()</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+        <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Hi!"</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c">// pass function as argument to other function</span>
+<span class="k">func</span> <span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="kt">int</span><span class="p">,</span> <span class="n">cmp</span> <span class="k">func</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="n">cmp</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="o">&gt;</span> <span class="m">0</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">x</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">y</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="闭包">闭包</h3>
+
+<p>闭包函数是一种具有状态或环境的函数，类似于面向对象语言中的函数。</p>
+
+<p>以 Go 语言为例：</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+    <span class="s">"fmt"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">sq</span> <span class="o">:=</span> <span class="n">squares</span><span class="p">()</span>
+
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">sq</span><span class="p">())</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">sq</span><span class="p">())</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">sq</span><span class="p">())</span>
+
+    <span class="c">// Output:</span>
+    <span class="c">// 1</span>
+    <span class="c">// 4</span>
+    <span class="c">// 9</span>
+<span class="p">}</span>
+
+<span class="c">// Closures: function values are not just code but can have state</span>
+<span class="k">func</span> <span class="n">squares</span><span class="p">()</span> <span class="k">func</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="k">var</span> <span class="n">x</span> <span class="kt">int</span>
+    <span class="k">return</span> <span class="k">func</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+        <span class="c">// the local variable `x` was captured</span>
+        <span class="n">x</span><span class="o">++</span>
+        <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+    <span class="s">"fmt"</span>
+    <span class="s">"time"</span>
+<span class="p">)</span>
+
+<span class="c">// A pitfall of Go's lexical scope rule</span>
+<span class="c">// that can cause surprising results.</span>
+<span class="c">//</span>
+<span class="c">// All goroutine function values created by `for` loop </span>
+<span class="c">// `capture` and share the same variable that is an </span>
+<span class="c">// addressable storage location, not its value at that </span>
+<span class="c">// particular moment. </span>
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">list</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="m">2019</span><span class="p">,</span> <span class="m">4</span><span class="p">,</span> <span class="m">21</span><span class="p">}</span>
+
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">list</span> <span class="p">{</span>
+        <span class="k">go</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+            <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="p">}()</span>
+    <span class="p">}</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">100</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">list</span> <span class="p">{</span>
+        <span class="c">// pass `v` as an argument</span>
+        <span class="k">go</span> <span class="k">func</span><span class="p">(</span><span class="n">x</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="p">}(</span><span class="n">v</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">100</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">list</span> <span class="p">{</span>
+        <span class="n">v</span> <span class="o">:=</span> <span class="n">v</span> <span class="c">// declares inner `v`, intialized to outer `v`</span>
+        <span class="k">go</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+            <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="p">}()</span>
+    <span class="p">}</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">100</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+
+    <span class="c">// Output:</span>
+    <span class="c">// 21</span>
+    <span class="c">// 21</span>
+    <span class="c">// 21</span>
+    <span class="c">// 2019</span>
+    <span class="c">// 21</span>
+    <span class="c">// 4</span>
+    <span class="c">// 2019</span>
+    <span class="c">// 4</span>
+    <span class="c">// 21</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="柯里化">柯里化</h3>
+
+<p>柯里化是一种将函数的多个输入参数转换为一系列具有单一输入参数的一种技术。</p>
+
+<p>以 Go 语言为例：</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+    <span class="s">"fmt"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">add4</span> <span class="o">:=</span> <span class="k">func</span><span class="p">(</span><span class="n">x</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">add</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="m">4</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">add4</span><span class="p">(</span><span class="m">1</span><span class="p">))</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">add4</span><span class="p">(</span><span class="m">2</span><span class="p">))</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">add4</span><span class="p">(</span><span class="m">3</span><span class="p">))</span>
+
+    <span class="c">// Output:</span>
+    <span class="c">// 5</span>
+    <span class="c">// 6</span>
+    <span class="c">// 7</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">add</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="高阶函数">高阶函数</h3>
+
+<p>高阶函数是可以被传入一个或多个函数作为参数输入的函数。</p>
+
+<p>以 Go 语言为例：</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+    <span class="s">"fmt"</span>
+    <span class="s">"strings"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">s</span> <span class="o">:=</span> <span class="n">strings</span><span class="o">.</span><span class="n">Map</span><span class="p">(</span>
+        <span class="k">func</span><span class="p">(</span><span class="n">r</span> <span class="kt">rune</span><span class="p">)</span> <span class="kt">rune</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="n">r</span> <span class="o">+</span> <span class="m">1</span>
+        <span class="p">},</span>
+        <span class="s">"HAL-9000"</span><span class="p">)</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+    <span class="c">// Output:</span>
+    <span class="c">// IBM.:111</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>另一个 Python 的例子:</p>
+
+<div class="language-py highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+</span>
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+  <span class="n">s</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+  <span class="n">s1</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+  <span class="k">print</span> <span class="p">(</span><span class="n">s</span><span class="p">)</span>
+  <span class="k">print</span> <span class="p">(</span><span class="n">s1</span><span class="p">)</span>
+  <span class="c1"># Output:
+</span>  <span class="c1"># [0, 1, 2, 3]
+</span>  <span class="c1"># [0, 1, 4, 9]
+</span>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">'__main__'</span><span class="p">:</span>
+  <span class="n">main</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h3 id="参考">参考</h3>
+
+<ul>
+  <li>https://en.wikipedia.org/wiki/Anonymous_function</li>
+</ul>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/04/12/cryptography-signature-certificate/">&laquo; 数字签名和数字证书</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2019/05/09/parallel-computing-tips/">并行计算-笔记 &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Linux firewall, netfilter and iptables</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2018/04/20/firewall-netfilter-iptables/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Linux firewall, netfilter and iptables</h1>
+    
+    
+    <p class="post-meta"><time datetime="2018-04-20T19:35:48+08:00" itemprop="datePublished">Dec 11, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#concepts">1. Concepts</a>
+<ul class="sectlevel2">
+<li><a href="#tables">1.1. Tables</a></li>
+<li><a href="#chains">1.2. Chains</a></li>
+<li><a href="#rules">1.3. Rules</a></li>
+<li><a href="#policy">1.4. Policy</a></li>
+</ul>
+</li>
+<li><a href="#usage">2. Usage</a>
+<ul class="sectlevel3">
+<li><a href="#iptables-t-table-l-chain-rulenum-options">2.1. <strong><code>iptables [-t table] -L [chain [rulenum]] [options&#8230;&#8203;]</code></strong></a></li>
+<li><a href="#iptables-t-table-s-chain-rulenum">2.2. <strong><code>iptables [-t table] -S [chain [rulenum]]</code></strong></a></li>
+<li><a href="#iptables-t-table-f-chain-rulenum-options">2.3. <strong><code>iptables [-t table] -F [chain [rulenum]] [options&#8230;&#8203;]</code></strong></a></li>
+<li><a href="#iptables-t-table-a-c-i-r-d-chain">2.4. <strong><code>iptables [-t table] {-A|-C|-I|-R|-D} chain &#8230;&#8203;</code></strong></a></li>
+<li><a href="#iptables-save-iptables-restore">2.5. <strong><code>iptables-save</code> &amp; <code>iptables-restore</code></strong></a></li>
+</ul>
+</li>
+<li><a href="#references">3. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="concepts">1. Concepts</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>netfilter</strong> is a set of hooks inside the Linux kernel that allows kernel modules to register callback functions with the network stack. A registered callback function is then called back for every packet that traverses the respective hook within the network stack.</p>
+</div>
+<div class="paragraph">
+<p><strong>iptables</strong> is a userspace command line utility for configuring Linux kernel <strong><em>firewall</em></strong> implemented within the <a href="https://netfilter.org/projects/iptables/">Netfilter</a> project. The term <em>iptables</em> is also commonly used to refer to this kernel-level firewall. <strong><em>iptables</em></strong> is used for IPv4, and <strong><em>ip6tables</em></strong> is used for IPv6.</p>
+</div>
+<div class="paragraph">
+<p><em>iptables</em> is used to inspect, modify, redirect, and/or drop IPv4 packets. The code for filtering IPv4 packets is already built into the kernel and is organized into a collection of <code>tables</code>, each with a specific purpose. The tables are made up of a set of predefined <code>chains</code>, and the chains <code>rules</code> which are traversed in order. Each rule consists of a predicate of potential matches and a corresponding action (called a <code>target</code>) which is executed if the predicate is true; i.e. the conditions are matched.</p>
+</div>
+<div class="paragraph">
+<p><em>iptables</em> is the user utility which allows you to work with these chains/rules.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/firewall-netfilter-iptables/tables_traverse.gif" alt="tables traverse" width="60%" height="60%">
+</div>
+</div>
+<div class="paragraph">
+<p>The key to understanding how iptables works is the chart above. The <em>lowercase</em> word on top is the table and the <em>uppercase</em> word below is the chain. <em>Every IP packet that comes in on any network interface passes through this flow chart from top to bottom.</em></p>
+</div>
+<div class="sect2">
+<h3 id="tables">1.1. Tables</h3>
+<div class="paragraph">
+<p>iptables contains five tables:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>raw</code> is used only for configuring packets so that they are exempt from connection tracking.</p>
+</li>
+<li>
+<p><code>filter</code> is the <strong><em>default table</em></strong>, and is where all the action typically associated with a firwall take place.</p>
+</li>
+<li>
+<p><code>nat</code> is used for <a href="https://en.wikipedia.org/wiki/Network_address_translation">network address translation</a> (e.g. port forwarding).</p>
+</li>
+<li>
+<p><code>mangle</code> is used for specialized packet alterations.</p>
+</li>
+<li>
+<p><code>security</code> is used for <a href="https://wiki.archlinux.org/index.php/Security#Mandatory_access_control">Mandatory Access Control</a> networking rules. (e.g. SELinux&#8201;&#8212;&#8201;see <a href="http://lwn.net/Articles/267140/">this article</a> for more details).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In most common use cases you will only use two of these: <strong><code>filter</code></strong> and <strong><code>nat</code></strong>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">                               XXXXXXXXXXXXXXXXXX
+                             XXX     Network    XXX
+                               XXXXXXXXXXXXXXXXXX
+                                       +
+                                       |
+                                       v
+ +-------------+              +------------------+
+ |table: filter| &lt;---+        | table: nat       |
+ |chain: INPUT |     |        | chain: PREROUTING|
+ +-----+-------+     |        +--------+---------+
+       |             |                 |
+       v             |                 v
+ [local process]     |           ****************          +--------------+
+       |             +---------+ Routing decision +------&gt; |table: filter |
+       v                         ****************          |chain: FORWARD|
+****************                                           +------+-------+
+Routing decision                                                  |
+****************                                                  |
+       |                                                          |
+       v                        ****************                  |
++-------------+       +------&gt;  Routing decision  &lt;---------------+
+|table: nat   |       |         ****************
+|chain: OUTPUT|       |               +
++-----+-------+       |               |
+      |               |               v
+      v               |      +-------------------+
++--------------+      |      | table: nat        |
+|table: filter | +----+      | chain: POSTROUTING|
+|chain: OUTPUT |             +--------+----------+
++--------------+                      |
+                                      v
+                               XXXXXXXXXXXXXXXXXX
+                             XXX    Network     XXX
+                               XXXXXXXXXXXXXXXXXX</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="chains">1.2. Chains</h3>
+<div class="paragraph">
+<p>Tables consist of <strong>chains</strong>, which are lists of rules which are followed in order.</p>
+</div>
+<div class="paragraph">
+<p>The default table, <strong>filter</strong>, contains three <strong><em>bultin-chain</em></strong>: <code>INPUT</code>, <code>OUTPUT</code> and <code>FORWARD</code> which are actived at different points of the packet filtering process, as illustrated in the flow chart.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>INPUT</code> - This chain is used to control the behavior for incoming connections.</p>
+<div class="paragraph">
+<p>For example, if a user attempts to SSH into your PC/Server, iptables will attempt to match the IP address and port to a rule in the input chain.</p>
+</div>
+</li>
+<li>
+<p><code>FORWARD</code> - This chain is used for incoming connections that aren&#8217;t actually being delivered locally.</p>
+<div class="paragraph">
+<p>Think of a <strong><em>router</em></strong> - data is always being sent to it but rarely actually destined for the router itself; the data is just forwarded to its target. Unless you&#8217;re doing some kind of routing, NATing, or something else your system that rquires forwarding, you won&#8217;t even use this chain.</p>
+</div>
+</li>
+<li>
+<p><code>OUTPUT</code> - This chain is used for outgoing connections.</p>
+<div class="paragraph">
+<p>For example, if you try to <em>ping blog.codefarm.me</em>, iptables will check output chain to see what the rules are regarding ping and blog.codefarm.me before making a decision to allow or deny the connection attempt.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The <strong>nat</strong> table incudes <code>PREROUTING</code>, <code>POSTROUTING</code>, and <code>OUTPUT</code> chains.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>PREROUTING</code> - Alters packets before routing. i.e Packet translation happens immediately after the packet comes to the system and before routing.</p>
+<div class="paragraph">
+<p>This helps to translate the destination ip address of the packets to something that matches the routing on the local server. This is used for <strong><em>DNAT (destination NAT)</em></strong>.</p>
+</div>
+</li>
+<li>
+<p><code>POSTROUTING</code> - Alters packets after routing. i.e Packet translation happens when the packets are leaving the system.</p>
+<div class="paragraph">
+<p>This helps to translate the source ip address of the packets to something that might match the routing on the desintation server. This is used for <strong><em>SNAT (source NAT)</em></strong>.</p>
+</div>
+</li>
+<li>
+<p><code>OUTPUT</code> - NAT for locally generated packets on the firewall.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="rules">1.3. Rules</h3>
+<div class="paragraph">
+<p>Packet fitlering is based on <strong>rules</strong>, which are specified by multiple <em>matches</em> (condition the packet must satisfy so that the rule can be applied), and on <strong>target</strong> (action taken when the packet matches all conditions).</p>
+</div>
+<div class="paragraph">
+<p>The typical things a rule might match on are what interface the packet came in on (e.g eth0 or eth1), what type of packet it is (ICMP, TCP, or UDP), or the desitination port of the packet.</p>
+</div>
+<div class="paragraph">
+<p>Targets are specified using the <code>-j</code> or <code>--jump</code> option. Targets can be either <em>user-defined chains</em>, (i.e. if these conditions are matched, jump to the following user-defined chain and continue processing there), one of the special <em>built-in targets</em>, or a <em>target extension</em>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If the target is a <strong>built-in target</strong>, the fate of the packet is decided immediately and processing of the packet in current table is stopped.</p>
+</li>
+<li>
+<p>If the target is a <strong>user-defined chain</strong> and the fate of the packet is not decided by this second chain, it will be filtered against the remaining rules of the original chain.</p>
+</li>
+<li>
+<p><strong>Target extensions</strong> can be either terminating (as built-in targets) or non-terminating (as user-defined chains).</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="policy">1.4. Policy</h3>
+<div class="paragraph">
+<p>To see what the policy chains on the default table <strong>filter</strong> are currently configured to do with unmatched traffic, run the <code>iptables -L</code> command.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span> | <span class="nb">grep </span>policy
+<span class="go">Chain INPUT (policy ACCEPT)
+Chain FORWARD (policy ACCEPT)
+Chain OUTPUT (policy ACCEPT)
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-t</span> nat <span class="nt">-L</span> | <span class="nb">grep </span>policy
+<span class="go">Chain PREROUTING (policy ACCEPT)
+Chain INPUT (policy ACCEPT)
+Chain OUTPUT (policy ACCEPT)
+Chain POSTROUTING (policy ACCEPT)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As you can see, we also used the <code>grep</code> command to give use cleaner output. In that screenshot, our chains are currently figured to accpet traffic.</p>
+</div>
+<div class="paragraph">
+<p>More times than not, you&#8217;ll
+want your system to accept connections by default. Unless you&#8217;ve changed the policy chain rules previously, this setting should already be configured. Either way, here&#8217;s the command to accept connections by default:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-P</span> INPUT ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-P</span> OUTPUT ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-P</span> FORWARD ACCEPT</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>By default to the ACCEPT rule, you can then use iptables to deny specific IP addresses or port numbers, while continuing to accept all other connections.</p>
+</div>
+<div class="paragraph">
+<p>If you would rather deny all connections manually specify which ones you want to allow to connect, you should change the default policy of yur chains to DROP. Doing this probably only be useful for servers that contain sensitive information and only ever have the same IP addresses connect to them.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">--policy</span> INPUT DROP
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">--policy</span> OUTPUT DROP
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">--policy</span> FORWARD DROP</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="usage">2. Usage</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="man">IPTABLES(8)                                                       iptables 1.4.21                                                       IPTABLES(8)
+
+
+
+NAME
+       iptables/ip6tables — administration tool for IPv4/IPv6 packet filtering and NAT
+
+SYNOPSIS
+       iptables [-t table] {-A|-C|-D} chain rule-specification
+
+       ip6tables [-t table] {-A|-C|-D} chain rule-specification
+
+       iptables [-t table] -I chain [rulenum] rule-specification
+
+       iptables [-t table] -R chain rulenum rule-specification
+
+       iptables [-t table] -D chain rulenum
+
+       iptables [-t table] -S [chain [rulenum]]
+
+       iptables [-t table] {-F|-L|-Z} [chain [rulenum]] [options...]
+
+       iptables [-t table] -N chain
+
+       iptables [-t table] -X [chain]
+
+       iptables [-t table] -P chain target
+
+       iptables [-t table] -E old-chain-name new-chain-name
+
+       rule-specification = [matches...] [target]
+
+       match = -m matchname [per-match-options]
+
+       target = -j targetname [per-target-options]
+
+DESCRIPTION
+       Iptables  and ip6tables are used to set up, maintain, and inspect the tables of IPv4 and IPv6 packet filter rules in the Linux kernel.  Sev‐
+       eral different tables may be defined.  Each table contains a number of built-in chains and may also contain user-defined chains.
+
+       Each chain is a list of rules which can match a set of packets.  Each rule specifies what to do with a packet that matches.  This is  called
+       a `target', which may be a jump to a user-defined chain in the same table.
+
+TARGETS
+       A  firewall  rule specifies criteria for a packet and a target.  If the packet does not match, the next rule in the chain is examined; if it
+       does match, then the next rule is specified by the value of the target, which can be the name of a user-defined chain, one  of  the  targets
+       described in iptables-extensions(8), or one of the special values ACCEPT, DROP or RETURN.
+
+       ACCEPT  means to let the packet through.  DROP means to drop the packet on the floor.  RETURN means stop traversing this chain and resume at
+       the next rule in the previous (calling) chain.  If the end of a built-in chain is reached or a rule in a built-in chain with  target  RETURN
+       is matched, the target specified by the chain policy determines the fate of the packet.
+
+TABLES
+       There are currently five independent tables (which tables are present at any time depends on the kernel configuration options and which mod‐
+       ules are present).
+
+       -t, --table table
+              This option specifies the packet matching table which the command should operate on.  If the kernel is configured with automatic mod‐
+              ule loading, an attempt will be made to load the appropriate module for that table if it is not already there.
+
+              The tables are as follows:
+
+              filter:
+                  This is the default table (if no -t option is passed). It contains the built-in chains INPUT (for packets destined to local sock‐
+                  ets), FORWARD (for packets being routed through the box), and OUTPUT (for locally-generated packets).
+
+              nat:
+                  This table is consulted when a packet that creates a new connection is encountered.  It consists of three  built-ins:  PREROUTING
+                  (for  altering  packets as soon as they come in), OUTPUT (for altering locally-generated packets before routing), and POSTROUTING
+                  (for altering packets as they are about to go out).  IPv6 NAT support is available since kernel 3.7.
+
+              mangle:
+                  This table is used for specialized packet alteration.  Until kernel 2.4.17 it had two built-in chains: PREROUTING  (for  altering
+                  incoming  packets before routing) and OUTPUT (for altering locally-generated packets before routing).  Since kernel 2.4.18, three
+                  other built-in chains are also supported: INPUT (for packets coming into the box itself), FORWARD  (for  altering  packets  being
+                  routed through the box), and POSTROUTING (for altering packets as they are about to go out).
+
+              raw:
+                  This  table is used mainly for configuring exemptions from connection tracking in combination with the NOTRACK target.  It regis‐
+                  ters at the netfilter hooks with higher priority and is thus called before ip_conntrack, or any other IP tables.  It provides the
+                  following  built-in  chains:  PREROUTING  (for packets arriving via any network interface) OUTPUT (for packets generated by local
+                  processes)
+
+              security:
+                  This table is used for Mandatory Access Control (MAC) networking rules, such as those enabled by the SECMARK and CONNSECMARK tar‐
+                  gets.  Mandatory Access Control is implemented by Linux Security Modules such as SELinux.  The security table is called after the
+                  filter table, allowing any Discretionary Access Control (DAC) rules in the filter table to take effect before  MAC  rules.   This
+                  table provides the following built-in chains: INPUT (for packets coming into the box itself), OUTPUT (for altering locally-gener‐
+                  ated packets before routing), and FORWARD (for altering packets being routed through the box).
+
+OPTIONS
+       The options that are recognized by iptables and ip6tables can be divided into several different groups.
+
+   COMMANDS
+       These options specify the desired action to perform. Only one of them can be specified on the command line unless  otherwise  stated  below.
+       For long versions of the command and option names, you need to use only enough letters to ensure that iptables can differentiate it from all
+       other options.
+
+       -A, --append chain rule-specification
+              Append one or more rules to the end of the selected chain.  When the source  and/or  destination  names  resolve  to  more  than  one
+              address, a rule will be added for each possible address combination.
+
+       -C, --check chain rule-specification
+              Check  whether  a  rule matching the specification does exist in the selected chain. This command uses the same logic as -D to find a
+              matching entry, but does not alter the existing iptables configuration and uses its exit code to indicate success or failure.
+
+       -D, --delete chain rule-specification
+       -D, --delete chain rulenum
+              Delete one or more rules from the selected chain.  There are two versions of this command: the rule can be specified as a  number  in
+              the chain (starting at 1 for the first rule) or a rule to match.
+
+       -I, --insert chain [rulenum] rule-specification
+              Insert one or more rules in the selected chain as the given rule number.  So, if the rule number is 1, the rule or rules are inserted
+              at the head of the chain.  This is also the default if no rule number is specified.
+
+       -R, --replace chain rulenum rule-specification
+              Replace a rule in the selected chain.  If the source and/or destination names resolve to multiple addresses, the command  will  fail.
+              Rules are numbered starting at 1.
+
+       -L, --list [chain]
+              List  all rules in the selected chain.  If no chain is selected, all chains are listed. Like every other iptables command, it applies
+              to the specified table (filter is the default), so NAT rules get listed by
+               iptables -t nat -n -L
+              Please note that it is often used with the -n option, in order to avoid long reverse DNS lookups.  It is  legal  to  specify  the  -Z
+              (zero)  option  as  well, in which case the chain(s) will be atomically listed and zeroed.  The exact output is affected by the other
+              arguments given. The exact rules are suppressed until you use
+               iptables -L -v
+
+       -S, --list-rules [chain]
+              Print all rules in the selected chain.  If no chain is selected, all chains are printed like iptables-save. Like every other iptables
+              command, it applies to the specified table (filter is the default).
+
+       -F, --flush [chain]
+              Flush the selected chain (all the chains in the table if none is given).  This is equivalent to deleting all the rules one by one.
+
+       -Z, --zero [chain [rulenum]]
+              Zero  the  packet and byte counters in all chains, or only the given chain, or only the given rule in a chain. It is legal to specify
+              the -L, --list (list) option as well, to see the counters immediately before they are cleared. (See above.)
+
+       -N, --new-chain chain
+              Create a new user-defined chain by the given name.  There must be no target of that name already.
+
+       -X, --delete-chain [chain]
+              Delete the optional user-defined chain specified.  There must be no references to the chain.   If  there  are,  you  must  delete  or
+              replace the referring rules before the chain can be deleted.  The chain must be empty, i.e. not contain any rules.  If no argument is
+              given, it will attempt to delete every non-builtin chain in the table.
+
+       -P, --policy chain target
+              Set the policy for the chain to the given target.  See the section TARGETS for the legal targets.  Only  built-in  (non-user-defined)
+              chains can have policies, and neither built-in nor user-defined chains can be policy targets.
+
+       -E, --rename-chain old-chain new-chain
+              Rename the user specified chain to the user supplied name.  This is cosmetic, and has no effect on the structure of the table.
+
+       -h     Help.  Give a (currently very brief) description of the command syntax.
+
+# ...
+
+SEE ALSO
+       iptables-apply(8), iptables-save(8), iptables-restore(8), iptables-extensions(8),
+
+       The  packet-filtering-HOWTO  details  iptables usage for packet filtering, the NAT-HOWTO details NAT, the netfilter-extensions-HOWTO details
+       the extensions that are not in the standard distribution, and the netfilter-hacking-HOWTO details the netfilter internals.
+       See http://www.netfilter.org/.</code></pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="iptables-t-table-l-chain-rulenum-options">2.1. <strong><code>iptables [-t table] -L [chain [rulenum]] [options&#8230;&#8203;]</code></strong></h4>
+<div class="ulist">
+<ul>
+<li>
+<p>List all rules in the selected chain. If no chain is selected, all chains are listed.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+KUBE-SERVICES  all  --  anywhere             anywhere             ctstate NEW /* kubernetes service portals */
+KUBE-EXTERNAL-SERVICES  all  --  anywhere             anywhere             ctstate NEW /* kubernetes externally-visible service portals */
+</span><span class="c">...
+</span><span class="go">
+</span><span class="gp"> ~]#</span><span class="w"> </span>iptables <span class="nt">-L</span> <span class="nt">-n</span> <span class="nt">--line-numbers</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+num  target     prot opt source               destination
+1    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
+2    KUBE-EXTERNAL-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes externally-visible service portals
+ */
+</span><span class="c">...
+</span><span class="go">
+</span><span class="gp"> ~]#</span><span class="w"> </span>iptables <span class="nt">-L</span> INPUT 1 <span class="nt">-n</span>
+<span class="go">KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Like every other <em>iptables</em> command, it applies to the specified table (<em>filter</em> is the default), so NAT rules get listed by:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-t</span> nat <span class="nt">-L</span> <span class="nt">-n</span>
+<span class="go">Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service portals */
+CNI-HOSTPORT-DNAT  all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+</span><span class="c">...</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Please note that it is often used with the <code>-n</code> option, in order to avoid long reverse DNS lookups.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-L</span> <span class="nt">-n</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
+KUBE-EXTERNAL-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes externally-visible service portals */
+</span><span class="c">...</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="iptables-t-table-s-chain-rulenum">2.2. <strong><code>iptables [-t table] -S [chain [rulenum]]</code></strong></h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Print all rules in the selected chain. If no chain is selected, all chains are printed like <em>iptables-save</em>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-t</span> nat <span class="nt">-S</span>
+<span class="go">-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Like every other <em>iptables</em> command, it applies to the specified table (<em>filter</em> is the default).</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp"> ~]#</span><span class="w"> </span>iptables <span class="nt">-t</span> nat <span class="nt">-S</span> OUTPUT
+<span class="go">-P OUTPUT ACCEPT
+-A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A OUTPUT -m comment --comment "portmap/canal-portmap" -j CANAL-DNAT
+-A OUTPUT -m addrtype --dst-type LOCAL -j DOCKER
+-A OUTPUT -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="iptables-t-table-f-chain-rulenum-options">2.3. <strong><code>iptables [-t table] -F [chain [rulenum]] [options&#8230;&#8203;]</code></strong></h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Flush the selected chain (all the chains in the table if none is given).  This is equivalent to deleting all the rules one by one.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># Flush your iptables all chains rules at filter table</span>
+~]# iptables <span class="nt">-F</span>
+
+~]# iptables <span class="nt">-F</span> INPUT    <span class="c"># Flush the INPUT chain only</span>
+~]# iptables <span class="nt">-F</span> OUTPUT   <span class="c"># Flush the OUTPUT chain only</span>
+~]# iptables <span class="nt">-F</span> FORWARD  <span class="c"># Flush the FORWARD chain only</span>
+
+<span class="c"># Flush your iptables all chains rules at nat table</span>
+~]# iptables <span class="nt">-t</span> nat <span class="nt">-F</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="iptables-t-table-a-c-i-r-d-chain">2.4. <strong><code>iptables [-t table] {-A|-C|-I|-R|-D} chain &#8230;&#8203;</code></strong></h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">iptables [-t table] -A chain rule-specification
+
+iptables [-t table] -C chain rule-specification
+
+iptables [-t table] -I chain [rulenum] rule-specification
+
+iptables [-t table] -R chain rulenum rule-specification
+
+iptables [-t table] -D chain rulenum</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Rules can be edited by appending <code>-A</code> a rule to a chain, inserting <code>-I</code> it at a specific position on the chain, replacing <code>-R</code> an existing rule, or delete <code>-D</code> it, and check exists with <code>-C</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="allowing-incomming-traffic-on-specific-ports">2.4.1. Allowing Incomming Traffic on Specific Ports</h4>
+<div class="paragraph">
+<p>You could start by blocking traffic, but you might be working over SSH, where you would need to allow SSH before blocking everything else.</p>
+</div>
+<div class="paragraph">
+<p>To allow incomming traffic on the default SSH port (22), you could tell iptables to allow all TCP traffic on that port to come in.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-C</span>  INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> ssh <span class="nt">-j</span> ACCEPT
+<span class="go">iptables: Bad rule (does a matching rule exist in that chain?).
+
+</span><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> ssh <span class="nt">-j</span> ACCEPT
+<span class="go">
+</span><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-C</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> ssh <span class="nt">-j</span> ACCEPT</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Also, you can also specify the destination port with number.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">~]#  iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> 22 <span class="nt">-j</span> ACCEPT</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Referring back to the list above, you can see that this tells iptables:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>append this rule to the input chain (<code>-A INPUT</code>) so we look at incomming traffic.</p>
+</li>
+<li>
+<p>check to see if it is TCP (<code>-p tcp</code>).</p>
+</li>
+<li>
+<p>if so, check to see if the input goes to the SSH port (<code>--dport ssh</code>).</p>
+</li>
+<li>
+<p>if so, accept the input (<code>-j ACCEPT</code>.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Lets check the rules: (only the first few lines shown, you will see more)</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp"> ~]#</span><span class="w"> </span>iptables <span class="nt">-L</span> INPUT <span class="nt">-n</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now, let&#8217;s allow all incomming web traffic</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> http <span class="nt">-j</span> ACCEPT
+<span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> https <span class="nt">-j</span> ACCEPT
+<span class="go">
+</span><span class="gp">#</span><span class="w"> </span>or
+<span class="go">
+</span><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">-m</span> multiport <span class="nt">--dports</span> http,https <span class="nt">-j</span> ACCEPT</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Checking our rules, we have</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp"> ~]#</span><span class="w"> </span>iptables <span class="nt">-L</span> INPUT <span class="nt">-n</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            multiport dports 80,443</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Allow default port range for Kubernetes NodePort servies.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> 30000:32767 <span class="nt">-j</span> ACCEPT <span class="nt">-m</span> comment <span class="nt">--comment</span> <span class="s2">"Allow default port range of kubernetes nodeport services"</span>
+<span class="go">
+</span><span class="gp">~]#</span><span class="w"> </span>iptables <span class="nt">-L</span> INPUT <span class="nt">-n</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            multiport dports 80,443
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpts:30000:32767 /* Allow default port range of kubernetes nodeport services */</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>We have specifically allowed tcp traffic to the ssh and web ports, but as we have not blocked anything, all traffic can still come in.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="block-incomming-traffic">2.4.2. Block Incomming Traffic</h4>
+<div class="paragraph">
+<p>Once a decision is made to accept a packet, no more rules affect it. As our rules allowing ssh and web traffic come first, as long as our rule to block all traffic comes after them, we can still accept the traffic we want. All we need to do is put the rule to block all traffic at the end.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-j</span> DROP
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
+DROP       all  --  anywhere             anywhere</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="allow-incomming-traffic-on-specific-ip-addresses">2.4.3. Allow Incomming Traffic on Specific IP Addresses</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Here <code>-s 0/0</code> stand for any incomming source with any IP addresses.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">-s</span> 0/0 <span class="nt">--dport</span> 22 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><code>-s 192.168.66.128/24</code> using CIDR values, it stands for IP starting from 192.168.66.1 to 192.168.66.255.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">-s</span> 192.168.66.128/24 <span class="nt">--dport</span> 22 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:ssh</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">-s</span> 192.168.66.128/32 <span class="nt">--dport</span> 22 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">-s</span> 192.168.66.128 <span class="nt">--dport</span> 22 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.128       anywhere             tcp dpt:ssh</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="blocking-icmp">2.4.4. Blocking ICMP</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> OUTPUT <span class="nt">-p</span> icmp <span class="nt">--icmp-type</span> 8 <span class="nt">-j</span> DROP
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+DROP       icmp --  anywhere             anywhere             icmp echo-request
+</span><span class="gp">$</span><span class="w"> </span>ping blog.codefarm.me
+<span class="go">PING blog.codefarm.me (104.27.162.235) 56(84) bytes of data.
+ping: sendmsg: Operation not permitted</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="blocking-mongodb-from-outside-attach">2.4.5. Blocking MongoDB from outside attach</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">-s</span> 192.168.66.0/24 <span class="nt">--dport</span> 27017 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:27017</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="blocking-ddos">2.4.6. Blocking DDOS</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> 80 <span class="nt">-m</span> limit <span class="nt">--limit</span> 20/minute <span class="nt">--limit-burst</span> 100 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http limit: avg 20/min burst 100</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="insert-a-new-rule-replace-an-old-rule">2.4.7. Insert a New Rule / Replace an Old Rule</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> 80 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-I</span> INPUT 1 <span class="nt">-p</span> tcp <span class="nt">--dport</span> 22 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ssh
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-R</span> INPUT 1 <span class="nt">-p</span> tcp <span class="nt">--dport</span> 443 <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:https
+ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:http</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="create-user-defined-chain-target">2.4.8. Create User Defined Chain / Target</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-N</span> CODE_FARM
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span> | <span class="nb">grep</span> <span class="s1">'Chain'</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+Chain FORWARD (policy ACCEPT)
+Chain OUTPUT (policy ACCEPT)
+Chain CODE_FARM (0 references)
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> INPUT <span class="nt">-p</span> tcp <span class="nt">--dport</span> 22 <span class="nt">-j</span> CODE_FARM
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+
+Chain CODE_FARM (1 references)
+target     prot opt source               destination
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-A</span> CODE_FARM <span class="nt">-p</span> tcp <span class="nt">-j</span> ACCEPT
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+
+Chain CODE_FARM (1 references)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-P</span> INPUT DROP
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy DROP)
+target     prot opt source               destination
+CODE_FARM  tcp  --  anywhere             anywhere             tcp dpt:ssh
+
+Chain CODE_FARM (1 references)
+target     prot opt source               destination
+ACCEPT     tcp  --  anywhere             anywhere</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="iptables-save-iptables-restore">2.5. <strong><code>iptables-save</code> &amp; <code>iptables-restore</code></strong></h3>
+<div class="paragraph">
+<p>Changes to <strong>iptables</strong> are transitory; if the system is rebooted or if the <strong>iptables</strong> service is restarted, the rules are automatically flushed and reset. To save the rules so that they are loaded when the <strong>iptables</strong> service is started, use the following command:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>service iptables save</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The rules are stored in the file <strong>/etc/sysconfig/iptables</strong> and are applied whenever the service is started or the machine is rebooted.</p>
+</div>
+<div class="paragraph">
+<p>You can also save the current iptables into a file and restore it.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy DROP)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:ssh
+ACCEPT     tcp  --  anywhere             anywhere             multiport dports http,https
+DROP       all  --  anywhere             anywhere
+
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables-save | <span class="nb">tee </span>iptables.rules <span class="c"># save current iptables into iptables.rules and print to standard output</span>
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>Generated by iptables-save v1.6.0 on Fri Jan 18 16:43:19 2019
+<span class="go">*filter
+:INPUT DROP [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [278:30254]
+-A INPUT -s 192.168.66.0/24 -p tcp -m tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp -m multiport --dports 80,443 -j ACCEPT
+-A INPUT -j DROP
+COMMIT
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>Completed on Fri Jan 18 16:43:19 2019
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-P</span> INPUT ACCEPT <span class="c"># allow any incomming traffic before delete all rules</span>
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-F</span> <span class="c"># delete all rules</span>
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables-restore iptables.rules <span class="c"># restore iptables from iptables.rules</span>
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>iptables <span class="nt">-L</span>
+<span class="go">Chain INPUT (policy DROP)
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.66.0/24      anywhere             tcp dpt:ssh
+ACCEPT     tcp  --  anywhere             anywhere             multiport dports http,https
+DROP       all  --  anywhere             anywhere
+
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">3. References</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The netfilter.org project, <a href="https://netfilter.org/index.html" class="bare">https://netfilter.org/index.html</a></p>
+</li>
+<li>
+<p>iptables - ArchWiki, <a href="https://wiki.archlinux.org/index.php/iptables" class="bare">https://wiki.archlinux.org/index.php/iptables</a></p>
+</li>
+<li>
+<p>IPTABLES VS FIREWALLD | Unixmen, <a href="https://www.unixmen.com/iptables-vs-firewalld/" class="bare">https://www.unixmen.com/iptables-vs-firewalld/</a></p>
+</li>
+<li>
+<p>The Beginner&#8217;s Guide to iptables, the Linux Firewall, <a href="https://www.howtogeek.com/177621/the-beginners-guide-to-iptables-the-linux-firewall/" class="bare">https://www.howtogeek.com/177621/the-beginners-guide-to-iptables-the-linux-firewall/</a></p>
+</li>
+<li>
+<p>IptablesHowTo - Community Help Wiki, <a href="https://help.ubuntu.com/community/IptablesHowTo" class="bare">https://help.ubuntu.com/community/IptablesHowTo</a></p>
+</li>
+<li>
+<p>HowTos/Network/IPTables - CentOS Wiki, <a href="https://wiki.centos.org/HowTos/Network/IPTables" class="bare">https://wiki.centos.org/HowTos/Network/IPTables</a></p>
+</li>
+<li>
+<p>RETURN target, <a href="https://www.frozentux.net/iptables-tutorial/chunkyhtml/x4625.html" class="bare">https://www.frozentux.net/iptables-tutorial/chunkyhtml/x4625.html</a></p>
+</li>
+<li>
+<p>Linux Firewall Tutorial: IPTables Tables, Chains, Rules Fundamentals, <a href="https://www.thegeekstuff.com/2011/01/iptables-fundamentals/" class="bare">https://www.thegeekstuff.com/2011/01/iptables-fundamentals/</a></p>
+</li>
+<li>
+<p>Saving Iptables Firewall Rules Permanently, <a href="https://www.thomas-krenn.com/en/wiki/Saving_Iptables_Firewall_Rules_Permanently" class="bare">https://www.thomas-krenn.com/en/wiki/Saving_Iptables_Firewall_Rules_Permanently</a></p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2018/04/16/gopherchina-2018/">&laquo; GopherChina 2018</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2018/05/19/tcp-ip-protocol/">TCP/IP Protocol &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Time Series and Prometheus</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/12/06/time-series-prometheus/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Time Series and Prometheus</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-12-06T09:47:59+08:00" itemprop="datePublished">Dec 6, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#what-is-time-series">1. What is Time Series</a>
+<ul class="sectlevel2">
+<li><a href="#name-and-labels">1.1. Name and Labels</a></li>
+<li><a href="#aggregation">1.2. Aggregation</a></li>
+</ul>
+</li>
+<li><a href="#what-is-prometheus">2. What is Prometheus?</a>
+<ul class="sectlevel2">
+<li><a href="#metric-types">2.1. Metric Types</a></li>
+<li><a href="#promql">2.2. PromQL</a></li>
+<li><a href="#federation">2.3. Federation</a></li>
+<li><a href="#http-api">2.4. HTTP API</a></li>
+<li><a href="#local-storage">2.5. Local Storage</a></li>
+</ul>
+</li>
+<li><a href="#references">3. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="what-is-time-series">1. What is Time Series</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In <a href="https://en.wikipedia.org/wiki/Mathematics">mathematics</a>, a <strong>time series</strong> is a series of data points indexed (or listed or graphed) in <strong><em>time order</em></strong>. Most commonly, a time series is a <a href="https://en.wikipedia.org/wiki/Sequence">sequence</a> taken at successive equally spaced points in time. Thus it is a sequence of <a href="https://en.wikipedia.org/wiki/Discrete-time">discrete-time</a> data.</p>
+</div>
+<table class="tableblock frame-all grid-all" style="width: 45%;">
+<caption class="title">Table 1. A time series of temperature.</caption>
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Time</th>
+<th class="tableblock halign-left valign-top">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">09:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">24°C</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">26°C</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">11:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">27°C</p></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<div class="paragraph">
+<p>Time series are powerful. They help you understand the past by letting you analyze the state of the system at any point in time. Time series could tell you that the server crashed moments after the free disk space went down to zero.</p>
+</div>
+<div class="paragraph">
+<p><strong><em>Time series analysis</em></strong> comprises methods for analyzing time series data in order to extract meaningful statistics and other characteristics of the data. <strong><em>Time series forecasting</em></strong> is the use of a model to predict future values based on previously observed values.</p>
+</div>
+<div class="sect2">
+<h3 id="name-and-labels">1.1. Name and Labels</h3>
+<div class="paragraph">
+<p>The common case is issuing a single query for a measurement with one or more additional properties as <em>dimensions</em>. For example, querying a temperature measurement along with a <em>location</em> property. In this case, multiple series are returned back from that single query and each series has unique location as a dimension.</p>
+</div>
+<div class="paragraph">
+<p>Every time series is uniquely identified by its metric <strong>name</strong> and optional key-value pairs for identifying dimensions called <strong>labels</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Example labels could be <code>{location=us}</code> or <code>{country=us,state=ma,city=boston}</code>. Within a set of time series, the combination of its name and labels identifies each series.</p>
+</div>
+<div class="paragraph">
+<p>Given a metric name and a set of labels, time series are frequently identified using this <strong>notation</strong>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">&lt;metric name&gt;</span><span class="o">{</span>&lt;label name&gt;<span class="o">=</span>&lt;label value&gt;, ...<span class="o">}</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For example, a time series with the metric name <code>temperature</code> and the labels <code>country=us</code>, <code>state=ma</code> and <code>city=boston</code> could be written like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">temperature{country=us,state=ma,city=boston}</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For example, <code>temperature {country=us,state=ma,city=boston}</code> could identify the series of temperature values for the city of Boston in the US.</p>
+</div>
+<div class="paragraph">
+<p>In table databases such SQL, these dimensions are generally the <code>GROUP BY</code> parameters of a query.</p>
+</div>
+<div class="paragraph">
+<p>For example, consider a query like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sql"><span class="k">SELECT</span> <span class="n">BUCKET</span><span class="p">(</span><span class="n">StartTime</span><span class="p">,</span> <span class="mi">1</span><span class="n">h</span><span class="p">),</span> <span class="k">AVG</span><span class="p">(</span><span class="n">Temperature</span><span class="p">)</span> <span class="k">AS</span> <span class="k">Temp</span><span class="p">,</span> <span class="k">Location</span> <span class="k">FROM</span> <span class="n">T</span>
+  <span class="k">GROUP</span> <span class="k">BY</span> <span class="n">BUCKET</span><span class="p">(</span><span class="n">StartTime</span><span class="p">,</span> <span class="mi">1</span><span class="n">h</span><span class="p">),</span> <span class="k">Location</span>
+  <span class="k">ORDER</span> <span class="k">BY</span> <span class="nb">time</span> <span class="k">asc</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This query would return a table with three columns with data types time, number, and string respectively:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">StartTime</th>
+<th class="tableblock halign-left valign-top">Temp</th>
+<th class="tableblock halign-left valign-top">Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">09:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">24</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LGA</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">09:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">20</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">BOS</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">26</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LGA</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10:00</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">22</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">BOS</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="aggregation">1.2. Aggregation</h3>
+<div class="paragraph">
+<p>Combining a collection of measurements is called <strong>aggregation</strong>. There are several ways to aggregate time series data. Here are some common ones:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Average</strong> returns the sum of all values divided by the total number of values.</p>
+</li>
+<li>
+<p><strong>Min</strong> and <strong>Max</strong> return the smallest and largest value in the collection.</p>
+</li>
+<li>
+<p><strong>Sum</strong> returns the sum of all values in the collection.</p>
+</li>
+<li>
+<p><strong>Count</strong> returns the number of values in the collection.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-is-prometheus">2. What is Prometheus?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Prometheus</strong> is an open-source systems monitoring and alerting toolkit originally built at SoundCloud. Prometheus joined the <a href="https://cncf.io/">Cloud Native Computing Foundation</a> in 2016 as the second hosted project, after <a href="https://kubernetes.io/">Kubernetes</a>.</p>
+</div>
+<div class="paragraph">
+<p>Prometheus collects and stores its <strong>metrics</strong> as time series data, i.e. metrics information is stored with the timestamp at which it was recorded, alongside optional key-value pairs called <strong>labels</strong>.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://prometheus.io/assets/architecture.png" alt="architecture" width="75%" height="75%">
+</div>
+</div>
+<div class="sect2">
+<h3 id="metric-types">2.1. Metric Types</h3>
+<div class="paragraph">
+<p>The Prometheus offer four core metric types: <em>counter</em>, <em>gauge</em>, <em>histogram</em>, <em>summary</em>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Counter</strong></p>
+<div class="paragraph">
+<p>A <strong><em>counter</em></strong> is a cumulative metric that represents a single <a href="https://en.wikipedia.org/wiki/Monotonic_function">monotonically increasing counter</a> whose value can only increase or be reset to zero on restart. For example, you can use a counter to represent the number of requests served, tasks completed, or errors.</p>
+</div>
+<div class="paragraph">
+<p>Do not use a counter to expose a value that can decrease. For example, do not use a counter for the number of currently running processes; instead use a gauge.</p>
+</div>
+</li>
+<li>
+<p><strong>Gauge</strong></p>
+<div class="paragraph">
+<p>A <strong><em>gauge</em></strong> is a metric that represents a single numerical value that can arbitrarily go up and down.</p>
+</div>
+<div class="paragraph">
+<p>Gauges are typically used for measured values like temperatures or current memory usage, but also "counts" that can go up and down, like the number of concurrent requests.</p>
+</div>
+</li>
+<li>
+<p><strong>Histogram</strong></p>
+<div class="paragraph">
+<p>A <strong><em>histogram</em></strong> samples observations (usually things like request durations or response sizes) and counts them in configurable buckets. It also provides a sum of all observed values.</p>
+</div>
+<div class="paragraph">
+<p>A histogram with a base metric name of <code>&lt;basename&gt;</code> exposes multiple time series during a scrape:</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p><strong><em>cumulative counters</em></strong> for the observation buckets, exposed as <code>&lt;basename&gt;_bucket{le="&lt;upper inclusive bound&gt;"}</code></p>
+</li>
+<li>
+<p>the <strong><em>total sum</em></strong> of all observed values, exposed as <code>&lt;basename&gt;_sum</code></p>
+</li>
+<li>
+<p>the <strong><em>count of events</em></strong> that have been observed, exposed as <code>&lt;basename&gt;_count</code> (identical to <code>&lt;basename&gt;_bucket{le="+Inf"}</code> above)</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Summary</strong></p>
+<div class="paragraph">
+<p>Similar to a <em>histogram</em>, a <strong><em>summary</em></strong> samples observations (usually things like request durations and response sizes). While it also provides a total count of observations and a sum of all observed values, it calculates configurable quantiles over a sliding time window.</p>
+</div>
+<div class="paragraph">
+<p>A summary with a base metric name of <code>&lt;basename&gt;</code> exposes multiple time series during a scrape:</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>streaming <strong><em>φ-quantiles</em></strong> (0 ≤ φ ≤ 1) of observed events, exposed as <code>&lt;basename&gt;{quantile="&lt;φ&gt;"}</code></p>
+</li>
+<li>
+<p>the <strong><em>total sum</em></strong> of all observed values, exposed as <code>&lt;basename&gt;_sum</code></p>
+</li>
+<li>
+<p>the <strong><em>count of events</em></strong> that have been observed, exposed as <code>&lt;basename&gt;_count</code></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="promql">2.2. PromQL</h3>
+<div class="paragraph">
+<p>Prometheus provides a functional query language called <strong>PromQL</strong> (Prometheus Query Language) that lets the user select and aggregate time series data in real time.</p>
+</div>
+<div class="paragraph">
+<p>In Prometheus&#8217;s expression language, an expression or sub-expression can evaluate to one of four types:</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Instant vector</strong> - a set of time series containing a single sample for each time series, all sharing the same timestamp</p>
+</li>
+<li>
+<p><strong>Range vector</strong> - a set of time series containing a range of data points over time for each time series</p>
+</li>
+<li>
+<p><strong>Scalar</strong> - a simple numeric floating point value</p>
+</li>
+<li>
+<p><strong>String</strong> - a simple string value; currently unused</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="instant-vector-selectors">2.2.1. Instant vector selectors</h4>
+<div class="paragraph">
+<p>Instant vector selectors allow the selection of a set of time series and a single sample value for each at a given timestamp (instant): in the simplest form, only a metric name is specified. This results in an instant vector containing elements for all time series that have this metric name.</p>
+</div>
+<div class="paragraph">
+<p>This example selects all time series that have the http_requests_total metric name:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="promql">http_requests_total</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is possible to filter these time series further by appending a comma separated list of label matchers in curly braces (<code>{}</code>).</p>
+</div>
+<div class="paragraph">
+<p>This example selects only those time series with the <code>http_requests_total</code> metric name that also have the <code>job</code> label set to <code>prometheus</code> and their <code>group</code> label set to <code>canary</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="promql">http_requests_total{job="prometheus",group="canary"}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is also possible to negatively match a label value, or to match label values against regular expressions. The following label matching operators exist:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>=</strong>: Select labels that are exactly equal to the provided string.</p>
+</li>
+<li>
+<p><strong>!=</strong>: Select labels that are not equal to the provided string.</p>
+</li>
+<li>
+<p><strong>=~</strong>: Select labels that regex-match the provided string.</p>
+</li>
+<li>
+<p><strong>!~</strong>: Select labels that do not regex-match the provided string.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For example, this selects all <code>http_requests_total</code> time series for <code>staging</code>, <code>testing</code>, and <code>development</code> environments and HTTP methods other than <code>GET</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="promql">http_requests_total{environment=~"staging|testing|development",method!="GET"}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Label matchers can also be applied to metric names by matching against the internal <code><em>name</em></code> label. For example, the expression <code>http_requests_total</code> is equivalent to <code>{<em>name</em>="http_requests_total"}</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="range-vector-selectors">2.2.2. Range Vector Selectors</h4>
+<div class="paragraph">
+<p>Range vector literals work like instant vector literals, except that they select a range of samples back from the current instant. Syntactically, a time duration is appended in square brackets (<code>[]</code>) at the end of a vector selector to specify how far back in time values should be fetched for each resulting range vector element.</p>
+</div>
+<div class="paragraph">
+<p>In this example, we select all the values we have recorded within the last 5 minutes for all time series that have the metric name <code>http_requests_total</code> and a <code>job</code> label set to <code>prometheus</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="promql">http_requests_total{job="prometheus"}[5m]</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="federation">2.3. Federation</h3>
+<div class="paragraph">
+<p><strong>Federation</strong> allows a Prometheus server to scrape selected time series from another Prometheus server.</p>
+</div>
+<div class="paragraph">
+<p>On any given Prometheus server, the <code>/federate</code> endpoint allows retrieving the current value for a selected set of time series in that server. At least one <code>match[]</code> URL parameter must be specified to select the series to expose. Each <code>match[]</code> argument needs to specify an instant vector selector like <code>up</code> or <code>{job="api-server"}</code>. If multiple <code>match[]</code> parameters are provided, the union of all matched series is selected.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-XGET</span> <span class="nt">-G</span> <span class="se">\</span>
+<span class="go">    --data-urlencode 'match[]={job="kubernetes-endpoints", namespace="ingress-nginx"}' \
+    https://prometheus.local.io/federate</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To federate metrics from one server to another, configure your destination Prometheus server to scrape from the <code>/federate</code> endpoint of a source server, while also enabling the <code>honor_labels</code> scrape option and passing in the desired <code>match[]</code> parameters.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="http-api">2.4. HTTP API</h3>
+<div class="paragraph">
+<p>The following endpoint returns an overview of the current state of the Prometheus target discovery:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">GET /api/v1/targets</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Both the active and dropped targets are part of the response by default. <code>labels</code> represents the label set after relabelling has occurred. <code>discoveredLabels</code> represent the unmodified labels retrieved during service discovery before relabelling has occurred.</p>
+</div>
+<div class="paragraph">
+<p>The <code>state</code> query parameter allows the caller to filter by active or dropped targets, (e.g., <code>state=active</code>, <code>state=dropped</code>, <code>state=any</code>). Note that an empty array is still returned for targets that are filtered out. Other values are ignored.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-s</span> localhost:9090/api/v1/targets | jq
+<span class="go">{
+  "status": "success",
+  "data": {
+    "activeTargets": [
+      {
+        "discoveredLabels": {
+          "__address__": "localhost:9090",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "15s",
+          "__scrape_timeout__": "10s",
+          "job": "prometheus"
+        },
+        "labels": {
+          "instance": "localhost:9090",
+          "job": "prometheus"
+        },
+        "scrapePool": "prometheus",
+        "scrapeUrl": "http://localhost:9090/metrics",
+        "globalUrl": "http://node-01:9090/metrics",
+        "lastError": "",
+        "lastScrape": "2021-12-09T14:35:32.832227246+08:00",
+        "lastScrapeDuration": 0.004144766,
+        "health": "up",
+        "scrapeInterval": "15s",
+        "scrapeTimeout": "10s"
+      }
+    ],
+    "droppedTargets": []
+  }
+}</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="local-storage">2.5. Local Storage</h3>
+<div class="paragraph">
+<p>Prometheus includes a local on-disk time series database, but also optionally integrates with remote storage systems.</p>
+</div>
+<div class="paragraph">
+<p>Prometheus&#8217;s local time series database stores data in a custom, highly efficient format on local storage.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Ingested samples are grouped into blocks of two hours.</p>
+</li>
+<li>
+<p>Each two-hour block consists of a directory containing a <strong><em>chunks</em></strong> subdirectory containing all the time series samples for that window of time, a <strong><em>metadata</em></strong> file, and an <strong><em>index</em></strong> file (which indexes metric names and labels to time series in the chunks directory).</p>
+</li>
+<li>
+<p>The samples in the chunks directory are grouped together into one or more segment files of up to 512MB each by default.</p>
+</li>
+<li>
+<p>When series are deleted via the API, deletion records are stored in separate <strong><em>tombstone</em></strong> files (instead of deleting the data immediately from the chunk segments).</p>
+</li>
+<li>
+<p>The current block for incoming samples is kept in memory and is not fully persisted.</p>
+</li>
+<li>
+<p>It is secured against crashes by a write-ahead log (<strong>WAL</strong>) that can be <strong><em>replayed</em></strong> when the Prometheus server restarts.</p>
+</li>
+<li>
+<p>Write-ahead log files are stored in the <strong><em>wal</em></strong> directory in 128MB segments.</p>
+</li>
+<li>
+<p>These files contain raw data that has not yet been compacted; thus they are significantly larger than regular block files.</p>
+</li>
+<li>
+<p>Prometheus will retain a minimum of three write-ahead log files.</p>
+</li>
+<li>
+<p>High-traffic servers may retain more than three WAL files in order to keep at least two hours of raw data.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A Prometheus server&#8217;s data directory looks something like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">./data
+├── 01BKGV7JBM69T2G1BGBGM6KB12
+│   └── meta.json
+├── 01BKGTZQ1SYQJTR4PB43C8PD98
+│   ├── chunks
+│   │   └── 000001
+│   ├── tombstones
+│   ├── index
+│   └── meta.json
+├── 01BKGTZQ1HHWHV8FBJXW1Y3W0K
+│   └── meta.json
+├── 01BKGV7JC0RY8A6MACW02A2PJD
+│   ├── chunks
+│   │   └── 000001
+│   ├── tombstones
+│   ├── index
+│   └── meta.json
+├── chunks_head
+│   └── 000001
+└── wal
+    ├── 000000002
+    └── checkpoint.00000001
+        └── 00000000</span></code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="title">Write-ahead logging (WAL)</div>
+<div class="paragraph">
+<p>In computer science, <strong>write-ahead logging (WAL)</strong> is a family of techniques for providing <a href="https://en.wikipedia.org/wiki/Atomicity_(database_systems)">atomicity</a> and <a href="https://en.wikipedia.org/wiki/Durability_(database_systems)">durability</a> (two of the <a href="https://en.wikipedia.org/wiki/ACID">ACID</a> properties) in <a href="https://en.wikipedia.org/wiki/Database_system">database systems</a>. The changes are first recorded in the log, which must be written to stable storage, before the changes are written to the database.</p>
+</div>
+<div class="paragraph">
+<p>In a system using WAL, all modifications are written to a <a href="https://en.wikipedia.org/wiki/Database_log">log</a> before they are applied. Usually both redo and undo information is stored in the log.</p>
+</div>
+<div class="paragraph">
+<p>The purpose of this can be illustrated by an example. Imagine a program that is in the middle of performing some operation when the machine it is running on loses power. Upon restart, that program might need to know whether the operation it was performing succeeded, succeeded partially, or failed. If a write-ahead log is used, the program can check this log and compare what it was supposed to be doing when it unexpectedly lost power to what was actually done. On the basis of this comparison, the program could decide to undo what it had started, complete what it had started, or keep things as they are.</p>
+</div>
+<div class="paragraph">
+<p>WAL allows updates of a database to be done <a href="https://en.wikipedia.org/wiki/In-place_algorithm">in-place</a>. Another way to implement atomic updates is with <a href="https://en.wikipedia.org/wiki/Shadow_paging">shadow paging</a>, which is not in-place. The main advantage of doing updates in-place is that it reduces the need to modify indexes and block lists.</p>
+</div>
+<div class="paragraph">
+<p>ARIES is a popular algorithm in the WAL family.</p>
+</div>
+<div class="paragraph">
+<p>Modern <a href="https://en.wikipedia.org/wiki/File_system">file systems</a> typically use a variant of WAL for at least file system <a href="https://en.wikipedia.org/wiki/Metadata">metadata</a>; this is called <a href="https://en.wikipedia.org/wiki/Journaling_file_system">journaling</a>.</p>
+</div>
+<div class="paragraph">
+<p>ref: <a href="https://en.wikipedia.org/wiki/Write-ahead_logging" class="bare">https://en.wikipedia.org/wiki/Write-ahead_logging</a></p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">3. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Time_series" class="bare">https://en.wikipedia.org/wiki/Time_series</a></p>
+</li>
+<li>
+<p><a href="https://grafana.com/docs/grafana/latest/basics/timeseries/" class="bare">https://grafana.com/docs/grafana/latest/basics/timeseries/</a></p>
+</li>
+<li>
+<p><a href="https://prometheus.io/docs/concepts/data_model/" class="bare">https://prometheus.io/docs/concepts/data_model/</a></p>
+</li>
+<li>
+<p><a href="https://prometheus.io/docs/prometheus/latest/querying/basics/" class="bare">https://prometheus.io/docs/prometheus/latest/querying/basics/</a></p>
+</li>
+<li>
+<p><a href="https://techannotation.wordpress.com/2021/07/19/irate-vs-rate-whatre-they-telling-you/" class="bare">https://techannotation.wordpress.com/2021/07/19/irate-vs-rate-whatre-they-telling-you/</a></p>
+</li>
+<li>
+<p><a href="https://prometheus.io/docs/prometheus/latest/federation/" class="bare">https://prometheus.io/docs/prometheus/latest/federation/</a></p>
+</li>
+<li>
+<p><a href="https://prometheus.io/docs/prometheus/latest/storage/" class="bare">https://prometheus.io/docs/prometheus/latest/storage/</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Write-ahead_logging" class="bare">https://en.wikipedia.org/wiki/Write-ahead_logging</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/11/29/device-mapper-and-linux-lvm/">&laquo; Device Mapper and Linux LVM</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/12/09/pause-container-kubernetes/">What is pause container in Kubernetes &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

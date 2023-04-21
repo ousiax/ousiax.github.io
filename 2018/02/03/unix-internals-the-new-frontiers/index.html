@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Unix Internals: The New Frontiers</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2018/02/03/unix-internals-the-new-frontiers/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Unix Internals: The New Frontiers</h1>
+    
+    
+    <p class="post-meta"><time datetime="2018-02-03T15:14:37+08:00" itemprop="datePublished">Feb 3, 2018</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#进程与内核" id="markdown-toc-进程与内核">进程与内核</a>    <ul>
+      <li><a href="#21-简介" id="markdown-toc-21-简介">2.1 简介</a></li>
+      <li><a href="#22-模式空间和上下文" id="markdown-toc-22-模式空间和上下文">2.2 模式、空间和上下文</a></li>
+      <li><a href="#23-进程抽象" id="markdown-toc-23-进程抽象">2.3 进程抽象</a></li>
+      <li><a href="#24-执行在内核态中" id="markdown-toc-24-执行在内核态中">2.4 执行在内核态中</a></li>
+      <li><a href="#25-同步" id="markdown-toc-25-同步">2.5 同步</a></li>
+      <li><a href="#26-进程调度" id="markdown-toc-26-进程调度">2.6 进程调度</a></li>
+      <li><a href="#27-信号" id="markdown-toc-27-信号">2.7 信号</a></li>
+      <li><a href="#28-新的进程和程序" id="markdown-toc-28-新的进程和程序">2.8 新的进程和程序</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="进程与内核">进程与内核</h3>
+
+<hr />
+
+<h4 id="21-简介">2.1 简介</h4>
+
+<ul>
+  <li>
+    <p>操作系统的主要功能是为用户程序（应用程序）提供可以运行的执行环境。这包括程序的执行定义的一个基本框架，并提供一整套服务（例如文件管理和I/O）和这些服务的接口（interface）。</p>
+  </li>
+  <li>
+    <p>UNIX 应用程序环境包含一个基本抽象——进程（process）。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">进程 (process)</code> <code class="language-plaintext highlighter-rouge">地址空间 (address space)</code> <code class="language-plaintext highlighter-rouge">指令系列</code> <code class="language-plaintext highlighter-rouge">进程控制点 (control point)</code> <code class="language-plaintext highlighter-rouge">程序计数器 (program counter, PC)</code> <code class="language-plaintext highlighter-rouge">硬件寄存器</code> <code class="language-plaintext highlighter-rouge">多个控制点 [线程 (thread)]</code></p>
+  </li>
+  <li>
+    <p>UNIX 系统是一个多道编程环境（multiprogramming environment），即几个进程可以并发地在系统中活动。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">多道编程环境 (multiprogramming environment)</code> <code class="language-plaintext highlighter-rouge">虚拟机 (virtual machine)</code> <code class="language-plaintext highlighter-rouge">寄存器</code> <code class="language-plaintext highlighter-rouge">内存</code> <code class="language-plaintext highlighter-rouge">I/O</code></p>
+  </li>
+  <li>
+    <p>进程的地址空间是虚拟的，并且通常只有部分地址空间与物理内存的位置对应。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">进程(虚拟)地址空间</code> <code class="language-plaintext highlighter-rouge">物理内存</code> <code class="language-plaintext highlighter-rouge">磁盘</code> <code class="language-plaintext highlighter-rouge">交换区 (swap area)</code> <code class="language-plaintext highlighter-rouge">存页 (page, 固定大小的块)</code></p>
+  </li>
+  <li>
+    <p>每个进程都有一组寄存器，对应于实际的硬件寄存器。</p>
+
+    <p>系统中会有很多活动进程，但只有一组硬件寄存器。</p>
+
+    <p>内核将当前正在运行的进程的寄存器内容保存到硬件寄存器中，而将其他进程的寄存器内容保存在每个进程的数据结构中。</p>
+  </li>
+  <li>
+    <p>进程之间会争用系统的各类资源，如处理器（又称中央处理器或 CPU），内存和外围设备。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">阻塞 (block) (暂停执行)</code> <code class="language-plaintext highlighter-rouge">配额 (quantum) 10ms</code> <code class="language-plaintext highlighter-rouge">时间片 (time-slicing)</code></p>
+  </li>
+  <li>
+    <p>内核是一个特殊的程序，可以直接运行在设备上。它实现了进程模型和其他系统服务。</p>
+
+    <ul>
+      <li>内核驻留在磁盘的一个文件中，通常是 <em>/vmunix</em> 或 <em>/unix</em> （取决于具体的 UNIX 厂商）。</li>
+      <li>当系统启动时，使用称为<code class="language-plaintext highlighter-rouge">引导 (bootstrapping)</code> 的特殊过程 (procedure) 从磁盘上加载内核。</li>
+      <li>接着，内核初始化系统，为进程运行设置环境。</li>
+      <li>然后，创建几个初始进程，这些进程随后依次创建其他进程。</li>
+      <li>一旦加载完成，内核会一直驻留在内存中，直到系统关闭。</li>
+      <li>它管理着所有的进程，为进程提供各种服务。</li>
+    </ul>
+  </li>
+  <li>
+    <p>UNIX 操作系统从四个方面来提供功能：</p>
+    <ul>
+      <li>用户进程显示地通过系统调用接口向内核请求服务，<code class="language-plaintext highlighter-rouge">系统调用接口 (system call interface)</code> 是 UNIX API 的核心组成部分。
+        <ul>
+          <li>内核代表调用进程 (calling process) 来执行这些请求。</li>
+        </ul>
+      </li>
+      <li>进程的一些不寻常动作，例如试图除以零，或者用户栈 (user stack) 溢出，会引起<code class="language-plaintext highlighter-rouge">硬件异常 (hardware exception)</code>。
+        <ul>
+          <li>异常需要内核的干预，由内核代表进程来处理它们。</li>
+        </ul>
+      </li>
+      <li>内核处理来自外围设备的硬件<code class="language-plaintext highlighter-rouge">中断 (interrupt)</code>。
+        <ul>
+          <li>设备使用中断机制来通知内核 I/O 的完成和状态变化。</li>
+          <li>内核将中断视为全局事件，与任何指定的进程都没有关联。</li>
+        </ul>
+      </li>
+      <li>一组特殊的系统进程，像 swapper 和 pagedaemon 会执行系统级别的任务，如控制活动进程的数目和维持一个空闲的内存池。</li>
+    </ul>
+  </li>
+</ul>
+
+<hr />
+
+<h4 id="22-模式空间和上下文">2.2 模式、空间和上下文</h4>
+
+<p><code class="language-plaintext highlighter-rouge">执行模式 (execution mode)</code> <code class="language-plaintext highlighter-rouge">内核态 (kernel mode)</code> <code class="language-plaintext highlighter-rouge">用户态 (user mode)</code> <code class="language-plaintext highlighter-rouge">执行等级 (ring of execution)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">虚拟内存 (virtual memory)</code> <code class="language-plaintext highlighter-rouge">虚拟地址空间 (virtual address space)</code> <code class="language-plaintext highlighter-rouge">地址转换映射表 (address translation table)</code> <code class="language-plaintext highlighter-rouge">页表 (page table)</code> <code class="language-plaintext highlighter-rouge">页 (page, 一种固定大小的内存分配和保护单元)</code> <code class="language-plaintext highlighter-rouge">内存管理单元 (memory management unit, MMU)</code> <code class="language-plaintext highlighter-rouge">当前进程</code> <code class="language-plaintext highlighter-rouge">上下文切换 (context switch)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">系统空间 (system space)</code> <code class="language-plaintext highlighter-rouge">内核空间 (kernel space)</code> <code class="language-plaintext highlighter-rouge">全局数据结构</code> <code class="language-plaintext highlighter-rouge">每进程 (per-process) 对象</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">系统调用 (system call)</code> <code class="language-plaintext highlighter-rouge">模式切换 (mode switch)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">u 区 (u area, 也称为用户区，user area)</code> <code class="language-plaintext highlighter-rouge">内核栈 (kernel stack)</code> <code class="language-plaintext highlighter-rouge">可重入 (re-entrant)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">执行上下文 (execution context)</code> <code class="language-plaintext highlighter-rouge">进程上下文 (process context)</code> <code class="language-plaintext highlighter-rouge">系统上下文 (system context)</code> <code class="language-plaintext highlighter-rouge">中断上下文 (interrupt context)</code></p>
+
+<ul>
+  <li>用户代码在用户态和进程上下文中运行，但只能访问进程空间。</li>
+  <li>系统调用和异常在内核态中，但在进程上下文中被处理，可以访问进程空间和系统空间。</li>
+  <li>中断在内核态和系统上下文中处理，只能访问系统空间。</li>
+</ul>
+
+<hr />
+
+<h4 id="23-进程抽象">2.3 进程抽象</h4>
+
+<ul>
+  <li>
+    <p>进程就是一个实体，运行一个程序并为它提供一个可以执行的环境。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">fork</code> <code class="language-plaintext highlighter-rouge">vfork</code> <code class="language-plaintext highlighter-rouge">exit</code> <code class="language-plaintext highlighter-rouge">exec</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">父进程 (parent)</code> <code class="language-plaintext highlighter-rouge">子进程 (child)</code> <code class="language-plaintext highlighter-rouge">系统进程/守护程序</code> <code class="language-plaintext highlighter-rouge">孤儿进程 (orphan)</code></p>
+  </li>
+  <li>
+    <p>不论什么时候，UNIX 进程总是会处于某一明确定义的<code class="language-plaintext highlighter-rouge">状态 (state)</code>。进程会在对各种事件的响应中，从一个状态转移到另外一个状态。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">fork()</code> <code class="language-plaintext highlighter-rouge">初始 (initial) (也称为空闲 (idle)) 状态</code> <code class="language-plaintext highlighter-rouge">就绪 (ready to run) 状态</code> <code class="language-plaintext highlighter-rouge">上下文切换: swtch()</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">用户运行态</code> <code class="language-plaintext highlighter-rouge">系统运行态</code> <code class="language-plaintext highlighter-rouge">sleep()</code> <code class="language-plaintext highlighter-rouge">睡眠 (alseep) 状态</code> <code class="language-plaintext highlighter-rouge">进程队列</code> <code class="language-plaintext highlighter-rouge">内核运行 (kernel running)</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">exit()</code> <code class="language-plaintext highlighter-rouge">信号 (signal, 信号是由内核所发出的通知)</code> <code class="language-plaintext highlighter-rouge">退出状态 (exit status)</code> <code class="language-plaintext highlighter-rouge">资源使用情况 (resource usage)</code> <code class="language-plaintext highlighter-rouge">僵死 (zombie) 状态</code> <code class="language-plaintext highlighter-rouge">wait()</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">SIGSTOP</code> <code class="language-plaintext highlighter-rouge">SIGTSTP</code> <code class="language-plaintext highlighter-rouge">SIGTIN</code> <code class="language-plaintext highlighter-rouge">SIGTTOUT</code> <code class="language-plaintext highlighter-rouge">停止 (stop) 或 挂起 (suspend) 状态</code> <code class="language-plaintext highlighter-rouge">停止 (stopped)</code> <code class="language-plaintext highlighter-rouge">SIGCONT</code> <code class="language-plaintext highlighter-rouge">停止态 + 睡眠态</code></p>
+  </li>
+  <li>
+    <p>每个进程有一个明确定义的上下文，包含那些描述进程时所需的所有信息。</p>
+
+    <ul>
+      <li>
+        <p><strong>用户地址空间</strong> (user address space)</p>
+
+        <p><code class="language-plaintext highlighter-rouge">程序代码 (可执行代码)</code> <code class="language-plaintext highlighter-rouge">数据</code> <code class="language-plaintext highlighter-rouge">用户栈</code> <code class="language-plaintext highlighter-rouge">共享内存区</code></p>
+      </li>
+      <li>
+        <p><strong>控制信息</strong> (control information)</p>
+
+        <p><code class="language-plaintext highlighter-rouge">u 区</code> <code class="language-plaintext highlighter-rouge">proc 结构</code> <code class="language-plaintext highlighter-rouge">内核栈</code> <code class="language-plaintext highlighter-rouge">地址转换映射表</code></p>
+      </li>
+      <li>
+        <p><strong>凭据</strong> (credential)</p>
+
+        <p><code class="language-plaintext highlighter-rouge">UID</code> <code class="language-plaintext highlighter-rouge">GID</code></p>
+      </li>
+      <li>
+        <p><strong>环境变量</strong> (environemnt variables)</p>
+
+        <p>当调用一个新进程时，调用者可以请求 <code class="language-plaintext highlighter-rouge">exec</code> 保留原始环境变量（从父进程继承而来的）或者提供一组新的变量来代替。</p>
+      </li>
+      <li>
+        <p><strong>硬件上下文</strong> (hardware context)  <code class="language-plaintext highlighter-rouge">进程控制块 (process control block), PCB</code></p>
+        <ul>
+          <li>程序计数寄存器 (program counter, PC)</li>
+          <li>堆栈指针寄存器 (stack pointer, SP)</li>
+          <li>状态标志寄存器 (processor status word, PSW)</li>
+          <li>内存管理寄存器 (memory management registers)</li>
+          <li>浮点运算单元 (floating point unit, FPU) 寄存器</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>在系统中的每个用户都有一个唯一的编号，称为“用户 ID” 或 UID 以及所属的一个或多个用户组，每组拥有一个唯一的用户组 ID 或 GID。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">凭据 (credential)</code> <code class="language-plaintext highlighter-rouge">超级用户 (superuser), root</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">setuid()</code> <code class="language-plaintext highlighter-rouge">setgid()</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">保存的 (saved) UID</code> <code class="language-plaintext highlighter-rouge">保存的 GID</code> <code class="language-plaintext highlighter-rouge">附加组 (supplemental group)</code> <code class="language-plaintext highlighter-rouge">setgroups()</code> <code class="language-plaintext highlighter-rouge">主组 (primary group)</code></p>
+
+    <ul>
+      <li>每个进程有两对 ID：实际的（real）ID 和有效的（effective）ID。</li>
+      <li>有效的 UID 和有效的 GID 影响力文件的创建和访问。
+        <ul>
+          <li>在文件创建期间，内核将文件的拥有者设置为正常创建文件的进程的有效 UID 和 GID。</li>
+          <li>在文件访问期间，内核使用进程的有效 UID 和 GID 来决定它是否可以访问该文件。</li>
+        </ul>
+      </li>
+      <li>实际的 UID 和实际的 GID 标识了进程的实际拥有者，影响发送信号的权限。
+        <ul>
+          <li>非超级用户权限的进程发送信号给另外一个进程时，只能在发送者的实际或有效 UID 与接收者的 UID 匹配时才可以发送。</li>
+        </ul>
+      </li>
+      <li>如果一个进程调用 <code class="language-plaintext highlighter-rouge">exec</code> 来运行处于 <code class="language-plaintext highlighter-rouge">suid</code> 模式的程序，内核会将进程的有效 UID 改为文件所有者的有效 UID。同样，如果程序是 <code class="language-plaintext highlighter-rouge">sgid</code> 模式，内核会改变调用进程的有效 GID。</li>
+    </ul>
+  </li>
+  <li>
+    <p>有关进程的控制信息保存在两个每进程的数据结构中：u 区和 proc 结构。</p>
+
+    <p><code class="language-plaintext highlighter-rouge">进程表 (process table)</code> <code class="language-plaintext highlighter-rouge">用户空间</code> <code class="language-plaintext highlighter-rouge">系统空间</code></p>
+
+    <ul>
+      <li>在很多实现上，内核有一个固定大小的 proc 结构数组，称为<code class="language-plaintext highlighter-rouge">进程表 (process table)</code>。
+        <ul>
+          <li>数组的大小严格限制了可以存在的进程最大数目。</li>
+          <li>由于 proc 结构是在系统空间里，所以任何时候 proc 结构对内核都是可见，即便在进程没有运行时。</li>
+        </ul>
+      </li>
+      <li>而 u 区或者用户区是进程空间的一部分，也就是说，只有进程运行时它才会被映射，才是可见的。
+        <ul>
+          <li>很多实现中，u 区总是被映射到每个进程里相同的固定虚拟地址上，内核可以简单的通过变量 u 进行引用。</li>
+          <li>上下文切换的其中一个任务就是重置该映射，以便内核在引用变量 u 时能够转换到新的 u qu的物理位置上。</li>
+        </ul>
+      </li>
+      <li>u 区只包含进程运行时所需的数据
+        <ul>
+          <li>进程控制块：存放进程来运行时已经保存的硬件上下文内容</li>
+          <li>指向该进程 proc 结构的指针</li>
+          <li>实际和有效的 UID 和 GID</li>
+          <li>传给当前系统调用的参数和从当前系统调用的返回值或者错误状态</li>
+          <li>信号处理函数（signal handler）和相关信息</li>
+          <li>来自程序头部的信息，如代码（text）、数据（data）、栈大小，以及其他内存管理信息</li>
+          <li>打开的文件描述符表</li>
+          <li>指向当前路径（current directory）和控制终端（controlling terminal）的 vnode 指针</li>
+          <li>CPU 的使用统计，profiling 信息，磁盘配额和资源限制</li>
+        </ul>
+      </li>
+      <li>proc 结构包含了那些即使进程没有运行但也可能需要的信息
+        <ul>
+          <li>标识（identification）：每个进程有一个唯一的进程 ID （PID），属于特定的某进程组</li>
+          <li>与该进程 u 区映射的内核地址转换表（kernel address map）的位置</li>
+          <li>当前进程状态</li>
+          <li>前向指针和后向指针，将进程链接到调度队列，或将阻塞的进程链接到睡眠队列</li>
+          <li>阻塞进程的睡眠通道</li>
+          <li>调度优先级和相关信息</li>
+          <li>信号处理信息：将要被忽略、阻塞、发送（post）和处理的信号的屏蔽字（mask）</li>
+          <li>内存管理信息</li>
+          <li>将该结构链接到活动、空闲或者僵死进程链表的指针</li>
+          <li>一些杂项标志</li>
+          <li>让该结构继续处于下一个以 PID 为 key 的散列队列（hash queue）中的指针</li>
+          <li>层次体系结构，描述了该进程与其他进程之间的关系</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+</ul>
+
+<h4 id="24-执行在内核态中">2.4 执行在内核态中</h4>
+
+<ul>
+  <li>设备中断、异常、陷入或软件中断 <code class="language-plaintext highlighter-rouge">分发表 (dispatch table)</code>
+    <ul>
+      <li>中断是由像磁盘、终端或硬件时钟等外围设备引发的异步事件
+        <ul>
+          <li>中断不是由当前进程引发的，他们必须在系统上下文中处理，不能访问进程的地址空间和 u 区</li>
+          <li>
+            <p>硬件中断的主要功能是允许外围设备与 CPU 交互，来通告 CPU 任务的完成、错误状况，或者其他需要紧急关注的事件</p>
+
+            <p><code class="language-plaintext highlighter-rouge">中断处理函数 (interrupt handler)</code> <code class="language-plaintext highlighter-rouge">中断服务例程 (interrupt server routine)</code></p>
+
+            <p><code class="language-plaintext highlighter-rouge">时间片 (time slice)</code> <code class="language-plaintext highlighter-rouge">时钟中断处理函数 (clock interrupt handler)</code> <code class="language-plaintext highlighter-rouge">时钟 tick</code> <code class="language-plaintext highlighter-rouge">proc 结构</code></p>
+
+            <p><code class="language-plaintext highlighter-rouge">软中断或陷入</code></p>
+
+            <p><code class="language-plaintext highlighter-rouge">中断优先级 (interrupt priority level, ipl)</code> <code class="language-plaintext highlighter-rouge">状态标志寄存器</code></p>
+
+            <p><code class="language-plaintext highlighter-rouge">中断栈 (interrupt stack)</code> <code class="language-plaintext highlighter-rouge">内核栈 (kernel stack)</code> <code class="language-plaintext highlighter-rouge">上下文层 (context layer)</code></p>
+          </li>
+        </ul>
+      </li>
+      <li>异常对进程而言是同步的，是进程自己的相关事件引发的，比如试图除以零或者访问非法地址
+        <ul>
+          <li>异常的处理例程运行在进程上下文中，可以访问进程的地址空间和进程的 u 区，必要时还会被阻塞</li>
+        </ul>
+      </li>
+      <li>
+        <p>软件中断，或者陷入，在进程执行特殊的指令时发生，如系统调用，而且也是在进程上下文中同步处理的</p>
+
+        <p><code class="language-plaintext highlighter-rouge">标准 C 库</code> <code class="language-plaintext highlighter-rouge">封装例程 (wrapper routine)</code> <code class="language-plaintext highlighter-rouge">陷入 (trap) 指令: syscall/chmk/trap</code> <code class="language-plaintext highlighter-rouge">内核态</code> <code class="language-plaintext highlighter-rouge">syscall()</code></p>
+
+        <p><code class="language-plaintext highlighter-rouge">用户栈</code> <code class="language-plaintext highlighter-rouge">u 区</code> <code class="language-plaintext highlighter-rouge">硬件上下文</code> <code class="language-plaintext highlighter-rouge">内核栈</code> <code class="language-plaintext highlighter-rouge">调用编号</code> <code class="language-plaintext highlighter-rouge">分发向量</code> <code class="language-plaintext highlighter-rouge">sysent()</code> <code class="language-plaintext highlighter-rouge">内核函数</code> <code class="language-plaintext highlighter-rouge">用户态</code></p>
+      </li>
+    </ul>
+  </li>
+</ul>
+
+<h4 id="25-同步">2.5 同步</h4>
+
+<ul>
+  <li>UNIX 内核是可重入的。<code class="language-plaintext highlighter-rouge">不可抢占的（nonpreemptive）</code> <code class="language-plaintext highlighter-rouge">阻塞操作</code> <code class="language-plaintext highlighter-rouge">中断</code> <code class="language-plaintext highlighter-rouge">多处理器</code></li>
+  <li>当进程进入睡眠状态等待资源可用或事件发生时，进程<code class="language-plaintext highlighter-rouge">阻塞(block)</code> 在资源或事件上</li>
+  <li>内核会临时进展中断或者信号的传送来<code class="language-plaintext highlighter-rouge">屏蔽 (block)</code> 它们</li>
+  <li>
+    <p>I/O 子系统已固定大小的<code class="language-plaintext highlighter-rouge">块 (block)</code> 来将数据传入或传出存储设备</p>
+
+    <p><code class="language-plaintext highlighter-rouge">阻塞操作 (blocking operation)</code> <code class="language-plaintext highlighter-rouge">睡眠状态</code> <code class="language-plaintext highlighter-rouge">标志位</code> <code class="language-plaintext highlighter-rouge">锁</code> <code class="language-plaintext highlighter-rouge">等待完成 (wanted) 标志</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">sleep()</code> <code class="language-plaintext highlighter-rouge">阻塞队列</code> <code class="language-plaintext highlighter-rouge">swtch()</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">wakeup()</code> <code class="language-plaintext highlighter-rouge">可运行的 (runable)</code> <code class="language-plaintext highlighter-rouge">调度队列</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">中断处理函数</code> <code class="language-plaintext highlighter-rouge">临界区 (critical region)</code></p>
+
+    <p><code class="language-plaintext highlighter-rouge">全局数据结构</code> <code class="language-plaintext highlighter-rouge">多处理器安全 (multiprocessor-safe)</code></p>
+  </li>
+</ul>
+
+<h4 id="26-进程调度">2.6 进程调度</h4>
+
+<p><code class="language-plaintext highlighter-rouge">CPU</code> <code class="language-plaintext highlighter-rouge">调度器 (scheduler)</code> <code class="language-plaintext highlighter-rouge">抢占式轮转调度策略 (preemptive round-robin scheduling)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">nice 值</code> <code class="language-plaintext highlighter-rouge">usage 因子</code> <code class="language-plaintext highlighter-rouge">进程饿死 (starvation)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">调度优先级</code> <code class="language-plaintext highlighter-rouge">内核优先级</code> <code class="language-plaintext highlighter-rouge">用户优先级</code> <code class="language-plaintext highlighter-rouge">睡眠优先级 (sleep priority)</code></p>
+
+<h4 id="27-信号">2.7 信号</h4>
+
+<ul>
+  <li>UNIX 使用<code class="language-plaintext highlighter-rouge">信号(singal)</code> 来通知进程异步事件的发生及异常处理</li>
+  <li>进程可以使用 <code class="language-plaintext highlighter-rouge">kill</code> 系统调用显式地向一个或多个进程发送信号</li>
+  <li>终端驱动程序响应某些按键和事件时，会向与终端关联的进程发送信号</li>
+  <li>内核生成信号来通知进程发生了硬件异常，或满足某种条件（如达到了配额）</li>
+  <li>进程并不会立即响应一个信号</li>
+</ul>
+
+<p><code class="language-plaintext highlighter-rouge">信号 (signal)</code> <code class="language-plaintext highlighter-rouge">SIGUSR1</code> <code class="language-plaintext highlighter-rouge">SIGUSR2</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">终止进程</code> <code class="language-plaintext highlighter-rouge">挂起进程</code> <code class="language-plaintext highlighter-rouge">忽略信号</code> <code class="language-plaintext highlighter-rouge">信号处理函数</code> ` 阻塞信号<code class="language-plaintext highlighter-rouge"> </code>信号屏蔽字`</p>
+
+<p><code class="language-plaintext highlighter-rouge">signal (System V)</code> <code class="language-plaintext highlighter-rouge">sigvec (BSD)</code> <code class="language-plaintext highlighter-rouge">sigaction (POSIX.1)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">中断睡眠</code> <code class="language-plaintext highlighter-rouge">siginterrupt</code></p>
+
+<h4 id="28-新的进程和程序">2.8 新的进程和程序</h4>
+
+<p><code class="language-plaintext highlighter-rouge">fork</code> <code class="language-plaintext highlighter-rouge">vfork</code> <code class="language-plaintext highlighter-rouge">exec</code> <code class="language-plaintext highlighter-rouge">exit</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">数据段</code> <code class="language-plaintext highlighter-rouge">栈区</code> <code class="language-plaintext highlighter-rouge">交换空间 (swap space)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">PID</code> <code class="language-plaintext highlighter-rouge">proc 结构</code> <code class="language-plaintext highlighter-rouge">UID</code> <code class="language-plaintext highlighter-rouge">GID</code> <code class="language-plaintext highlighter-rouge">进程组</code> <code class="language-plaintext highlighter-rouge">信号屏蔽字</code> <code class="language-plaintext highlighter-rouge">驻留时间</code> <code class="language-plaintext highlighter-rouge">CPU 使用情况</code> <code class="language-plaintext highlighter-rouge">睡眠通道</code> <code class="language-plaintext highlighter-rouge">PPID</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">地址转换映射表</code> <code class="language-plaintext highlighter-rouge">u 区</code> <code class="language-plaintext highlighter-rouge">共享资源</code> <code class="language-plaintext highlighter-rouge">硬件上下文</code> <code class="language-plaintext highlighter-rouge">调度器队列</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">写时复制 (copy-on-write)</code> <code class="language-plaintext highlighter-rouge">只读页</code> <code class="language-plaintext highlighter-rouge">写时复制标志</code> <code class="language-plaintext highlighter-rouge">缺页异常 (page fault)</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">vfork</code></p>
+
+<ul>
+  <li>进程的地址空间有几个基于功能划分的不同的组成部分
+    <ul>
+      <li>代码 (text) : 包含可执行代码，对应程序的代码区 (text section)</li>
+      <li>初始化数据 (initialized data): 历史上称为块静态存储 (block static storage, bss) 区，由已经声明但没有初始化的变量组成。在这个区的对象首次访问时，可以确保初始值为 0.因为在可执行文件保存多个 0 值的页是比较浪费的，程序头部简单地记录了该区域的总体大小，并依赖于操作系统为这些地址生成 0 值的页。</li>
+      <li>共享内存 (shared memory): 很多 UNIX 系统允许进程共享内存</li>
+      <li>共享库 (shared library): 如果系统支持动态链接库，进程可以包含几个独立的内存区，里面包含了可以被其他进程共享的库代码和数据</li>
+      <li>堆 (heap): 动态内存分配的源。进程通过 <code class="language-plaintext highlighter-rouge">brk</code> 或 <code class="language-plaintext highlighter-rouge">sbrk</code> 系统调用，或者使用标准 C 库里面的 <code class="language-plaintext highlighter-rouge">malloc</code> 从堆上分配内存。内核为每个进程提供了一个堆，并可以按需扩展</li>
+      <li>用户栈 (user stack): 内核为每个进程分配一个栈。在很多传统的 UNIX 实现里，内核可以透明地捕获栈溢出的异常，并将用户栈扩展到一个事先设定的最大值</li>
+    </ul>
+  </li>
+</ul>
+
+<p><code class="language-plaintext highlighter-rouge">SZOME (僵死)</code> <code class="language-plaintext highlighter-rouge">SIGCHLD 信号</code> <code class="language-plaintext highlighter-rouge">wait</code> <code class="language-plaintext highlighter-rouge">wait3</code> <code class="language-plaintext highlighter-rouge">waitpid</code> <code class="language-plaintext highlighter-rouge">waitid</code> <code class="language-plaintext highlighter-rouge">init 进程</code> <code class="language-plaintext highlighter-rouge">SA_NOCLDWAIT 标志</code></p>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/12/23/call-ret-x86-assembly/">&laquo; Calling Convention in x86 Assembly</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2018/03/30/setup-docker-engine-on-centos-offline/">Setup Docker Engine on Centos Offline &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

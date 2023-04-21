@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>TCP/IP: TCP Connection Management</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2023/01/10/tcp-ip-tcp-connection-management/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">TCP/IP: TCP Connection Management</h1>
+    
+    
+    <p class="post-meta"><time datetime="2023-01-10T10:14:59+08:00" itemprop="datePublished">Jan 10, 2023</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>TCP is a unicast <strong>connection-oriented</strong> protocol.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Before either end can send data to the other, a connection must be established between them.</p>
+</li>
+<li>
+<p>During connection establishment, several options can be exchanged between the two endpoints regarding the parameters of the connection.</p>
+</li>
+<li>
+<p>Some options are allowed to be sent only when the connection is established, and others can be sent later.</p>
+</li>
+<li>
+<p>Because of its management of <strong>connection state</strong> (information about the connection kept by both endpoints), TCP is a considerably more complicated protocol than UDP.</p>
+<div class="paragraph">
+<p>UDP is a <strong>connectionless</strong> protocol that involves no connection establishment or termination.</p>
+</div>
+<div class="paragraph">
+<p>One of the major differences between the two is the amount of detail required to handle the various TCP states properly: when connections are created, terminated normally, and reset without warning.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Recall that TCP&#8217;s service model is a byte stream. TCP detects and repairs essentially all the data transfer problems that may be introduced by packet loss, duplication, or errors at the IP layer (or below).</p>
+</div>
+</div>
+<div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#tcp-connection-establishment-and-termination">1. TCP Connection Establishment and Termination</a>
+<ul class="sectlevel2">
+<li><a href="#tcp-half-close">1.1. TCP Half-Close</a></li>
+<li><a href="#simultaneous-open-and-close">1.2. Simultaneous Open and Close</a></li>
+<li><a href="#initial-sequence-number-isn">1.3. Initial Sequence Number (ISN)</a></li>
+<li><a href="#example">1.4. Example</a></li>
+<li><a href="#timeout-of-connection-establishment">1.5. Timeout of Connection Establishment</a></li>
+</ul>
+</li>
+<li><a href="#tcp-options">2. TCP Options</a>
+<ul class="sectlevel2">
+<li><a href="#maximum-segment-size-mss-option">2.1. Maximum Segment Size (MSS) Option</a></li>
+<li><a href="#selective-acknowledgment-sack-options">2.2. Selective Acknowledgment (SACK) Options</a></li>
+<li><a href="#window-scale-wscale-or-wsopt-option">2.3. Window Scale (WSCALE or WSOPT) Option</a></li>
+<li><a href="#timestamps-option-and-protection-against-wrapped-sequence-numbers-paws">2.4. Timestamps Option and Protection against Wrapped Sequence Numbers (PAWS)</a></li>
+<li><a href="#user-timeout-uto-option">2.5. User Timeout (UTO) Option</a></li>
+<li><a href="#authentication-option-tcp-ao">2.6. Authentication Option (TCP-AO)</a></li>
+</ul>
+</li>
+<li><a href="#path-mtu-discovery-with-tcp">3. Path MTU Discovery with TCP</a></li>
+<li><a href="#tcp-state-transitions">4. TCP State Transitions</a>
+<ul class="sectlevel2">
+<li><a href="#time_wait-2msl-wait-state">4.1. TIME_WAIT (2MSL Wait) State</a></li>
+<li><a href="#quiet-time-concept">4.2. Quiet Time Concept</a></li>
+<li><a href="#fin_wait_2-state">4.3. FIN_WAIT_2 State</a></li>
+<li><a href="#simultaneous-open-and-close-transitions">4.4. Simultaneous Open and Close Transitions</a></li>
+</ul>
+</li>
+<li><a href="#reset-segments">5. Reset Segments</a>
+<ul class="sectlevel2">
+<li><a href="#connection-request-to-nonexistent-port">5.1. Connection Request to Nonexistent Port</a></li>
+<li><a href="#aborting-a-connection">5.2. Aborting a Connection</a></li>
+<li><a href="#tcp-reset-attack">5.3. TCP reset attack</a></li>
+<li><a href="#half-open-connections">5.4. Half-Open Connections</a></li>
+<li><a href="#time-wait-assassination-twa">5.5. TIME-WAIT Assassination (TWA)</a></li>
+</ul>
+</li>
+<li><a href="#tcp-server-operation">6. TCP Server Operation</a>
+<ul class="sectlevel2">
+<li><a href="#tcp-port-numbers">6.1. TCP Port Numbers</a></li>
+<li><a href="#restricting-local-ip-addresses">6.2. Restricting Local IP Addresses</a></li>
+<li><a href="#restricting-foreign-endpoints">6.3. Restricting Foreign Endpoints</a></li>
+<li><a href="#incoming-connection-queue">6.4. Incoming Connection Queue</a></li>
+</ul>
+</li>
+<li><a href="#tcp-syn-flood-dos-attack">7. TCP SYN flood DoS attack</a></li>
+<li><a href="#segmentation-offloading">Appendix A: Segmentation Offloading</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+</div>
+<div class="sect1">
+<h2 id="tcp-connection-establishment-and-termination">1. TCP Connection Establishment and Termination</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A TCP <strong><em>connection</em></strong> is defined to be a 4-tuple consisting of two IP addresses and two port numbers. More precisely, it is a pair of <em>endpoints</em> or <em>sockets</em> where each endpoint is identified by an (IP address, port number) pair.</p>
+</div>
+<div class="paragraph">
+<p>A connection typically goes through three phases: setup, data transfer (called <em>established</em>), and teardown (closing).</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-connection-establishment-and-termination.png" alt="A normal TCP connection establishment and termination" width="45%" height="45%">
+</div>
+<div class="title">Figure 1. A normal TCP connection establishment and termination (without any data transfer). Usually, the client initiates a three-way handshake to exchange initial sequence numbers carried on SYN segments for the client and server (ISN(c) and ISN(s), respectively). The connection terminates after each side has sent a FIN and received an acknowledgment for it.</div>
+</div>
+<div class="paragraph">
+<p>To establish a TCP connection, the following events usually take place:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The <strong><em>active opener</em></strong> (normally called the client) sends a SYN segment (i.e., a TCP/IP packet with the <em>SYN</em> bit field turned on in the TCP header) specifying the port number of the peer to which it wants to connect and the client&#8217;s initial sequence number or ISN(c).</p>
+<div class="paragraph">
+<p>It typically sends one or more options at this point.</p>
+</div>
+<div class="paragraph">
+<p>This is segment 1.</p>
+</div>
+</li>
+<li>
+<p>The server responds with its own SYN segment containing its initial sequence number (ISN(s)).</p>
+<div class="paragraph">
+<p>This is segment 2.</p>
+</div>
+<div class="paragraph">
+<p>The server also acknowledges the client&#8217;s SYN by ACKing ISN(c) plus 1.</p>
+</div>
+<div class="paragraph">
+<p>A SYN consumes one sequence number and is retransmitted if lost.</p>
+</div>
+</li>
+<li>
+<p>The client must acknowledge this SYN from the server by ACKing ISN(s) plus 1.</p>
+<div class="paragraph">
+<p>This is segment 3.</p>
+</div>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>These three segments complete the connection establishment. This is often called the <strong><em>three-way handshake</em></strong>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Its main purposes are to let each end of the connection know that a connection is starting and the special details that are carried as options, and to exchange the ISNs.</p>
+</li>
+<li>
+<p>The side that sends the first SYN is said to perform an <strong>active open</strong>. As mentioned, this is typically a client.</p>
+</li>
+<li>
+<p>The other side, which receives this SYN and sends the next SYN, performs a <strong>passive open</strong>. It is most commonly called the server.</p>
+</li>
+<li>
+<p>There is a supported but unusual <strong>simultaneous open</strong> when both sides can do an active open at the same time and become both clients and servers.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Either end can initiate a close operation, and simultaneous closes are also supported but are rare.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Traditionally, it was most common for the client to initiate a close.</p>
+</li>
+<li>
+<p>However, other servers (e.g., Web servers) initiate a close after they have completed a request.</p>
+</li>
+<li>
+<p>Usually a close operation starts with an application indicating its desire to terminate its connection (e.g., using the <code>close()</code> system call).</p>
+</li>
+<li>
+<p>The closing TCP initiates the close operation by sending a FIN segment (i.e., a TCP segment with the <em>FIN</em> bit field set).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The complete close operation occurs after both sides have completed the close:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The <strong>active closer</strong> sends a FIN segment specifying the current sequence number the receiver expects to see (<em>K</em>).</p>
+<div class="paragraph">
+<p>The FIN also includes an ACK for the last data sent in the other direction (labeled <em>L</em>).</p>
+</div>
+</li>
+<li>
+<p>The <strong>passive closer</strong> responds by ACKing value <em>K + 1</em> to indicate its successful receipt of the active closer&#8217;s FIN.</p>
+<div class="paragraph">
+<p>At this point, the application is notified that the other end of its connection has performed a close.</p>
+</div>
+<div class="paragraph">
+<p>Typically this results in the application initiating its own close operation.</p>
+</div>
+<div class="paragraph">
+<p>The passive closer then effectively becomes another active closer and sends its own FIN. The sequence number is equal to <em>L</em>.</p>
+</div>
+</li>
+<li>
+<p>To complete the close, the final segment contains an ACK for the last FIN.</p>
+<div class="paragraph">
+<p>Note that if a FIN is lost, it is retransmitted until an ACK for it is received.</p>
+</div>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>While it takes three segments to establish a connection, it takes four to terminate one.</p>
+</div>
+<div class="paragraph">
+<p>It is also possible for the connection to be in a <em>half-open</em> state, although this is not common. This reason is that TCP&#8217;s data communications model is bidirectional, meaning it is possible to have only one of the two directions operating.</p>
+</div>
+<div class="paragraph">
+<p>The <em>half-close</em> operation in TCP closes only a single direction of the data flow. Two half-close operations together close the entire connection. The rule is that either end can send a FIN when it is done sending data.</p>
+</div>
+<div class="paragraph">
+<p>When a TCP receives a FIN, it must notify the application that the other end has terminated that direction of data flow. The sending of a FIN is normally the result of the application issuing a close operation, which typically causes both directions to close.</p>
+</div>
+<div class="paragraph">
+<p>The seven segments we have seen are baseline overheads for any TCP connection that is established and cleared gracefully.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When a small amount of data needs to be exchanged, it is now apparent why some applications prefer to use UDP because of its ability to send and receive data without establishing connections.</p>
+</li>
+<li>
+<p>However, such applications are then faced with handling their own error repair features, congestion management, and flow control.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="tcp-half-close">1.1. TCP Half-Close</h3>
+<div class="paragraph">
+<p>TCP supports a half-close operation. Few applications require this capability, so it is not common.</p>
+</div>
+<div class="paragraph">
+<p>To use this feature, the API must provide a way for the application to say, essentially, "I am done sending data, so send a FIN to the other end, but I still want to receive data from the other end, until it sends me a FIN".</p>
+</div>
+<div class="paragraph">
+<p>The Berkeley sockets API supports half-close, if the application calls the <code>shutdown()</code> function instead of calling the more typical <code>close()</code> function. Most applications, however, terminate both directions of the connection by calling <code>close</code>.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-half-close-operation.png" alt="TCP half close" width="45%" height="45%">
+</div>
+<div class="title">Figure 2. With the TCP half-close operation, one direction of the connection can terminate while the other continues until it is closed. Few applications use this feature.</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="simultaneous-open-and-close">1.2. Simultaneous Open and Close</h3>
+<div class="paragraph">
+<p>It is possible, although highly improbable unless specifically arranged, for two applications to perform an active open to each other at the same time. If this happens, it is called a <strong>simultaneous open</strong>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Each end must have transmitted a SYN before receiving a SYN from the other side; the SYNs must pass each other on the network.</p>
+</li>
+<li>
+<p>This scenario also requires each end to have an IP address and port number that are known to the other end, which is rare (except for the firewall <em>hole-punching</em> techniques).</p>
+</li>
+<li>
+<p>A simultaneous open requires the exchange of four segments, one more than the normal three-way handshake.</p>
+</li>
+<li>
+<p>Also note that we do not call either end a client or a server, because both ends act as client and server.</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-simultaneous-open.png" alt="TCP simultaneous open" width="45%" height="45%">
+</div>
+<div class="title">Figure 3. Segments exchanged during simultaneous open. One additional segment is required compared to the ordinary connection establishment procedure. The SYN bit field is on in each segment until an ACK for it is received.</div>
+</div>
+<div class="paragraph">
+<p>With a <strong>simultaneous close</strong> the same number of segments are exchanged as in the normal close. The only real difference is that the segment sequence is interleaved instead of sequential.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-simultaneous-close.png" alt="TCP simultaneous close" width="45%" height="45%">
+</div>
+<div class="title">Figure 4. Segments exchanged during simultaneous close work like a conventional close, but the segment ordering is interleaved.</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="initial-sequence-number-isn">1.3. Initial Sequence Number (ISN)</h3>
+<div class="paragraph">
+<p>When a connection is open, any segment with the appropriate two IP addresses and port numbers is accepted as valid provided the sequence number is valid (i.e., within the window) and the checksum is OK.</p>
+</div>
+<div class="paragraph">
+<p>Before each end sends its SYN to establish the connection, it chooses an ISN for that connection.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The ISN should change over time, so that each connection has a different one.</p>
+<div class="paragraph">
+<p>[RFC0793] specifies that the ISN should be viewed as a 32-bit counter that increments by 1 every 4μs.</p>
+</div>
+</li>
+<li>
+<p>The purpose of doing this is to arrange for the sequence numbers for segments on one connection to not overlap with sequence numbers on a another (new) identical connection.</p>
+</li>
+<li>
+<p>In particular, new sequence numbers must not be allowed to overlap between different <em>instantiations</em> (or <em>incarnations</em>) of the <em>same</em> connection.</p>
+</li>
+<li>
+<p>In modern systems, the ISN is typically selected in a semirandom way.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If a connection had one of its segments delayed for a long period of time and closed, but then opened again with the same 4-tuple, it is conceivable that the delayed segment could reenter the new connection&#8217;s data stream as valid data.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>By taking steps to avoid overlap in sequence numbers between connection instantiations, we can try to minimize this risk.</p>
+</li>
+<li>
+<p>It does suggest, however, that an application with a very great need for data integrity should employ its own CRCs or checksums at the application layer to ensure that its own data has been transferred without error.</p>
+<div class="paragraph">
+<p>This is generally good practice in any case, and it is commonly done for large files.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The connection 4-tuple as well as the currently active window of sequence numbers is all that is required to form a TCP segment that is considered valid to a communicating TCP endpoint, which represents a form of vulnerability for TCP:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>anyone can forge a TCP segment and, if the sequence numbers, IP addresses, and port numbers are chosen appropriately, can interrupt a TCP connection [RFC5961].</p>
+</li>
+<li>
+<p>One way of repelling this is to make the initial sequence number (or ephemeral port number [RFC6056]) relatively hard to guess. Another is encryption.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="example">1.4. Example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>telnet github.io 80
+<span class="go">Trying 185.199.108.153...
+Connected to github.io.
+Escape character is '^]'.
+^]
+</span><span class="gp">telnet&gt;</span><span class="w"> </span>q
+<span class="go">Connection closed.</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-ntSv</span> host github.io
+<span class="go">IP (tos 0x10, ttl 64, id 29406, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.51610 &gt;</span><span class="w"> </span>185.199.108.153.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x42b8 <span class="o">(</span>incorrect -&gt; 0xd5cf<span class="o">)</span>, <span class="nb">seq </span>2440985640, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1617951924 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 128, id 44533, offset 0, flags [none], proto TCP (6), length 44)
+</span><span class="gp">    185.199.108.153.80 &gt;</span><span class="w"> </span>192.168.91.128.51610: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x11dd <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1194142207, ack 2440985641, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x10, ttl 64, id 29407, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.51610 &gt;</span><span class="w"> </span>185.199.108.153.80: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x42a4 <span class="o">(</span>incorrect -&gt; 0x299a<span class="o">)</span>, ack 1194142208, win 64240, length 0
+<span class="go">IP (tos 0x10, ttl 64, id 29408, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.51610 &gt;</span><span class="w"> </span>185.199.108.153.80: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x42a4 <span class="o">(</span>incorrect -&gt; 0x2999<span class="o">)</span>, <span class="nb">seq </span>2440985641, ack 1194142208, win 64240, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 44534, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    185.199.108.153.80 &gt;</span><span class="w"> </span>192.168.91.128.51610: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x299a <span class="o">(</span>correct<span class="o">)</span>, ack 2440985642, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 44535, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    185.199.108.153.80 &gt;</span><span class="w"> </span>192.168.91.128.51610: Flags <span class="o">[</span>FP.], <span class="nb">cksum </span>0x2991 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1194142208, ack 2440985642, win 64239, length 0
+<span class="go">IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.51610 &gt;</span><span class="w"> </span>185.199.108.153.80: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x2998 <span class="o">(</span>correct<span class="o">)</span>, ack 1194142209, win 64240, length 0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="timeout-of-connection-establishment">1.5. Timeout of Connection Establishment</h3>
+<div class="paragraph">
+<p>There are several circumstances in which a connection cannot be established. One obvious case is when the server host is down.</p>
+</div>
+<div class="paragraph">
+<p>To simulate this scenario, we issue our telnet command to a nonexistent host in the same subnet.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If we do this without modifying the ARP table, the client exits with a "No route to host" error message, generated because no ARP reply is ever returned for the ARP request.</p>
+</li>
+<li>
+<p>If, however, we place an ARP entry for a nonexistent host in the ARP table first, the ARP request is not sent, and the system immediately attempts to contact the nonexistent host with TCP/IP. First, the commands:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>ip neigh add 192.168.91.120 lladdr 00:00:1a:1b:1c:1d dev ens32</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Here the MAC address <code>00:00:1a:1b:1c:1d</code> was chosen simply as a MAC address not being used on the LAN; it is of no special consequence.</p>
+</div>
+</li>
+<li>
+<p>The timeout occurs about 2 minutes after the initial command.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">time </span>telnet 192.168.91.120 80
+<span class="go">Trying 192.168.91.120...
+telnet: Unable to connect to remote host: Connection timed out
+
+real	2m11.038s
+user	0m0.002s
+sys	0m0.001s</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Because there is no host to respond, all of the segments generated are from the client.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-ntttSvv</span> host 192.168.91.120
+<span class="go"> 00:00:00.000000 IP (tos 0x10, ttl 64, id 28344, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0xb088<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492721928 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:01.018720 IP (tos 0x10, ttl 64, id 28345, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0xac8d<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492722947 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:02.016512 IP (tos 0x10, ttl 64, id 28346, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0xa4ad<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492724963 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:04.096269 IP (tos 0x10, ttl 64, id 28347, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0x94ad<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492729059 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:08.191479 IP (tos 0x10, ttl 64, id 28348, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0x74ad<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492737251 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:16.128796 IP (tos 0x10, ttl 64, id 28349, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0x35ac<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492753380 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:34.047254 IP (tos 0x10, ttl 64, id 28350, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.47586 &gt;</span><span class="w"> </span>192.168.91.120.80: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3878 <span class="o">(</span>incorrect -&gt; 0xb0ac<span class="o">)</span>, <span class="nb">seq </span>54668487, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1492787427 ecr 0,nop,wscale 7], length 0</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The number of times to retry an initial SYN can be configured on some systems. In Linux,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the system configuration variable <code>net.ipv4.tcp_syn_retries</code> gives the maximum number of times to attempt to resend a SYN segment during an active open.</p>
+</li>
+<li>
+<p>A corresponding value called <code>net.ipv4.tcp_synack_retries</code> gives the maximum number of times to attempt to resend a SYN + ACK segment when responding to a peer&#8217;s active open request.</p>
+</li>
+<li>
+<p>It can also be used on an individual connection basis by setting the Linux-specific TCP_SYNCNT socket option.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.tcp_syn_retries net.ipv4.tcp_synack_retries
+<span class="go">net.ipv4.tcp_syn_retries = 6
+net.ipv4.tcp_synack_retries = 5
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>man 7 tcp
+<span class="c">...
+</span><span class="go">TCP_SYNCNT (since Linux 2.4)
+       Set the number of SYN retransmits that TCP should send before aborting the attempt to connect.  It cannot exceed 255.  This option should not be used
+       in code intended to be portable.</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="tcp-options">2. TCP Options</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The only options defined in the original TCP specification are the <em>End of Option List</em> (EOL), the <em>No Operation</em> (NOP), and the <em>Maximum Segment Size</em> (MSS) options.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 1. The TCP option values. Up to 40 bytes are available to hold options.</caption>
+<colgroup>
+<col style="width: 10%;">
+<col style="width: 10%;">
+<col style="width: 20%;">
+<col style="width: 10%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Kind</th>
+<th class="tableblock halign-left valign-top">Length</th>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Reference</th>
+<th class="tableblock halign-left valign-top">Description and Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EOL</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC0793]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">End of Option List</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">NOP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC0793]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No Operation (used for padding)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MSS</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC0793]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum Segment Size</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">WSOPT</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1323]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Window Scaling Factor (left-shift amount on window)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SACK-Permitted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC2018]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sender supports SACK options</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Var.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SACK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC2018]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SACK block (out-of-order data received)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TSOPT</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1323]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Timestamps option</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">28</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UTO</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC5482]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">User Timeout (abort after idle time)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Var.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TCP-AO</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC5925]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Authentication option (using various algorithms)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">253</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Var.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Experimental</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC4727]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reserved for experimental use</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">254</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Var.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Experimental</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC4727]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reserved for experimental use</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>
+<p>Every option begins with a 1-byte <em>kind</em> that specifies the type of option.</p>
+</li>
+<li>
+<p>Options that are not understood are simply ignored, according to [RFC1122].</p>
+</li>
+<li>
+<p>The options with a <em>kind</em> value of 0 and 1 occupy a single byte.</p>
+</li>
+<li>
+<p>The other options have a <em>len</em> byte that follows the <em>kind</em> byte. The length is the total length, including the <em>kind</em> and <em>len</em> bytes.</p>
+</li>
+<li>
+<p>The reason for the NOP option is to allow the sender to pad fields to a multiple of 4 bytes, if it needs to.</p>
+<div class="paragraph">
+<p>Remember that the TCP header&#8217;s length is always required to be a multiple of 32 bits because the TCP <em>Header Length</em> field uses that unit.</p>
+</div>
+</li>
+<li>
+<p>The EOL option indicates the end of the list and that no further processing of the options list is to be performed.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="maximum-segment-size-mss-option">2.1. Maximum Segment Size (MSS) Option</h3>
+<div class="paragraph">
+<p>The maximum segment size (MSS) is the largest segment that a TCP is willing to receive from its peer and, consequently, the largest size its peer should ever use when sending.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The MSS value counts only TCP data bytes and does not include the sizes of any associated TCP or IP header [RFC0879].</p>
+</li>
+<li>
+<p>When a connection is established, each end usually announces its MSS in an MSS option carried with its SYN segment.</p>
+</li>
+<li>
+<p>The option allows for 16 bits to be used to specify the MSS value.</p>
+</li>
+<li>
+<p>If no MSS option is provided, a default value of 536 bytes is used.</p>
+<div class="paragraph">
+<p>Recall the rule that requires any host to be capable of processing IPv4 datagrams at least as large as 576.</p>
+</div>
+<div class="paragraph">
+<p>With minimum-size IPv4 and TCP headers, a TCP using a sending MSS size of 536 bytes produces an IPv4 datagram of size 20 + 20 + 536 = 576 bytes.</p>
+</div>
+</li>
+<li>
+<p>The MSS value 1460 is typical for IPv4.</p>
+<div class="paragraph">
+<p>The resulting IPv4 datagram is normally 40 bytes larger (1500 bytes total, the typical MTU size for Ethernet and path MTU for the Internet): 20 bytes for the TCP header and 20 bytes for the IPv4 header.</p>
+</div>
+</li>
+<li>
+<p>When IPv6 is used, the MSS is usually 1440, 20 bytes less because of the larger IPv6 header.</p>
+<div class="paragraph">
+<p>The special MSS value of 65535 can be used with IPv6 jumbograms to indicate an effective MSS of infinity [RFC2675].</p>
+</div>
+<div class="paragraph">
+<p>In this case the SMSS will be determined as the PMTU minus 60 bytes (40 bytes for the IPv6 header and 20 bytes for the TCP header).</p>
+</div>
+</li>
+<li>
+<p>Note that the MSS option is not a negotiation between one TCP and its peer; it is a limit.</p>
+<div class="paragraph">
+<p>When one TCP gives its MSS option to the other, it is indicating its unwillingness to accept any segments larger than that size for the duration of the connection.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="selective-acknowledgment-sack-options">2.2. Selective Acknowledgment (SACK) Options</h3>
+<div class="paragraph">
+<p>Because it uses cumulative ACKs, TCP with a sliding window is never able to acknowledge data it has received correctly but that is not contiguous, in terms of sequence numbers, with data it has received previously.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In such cases, the TCP receiver is said to have <em>holes</em> in its received data queue.</p>
+</li>
+<li>
+<p>A receiving TCP prevents applications from consuming data beyond a hole because of the byte stream abstraction it provides.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If a TCP sender were able to learn of the existence of holes (and out-of-sequence data blocks beyond holes in the sequence space) at the receiver, it could better select which particular TCP segments to retransmit when segments are lost or otherwise missing at the receiver.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The TCP selective acknowledgment (SACK) options [RFC2018][RFC2883] provide this capability.</p>
+</li>
+<li>
+<p>The scheme works effectively, however, only if the TCP sender logic is able to make effective use of the SACK information it receives from a SACK-capable receiver.</p>
+</li>
+<li>
+<p>A TCP learns that its peer is capable of advertising SACK information by receiving the <em>SACK-Permitted</em> option in a SYN (or SYN + ACK) segment.</p>
+</li>
+<li>
+<p>Once this has taken place, the TCP receiving out-of-sequence data may provide a <em>SACK</em> option that describes the out-of-sequence data to help its peer perform retransmissions more efficiently.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>SACK information contained in a SACK option consists of a range of sequence numbers representing data blocks the receiver has successfully received.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Each range is called a SACK <em>block</em> and is represented by a pair of 32-bit sequence numbers.</p>
+</li>
+<li>
+<p>Thus, a <em>SACK</em> option containing <em>n</em> SACK blocks is (<em>8n + 2</em>) bytes long. Two bytes are used to hold the kind and length of the <em>SACK</em> option.</p>
+</li>
+<li>
+<p>Because of the limited amount of space available in the option space of a TCP header, the maximum number of SACK blocks available to be sent in a single segment is three (assuming the <em>Timestamps</em> option is also used, which is typical for modern TCP implementations).</p>
+</li>
+<li>
+<p>Although the <em>SACK-Permitted</em> option is only ever sent in a SYN segment, the SACK blocks themselves may be sent in any segment once the sender has sent the <em>SACK-Permitted</em> option.</p>
+</li>
+<li>
+<p>The operation of SACK is most easily (and importantly) related to the error and congestion control operations of TCP.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="window-scale-wscale-or-wsopt-option">2.3. Window Scale (WSCALE or WSOPT) Option</h3>
+<div class="paragraph">
+<p>The <em>Window Scale</em> option (denoted <em>WSCALE</em> or <em>WSOPT</em>) <a href="#RFC1323">[RFC1323]</a> effectively increases the capacity of the TCP <em>Window Advertisement</em> field from 16 to about 30 bits.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">TCP Window Scale Option (WSopt):
+
+   Kind: 3 Length: 3 bytes
+
+          +---------+---------+---------+
+          | Kind=3  |Length=3 |shift.cnt|
+          +---------+---------+---------+</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Instead of changing the field size, however, the header still holds a 16-bit value, and an option is defined that applies a scaling factor to the 16-bit value.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This factor effectively left-shifts the window field value by the scale factor (the <em>shift.cnt</em> bits).</p>
+<div class="paragraph">
+<p>This, in effect, multiplies the window value by the value 2<sup>s</sup>, where <em>s</em> is the scale factor.</p>
+</div>
+</li>
+<li>
+<p>The 1-byte shift count is between 0 and 14 (inclusive).</p>
+<div class="ulist">
+<ul>
+<li>
+<p>A shift count of 0 indicates no scaling.</p>
+</li>
+<li>
+<p>The maximum scale value of 14 provides for a maximum window of 1,073,725,440 bytes (65,535 × 2<sup>14</sup>), close to 1,073,741,823 (2<sup>30</sup> −1), effectively 1GB.</p>
+<div class="paragraph">
+<p>TCP then maintains the <em>real</em> window size internally as a 32-bit value.</p>
+</div>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This option can appear only in a SYN segment, so the scale factor is fixed in each direction when the connection is established.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>To enable window scaling, both ends must send the option in their SYN segments.</p>
+</li>
+<li>
+<p>The end doing the active open sends the option in its SYN, but the end doing the passive open can send the option only if the received SYN specifies the option.</p>
+</li>
+<li>
+<p>The scale factor can be different in each direction.</p>
+<div class="paragraph">
+<p>If the end doing the active open sends a nonzero scale factor but does not receive a <em>Window Scale</em> option from the other end, it sets its send and receive scale values to 0.</p>
+</div>
+<div class="paragraph">
+<p>This lets systems that do not understand the option interoperate with systems that do.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Assume we are using the <em>Window Scale</em> option, with a shift count of <em>S</em> for sending and a shift count of <em>R</em> for receiving.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Then every 16-bit advertised window that we receive from the other end is left-shifted by <em>R</em> bits to obtain the real advertised window size.</p>
+</li>
+<li>
+<p>Every time we send a window advertisement to the other end, we take our real 32-bit window size and right-shift it <em>S</em> bits, placing the resulting 16-bit value in the TCP header.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The shift count is automatically chosen by TCP, based on the size of the receive buffer. The size of this buffer is set by the system, but the capability is normally provided for the application to change it.</p>
+</div>
+<div class="paragraph">
+<p>The <em>Window Scale</em> option is most relevant when TCP is used to provide bulk data transfer over networks with large-bandwidth-delay products (i.e., those with a product of round-trip time and bandwidth being relatively large).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">IP (tos 0xc0, ttl 200, id 64132, offset 0, flags [DF], proto TCP (6), length 52, bad cksum 0 (-&gt;</span>f66f<span class="o">)!)</span>
+<span class="gp">    10.170.109.10.50979 &gt;</span><span class="w"> </span>175.24.154.66.443: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xc135 <span class="o">(</span>incorrect -&gt; 0x82a4<span class="o">)</span>, <span class="nb">seq </span>3917970949, win 64240, options <span class="o">[</span>mss 1460,nop,wscale 8,nop,nop,sackOK], length 0
+<span class="go">IP (tos 0x20, ttl 52, id 0, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    175.24.154.66.443 &gt;</span><span class="w"> </span>10.170.109.10.50979: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xdacf <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2258807318, ack 3917970950, win 29200, options <span class="o">[</span>mss 1440,nop,nop,sackOK,nop,wscale 7], length 0
+<span class="gp">IP (tos 0xc0, ttl 200, id 64133, offset 0, flags [DF], proto TCP (6), length 40, bad cksum 0 (-&gt;</span>f67a<span class="o">)!)</span>
+<span class="gp">    10.170.109.10.50979 &gt;</span><span class="w"> </span>175.24.154.66.443: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0xc129 <span class="o">(</span>incorrect -&gt; 0x8b99<span class="o">)</span>, ack 2258807319, win 517, length 0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="timestamps-option-and-protection-against-wrapped-sequence-numbers-paws">2.4. Timestamps Option and Protection against Wrapped Sequence Numbers (PAWS)</h3>
+<div class="paragraph">
+<p>The <em>Timestamps</em> option (sometimes called the <em>Timestamp</em> option and written as <em>TSOPT</em> or <em>TSopt</em>) lets the sender place two 4-byte timestamp values in every segment.</p>
+</div>
+<div class="paragraph">
+<p>The receiver reflects these values in the acknowledgment, allowing the sender to calculate an estimate of the connection&#8217;s RTT for each ACK received.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>We must say "each ACK received" and not "each segment" because TCP often acknowledges multiple segments per ACK.</p>
+</li>
+<li>
+<p>When using the <em>Timestamps</em> option,</p>
+<div class="ulist">
+<ul>
+<li>
+<p>the sender places a 32-bit value in the <em>Timestamp Value</em> field (called <em>TSV</em> or <em>TSval</em>) in the first part of the <em>TSOPT</em>,</p>
+</li>
+<li>
+<p>and the receiver echoes this back unchanged in the second <em>Timestamp Echo Retry</em> field (called <em>TSER</em> or <em>TSecr</em>).</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>TCP headers containing this option increase by 10 bytes (8 bytes for the two timestamp values and 2 to indicate the option value and length).</p>
+</li>
+<li>
+<p>The timestamp is a monotonically increasing value.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Because the receiver simply echoes what it receives, it does not care what the timestamp units or values actually are.</p>
+</li>
+<li>
+<p>This option does not require any form of clock synchronization between the two hosts.</p>
+</li>
+<li>
+<p>[RFC1323] recommends that the sender increment the timestamp value by at least 1 every second.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The main reason for wishing to calculate a good estimate of the connection&#8217;s RTT is to set the retransmission timeout, which tells TCP when it should try resending a segment that is likely lost.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>With the <em>Timestamps</em> option, we can get relatively fine-grain measurements of the RTT.</p>
+</li>
+<li>
+<p>Prior to the creation of the <em>Timestamps</em> option, most TCPs would perform just one RTT sample per window of data.</p>
+</li>
+<li>
+<p>With the <em>Timestamps</em> option, more samples can be taken, leading to the potential of a better RTT estimate (see [RFC1323] and [RFC6298]).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The <em>Timestamps</em> option allows for more frequent RTT samples, but it also provides a way for the receiver to avoid receiving old segments and considering them as valid, which is called <em>Protection Against Wrapped Sequence Numbers</em> (PAWS), and it is described in [RFC1323] along with the <em>Timestamps</em> option.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="user-timeout-uto-option">2.5. User Timeout (UTO) Option</h3>
+<div class="paragraph">
+<p>The <em>User Timeout</em> (UTO) option is a relatively new TCP capability described in [RFC5482]. The UTO value (also called <em>USER_TIMEOUT</em>) specifies the amount of time a TCP sender is willing to wait for an ACK of outstanding data before concluding that the remote end has failed.</p>
+</div>
+<div class="paragraph">
+<p><em>USER_TIMEOUT</em> has traditionally been a local configuration parameter for TCP [RFC0793]. The UTO option allows one TCP to signal its <em>USER_TIMEOUT</em> value to its connection peer. This allows the receiving TCP to adjust its behavior (e.g., to tolerate a longer period of disrupted connectivity prior to aborting a connection). NAT devices could also interpret such information to help set their connection activity timers.</p>
+</div>
+<div class="paragraph">
+<p>UTO option values are advisory; just because one end of a connection might wish to use a large or small UTO value does not mean that the other end needs to comply.</p>
+</div>
+<div class="paragraph">
+<p>UTO options are included on SYN segments when a connection is established, on the first non-SYN segments, and whenever the <em>USER_TIMEOUT</em> value is changed. The option value is expressed as a 15-bit value in units of seconds or minutes following a bit field (<em>granularity</em>) that indicates that the value is in minutes (<em>1</em>) or seconds (<em>0</em>). As a relatively new option, it is not yet widely deployed.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="authentication-option-tcp-ao">2.6. Authentication Option (TCP-AO)</h3>
+<div class="paragraph">
+<p>There is an option used to enhance the security of TCP connections. It is designed to enhance and replace an earlier mechanism called <em>TCP-MD5</em> [RFC2385]. Called the <em>TCP Authentication Option</em> (TCP-AO) [RFC5925], it uses a cryptographic hash algorithm, in combination with a secret value known to each end of a TCP connection, to authenticate each segment.</p>
+</div>
+<div class="paragraph">
+<p>TCP-AO improves upon TCP-MD5 by supporting a variety of cryptographic algorithms and identifying changing of keys using in-band signaling. It does not provide a comprehensive key management solution, however. That is, each end still has to have a way to establish a shared set of keys prior to operation.</p>
+</div>
+<div class="paragraph">
+<p>However, because it requires creation and distribution of a shared key (and is a relatively new option), it is not yet widely deployed.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="path-mtu-discovery-with-tcp">3. Path MTU Discovery with TCP</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The path MTU is the minimum MTU on any network segment that is currently in the path between two hosts.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Knowing the path MTU can help protocols such as TCP avoid fragmentation.</p>
+</li>
+<li>
+<p>The discovering of the path MTU (PMTUD) is accomplished based on ICMP messages.</p>
+<div class="paragraph">
+<p>We shall use the ICMPv6 Packet Too Big (PTB) terminology to refer to either ICMPv4 Destination Unreachable (Fragmentation Required) or ICMPv6 Packet Too Big messages.</p>
+</div>
+<div class="paragraph">
+<p>A method that avoids the use of ICMP, called <em>Packetization Layer Path MTU Discovery</em> (PLPMTUD), can also be used by TCP [RFC4821] or by other transport protocols.</p>
+</div>
+</li>
+<li>
+<p>UDP is not usually able to adapt its datagram size because the application specifies the size (i.e., not the transport protocol).</p>
+<div class="paragraph">
+<p>TCP, in providing the byte stream abstraction it implements, determines what segment size to use and as a result has a much greater degree of control over the size of IP datagrams that are ultimately generated.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>TCP&#8217;s regular PMTUD process operates as follows:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When a connection is established, TCP uses the minimum of the MTU of the outgoing interface, or the MSS announced by the other end, as the basis for selecting its <em>send maximum segment size</em> (SMSS).</p>
+</li>
+<li>
+<p>PMTUD does not allow TCP to exceed the MSS announced by the other end.</p>
+</li>
+<li>
+<p>If the other end does not specify an MSS, the sender assumes a default of 536 bytes, but this situation is now rare.</p>
+</li>
+<li>
+<p>It is also possible for an implementation to save path MTU information on a per-destination basis to help in selecting its segment size.</p>
+</li>
+<li>
+<p>Note that the path MTU in each direction of a connection could be different.</p>
+</li>
+<li>
+<p>Once the initial SMSS is chosen, all IPv4 datagrams sent by TCP on that connection have the IPv4 <em>DF</em> bit field set.</p>
+<div class="paragraph">
+<p>For TCP/IPv6, this is not necessary because there is no DF bit field; all datagrams are assumed to have it set implicitly.</p>
+</div>
+</li>
+<li>
+<p>If a PTB is received, TCP decreases the segment size and retransmits using a different segment size.</p>
+<div class="paragraph">
+<p>If the PTB contains the suggested next-hop MTU, the segment size can be set to the next-hop MTU minus the sizes of the IPv4 (or IPv6) and TCP headers.</p>
+</div>
+<div class="paragraph">
+<p>If the next-hop MTU value is not present (e.g., an older ICMP error was returned that lacks this information), the sender may try a variety of values (e.g., binary-search for a usable value).</p>
+</div>
+<div class="paragraph">
+<p>This also affects TCP&#8217;s congestion control management.</p>
+</div>
+</li>
+<li>
+<p>For PLPMTUD the situation is similar, except PTB messages are not used.</p>
+<div class="paragraph">
+<p>Instead, the protocol performing PMTUD must be able to detect message discards quickly and perform its own datagram size adjustments.</p>
+</div>
+</li>
+<li>
+<p>Because routes can change dynamically, when some time has passed since the last decrease of the segment size, a larger value (up to the initial SMSS) can be tried.</p>
+<div class="paragraph">
+<p>Guidance in [RFC1191] and [RFC1981] recommends that this time interval be about 10 minutes.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There are a number of problems with PMTUD when it operates in an Internet environment with firewalls that block PTB messages [RFC2923].</p>
+</div>
+<div class="paragraph">
+<p>Of the various operational problems with PMTUD, <strong><em>black holes</em></strong> have been the most problematic, although the situation is improving (in [LS10], 80% of systems studied were able to properly process PTB messages).</p>
+</div>
+<div class="paragraph">
+<p>PMTUD <em>black holes</em> arise when a TCP implementation that depends on the delivery of ICMP messages to adjust its segment size never receives them.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This could be for several reasons, including a firewall or NAT configuration that prohibits such ICMP messages from being forwarded.</p>
+</li>
+<li>
+<p>The consequence is a TCP connection that cannot proceed once it starts to use larger packets.</p>
+</li>
+<li>
+<p>It can be difficult to diagnose because only large packets cannot be forwarded.</p>
+<div class="paragraph">
+<p>The smaller ones (such as SYN and SYN + ACK packets used to establish the connection) generally succeed.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Some TCP implementations have <em>black hole detection</em>, which amounts to trying a smaller segment size when a segment is retransmitted several times.</p>
+</div>
+<div class="paragraph">
+<p>We can see the correct behavior of PMTUD when an intermediate router has an MTU less than either of the endpoints’ MSS.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Use <code>node-1</code> (a Linux host with local address <code>192.168.91.137</code>) as a router, disable the router send_redirects, and reduce the MTU from 1500 to 512 bytes.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.ip_forward<span class="o">=</span>1
+<span class="go">net.ipv4.ip_forward = 1
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.conf.all.send_redirects<span class="o">=</span>0
+<span class="go">net.ipv4.conf.all.send_redirects = 0
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.conf.ens32.send_redirects<span class="o">=</span>0
+<span class="go">net.ipv4.conf.ens32.send_redirects = 0
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>ip <span class="nb">link set </span>ens32 mtu 512
+<span class="gp">x@node-1:~$</span><span class="w"> </span>ip <span class="nb">link </span>show ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 512 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+<span class="go">    link/ether 00:0c:29:85:26:07 brd ff:ff:ff:ff:ff:ff</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Set the default gateway of host <code>node-0</code> to the intermediate router <code>node-1</code>.</p>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>In addition, we need to tell the client host (<code>node-0</code>) that small segments are allowed:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.route.min_pmtu<span class="o">=</span>68</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If we did not perform the operation, Linux would clamp its minimum path MTU at the default value of 552 bytes, which helps avoid certain small MTU attacks .</p>
+</div>
+<div class="paragraph">
+<p>The consequence of doing so in our example here is that any packets larger than 512 bytes would be fragmented.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Most modern operating systems support some form of network offloading, where some network processing happens on the NIC instead of the CPU. <a href="#OFFLOADING">[OFFLOADING]</a><a href="#SOWE">[SOWE]</a><a href="#LAB15">[LAB15]</a></p>
+</div>
+<div class="paragraph">
+<p>Normally this is a great thing. It can free up resources on the rest of the system and let it handle more connections.</p>
+</div>
+<div class="paragraph">
+<p>If you&#8217;re trying to capture traffic it can result in false errors and strange or even missing traffic.</p>
+</div>
+<div class="paragraph">
+<p>Some cards can reassemble traffic. This will manifest itself in Tcpdump/Wireshark as packets that are larger than expected, such as a 2900-byte packet on a network with a 1500-byte MTU.</p>
+</div>
+<div class="paragraph">
+<p>To disable TCP Segmentation Offload (TSO) for a network device <code>ens32</code> issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>ethtool <span class="nt">-K</span> ens32 tso off</code></pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip r
+<span class="go">default via 192.168.91.2 dev ens32
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>ip r del default
+<span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>ip r add default via 192.168.91.137 dev ens32
+<span class="gp">x@node-0:~$</span><span class="w"> </span>ip r
+<span class="go">default via 192.168.91.137 dev ens32
+192.168.91.0/24 dev ens32 proto kernel scope link src 192.168.91.128
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.route.min_pmtu
+<span class="go">net.ipv4.route.min_pmtu = 552
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.route.min_pmtu<span class="o">=</span>68
+<span class="go">net.ipv4.route.min_pmtu = 68
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>ethtool <span class="nt">-k</span> ens32
+<span class="go">Features for ens32:
+rx-checksumming: off
+tx-checksumming: on
+	tx-checksum-ipv4: off [fixed]
+	tx-checksum-ip-generic: on
+	tx-checksum-ipv6: off [fixed]
+	tx-checksum-fcoe-crc: off [fixed]
+	tx-checksum-sctp: off [fixed]
+scatter-gather: on
+	tx-scatter-gather: on
+	tx-scatter-gather-fraglist: off [fixed]
+tcp-segmentation-offload: on
+	tx-tcp-segmentation: on
+	tx-tcp-ecn-segmentation: off [fixed]
+	tx-tcp-mangleid-segmentation: off
+	tx-tcp6-segmentation: off [fixed]
+</span><span class="c">...
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>ethtool <span class="nt">-K</span> ens32 tso off</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Send a larger packet of with data size 500 bytes</p>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+The max tcp segment size will be 512 - 20 (IP header) - 20 (TCP header) = 472, that is the 500 bytes will be fragmented to two segments.
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">head</span> <span class="nt">-c</span> 500 /dev/random | nc <span class="nt">-v</span> windows.home 6666
+<span class="go">Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Connected to 10.170.109.10:6666.
+Ncat: 500 bytes sent, 0 bytes received in 0.01 seconds.
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ip r get 10.170.109.10
+<span class="go">10.170.109.10 via 192.168.91.137 dev ens32 src 192.168.91.128 uid 1000
+    cache expires 502sec mtu 512</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>The path MTU discovery mechanism finds an appropriate segment size to use when transiting the network where the middle link has a smaller MTU than the endpoints.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnv</span> port 6666 or icmp <span class="nt">-i</span> ens32
+<span class="go">tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes</span>
+<span class="go">IP (tos 0x0, ttl 64, id 34352, offset 0, flags [DF], proto TCP (6), length 60)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x940b <span class="o">(</span>incorrect -&gt; 0x590e<span class="o">)</span>, <span class="nb">seq </span>3025740589, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 2055433851 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 63, id 34352, offset 0, flags [DF], proto TCP (6), length 60)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x590e <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>3025740589, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 2055433851 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 128, id 65296, offset 0, flags [none], proto TCP (6), length 44)</span>
+<span class="gp">    10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.34196: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xfe8e <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1730751594, ack 3025740590, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 34353, offset 0, flags [DF], proto TCP (6), length 40)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x93f7 <span class="o">(</span>incorrect -&gt; 0x164c<span class="o">)</span>, ack 1, win 64240, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 34354, offset 0, flags [DF], proto TCP (6), length 540)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x95eb <span class="o">(</span>incorrect -&gt; 0xe838<span class="o">)</span>, <span class="nb">seq </span>1:501, ack 1, win 64240, length 500
+<span class="go">IP (tos 0x0, ttl 64, id 34355, offset 0, flags [DF], proto TCP (6), length 40)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x93f7 <span class="o">(</span>incorrect -&gt; 0x1457<span class="o">)</span>, <span class="nb">seq </span>501, ack 1, win 64240, length 0
+<span class="go">IP (tos 0x0, ttl 63, id 34353, offset 0, flags [DF], proto TCP (6), length 40)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x164c <span class="o">(</span>correct<span class="o">)</span>, ack 1, win 64240, length 0
+<span class="hll"><span class="go">IP (tos 0xc0, ttl 64, id 9583, offset 0, flags [none], proto ICMP (1), length 512)</span>
+</span><span class="gp">    192.168.91.137 &gt;</span><span class="w"> </span>192.168.91.128: ICMP 10.170.109.10 unreachable - need to frag <span class="o">(</span>mtu 512<span class="o">)</span>, length 492
+<span class="go">	IP (tos 0x0, ttl 64, id 34354, offset 0, flags [DF], proto TCP (6), length 540)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>P.], <span class="nb">seq </span>1:501, ack 1, win 64240, length 500
+<span class="go">IP (tos 0x0, ttl 63, id 34355, offset 0, flags [DF], proto TCP (6), length 40)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x1457 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>501, ack 1, win 64240, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 65297, offset 0, flags [none], proto TCP (6), length 40)</span>
+<span class="gp">    10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.34196: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x164c <span class="o">(</span>correct<span class="o">)</span>, ack 1, win 64240, length 0
+<span class="hll"><span class="go">IP (tos 0x0, ttl 64, id 34356, offset 0, flags [DF], proto TCP (6), length 512)</span>
+</span><span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x95cf <span class="o">(</span>incorrect -&gt; 0x1464<span class="o">)</span>, <span class="nb">seq </span>1:473, ack 1, win 64240, length 472
+<span class="hll"><span class="go">IP (tos 0x0, ttl 64, id 34357, offset 0, flags [DF], proto TCP (6), length 68)</span>
+</span><span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x9413 <span class="o">(</span>incorrect -&gt; 0xe848<span class="o">)</span>, <span class="nb">seq </span>473:501, ack 1, win 64240, length 28
+<span class="go">IP (tos 0x0, ttl 63, id 34356, offset 0, flags [DF], proto TCP (6), length 540)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x95eb <span class="o">(</span>incorrect -&gt; 0xe838<span class="o">)</span>, <span class="nb">seq </span>1:501, ack 1, win 64240, length 500
+<span class="go">IP (tos 0x0, ttl 128, id 65298, offset 0, flags [none], proto TCP (6), length 40)</span>
+<span class="hll"><span class="gp">    10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.34196: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x1474 <span class="o">(</span>correct<span class="o">)</span>, ack 473, win 64240, length 0
+</span><span class="go">IP (tos 0x0, ttl 128, id 65299, offset 0, flags [none], proto TCP (6), length 40)</span>
+<span class="hll"><span class="gp">    10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.34196: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x1458 <span class="o">(</span>correct<span class="o">)</span>, ack 502, win 64239, length 0
+</span><span class="go">IP (tos 0x0, ttl 128, id 65300, offset 0, flags [none], proto TCP (6), length 40)</span>
+<span class="gp">    10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.34196: Flags <span class="o">[</span>FP.], <span class="nb">cksum </span>0x144f <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1, ack 502, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 34358, offset 0, flags [DF], proto TCP (6), length 40)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x93f7 <span class="o">(</span>incorrect -&gt; 0x1457<span class="o">)</span>, ack 2, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 63, id 34358, offset 0, flags [DF], proto TCP (6), length 40)</span>
+<span class="gp">    192.168.91.128.34196 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x1457 <span class="o">(</span>correct<span class="o">)</span>, ack 2, win 64239, length 0</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="tcp-state-transitions">4. TCP State Transitions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The rules which types of segments are sent during different phases of a TCP connection that determine what TCP does are determined by what state TCP is in.</p>
+</div>
+<div class="paragraph">
+<p>The current state is changed based on various stimuli, such as segments that are transmitted or received, timers that expire, application reads or writes, or information from other layers.</p>
+</div>
+<div class="paragraph">
+<p>These rules can be summarized in TCP&#8217;s state transition diagram.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-state-transistion-digram.png" alt="TCP state transition diagram" width="50%" height="50%">
+</div>
+<div class="title">Figure 5. The TCP state transition diagram (also called finite state machine). Arrows represent transitions between states due to segment transmission, segment reception, or timers expiring. The bold arrows indicate typical client behavior, and the dashed arrows indicate typical server behavior. The boldface directives (e.g., open, close) are actions performed by applications.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>States are indicated by ovals and transitions between states by arrows. Each endpoint of a connection transitions through the states.</p>
+</li>
+<li>
+<p>The state CLOSED is not really an <em>official</em> state but has been added as a useful starting point and ending point for the diagram.</p>
+</li>
+<li>
+<p>The names of the 11 states (CLOSED, LISTEN, SYN_SENT, etc.) are based on the names output by the <code>netstat</code> command in UNIX, Linux, and Windows, which are themselves based on the names originally used in [RFC0793].</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>netstat <span class="nt">-nat4</span>
+<span class="go">Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp        0      0 127.0.0.1:6010          0.0.0.0:*               LISTEN
+tcp        0    316 192.168.91.137:22       192.168.91.1:55776      ESTABLISHED
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span>ss <span class="nt">-nat4</span>
+<span class="go">State                 Recv-Q                Send-Q                                 Local Address:Port                                 Peer Address:Port
+LISTEN                0                     128                                          0.0.0.0:22                                        0.0.0.0:*
+LISTEN                0                     128                                        127.0.0.1:6010                                      0.0.0.0:*
+ESTAB                 0                     36                                    192.168.91.137:22                                   192.168.91.1:55776</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">PS C:\&gt;</span><span class="w"> </span>netstat <span class="nt">-na</span> <span class="nt">-p</span> tcp
+<span class="go">
+Active Connections
+
+  Proto  Local Address          Foreign Address        State
+  TCP    0.0.0.0:912            0.0.0.0:0              LISTENING
+  TCP    0.0.0.0:5040           0.0.0.0:0              LISTENING
+  TCP    10.170.109.10:60502    10.171.95.148:7680     SYN_SENT
+  TCP    127.0.0.1:49805        0.0.0.0:0              LISTENING
+  TCP    127.0.0.1:58165        127.0.0.1:60480        TIME_WAIT
+  TCP    127.0.0.1:58165        127.0.0.1:60481        TIME_WAIT
+  TCP    127.0.0.1:60461        127.0.0.1:58165        TIME_WAIT
+  TCP    127.0.0.1:65123        0.0.0.0:0              LISTENING
+  TCP    169.254.24.54:139      0.0.0.0:0              LISTENING</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="time_wait-2msl-wait-state">4.1. TIME_WAIT (2MSL Wait) State</h3>
+<div class="paragraph">
+<p>The <strong>TIME_WAIT</strong> state is also called the <strong>2MSL</strong> wait state, which is a state in which TCP waits for a time equal to twice the <em>Maximum Segment Lifetime</em> (MSL), sometimes called <em>timed wait</em>. It is the maximum amount of time any segment can exist in the network before being discarded.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-state-normal-estab-term.png" alt="TCP states corresponding to normal connection establishment and termination" width="45%" height="45%">
+</div>
+<div class="title">Figure 6. TCP states corresponding to normal connection establishment and termination</div>
+</div>
+<div class="paragraph">
+<p>[RFC0793] specifies the MSL as 2 minutes. Common implementation values, however, are 30s, 1 minute, or 2 minutes.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>On Linux, the value <code>net.ipv4.tcp_fin_timeout</code> holds the 2MSL wait timeout value (in seconds).</p>
+</li>
+<li>
+<p>On Windows, the following registry key: <code>HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\TcpTimedWaitDelay</code> holds the timeout. It is permitted to be in the range of 30 to 300s. For IPv6, replace the term <em>Tcpip</em> with <em>Tcpip6</em>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Given the MSL value for an implementation, the rule is: <em>When TCP performs an active close and sends the final ACK, that connection must stay in the TIME_WAIT state for twice the MSL.</em> This lets TCP resend the final ACK in case it is lost.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The final ACK is resent not because the TCP retransmits ACKs (they do not consume sequence numbers and are not retransmitted by TCP), but because the other side will retransmit its FIN (which does consume a sequence number).</p>
+</li>
+<li>
+<p>Indeed, TCP will always retransmit FINs until it receives a final ACK.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Another effect of this 2MSL wait state is that <em>while the TCP implementation waits, the endpoints defining that connection cannot be reused</em>. That connection defined by the address/port 4-tuple can be reused</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>only when the 2MSL wait is over, or</p>
+</li>
+<li>
+<p>when a new connection uses an ISN that exceeds the highest sequence number used on the previous instantiation of the connection [RFC1122], or</p>
+</li>
+<li>
+<p>if the use of the <em>Timestamps</em> option allows the disambiguation of segments from a previous connection instantiation to not otherwise be confused [RFC6191].</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Unfortunately, some implementations impose a more stringent constraint. In these systems, a local port number cannot be reused while that port number is the local port number of any endpoint that is in the 2MSL wait state on the system.</p>
+</div>
+<div class="paragraph">
+<p>Most implementations and APIs provide a way to bypass this restriction.</p>
+</div>
+<div class="paragraph">
+<p>With the Berkeley sockets API, the <code>SO_REUSEADDR</code> socket option enables the bypass operation.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It lets the caller assign itself a local port number even if that port number is part of some connection in the 2MSL wait state.</p>
+</li>
+<li>
+<p>We will see, however, that even with this bypass mechanism for one socket (address, port number pair), the rules of TCP still (should) prevent this port number from being reused by another instantiation of the same connection that is in the 2MSL wait state.</p>
+</li>
+<li>
+<p>Any delayed segments that arrive for a connection while it is in the 2MSL wait state are discarded.</p>
+<div class="paragraph">
+<p>Because the connection defined by the address/port 4-tuple in the 2MSL wait state cannot be reused during this time period, when a valid connection is finally established, we know that delayed segments from an earlier instantiation of this connection cannot be misinterpreted as being part of the new connection.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For interactive applications, it is normally the client that does the active close and enters the TIME_WAIT state. The server usually does the passive close and does not go through the TIME_WAIT state.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The implication is that if we terminate a client, and restart the same client immediately, that new client cannot reuse the same local port number.</p>
+<div class="paragraph">
+<p>This is not ordinarily a problem, because clients normally use ephemeral ports assigned by the operating system and do not care what the assigned port number is.</p>
+</div>
+<div class="paragraph">
+<p>Recall, it is actually a recommended practice for them to be randomized for security reasons [RFC6056].</p>
+</div>
+<div class="paragraph">
+<p>This is important to know because a client that makes a large number of connections quickly (especially to the same server) could conceivably have to delay while other connections terminate if ephemeral ports are in short supply.</p>
+</div>
+</li>
+<li>
+<p>If we terminate a server process that has a connection established and immediately try to restart it, the server cannot assign its well-knonw assigned port number to its endpoint (it gets an <em>Address already in use</em> binding error), because that port number is part of a connection that is in a 2MSL wait state.</p>
+<div class="paragraph">
+<p>It may take from 1 to 4 minutes for the server to be able to restart, depending on the local system&#8217;s value for the MSL.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="quiet-time-concept">4.2. Quiet Time Concept</h3>
+<div class="paragraph">
+<p>The 2MSL wait provides protection against delayed segments from an earlier instantiation of a connection being interpreted as part of a new connection that uses the same local and foreign IP addresses and port numbers. But this works only if a host with connections in the 2MSL wait does not crash.</p>
+</div>
+<div class="paragraph">
+<p>What if a host with connections in the TIME_WAIT state crashes, reboots within the MSL, and immediately establishes new connections using the same local and foreign IP addresses and port numbers corresponding to the local connections that were in the TIME_WAIT state before the crash? In this scenario, delayed segments from the connections that existed before the crash can be misinterpreted as belonging to the new connections created after the reboot. This can happen regardless of how the initial sequence number is chosen after the reboot.</p>
+</div>
+<div class="paragraph">
+<p>To protect against this scenario, [RFC0793] states that TCP should wait an amount of time equal to the MSL before creating any new connections after a reboot or crash. This is called the <strong>quiet time</strong>. Few implementations abide by this because most hosts take longer than the MSL to reboot after a crash. Also, if applications use their own checksums or encryption, errors such as these are easily detected.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="fin_wait_2-state">4.3. FIN_WAIT_2 State</h3>
+<div class="paragraph">
+<p>In the FIN_WAIT_2 state, TCP has sent a FIN and the other end has acknowledged it.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Unless a half-close is being performed, the TCP must wait for the application on the other end to recognize that it has received an end-of-file notification and close its end of the connection, which causes a FIN to be sent.</p>
+</li>
+<li>
+<p>Only when the application performs this close (and its FIN is received) does the active closing TCP move from the FIN_WAIT_2 to the TIME_WAIT state.</p>
+</li>
+<li>
+<p>This means that one end of the connection can remain in this state forever.</p>
+</li>
+<li>
+<p>The other end is still in the CLOSE_WAIT state and can remain there forever, until the application decides to issue its close.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Many implementations prevent this infinite wait in the FIN_WAIT_2 state as follows:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If the application that does the active close does a complete close, not a half-close indicating that it expects to receive data, a timer is set.</p>
+</li>
+<li>
+<p>If the connection is idle when the timer expires, TCP moves the connection into the CLOSED state.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In Linux, the variable <code>net.ipv4.tcp_fin_timeout</code> can be adjusted to control the number of seconds to which the timer is set. Its default value is 60s.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="simultaneous-open-and-close-transitions">4.4. Simultaneous Open and Close Transitions</h3>
+<div class="paragraph">
+<p>We have seen the normal uses for the SYN_SENT and SYN_RCVD states that correspond to sending and receiving SYN segments, respectively. As illustrated
+in Figure 13-3, TCP was purposely designed to handle simultaneous opens that
+result in a single connection.</p>
+</div>
+<div class="paragraph">
+<p>When a simultaneous open occurs, both ends send a SYN at about the same time, entering the SYN_SENT state.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When each end receives its peer&#8217;s SYN segments, the state changes to SYN_RCVD, and each end resends a SYN and acknowledges the received SYN.</p>
+</li>
+<li>
+<p>When each end receives the SYN plus the ACK, the state changes to ESTABLISHED.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For a simultaneous close, both ends go from ESTABLISHED to FIN_WAIT_1 when the application issues the close. This causes both FINs to be sent, and they probably pass each other somewhere in the network.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When its peer&#8217;s FIN arrives, each end transitions from FIN_WAIT_1 to the CLOSING state, and each endpoint sends its final ACK.</p>
+</li>
+<li>
+<p>Upon receiving a final ACK, each endpoint&#8217;s state changes to TIME_WAIT, and the 2MSL wait is initiated.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="reset-segments">5. Reset Segments</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A segment having <em>RST</em> bit set to <code>on</code> is called a <em>reset segment</em> or simply a <em>reset</em>. In general, a reset is sent by TCP whenever a segment arrives that does not appear to be correct for the <em>referenced connection</em> specified by the 4-tuple of the reset.</p>
+</div>
+<div class="paragraph">
+<p>Resets ordinarily result in a fast teardown of a TCP connection.</p>
+</div>
+<div class="sect2">
+<h3 id="connection-request-to-nonexistent-port">5.1. Connection Request to Nonexistent Port</h3>
+<div class="paragraph">
+<p>A common case for generating a reset segment is when a connection request arrives and no process is listening on the destination port.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>telnet localhost 9999
+<span class="go">Trying ::1...
+Trying 127.0.0.1...
+telnet: Unable to connect to remote host: Connection refused</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-i</span> lo <span class="nt">-ntSv</span>
+<span class="gp">IP6 (flowlabel 0x3ea4c, hlim 64, next-header TCP (6) payload length: 40) ::1.46796 &gt;</span><span class="w"> </span>::1.9999: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x0030 <span class="o">(</span>incorrect -&gt; 0x8263<span class="o">)</span>, <span class="nb">seq </span>1025049371, win 65476, options <span class="o">[</span>mss 65476,sackOK,TS val 999584289 ecr 0,nop,wscale 7], length 0
+<span class="gp">IP6 (flowlabel 0x84cda, hlim 64, next-header TCP (6) payload length: 20) ::1.9999 &gt;</span><span class="w"> </span>::1.46796: Flags <span class="o">[</span>R.], <span class="nb">cksum </span>0x001c <span class="o">(</span>incorrect -&gt; 0x91be<span class="o">)</span>, <span class="nb">seq </span>0, ack 1025049372, win 0, length 0
+<span class="go">IP (tos 0x10, ttl 64, id 58734, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    127.0.0.1.52076 &gt;</span><span class="w"> </span>127.0.0.1.9999: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xfe30 <span class="o">(</span>incorrect -&gt; 0x0b51<span class="o">)</span>, <span class="nb">seq </span>499568435, win 65495, options <span class="o">[</span>mss 65495,sackOK,TS val 2552810770 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    127.0.0.1.9999 &gt;</span><span class="w"> </span>127.0.0.1.52076: Flags <span class="o">[</span>R.], <span class="nb">cksum </span>0xd257 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>0, ack 499568436, win 0, length 0</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Because the <em>ACK</em> bit field was not on in the arriving SYN segment, the sequence number of the reset is set to 0 and the ACK number is set to the incoming ISN plus the number of data bytes in the segment.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="aborting-a-connection">5.2. Aborting a Connection</h3>
+<div class="paragraph">
+<p>The normal way to terminate a connection is for one side to send a FIN, which is sometimes called an <em>orderly release</em> because the FIN is sent after all previously queued data has been sent, and there is normally no loss of data. But it is also possible to abort a connection by sending a reset instead of a FIN at any time which is sometimes called an <em>abortive release</em>.</p>
+</div>
+<div class="paragraph">
+<p>Aborting a connection provides two features to the application: (1) any queued data is thrown away and a reset segment is sent immediately, and (2) the receiver of the reset can tell that the other end did an abort instead of a normal close. The API being used by the application must provide a way to generate the abort instead of a normal close.</p>
+</div>
+<div class="paragraph">
+<p>The sockets API provides this capability by using the <em>linger on close</em> socket option (<code>SO_LINGER</code>) with a <code>0</code> linger value, which essentially this means <em>Linger for no time in making sure data gets to the other side, then abort</em>.</p>
+</div>
+<div class="paragraph">
+<p>In the following example, we show what happens when a remote command that generates a large amount of output is canceled by the user:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ssh <span class="nt">-4</span> <span class="nt">-i</span> .ssh/id_rsa.localhost localhost <span class="nb">cat</span> /usr/share/dict/words <span class="o">&gt;</span> /dev/null
+<span class="go">^C</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-i</span> lo <span class="nt">-ntSv</span>
+<span class="go">IP (tos 0x0, ttl 64, id 25152, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    127.0.0.1.56842 &gt;</span><span class="w"> </span>127.0.0.1.22: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xfe30 <span class="o">(</span>incorrect -&gt; 0x0ce7<span class="o">)</span>, <span class="nb">seq </span>3840402379, win 65495, options <span class="o">[</span>mss 65495,sackOK,TS val 2560361386 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    127.0.0.1.22 &gt;</span><span class="w"> </span>127.0.0.1.56842: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xfe30 <span class="o">(</span>incorrect -&gt; 0xde8a<span class="o">)</span>, <span class="nb">seq </span>4193097762, ack 3840402380, win 65483, options <span class="o">[</span>mss 65495,sackOK,TS val 2560361386 ecr 2560361386,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 25153, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    127.0.0.1.56842 &gt;</span><span class="w"> </span>127.0.0.1.22: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0xfe28 <span class="o">(</span>incorrect -&gt; 0x0547<span class="o">)</span>, ack 4193097763, win 512, options <span class="o">[</span>nop,nop,TS val 2560361386 ecr 2560361386], length 0
+<span class="c">...
+</span><span class="go">IP (tos 0x8, ttl 64, id 25186, offset 0, flags [DF], proto TCP (6), length 112)
+</span><span class="gp">    127.0.0.1.56842 &gt;</span><span class="w"> </span>127.0.0.1.22: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0xfe64 <span class="o">(</span>incorrect -&gt; 0x1b78<span class="o">)</span>, <span class="nb">seq </span>3840405884:3840405944, ack 4193659175, win 19379, options <span class="o">[</span>nop,nop,TS val 2560361552 ecr 2560361552], length 60
+<span class="go">IP (tos 0x8, ttl 64, id 15367, offset 0, flags [DF], proto TCP (6), length 16472)
+</span><span class="gp">    127.0.0.1.22 &gt;</span><span class="w"> </span>127.0.0.1.56842: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x3e4d <span class="o">(</span>incorrect -&gt; 0x04b1<span class="o">)</span>, <span class="nb">seq </span>4193659175:4193675595, ack 3840405944, win 512, options <span class="o">[</span>nop,nop,TS val 2560361554 ecr 2560361552], length 16420
+<span class="go">IP (tos 0x8, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    127.0.0.1.56842 &gt;</span><span class="w"> </span>127.0.0.1.22: Flags <span class="o">[</span>R], <span class="nb">cksum </span>0xfd1c <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>3840405944, win 0, length 0
+<span class="go">IP (tos 0x8, ttl 64, id 25187, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    127.0.0.1.56842 &gt;</span><span class="w"> </span>127.0.0.1.22: Flags <span class="o">[</span>R.], <span class="nb">cksum </span>0xfe28 <span class="o">(</span>incorrect -&gt; 0x1b48<span class="o">)</span>, <span class="nb">seq </span>3840405944, ack 4193659175, win 19379, options <span class="o">[</span>nop,nop,TS val 2560361555 ecr 2560361552], length 0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="tcp-reset-attack">5.3. TCP reset attack</h3>
+<div class="paragraph">
+<p>TCP reset attack, also known as a "forged TCP reset" or "spoofed TCP reset", is a way to terminate a TCP connection by sending a forged TCP reset packet. This tampering technique can be used by a firewall or abused by a malicious attacker to interrupt Internet connections. <a href="#RSTATTACK">[RSTATTACK]</a></p>
+</div>
+<div class="paragraph">
+<p><a href="https://en.wikipedia.org/wiki/The_Great_Firewall_of_China">The Great Firewall of China</a>, and <a href="https://en.wikipedia.org/wiki/Internet_censorship_in_Iran#Deep_packet_inspection">Iranian Internet censors</a> are known to use TCP reset attacks to interfere with and block connections, as a major method to carry out Internet censorship.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.tcp_syn_retries<span class="o">=</span>12
+<span class="go">net.ipv4.tcp_syn_retries = 12</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>curl https://www.google.com
+<span class="go">curl: (7) Failed to connect to www.google.com port 443: Connection refused</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-ntSv</span> host www.google.com
+<span class="go">tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 47240, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.60460 &gt;</span><span class="w"> </span>104.244.43.228.443: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xb12f <span class="o">(</span>incorrect -&gt; 0x3f20<span class="o">)</span>, <span class="nb">seq </span>510666909, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 4143788283 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 47241, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.60460 &gt;</span><span class="w"> </span>104.244.43.228.443: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xb12f <span class="o">(</span>incorrect -&gt; 0x3b2e<span class="o">)</span>, <span class="nb">seq </span>510666909, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 4143789293 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 47242, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.60460 &gt;</span><span class="w"> </span>104.244.43.228.443: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xb12f <span class="o">(</span>incorrect -&gt; 0x334d<span class="o">)</span>, <span class="nb">seq </span>510666909, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 4143791310 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 47243, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.60460 &gt;</span><span class="w"> </span>104.244.43.228.443: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xb12f <span class="o">(</span>incorrect -&gt; 0x22ee<span class="o">)</span>, <span class="nb">seq </span>510666909, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 4143795501 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 47244, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.60460 &gt;</span><span class="w"> </span>104.244.43.228.443: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xb12f <span class="o">(</span>incorrect -&gt; 0x02ee<span class="o">)</span>, <span class="nb">seq </span>510666909, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 4143803693 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 128, id 65378, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    104.244.43.228.443 &gt;</span><span class="w"> </span>192.168.91.128.60460: Flags <span class="o">[</span>R.], <span class="nb">cksum </span>0x3aca <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1523136853, ack 510666910, win 64240, length 0</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>By encrypting connections using a <a href="https://en.wikipedia.org/wiki/Virtual_private_network">VPN</a>, the attacker has to do a TCP reset attack on all encrypted connections, causing collateral damage.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>curl <span class="nt">-iI</span> <span class="nt">-x</span> http://windows.home:7890 https://www.google.com
+<span class="go">HTTP/1.1 200 Connection established
+
+HTTP/2 200
+</span><span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>ISO-8859-1
+<span class="c">...</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-ntSv</span> host windows.home
+<span class="go">IP (tos 0x0, ttl 64, id 11633, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.51404 &gt;</span><span class="w"> </span>10.170.109.10.7890: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x940b <span class="o">(</span>incorrect -&gt; 0x37da<span class="o">)</span>, <span class="nb">seq </span>1111884013, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 93212920 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 128, id 65434, offset 0, flags [none], proto TCP (6), length 44)
+</span><span class="gp">    10.170.109.10.7890 &gt;</span><span class="w"> </span>192.168.91.128.51404: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x4445 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1282231747, ack 1111884014, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 11634, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.51404 &gt;</span><span class="w"> </span>10.170.109.10.7890: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x93f7 <span class="o">(</span>incorrect -&gt; 0x5c02<span class="o">)</span>, ack 1282231748, win 64240, length 0
+<span class="c">...
+</span><span class="gp">    192.168.91.128.51404 &gt;</span><span class="w"> </span>10.170.109.10.7890: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x93f7 <span class="o">(</span>incorrect -&gt; 0x4687<span class="o">)</span>, <span class="nb">seq </span>1111885022, ack 1282237698, win 62780, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 65452, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    10.170.109.10.7890 &gt;</span><span class="w"> </span>192.168.91.128.51404: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x40d4 <span class="o">(</span>correct<span class="o">)</span>, ack 1111885023, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 65453, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    10.170.109.10.7890 &gt;</span><span class="w"> </span>192.168.91.128.51404: Flags <span class="o">[</span>FP.], <span class="nb">cksum </span>0x40cb <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1282237698, ack 1111885023, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.51404 &gt;</span><span class="w"> </span>10.170.109.10.7890: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x4686 <span class="o">(</span>correct<span class="o">)</span>, ack 1282237699, win 62780, length 0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="half-open-connections">5.4. Half-Open Connections</h3>
+<div class="paragraph">
+<p>A TCP connection is said to be <strong>half-open</strong> if one end has closed or aborted the connection without the knowledge of the other end.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This can happen anytime one of the peers crashes.</p>
+</li>
+<li>
+<p>As long as there is no attempt to transfer data across a half-open connection, the end that is still up does not detect that the other end has crashed.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Another common cause of a half-open connection is when one host is powered off instead of shut down properly. This happens, for example,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>when PCs are being used to run remote login clients and are switched off at the end of the day.</p>
+</li>
+<li>
+<p>If there was no data transfer going on when the power was cut, the server will never know that the client disappeared (it would still think the connection is in the ESTABLISHED state).</p>
+</li>
+<li>
+<p>When the user comes in the next morning, powers on the PC, and starts a new session, a new occurrence of the server is started on the server host.</p>
+</li>
+<li>
+<p>This can lead to many half-open TCP connections on the server host.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We can easily create a half-open connection. In this case, we do so on the client rather than the server.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>We will execute the Telnet client on <code>node-0</code>, connecting to the SSH Service server at <code>node-1</code>.</p>
+</li>
+<li>
+<p>We type one line of input and watch it go across with <code>tcpdump</code>, and then we disconnect the Ethernet cable on the server&#8217;s host and reboot the server host. This simulates the server host crashing.</p>
+<div class="paragraph">
+<p>We disconnect the Ethernet cable before rebooting the server to prevent it from sending a FIN out of the open connections, which some TCPs do when they are shut down.</p>
+</div>
+</li>
+<li>
+<p>After the server has rebooted, we reconnect the cable and try to send another line from the client to the server.</p>
+</li>
+<li>
+<p>After rebooting, the server&#8217;s TCP has lost all memory of the connections that existed before, so it knows nothing about the connection that the data segment references. The rule of TCP is that the receiver responds with a reset.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>telnet node-1 22
+<span class="go">Trying 192.168.91.137...
+Connected to node-1.localdomain.
+Escape character is '^]'.
+SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+heloo
+Connection closed by foreign host.</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># Disconnect the Ethernet cable on the server’s host and reboot the server host.</span>
+x@node-1:~<span class="nv">$ </span><span class="nb">sudo </span>ip <span class="nb">link set </span>ens32 down <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>reboot</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tSnv</span> host node-1 and tcp
+<span class="go">IP (tos 0x10, ttl 64, id 39857, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.34128 &gt;</span><span class="w"> </span>192.168.91.137.22: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3889 <span class="o">(</span>incorrect -&gt; 0xa161<span class="o">)</span>, <span class="nb">seq </span>3124448828, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 2395494060 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.22 &gt;</span><span class="w"> </span>192.168.91.128.34128: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xab81 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2701748454, ack 3124448829, win 65160, options <span class="o">[</span>mss 1460,sackOK,TS val 177003962 ecr 2395494060,nop,wscale 7], length 0
+<span class="go">IP (tos 0x10, ttl 64, id 39858, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.128.34128 &gt;</span><span class="w"> </span>192.168.91.137.22: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x3881 <span class="o">(</span>incorrect -&gt; 0xd6df<span class="o">)</span>, ack 2701748455, win 502, options <span class="o">[</span>nop,nop,TS val 2395494061 ecr 177003962], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 39639, offset 0, flags [DF], proto TCP (6), length 93)
+</span><span class="gp">    192.168.91.137.22 &gt;</span><span class="w"> </span>192.168.91.128.34128: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x4dc3 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2701748455:2701748496, ack 3124448829, win 510, options <span class="o">[</span>nop,nop,TS val 177003967 ecr 2395494061], length 41: SSH: SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+<span class="go">IP (tos 0x10, ttl 64, id 39859, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.128.34128 &gt;</span><span class="w"> </span>192.168.91.137.22: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x3881 <span class="o">(</span>incorrect -&gt; 0xd6ac<span class="o">)</span>, ack 2701748496, win 502, options <span class="o">[</span>nop,nop,TS val 2395494066 ecr 177003967], length 0
+<span class="go">
+IP (tos 0x10, ttl 64, id 39860, offset 0, flags [DF], proto TCP (6), length 59)
+</span><span class="gp">    192.168.91.128.34128 &gt;</span><span class="w"> </span>192.168.91.137.22: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x3888 <span class="o">(</span>incorrect -&gt; 0x58ae<span class="o">)</span>, <span class="nb">seq </span>3124448829:3124448836, ack 2701748496, win 502, options <span class="o">[</span>nop,nop,TS val 2395571902 ecr 177003967], length 7
+<span class="go">IP (tos 0x10, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.137.22 &gt;</span><span class="w"> </span>192.168.91.128.34128: Flags <span class="o">[</span>R], <span class="nb">cksum </span>0xe805 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2701748496, win 0, length 0</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="time-wait-assassination-twa">5.5. TIME-WAIT Assassination (TWA)</h3>
+<div class="paragraph">
+<p>During TIME-WAIT state period, the waiting TCP usually has little to do; it merely holds the state until the 2MSL timer expires.</p>
+</div>
+<div class="paragraph">
+<p>If, however, it receives certain segments from the connection during this period, or more specifically an RST segment, it can become desynchronized. This is called <strong>TIME-WAIT Assassination</strong> (TWA) [RFC1337].</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-time-wait-assassination.png" alt="TCP TIME-WAIT Assassination" width="45%" height="45%">
+</div>
+<div class="title">Figure 7. An RST segment can "assassinate" the TIME_WAIT state and force the connection to close prematurely. Various methods exist to resist this problem, including ignoring RST segments when in the TIME_WAIT state.</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="tcp-server-operation">6. TCP Server Operation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a new connection request arrives at a server, the server accepts the connection and invokes a new process or thread to handle the new client concurrently.</p>
+</div>
+<div class="sect2">
+<h3 id="tcp-port-numbers">6.1. TCP Port Numbers</h3>
+<div class="paragraph">
+<p>We shall watch the secure shell server (called <code>sshd</code>) using the <code>netstat</code> command on a dual-stack IPv4/IPv6-capable host. The following output is on a system with no active secure shell connections.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-nat</span>
+<span class="go">Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp6       0      0 :::22                   :::*                    LISTEN</span></code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The local address (which really means <em>local endpoint</em>) is output as <code>0.0.0.0:22</code> and <code>:::22</code>, which are the IPv4/IPv6-oriented ways of referring to the all-zeros address, also called the <em>wildcard</em> address, along with port number 22. This means that an incoming connection request (i.e., a SYN) to port 22 will be accepted on any local interface.</p>
+<div class="paragraph">
+<p>If the host were multihomed (this one is), we could specify a single IP address for the local IP address (one of the host&#8217;s IP addresses), and only connections received on that interface would be accepted.</p>
+</div>
+<div class="paragraph">
+<p>Port 22 is the well-known port number reserved for the Secure Shell Protocol.</p>
+</div>
+</li>
+<li>
+<p>The foreign address is output as <code>0.0.0.0:*</code> and <code>:::*</code>, which mean both a wildcard address and port number (i.e., it represents a wildcard endpoint).</p>
+<div class="paragraph">
+<p>Here, the foreign IP address and foreign port number are not known yet, because the local endpoint is in the LISTEN state, waiting for a connection to arrive.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We now start a secure shell client on the host through a NAT <code>192.168.91.1</code> that connects to this server.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-n</span> <span class="nt">-t</span> <span class="nt">-a</span>
+<span class="go">Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp        0    172 192.168.91.128:22       192.168.91.1:52094      ESTABLISHED
+tcp6       0      0 :::22                   :::*                    LISTEN</span></code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The second line for port 22 is the ESTABLISHED connection.</p>
+<div class="paragraph">
+<p>All four elements of the local and foreign endpoints are filled in for this connection: the local IP address and port number, and the foreign IP address and port number.</p>
+</div>
+<div class="paragraph">
+<p>The local IP address corresponds to the interface on which the connection request arrived (the Ethernet interface, identified by address, <code>192.168.91.128</code>).</p>
+</div>
+</li>
+<li>
+<p>The local endpoint in the LISTEN state is left alone.</p>
+<div class="paragraph">
+<p>This is the endpoint that the concurrent server uses to accept future connection requests. It is the TCP module in the operating system that creates the new endpoint in the ESTABLISHED state, when the incoming connection request arrives and is accepted.</p>
+</div>
+</li>
+<li>
+<p>Also notice that the port number for the ESTABLISHED connection does not change: it is 22, the same as the LISTEN endpoint.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We now initiate another client request from the same system (<code>192.168.91.1</code>) to this server. Here is the relevant <code>netstat</code> output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-nta</span>
+<span class="go">Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp        0      0 192.168.91.128:22       192.168.91.1:52408      ESTABLISHED
+tcp        0      0 192.168.91.128:22       192.168.91.1:52094      ESTABLISHED
+tcp6       0      0 :::22                   :::*                    LISTEN</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="restricting-local-ip-addresses">6.2. Restricting Local IP Addresses</h3>
+<div class="paragraph">
+<p>We can see what happens when the server does not wildcard the local IP address but instead sets it to one particular local address. If we run our <code>nc</code> program as a server and provide it with a particuclar IP address, that address becomes the local address of the listening endpoint. For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip a s ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+    inet 192.168.91.129/24 brd 192.168.91.255 scope global secondary ens32
+       valid_lft forever preferred_lft forever
+    inet6 fe80::20c:29ff:fe8c:df3f/64 scope link
+       valid_lft forever preferred_lft forever
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>nc <span class="nt">-kvl</span> 192.168.91.128 8888
+<span class="go">Ncat: Version 7.80 ( https://nmap.org/ncat )
+Ncat: Listening on 192.168.91.128:8888
+
+Ncat: Connection from 192.168.91.137.
+Ncat: Connection from 192.168.91.137:56918.</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If we instead try to connect to this server from a host using a destination address other than <code>192.168.91.128</code> (even including the local address <code>127.0.0.1</code>), the connection request is not accepted by the TCP module, meanwhile the server application never sees the connection request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>nc 192.168.91.128 8888
+<span class="go">^C
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span>nc 192.168.91.129 8888
+<span class="go">Ncat: Connection refused.</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>nc 127.0.0.1 8888
+<span class="go">Ncat: Connection refused.</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If we watch with tcpdump, the SYN elicits an RST segment.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-ntSv</span> <span class="nt">-i</span> any port 8888 and tcp
+<span class="go">ens32 In  IP (tos 0x0, ttl 64, id 42898, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.38142 &gt;</span><span class="w"> </span>192.168.91.128.8888: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x12bf <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>244930047, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1592493755 ecr 0,nop,wscale 7], length 0
+<span class="go">ens32 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.8888 &gt;</span><span class="w"> </span>192.168.91.137.38142: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x3889 <span class="o">(</span>incorrect -&gt; 0x21bc<span class="o">)</span>, <span class="nb">seq </span>2513818259, ack 244930048, win 65160, options <span class="o">[</span>mss 1460,sackOK,TS val 3269837322 ecr 1592493755,nop,wscale 7], length 0
+<span class="go">ens32 In  IP (tos 0x0, ttl 64, id 42899, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.137.38142 &gt;</span><span class="w"> </span>192.168.91.128.8888: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x4d1b <span class="o">(</span>correct<span class="o">)</span>, ack 2513818260, win 502, options <span class="o">[</span>nop,nop,TS val 1592493755 ecr 3269837322], length 0
+<span class="go">ens32 In  IP (tos 0x0, ttl 64, id 42900, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.137.38142 &gt;</span><span class="w"> </span>192.168.91.128.8888: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x47b3 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>244930048, ack 2513818260, win 502, options <span class="o">[</span>nop,nop,TS val 1592495138 ecr 3269837322], length 0
+<span class="go">ens32 Out IP (tos 0x0, ttl 64, id 22157, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.128.8888 &gt;</span><span class="w"> </span>192.168.91.137.38142: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x3881 <span class="o">(</span>incorrect -&gt; 0x4242<span class="o">)</span>, <span class="nb">seq </span>2513818260, ack 244930049, win 510, options <span class="o">[</span>nop,nop,TS val 3269838706 ecr 1592495138], length 0
+<span class="go">ens32 In  IP (tos 0x0, ttl 64, id 42901, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.137.38142 &gt;</span><span class="w"> </span>192.168.91.128.8888: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x4249 <span class="o">(</span>correct<span class="o">)</span>, ack 2513818261, win 502, options <span class="o">[</span>nop,nop,TS val 1592495139 ecr 3269838706], length 0
+<span class="go">
+ens32 In  IP (tos 0x0, ttl 64, id 49077, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.52334 &gt;</span><span class="w"> </span>192.168.91.129.8888: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x9ff0 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>268676780, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1836145019 ecr 0,nop,wscale 7], length 0
+<span class="go">ens32 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.129.8888 &gt;</span><span class="w"> </span>192.168.91.137.52334: Flags <span class="o">[</span>R.], <span class="nb">cksum </span>0xc99d <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>0, ack 268676781, win 0, length 0
+<span class="go">
+lo    In  IP (tos 0x0, ttl 64, id 27559, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    127.0.0.1.39402 &gt;</span><span class="w"> </span>127.0.0.1.8888: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xfe30 <span class="o">(</span>incorrect -&gt; 0x7bca<span class="o">)</span>, <span class="nb">seq </span>1179089949, win 65495, options <span class="o">[</span>mss 65495,sackOK,TS val 2152518883 ecr 0,nop,wscale 7], length 0
+<span class="go">lo    In  IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    127.0.0.1.8888 &gt;</span><span class="w"> </span>127.0.0.1.39402: Flags <span class="o">[</span>R.], <span class="nb">cksum </span>0x32c6 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>0, ack 1179089950, win 0, length 0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="restricting-foreign-endpoints">6.3. Restricting Foreign Endpoints</h3>
+<div class="paragraph">
+<p>The abstract interface functions for TCP given in [RFC0793] allow a server doing a passive open to have either a fully specified foreign endpoint (to wait for a particular client to issue an active open) or an unspecified foreign endpoint (to wait for any client).</p>
+</div>
+<div class="paragraph">
+<p>Unfortunately, the ordinary Berkeley sockets API does not provide a way to do this. The server must leave the client&#8217;s endpoint unspecified, wait for the connection to arrive, and then examine the IP address and port number of the client.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 2. Address and port number binding options available to a TCP server</caption>
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Local Address</th>
+<th class="tableblock halign-left valign-top">Foreign Address</th>
+<th class="tableblock halign-left valign-top">Restricted to</th>
+<th class="tableblock halign-left valign-top">Comment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>local_IP</code>.<code>lport</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>foraddr</code>.<code>foreign_port</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One client</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Not usually supported</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>local_IP</code>.<code>lport</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>*</code>.<code>*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One local endpoint</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Unusual (used by DNS servers)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>*</code>.<code>local_port</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>*</code>.<code>*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One local port</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Most common; multiple
+address families (IPv4/IPv6)
+may be supported</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="incoming-connection-queue">6.4. Incoming Connection Queue</h3>
+<div class="paragraph">
+<p>A concurrent server invokes a new process or thread to handle each client, so the listening server should always be ready to handle the next incoming connection request. That is the underlying reason for using concurrent servers.</p>
+</div>
+<div class="paragraph">
+<p>But there is still a chance that multiple connection requests will arrive</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>while the listening server is creating a new process,</p>
+</li>
+<li>
+<p>or while the operating system is busy running other higher-priority processes,</p>
+</li>
+<li>
+<p>or worse yet, that the server is being attacked with bogus connection requests that are never allowed to be established.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>How does TCP handle these scenarios?</p>
+</div>
+<div class="paragraph">
+<p>To fully explore this question, we must first understand that new connections may be in one of two distinct states before they are made available to an application.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The first case is connections that have not yet completed but for which a SYN has been received (these are in the <strong>SYN_RCVD</strong> state).</p>
+</li>
+<li>
+<p>The second case is connections that have already completed the three-way handshake and are in the <strong>ESTABLISHED</strong> state but have not yet been accepted by the application.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>An application has limited control over the sizing of these queues.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Traditionally, using the Berkeley sockets API, an application had only indirect control of the sum of the sizes of these two queues.</p>
+</li>
+<li>
+<p>In modern Linux kernels this behavior has been changed to be the number of connections in the second case (ESTABLISHED connections).</p>
+<div class="paragraph">
+<p>The application can therefore limit the number of fully formed connections waiting for it to handle.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In Linux, then, the following rules apply:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>When a connection request arrives (i.e., the SYN segment), the system-wide parameter <code>net.ipv4.tcp_max_syn_backlog</code> is checked (default 1000).</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">uname</span> <span class="nt">-a</span>
+<span class="gp">Linux node-0 5.10.0-19-amd64 #</span>1 SMP Debian 5.10.149-2 <span class="o">(</span>2022-10-21<span class="o">)</span> x86_64 GNU/Linux
+<span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.tcp_max_syn_backlog
+<span class="go">net.ipv4.tcp_max_syn_backlog = 256</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the number of connections in the SYN_RCVD state would exceed this threshold, the incoming connection is rejected.</p>
+</div>
+</li>
+<li>
+<p>Each listening endpoint has a fixed-length queue of connections that have been <em>completely accepted by TCP</em> (i.e., the three-way handshake is complete) but <em>not yet accepted by the application</em>.</p>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>The application specifies a limit to this queue, commonly called the <strong>backlog</strong>.</p>
+</li>
+<li>
+<p>This backlog must be between <code>0</code> and a system-specific maximum called <code>net.core.somaxconn</code>, inclusive (default 128).</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">uname</span> <span class="nt">-a</span>
+<span class="gp">Linux node-0 5.10.0-19-amd64 #</span>1 SMP Debian 5.10.149-2 <span class="o">(</span>2022-10-21<span class="o">)</span> x86_64 GNU/Linux
+<span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.core.somaxconn
+<span class="go">net.core.somaxconn = 4096</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Keep in mind that this backlog value specifies only the maximum number of queued connections for <strong>one</strong> listening endpoint, all of which have already been accepted by TCP and are <em>waiting to be accepted by the application</em>.</p>
+</li>
+<li>
+<p>This backlog has no effect whatsoever on the maximum number of established connections allowed by the system, or on the number of clients that a concurrent server can handle concurrently.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p>If there is room on this listening endpoint&#8217;s queue for this new connection, the TCP module ACKs the SYN and completes the connection.</p>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>The server application with the listening endpoint does not see this new connection until the third segment of the three-way handshake is received.</p>
+</li>
+<li>
+<p>Also, the client may think the server is ready to receive data when the client&#8217;s active open completes successfully, before the server application has been notified of the new connection. If this happens, the server&#8217;s TCP just queues the incoming data.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p>If there is not enough room on the queue for the new connection, the TCP delays responding to the SYN, to give the application a chance to catch up.</p>
+<div class="paragraph">
+<p>Linux is somewhat unique in this behavior—it persists in not ignoring incoming connections if it possibly can.</p>
+</div>
+<div class="paragraph">
+<p>If the <code>net.ipv4.tcp_abort_on_overflow</code> system control variable is set, new incoming connections are reset with a reset segment.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Sending reset segments on overflow is not generally advisable and is not turned on by default.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The client has attempted to contact the server, and if it receives a reset during the SYN exchange, it may falsely conclude that no server is present (instead of concluding that there is a server present but it is busy). Being too busy is really a form of "soft" or temporary error rather than a hard error.</p>
+</li>
+<li>
+<p>Normally, when the queue is full, the application or the operating system is busy, preventing the application from servicing incoming connections. This condition could change in a short while.</p>
+</li>
+<li>
+<p>But if the server&#8217;s TCP responded with a reset, the client&#8217;s active open would abort (which is what we saw happen if the server was not started).</p>
+</li>
+<li>
+<p>Without the reset, if the listening server does not get around to accepting some of the already-accepted connections that have filled its queue to the limit, the client&#8217;s active open eventually times out, according to normal TCP mechanisms. In the case of Linux, the connecting clients are just slowed for a significant period of time—they will neither time out nor be reset.</p>
+</li>
+</ul>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<details>
+<summary class="title"><em>Show backlog.c</em></summary>
+<div class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="c"><span class="c1">// backlog.c</span>
+
+<span class="cp">#include</span> <span class="cpf">&lt;arpa/inet.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;stdbool.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;sys/socket.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+</span>
+<span class="cp">#define MAXPENDING 1 // backlog
+#define SERV_PORT 6666
+</span>
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kt">int</span> <span class="n">serv_sock</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="k">struct</span> <span class="n">sockaddr_in</span> <span class="n">serv_addr</span><span class="p">;</span>
+    <span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_family</span> <span class="o">=</span> <span class="n">AF_INET</span><span class="p">;</span>                 <span class="cm">/* Internet address family */</span>
+    <span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_addr</span><span class="p">.</span><span class="n">s_addr</span> <span class="o">=</span> <span class="n">htonl</span><span class="p">(</span><span class="n">INADDR_ANY</span><span class="p">);</span>  <span class="cm">/* Any incoming interface */</span>
+    <span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_port</span> <span class="o">=</span> <span class="n">htons</span><span class="p">(</span><span class="n">SERV_PORT</span><span class="p">);</span>          <span class="cm">/* Local port */</span>
+
+    <span class="k">do</span> <span class="p">{</span>
+        <span class="cm">/* Create a TCP socket */</span>
+        <span class="cm">/* Create socket for incoming connections */</span>
+        <span class="k">if</span> <span class="p">((</span><span class="n">serv_sock</span> <span class="o">=</span> <span class="n">socket</span><span class="p">(</span><span class="n">PF_INET</span><span class="p">,</span> <span class="n">SOCK_STREAM</span><span class="p">,</span> <span class="n">IPPROTO_TCP</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">perror</span><span class="p">(</span><span class="s">"socket() failed"</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="cm">/* Assign a port to socket */</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">bind</span><span class="p">(</span><span class="n">serv_sock</span><span class="p">,</span> <span class="p">(</span><span class="k">struct</span> <span class="n">sockaddr</span> <span class="o">*</span><span class="p">)</span> <span class="o">&amp;</span><span class="n">serv_addr</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">serv_addr</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">perror</span><span class="p">(</span><span class="s">"bind() failed"</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="cm">/* Set socket to listen */</span>
+        <span class="cm">/* Mark the socket so it will listen for incoming connections */</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">listen</span><span class="p">(</span><span class="n">serv_sock</span><span class="p">,</span> <span class="n">MAXPENDING</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">perror</span><span class="p">(</span><span class="s">"listen() failed"</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="kt">char</span> <span class="o">*</span><span class="n">addrp</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">inet_ntop</span><span class="p">(</span><span class="n">AF_INET</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_addr</span><span class="p">),</span> <span class="n">addrp</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">serv_addr</span><span class="p">))</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">perror</span><span class="p">(</span><span class="s">"inet_ntop() failed"</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">"listening: %s:%d.</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">addrp</span><span class="p">,</span> <span class="n">SERV_PORT</span><span class="p">);</span>
+
+        <span class="n">sleep</span><span class="p">(</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="mi">25</span><span class="p">);</span> <span class="c1">// sleep 1 day without any accepting</span>
+    <span class="p">}</span> <span class="k">while</span> <span class="p">(</span><span class="nb">false</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">serv_sock</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">close</span><span class="p">(</span><span class="n">serv_sock</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span></code></pre>
+</div>
+</div>
+</div>
+</details>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>gcc backlog.c
+<span class="gp">x@node-0:~$</span><span class="w"> </span>./a.out
+<span class="go">listening: 0.0.0.0:6666.</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-nt4l</span>
+<span class="go">Active Internet connections (only servers)</span>
+<span class="go">Proto Recv-Q Send-Q Local Address           Foreign Address         State</span>
+<span class="hll"><span class="go">tcp        0      0 0.0.0.0:6666            0.0.0.0:*               LISTEN</span>
+</span><span class="go">tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>telnet 192.168.91.128 6666
+<span class="go">Trying 192.168.91.128...
+Connected to 192.168.91.128.
+Escape character is '^]'.</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>telnet 192.168.91.128 6666
+<span class="go">Trying 192.168.91.128...
+Connected to 192.168.91.128.
+Escape character is '^]'.</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>We try to start a third whose SYN appears as segment 7 (port 49598), but the server-side TCP ignores the SYNs because the queue for this listening endpoint is full. The client retransmits its SYN in segments 8–13 using binary exponential backoff.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>telnet 192.168.91.128 6666
+<span class="go">Trying 192.168.91.128...
+telnet: Unable to connect to remote host: Connection timed out</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ss <span class="nt">-ntl4</span>
+<span class="go">State              Recv-Q              Send-Q                           Local Address:Port                            Peer Address:Port             Process
+LISTEN             2                   1                                      0.0.0.0:6666                                 0.0.0.0:*
+LISTEN             0                   128                                    0.0.0.0:22                                   0.0.0.0:*
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>netstat <span class="nt">-nta4</span>
+<span class="go">Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        2      0 0.0.0.0:6666            0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp        0      0 192.168.91.128:6666     192.168.91.137:47352    ESTABLISHED
+tcp        0      0 192.168.91.128:6666     192.168.91.137:54366    ESTABLISHED</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The Linux server accepts two connections immediately. Subsequent connections receive no response and eventually time out at the client.</p>
+</div>
+<details>
+<summary class="title"><em>Show tcpdump trace</em></summary>
+<div class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tttSnvv</span> port 6666 <span class="nt">-i</span> ens32
+<span class="go"> 00:00:00.000000 IP (tos 0x10, ttl 64, id 27519, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.55964 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x9b9c <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2152111340, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666647015 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:00.000036 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.6666 &gt;</span><span class="w"> </span>192.168.91.137.55964: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x3889 <span class="o">(</span>incorrect -&gt; 0x8908<span class="o">)</span>, <span class="nb">seq </span>1765187368, ack 2152111341, win 65160, options <span class="o">[</span>mss 1460,sackOK,TS val 3343990586 ecr 1666647015,nop,wscale 7], length 0
+<span class="go"> 00:00:00.000163 IP (tos 0x10, ttl 64, id 27520, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.137.55964 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0xb467 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2152111341, ack 1765187369, win 502, options <span class="o">[</span>nop,nop,TS val 1666647015 ecr 3343990586], length 0
+<span class="go">
+ 00:00:03.103909 IP (tos 0x10, ttl 64, id 36918, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.55980 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xfdfd <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1592217530, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666650119 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:00.000023 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.6666 &gt;</span><span class="w"> </span>192.168.91.137.55980: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x3889 <span class="o">(</span>incorrect -&gt; 0xb79d<span class="o">)</span>, <span class="nb">seq </span>1742325809, ack 1592217531, win 65160, options <span class="o">[</span>mss 1460,sackOK,TS val 3343993690 ecr 1666650119,nop,wscale 7], length 0
+<span class="go"> 00:00:00.000091 IP (tos 0x10, ttl 64, id 36919, offset 0, flags [DF], proto TCP (6), length 52)
+</span><span class="gp">    192.168.91.137.55980 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0xe2fc <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1592217531, ack 1742325810, win 502, options <span class="o">[</span>nop,nop,TS val 1666650119 ecr 3343993690], length 0
+<span class="go">
+ 00:00:06.974278 IP (tos 0x10, ttl 64, id 7754, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xbfe9 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666657092 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:01.010323 IP (tos 0x10, ttl 64, id 7755, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xbbf6 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666658103 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:02.016133 IP (tos 0x10, ttl 64, id 7756, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xb416 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666660119 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:04.191522 IP (tos 0x10, ttl 64, id 7757, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xa3b6 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666664311 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:08.191700 IP (tos 0x10, ttl 64, id 7758, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x83b6 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666672503 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:16.128449 IP (tos 0x10, ttl 64, id 7759, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x44b6 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666688631 ecr 0,nop,wscale 7], length 0
+<span class="go"> 00:00:33.792360 IP (tos 0x10, ttl 64, id 7760, offset 0, flags [DF], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.137.49598 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xc0b5 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2744338131, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 1666722423 ecr 0,nop,wscale 7], length 0</code></pre>
+</div>
+</div>
+</div>
+</details>
+</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="tcp-syn-flood-dos-attack">7. TCP SYN flood DoS attack</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A <strong>SYN flood</strong> is a TCP DoS attack whereby one or more malicious clients generate a series of TCP connection attempts (SYN segments) and send them at a server, often with a <em>spoofed</em> (e.g., random) source IP address.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The server allocates some amount of connection resources to each partial connection.</p>
+</li>
+<li>
+<p>Because the connections are never established, the server may start to deny service to future legitimate requests because its memory is exhausted holding state for many half-open connections.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>One mechanism invented to deal with the <em>SYN flood</em> issue is called <strong>SYN cookies</strong> [RFC4987].</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The main insight with SYN cookies is that most of the information that would be stored for a connection when a SYN arrives could be encoded inside the <em>Sequence Number</em> field supplied with the SYN + ACK.</p>
+</li>
+<li>
+<p>The target machine using SYN cookies need not allocate any storage for the incoming connection request—it allocates real memory only once the SYN + ACK segment has itself been acknowledged (and the initial sequence number is returned).</p>
+</li>
+<li>
+<p>In that case, all the vital connection parameters can be recovered and the connection can be placed in the ESTABLISHED state.</p>
+</li>
+<li>
+<p>Producing SYN cookies involves a careful selection process of the TCP ISN at servers.</p>
+<div class="paragraph">
+<p>Essentially, the server must encode any essential state in the <em>Sequence Number</em> field in its SYN + ACK that is returned in the <em>ACK Number</em> field from a legitimate client.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>socat TCP-LISTEN:6666,fork,reuseaddr,backlog<span class="o">=</span>16 -</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>hping3 <span class="nt">-c</span> 15000 <span class="nt">-d</span> 120 <span class="nt">-S</span> <span class="nt">-w</span> 64 <span class="nt">-p</span> 6666 <span class="nt">--flood</span> <span class="nt">--rand-source</span> 192.168.91.128
+<span class="go">HPING 192.168.91.128 (ens32 192.168.91.128): S set, 40 headers + 120 data bytes
+hping in flood mode, no replies will be shown</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">Every 2.0s: ss -ntlao src *:6666                          node-0: Tue Jan 17 14:18:42 2023
+
+State    Recv-Q Send-Q  Local Address:Port    Peer Address:Port Process
+LISTEN   0      16            0.0.0.0:6666         0.0.0.0:*
+SYN-RECV 0      0      192.168.91.128:6666 253.207.178.242:1263  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666   242.132.73.92:28552 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666    242.40.25.25:28464 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666  253.106.78.160:28362 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666   242.51.222.66:1282  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666   241.54.238.19:1223  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666    0.208.65.129:1372  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666  241.21.223.166:1369  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666  248.70.213.239:28376 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666 246.188.115.108:1231  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666  246.200.132.48:1203  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666    242.200.4.84:28562 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666    0.132.205.12:1237  timer:(on,7.796ms,4)
+SYN-RECV 0      0      192.168.91.128:6666   241.78.102.97:28296 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666 241.224.178.160:28432 timer:(on,964ms,1)
+SYN-RECV 0      0      192.168.91.128:6666  242.241.15.118:28422 timer:(on,964ms,1)</span></code></pre>
+</div>
+</div>
+<details>
+<summary class="title"><em>Show tcpdump trace</em></summary>
+<div class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-ntv</span> <span class="nt">-i</span> ens32 port 6666 and tcp
+<span class="go">IP (tos 0x0, ttl 64, id 63705, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    0.196.178.163.2330 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x213b <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>724690304:724690424, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 31179, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    52.38.211.34.2331 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xe51b <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1259551603:1259551723, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 1348, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    163.253.38.99.2332 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x8b80 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1145231226:1145231346, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+</span><span class="gp">    192.168.91.128.6666 &gt;</span><span class="w"> </span>0.196.178.163.2330: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xcfae <span class="o">(</span>incorrect -&gt; 0x5bce<span class="o">)</span>, <span class="nb">seq </span>2338239121, ack 724690305, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+</span><span class="gp">    192.168.91.128.6666 &gt;</span><span class="w"> </span>52.38.211.34.2331: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x2390 <span class="o">(</span>incorrect -&gt; 0xa7f0<span class="o">)</span>, <span class="nb">seq </span>1462620393, ack 1259551604, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+</span><span class="gp">    192.168.91.128.6666 &gt;</span><span class="w"> </span>163.253.38.99.2332: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xe6a7 <span class="o">(</span>incorrect -&gt; 0x44c3<span class="o">)</span>, <span class="nb">seq </span>4096016080, ack 1145231227, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 12576, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    33.27.153.163.2333 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xa99c <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>547114778:547114898, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 54784, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    113.116.167.181.2334 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x7af2 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1087648591:1087648711, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 56408, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    244.134.115.210.2335 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xa0e4 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>2011424089:2011424209, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 11115, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    79.107.129.40.2336 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x3d4b <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>234582353:234582473, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 64, id 35935, offset 0, flags [none], proto TCP (6), length 160)
+</span><span class="gp">    164.52.15.173.2337 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0x7000 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1320724685:1320724805, win 64, length 120
+<span class="go">IP (tos 0x0, ttl 128, id 45741, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    52.38.211.34.2331 &gt;</span><span class="w"> </span>192.168.91.128.6666: Flags <span class="o">[</span>R], <span class="nb">cksum </span>0x62c3 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1259551604, win 32767, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 44)
+</span><span class="gp">    192.168.91.128.6666 &gt;</span><span class="w"> </span>33.27.153.163.2333: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0xd705 <span class="o">(</span>incorrect -&gt; 0x10d7<span class="o">)</span>, <span class="nb">seq </span>1459145616, ack 547114779, win 64240, options <span class="o">[</span>mss 1460], length 0</code></pre>
+</div>
+</div>
+</div>
+</details>
+</div>
+</div>
+<div class="sect1">
+<h2 id="segmentation-offloading">Appendix A: Segmentation Offloading</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Unfortunately sometimes what we see in Wireshark is not what we expect. One case in which this occurs is when TCP/IP operations are offloaded by the operating system to the Network Interface Card (NIC). Common operations for offloading are segmentation and checksum calculations. That is, instead of the OS using the CPU to segment TCP packets, it allows the NIC to use its own processor to perform the segmentation. This saves on the CPU and importantly cuts down on the bus communications to/from the NIC. However offloading doesn&#8217;t change what is sent over the network. In other words, offloading to the NIC can produce performance gains inside your computer, but not across the network. <a href="#SOWE">[SOWE]</a></p>
+</div>
+<div class="paragraph">
+<p>How does this affect what Wireshark captures? Consider the figure below illustrating the normal flow of data through a TCP/IP stack without offloading. Lets assume the application data is 7,300 Bytes. TCP breaks this into five segments. Why five? The Maximum Transmission Unit (MTU) of Ethernet is 1500 Bytes. If we subtract the 20 Byte IP header and 20 Byte TCP header there is 1460 Bytes remaining for data in a TCP segment (this is the TCP Maximum Segment Size (MSS)). 7,300 Bytes can be conveniently segmented into five maximum sized TCP segments.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-without-offloading.png" alt="tcp ip stack without offloading" width="55%" height="55%">
+</div>
+</div>
+<div class="paragraph">
+<p>After IP adds a header to the TCP segments the resulting IP datagrams are sent one-by-one to the "Ethernet layer". Note that TCP/IP are part of operating system, while most functionality of Ethernet is implemented on the NIC. However network drivers (lets consider them part of the OS) also perform some of the Ethernet functionality. The network driver creates/receives Ethernet frames. So in the above example, assuming segmentation offloading is not used, the 7,300 Bytes of application data is segmented into 5 TCP/IP packets containing 1460 Bytes of data each. The network driver encapsulates each IP datagram in an Ethernet frame and sends the frames to the NIC. It is these Ethernet frames that Wireshark (and other packet capture software, like <strong>tcpdump</strong>) captures. The NIC then sends the frames, one-by-one, over the network.</p>
+</div>
+<div class="paragraph">
+<p>Now consider when segmentation offloading is used (as in the figure below). The OS does not segment the application data, but instead creates one large TCP/IP packet and sends that to the driver. The TCP and IP headers are in fact template headers. The driver creates a single Ethernet frame (which is captured by Wireshark) and sends it to the NIC. Now the NIC performs the segmentation. It uses the template headers to create 5 Ethernet frames with real TCP/IP/Ethernet headers. The 5 frames are then sent over the network.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-connection-management/tcp-ip-stack-with-offloading.png" alt="tcp ip stack with offloading" width="55%" height="55%">
+</div>
+</div>
+<div class="paragraph">
+<p>The result: although the same 5 Ethernet frames are sent over the network, Wireshark captures different data depending on the use of segmentation offloading. When not used, the 5 Ethernet frames are captured. When offloading is used, Wireshark only captures the single, large frame (containing 7,300 bytes of data).</p>
+</div>
+<div class="paragraph">
+<p>Queries the specified network device for the state of protocol offload and other features.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ethtool <span class="nt">-k</span> ens32
+<span class="go">Features for ens32:</span>
+<span class="go">rx-checksumming: off</span>
+<span class="go">tx-checksumming: on</span>
+<span class="go">	tx-checksum-ipv4: off [fixed]</span>
+<span class="go">	tx-checksum-ip-generic: on</span>
+<span class="go">	tx-checksum-ipv6: off [fixed]</span>
+<span class="go">	tx-checksum-fcoe-crc: off [fixed]</span>
+<span class="go">	tx-checksum-sctp: off [fixed]</span>
+<span class="go">scatter-gather: on</span>
+<span class="go">	tx-scatter-gather: on</span>
+<span class="go">	tx-scatter-gather-fraglist: off [fixed]</span>
+<span class="hll"><span class="go">tcp-segmentation-offload: on</span>
+</span><span class="go">	tx-tcp-segmentation: on</span>
+<span class="go">	tx-tcp-ecn-segmentation: off [fixed]</span>
+<span class="go">	tx-tcp-mangleid-segmentation: off</span>
+<span class="go">	tx-tcp6-segmentation: off [fixed]</span>
+<span class="go">udp-fragmentation-offload: off</span>
+<span class="go">generic-segmentation-offload: on</span>
+<span class="hll"><span class="go">generic-receive-offload: on</span>
+</span><span class="go">large-receive-offload: off [fixed]</span>
+<span class="c">.....</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="c"># tso on|off</span>
+<span class="c">#        Specifies whether TCP segmentation offload should be enabled.</span>
+<span class="c">#</span>
+<span class="c"># gro on|off</span>
+<span class="c">#        Specifies whether generic receive offload should be enabled</span>
+<span class="nb">sudo </span>ethtool <span class="nt">-K</span> ens32 tso off gro off</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist bibliography">
+<ul class="bibliography">
+<li>
+<p><a id="TCPIPV1"></a>[TCPIPV1] Kevin Fall, W. Stevens <em>TCP/IP Illustrated: The Protocols, Volume 1</em>. 2nd edition, Addison-Wesley Professional, 2011</p>
+</li>
+<li>
+<p><a id="RFC1323"></a>[RFC1323] V. Jacobson, R. Braden, and D. Borman, <em>TCP Extensions for High Performance</em>, Internet RFC 1323, May 1992.</p>
+</li>
+<li>
+<p><a id="RSTATTACK"></a>[RSTATTACK] <a href="https://en.wikipedia.org/wiki/TCP_reset_attack" class="bare">https://en.wikipedia.org/wiki/TCP_reset_attack</a></p>
+</li>
+<li>
+<p><a id="OFFLOADING"></a>[OFFLOADING] <a href="https://wiki.wireshark.org/CaptureSetup/Offloading" class="bare">https://wiki.wireshark.org/CaptureSetup/Offloading</a></p>
+</li>
+<li>
+<p><a id="SOWE"></a>[SOWE] <a href="https://sandilands.info/sgordon/segmentation-offloading-with-wireshark-and-ethtool" class="bare">https://sandilands.info/sgordon/segmentation-offloading-with-wireshark-and-ethtool</a></p>
+</li>
+<li>
+<p><a id="LAB15"></a>[LAB15] <a href="http://ce.sc.edu/cyberinfra/workshops/Material/NTP/Lab%2015.pdf" class="bare">http://ce.sc.edu/cyberinfra/workshops/Material/NTP/Lab%2015.pdf</a></p>
+</li>
+<li>
+<p><a id="GSOLIB"></a>[GSOLIB] <a href="https://doc.dpdk.org/guides/prog_guide/generic_segmentation_offload_lib.html" class="bare">https://doc.dpdk.org/guides/prog_guide/generic_segmentation_offload_lib.html</a></p>
+</li>
+<li>
+<p><a id="NSO"></a>[NSO] <a href="https://docs.kernel.org/networking/segmentation-offloads.html" class="bare">https://docs.kernel.org/networking/segmentation-offloads.html</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2023/01/09/tcp-ip-introduction-to-tcp/">&laquo; TCP/IP: Introduction to TCP</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2023/01/17/tcp-ip-tcp-timeout-and-retransmission/">TCP/IP: TCP Timeout and Retransmission &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

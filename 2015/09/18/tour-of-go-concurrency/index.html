@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Tour of Go - Concurrency</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2015/09/18/tour-of-go-concurrency/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Tour of Go - Concurrency</h1>
+    
+    
+    <p class="post-meta"><time datetime="2015-09-18T21:12:40+08:00" itemprop="datePublished">Sep 18, 2015</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <h2 id="concurrency">Concurrency</h2>
+
+<h3 id="goroutines">Goroutines</h3>
+
+<p>A <em>goroutine</em> is a lightweight <em>thread</em> managed by the Go runtime.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>go f(x, y, z)
+</code></pre></div></div>
+
+<p>starts a new goroutine running</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>f(x, y, z)
+</code></pre></div></div>
+
+<p>The evaluation of <code class="language-plaintext highlighter-rouge">f</code>, <code class="language-plaintext highlighter-rouge">x</code>, <code class="language-plaintext highlighter-rouge">y</code>, and <code class="language-plaintext highlighter-rouge">z</code> happens in the current goroutine and the execution of <code class="language-plaintext highlighter-rouge">f</code> happens in the new goroutine.</p>
+
+<p>Goroutines run in the same address space, so access to shared memory must be synchronized. The <code class="language-plaintext highlighter-rouge">sync</code> package provides useful primitives, although you won’t need them much in Go as there are other primitives. (See the next slide.)</p>
+
+<figure class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+	<span class="s">"fmt"</span>
+	<span class="s">"time"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">say</span><span class="p">(</span><span class="n">s</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="m">5</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">100</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">go</span> <span class="n">say</span><span class="p">(</span><span class="s">"world"</span><span class="p">)</span>
+	<span class="n">say</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span>
+<span class="p">}</span></code></pre></figure>
+
+<h3 id="channels">Channels</h3>
+
+<p>Channels are a typed conduit through which you can send and receive values with the channel operator, <code class="language-plaintext highlighter-rouge">&lt;-</code>.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ch &lt;- v    // Send v to channel ch.
+v := &lt;-ch  // Receive from ch, and
+           // assign value to v.
+</code></pre></div></div>
+
+<p>(The data flows in the direction of the arrow.)</p>
+
+<p>Like maps and slices, channels must be created before use:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ch := make(chan int)
+</code></pre></div></div>
+
+<p>By default, sends and receives block until the other side is ready. This allows goroutines to synchronize without explicit locks or condition variables.</p>
+
+<figure class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="k">func</span> <span class="n">sum</span><span class="p">(</span><span class="n">a</span> <span class="p">[]</span><span class="kt">int</span><span class="p">,</span> <span class="n">c</span> <span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">sum</span> <span class="o">:=</span> <span class="m">0</span>
+	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">a</span> <span class="p">{</span>
+		<span class="n">sum</span> <span class="o">+=</span> <span class="n">v</span>
+	<span class="p">}</span>
+	<span class="n">c</span> <span class="o">&lt;-</span> <span class="n">sum</span> <span class="c">// send sum to c</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">a</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="m">7</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">8</span><span class="p">,</span> <span class="o">-</span><span class="m">9</span><span class="p">,</span> <span class="m">4</span><span class="p">,</span> <span class="m">0</span><span class="p">}</span>
+
+	<span class="n">c</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+	<span class="k">go</span> <span class="n">sum</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="o">:</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="m">2</span><span class="p">],</span> <span class="n">c</span><span class="p">)</span>
+	<span class="k">go</span> <span class="n">sum</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="m">2</span><span class="o">:</span><span class="p">],</span> <span class="n">c</span><span class="p">)</span>
+	<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="n">c</span><span class="p">,</span> <span class="o">&lt;-</span><span class="n">c</span> <span class="c">// receive from c</span>
+
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span><span class="p">)</span>
+<span class="p">}</span></code></pre></figure>
+
+<h3 id="buffered-channels">Buffered Channels</h3>
+
+<p>Channels can be <em>buffered</em>. Provide the buffer length as the second argument to <code class="language-plaintext highlighter-rouge">make</code> to initialize a buffered channel:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ch := make(chan int, 100)
+</code></pre></div></div>
+
+<p>Sends to a buffered channel block only when the buffer is full. Receives block when the buffer is empty.</p>
+
+<p>Modify the example to overfill the buffer and see what happens.</p>
+
+<figure class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">ch</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="m">2</span><span class="p">)</span>
+	<span class="n">ch</span> <span class="o">&lt;-</span> <span class="m">1</span>
+	<span class="n">ch</span> <span class="o">&lt;-</span> <span class="m">2</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="o">&lt;-</span><span class="n">ch</span><span class="p">)</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="o">&lt;-</span><span class="n">ch</span><span class="p">)</span>
+<span class="p">}</span></code></pre></figure>
+
+<h3 id="range-and-close">Range and Close</h3>
+
+<p>A sender can <code class="language-plaintext highlighter-rouge">close</code> a channel to indicate that no more values will be sent. Receivers can test whether a channel has been closed by assigning a second parameter to the receive expression: after</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>v, ok := &lt;-ch
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">ok</code> is <code class="language-plaintext highlighter-rouge">false</code> if there are no more values to receive and the channel is closed.</p>
+
+<p>The loop <code class="language-plaintext highlighter-rouge">for i := range c</code> receives values from the channel repeatedly until it is closed.</p>
+
+<p><strong>Note</strong>: Only the sender should close a channel, never the receiver. Sending on a closed channel will cause a panic.</p>
+
+<p><strong>Another note</strong>: Channels aren’t like files; you don’t usually need to close them. Closing is only necessary when the receiver must be told there are no more values coming, such as to terminate a <code class="language-plaintext highlighter-rouge">range</code> loop.</p>
+
+<figure class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+	<span class="s">"fmt"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">fibonacci</span><span class="p">(</span><span class="n">n</span> <span class="kt">int</span><span class="p">,</span> <span class="n">c</span> <span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">:=</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span>
+	<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="n">c</span> <span class="o">&lt;-</span> <span class="n">x</span>
+		<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span>
+	<span class="p">}</span>
+	<span class="nb">close</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">c</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="m">10</span><span class="p">)</span>
+	<span class="k">go</span> <span class="n">fibonacci</span><span class="p">(</span><span class="nb">cap</span><span class="p">(</span><span class="n">c</span><span class="p">),</span> <span class="n">c</span><span class="p">)</span>
+	<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">c</span> <span class="p">{</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span></code></pre></figure>
+
+<h3 id="select">Select</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">select</code> statement lets a goroutine wait on multiple communication operations.</p>
+
+<p>A <code class="language-plaintext highlighter-rouge">select</code> blocks until one of its cases can run, then it executes that case. It chooses one at random if multiple are ready.</p>
+
+<figure class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="k">func</span> <span class="n">fibonacci</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">quit</span> <span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">:=</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span>
+	<span class="k">for</span> <span class="p">{</span>
+		<span class="k">select</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="n">c</span> <span class="o">&lt;-</span> <span class="n">x</span><span class="o">:</span>
+			<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="n">quit</span><span class="o">:</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"quit"</span><span class="p">)</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">c</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+	<span class="n">quit</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+	<span class="k">go</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="m">10</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span> <span class="p">{</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="o">&lt;-</span><span class="n">c</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="n">quit</span> <span class="o">&lt;-</span> <span class="m">0</span>
+	<span class="p">}()</span>
+	<span class="n">fibonacci</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">quit</span><span class="p">)</span>
+<span class="p">}</span></code></pre></figure>
+
+<h3 id="default-selection">Default Selection</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">default</code> case in a <code class="language-plaintext highlighter-rouge">select</code> is run if no other case is ready.</p>
+
+<p>Use a <code class="language-plaintext highlighter-rouge">default</code> case to try a send or receive without blocking:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>select {
+case i := &lt;-c:
+    // use i
+default:
+    // receiving from c would block
+}
+</code></pre></div></div>
+
+<figure class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+	<span class="s">"fmt"</span>
+	<span class="s">"time"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">tick</span> <span class="o">:=</span> <span class="n">time</span><span class="o">.</span><span class="n">Tick</span><span class="p">(</span><span class="m">100</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+	<span class="n">boom</span> <span class="o">:=</span> <span class="n">time</span><span class="o">.</span><span class="n">After</span><span class="p">(</span><span class="m">500</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+	<span class="k">for</span> <span class="p">{</span>
+		<span class="k">select</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="n">tick</span><span class="o">:</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"tick."</span><span class="p">)</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="n">boom</span><span class="o">:</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"BOOM!"</span><span class="p">)</span>
+			<span class="k">return</span>
+		<span class="k">default</span><span class="o">:</span>
+			<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"    ."</span><span class="p">)</span>
+			<span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">50</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Millisecond</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span></code></pre></figure>
+
+<hr />
+
+<h3 id="references">References</h3>
+
+<ul>
+  <li>Tour of Go,<a href="http://tour.golang.org/">http://tour.golang.org/</a></li>
+</ul>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2015/09/18/tour-of-go-methods-and-interfaces/">&laquo; Tour of Go - Methods and interfaces</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2016/03/25/create-jekyll-post-with-python/">Create Jekyll Post with Python &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>4 - Kubernetes Storage</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2019/03/25/kubernetes-crash-course-4/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">4 - Kubernetes Storage</h1>
+    
+    
+    <p class="post-meta"><time datetime="2019-03-25T17:55:05+08:00" itemprop="datePublished">Mar 25, 2019</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#contents" id="markdown-toc-contents">Contents</a></li>
+  <li><a href="#docker--container--storage" id="markdown-toc-docker--container--storage">Docker &amp; container &amp; storage</a>    <ul>
+      <li><a href="#images-and-layers" id="markdown-toc-images-and-layers">Images and layers</a></li>
+      <li><a href="#container-and-layers" id="markdown-toc-container-and-layers">Container and layers</a></li>
+      <li><a href="#volumes--bind-mounts--tmpfs-mounts" id="markdown-toc-volumes--bind-mounts--tmpfs-mounts">volumes &amp; bind mounts &amp; tmpfs mounts</a></li>
+    </ul>
+  </li>
+  <li><a href="#pod--volumes" id="markdown-toc-pod--volumes">Pod &amp; Volumes</a>    <ul>
+      <li><a href="#kubernetes-volumes" id="markdown-toc-kubernetes-volumes">Kubernetes Volumes</a></li>
+      <li><a href="#pod--volumes-1" id="markdown-toc-pod--volumes-1">Pod &amp; Volumes</a>        <ul>
+          <li><a href="#types-of-volumes" id="markdown-toc-types-of-volumes">Types of Volumes</a></li>
+          <li><a href="#emptydir" id="markdown-toc-emptydir">EmptyDir</a></li>
+          <li><a href="#hostpath" id="markdown-toc-hostpath">HostPath</a></li>
+          <li><a href="#pvs-and-pvcs" id="markdown-toc-pvs-and-pvcs">PVs and PVCs</a></li>
+        </ul>
+      </li>
+      <li><a href="#storage-classes" id="markdown-toc-storage-classes">Storage Classes</a>        <ul>
+          <li><a href="#local-storage-class" id="markdown-toc-local-storage-class">Local Storage Class</a></li>
+          <li><a href="#azure-file-storage-class" id="markdown-toc-azure-file-storage-class">Azure File Storage Class</a></li>
+        </ul>
+      </li>
+      <li><a href="#a-scratch-example-of-mongodb" id="markdown-toc-a-scratch-example-of-mongodb">A Scratch Example of MongoDB</a>        <ul>
+          <li><a href="#mongo-data-db-pvyaml" id="markdown-toc-mongo-data-db-pvyaml">mongo-data-db-pv.yaml</a></li>
+          <li><a href="#mongo-data-db-pvcyaml" id="markdown-toc-mongo-data-db-pvcyaml">mongo-data-db-pvc.yaml</a></li>
+          <li><a href="#mongo-podyaml" id="markdown-toc-mongo-podyaml">mongo-pod.yaml</a></li>
+          <li><a href="#create-pod" id="markdown-toc-create-pod">Create Pod</a></li>
+          <li><a href="#create-pvc-1" id="markdown-toc-create-pvc-1">Create PVC (1)</a></li>
+          <li><a href="#create-pvc-2" id="markdown-toc-create-pvc-2">Create PVC (2)</a></li>
+          <li><a href="#create-pv-1" id="markdown-toc-create-pv-1">Create PV (1)</a></li>
+          <li><a href="#create-pv-2" id="markdown-toc-create-pv-2">Create PV (2)</a></li>
+          <li><a href="#create-pv-3" id="markdown-toc-create-pv-3">Create PV (3)</a></li>
+          <li><a href="#create-pv-4" id="markdown-toc-create-pv-4">Create PV (4)</a></li>
+          <li><a href="#use-mongodb" id="markdown-toc-use-mongodb">Use MongoDB</a></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+  <li><a href="#quit-or-not-quit-" id="markdown-toc-quit-or-not-quit-">Quit or not quit ?</a></li>
+</ul>
+
+<hr />
+
+<h3 id="contents">Contents</h3>
+
+<ul>
+  <li>Docker &amp; container &amp; storage
+    <ul>
+      <li>images &amp; layers</li>
+      <li>container &amp; layers</li>
+      <li>volumes &amp; bind mounts &amp; tmpfs mounts (linux only)</li>
+    </ul>
+  </li>
+  <li>Pod &amp; Volumes
+    <ul>
+      <li>Kubernetes Volumes</li>
+      <li>PVs and PVCs</li>
+      <li>Storage Classes</li>
+      <li>A Scratch Example of MongoDB</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="docker--container--storage">Docker &amp; container &amp; storage</h3>
+
+<h4 id="images-and-layers">Images and layers</h4>
+
+<div class="language-dockerfile highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Dockerfile</span>
+<span class="k">FROM</span><span class="s"> ubuntu:15.04</span>
+<span class="k">COPY</span><span class="s"> . /app</span>
+<span class="k">RUN </span>make /app
+<span class="k">CMD</span><span class="s"> python /app/app.py</span>
+</code></pre></div></div>
+
+<p><img src="https://docs.docker.com/storage/storagedriver/images/container-layers.jpg" alt="Image layers based on ubuntu:15.04" /></p>
+
+<h4 id="container-and-layers">Container and layers</h4>
+
+<ul>
+  <li><strong>UnionFS</strong></li>
+  <li><strong>Stackable image layers</strong></li>
+  <li><strong>Copy-on-write (CoW) strategy</strong></li>
+</ul>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>docker build
+docker <span class="nb">history
+</span>docker ps <span class="nt">-s</span>
+</code></pre></div></div>
+
+<p><img src="https://docs.docker.com/storage/storagedriver/images/sharing-layers.jpg" alt="Container layers" /></p>
+
+<h4 id="volumes--bind-mounts--tmpfs-mounts">volumes &amp; bind mounts &amp; tmpfs mounts</h4>
+
+<p><img src="https://docs.docker.com/storage/images/types-of-mounts.png" alt="volumes &amp; bind mounts &amp; tmpfs mounts" /></p>
+
+<h3 id="pod--volumes">Pod &amp; Volumes</h3>
+
+<h4 id="kubernetes-volumes">Kubernetes Volumes</h4>
+
+<ul>
+  <li>A volume has an explicit lifetime - the same as the Pod that encloses it.</li>
+  <li>A volume outlives any Containers that run within the Pod, and data is preserved across Container restarts.</li>
+  <li>When a Pod ceases to exist, the volume will cease to exist, too.</li>
+  <li>A volume is just a directory, possibly with some data in it, which is accessible to the Containers in a Pod. How that directory comes to be, the medium that backs it, and the contents of it are determined by the particular volume type used.</li>
+  <li>To use a volume, a Pod specifies what volumes to provide for the Pod (the <strong>.spec.volumes</strong> field) and where to mount those into Containers (the <strong>.spec.containers.volumeMounts</strong> field).</li>
+</ul>
+
+<h4 id="pod--volumes-1">Pod &amp; Volumes</h4>
+
+<p><img src="https://d33wubrfki0l68.cloudfront.net/fe03f68d8ede9815184852ca2a4fd30325e5d15a/98064/docs/tutorials/kubernetes-basics/public/images/module_03_pods.svg" alt="Pod and volumes" /></p>
+
+<h5 id="types-of-volumes">Types of Volumes</h5>
+
+<ul>
+  <li>configMap</li>
+  <li>secret</li>
+  <li>emptyDir</li>
+  <li>hostPath</li>
+  <li>persistentVolumeClaim</li>
+</ul>
+
+<h5 id="emptydir">EmptyDir</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">spec</span><span class="pi">:</span>
+  <span class="na">volumes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx-html</span>
+      <span class="na">emptyDir</span><span class="pi">:</span> <span class="pi">{}</span> 
+  <span class="na">containers</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">network-utils</span>
+      <span class="na">image</span><span class="pi">:</span> <span class="s">amouat/network-utils</span>
+      <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">sleep'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">10h'</span><span class="pi">]</span>
+      <span class="na">volumeMounts</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx-html</span> 
+          <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/tmp/html</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
+      <span class="na">image</span><span class="pi">:</span> <span class="s">nginx:1.15</span>
+      <span class="na">volumeMounts</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx-html</span> 
+          <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/usr/share/nginx/html</span>
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> <span class="o">[</span>POD_NAME] <span class="nt">-c</span> network-utils sh
+<span class="c"># curl -iI localhost</span>
+HTTP/1.1 403 Forbidden
+Server: nginx/1.15.8
+
+<span class="c"># cd /tmp/html</span>
+<span class="c"># echo 'Hi Kubernetes!' &gt; index.html</span>
+<span class="c"># curl -i localhost</span>
+HTTP/1.1 200 OK
+Server: nginx/1.15.8
+
+Hi Kubernetes!
+</code></pre></div></div>
+
+<h5 id="hostpath">HostPath</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">spec</span><span class="pi">:</span>
+  <span class="na">volumes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx-html</span>
+      <span class="na">hostPath</span><span class="pi">:</span>
+        <span class="na">path</span><span class="pi">:</span> <span class="s">/tmp/html</span>
+        <span class="na">type</span><span class="pi">:</span> <span class="s">DirectoryOrCreate</span>
+  <span class="na">containers</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
+      <span class="na">image</span><span class="pi">:</span> <span class="s">nginx:1.15</span>
+      <span class="na">volumeMounts</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx-html</span>
+          <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/usr/share/nginx/html</span>
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl port-forward <span class="o">[</span>POD_NAME] 8080:80
+<span class="nv">$ </span>curl <span class="nt">-iI</span> localhost:8080
+HTTP/1.1 403 Forbidden
+Server: nginx/1.15.8
+
+<span class="nv">$ </span><span class="nb">cd</span> /tmp/html/
+<span class="nv">$ </span><span class="nb">sudo touch </span>index.html
+<span class="nv">$ </span>curl <span class="nt">-iI</span> localhost:8080
+HTTP/1.1 200 OK
+Server: nginx/1.15.8
+</code></pre></div></div>
+
+<h5 id="pvs-and-pvcs">PVs and PVCs</h5>
+
+<ul>
+  <li>A <strong>PersistentVolume</strong> (PV) is a piece of storage in the cluster that has been provisioned by an administrator.</li>
+  <li>PVs are volume plugins like Volumes, but have a lifecycle independent of any individual pod that uses the PV.</li>
+  <li>A <strong>PersistentVolumeClaim</strong> (PVC) is a request for storage by a user and consumes PV resources.</li>
+  <li>Claims can request specific size and access modes (e.g., can be mounted once read/write or many times read-only).</li>
+  <li>PVs are resources in the cluster. PVCs are requests for those resources and also act as claim checks to the resource.</li>
+  <li>There are two ways PVs may be provisioned: <strong>static</strong>ally or <strong>dynamic</strong>ally.</li>
+  <li>A PVC to PV <strong>binding</strong> is a one-to-one mapping. Claims will remain unbound indefinitely if a matching volume does not exist.</li>
+  <li>When a user is done with their volume, they can delete the PVC objects from the API which allows reclamation of the resource. The <strong>reclaim policy</strong> for a PersistentVolume tells the cluster what to do with the volume after it has been released of its claim. Currently, volumes can either be <strong>Retained</strong>, Recycled or <strong>Deleted</strong>.</li>
+  <li><strong>Pods use claims as volumes</strong>. The cluster inspects the claim to find the bound volume and mounts that volume for a pod.</li>
+</ul>
+
+<h4 id="storage-classes">Storage Classes</h4>
+
+<ul>
+  <li>A StorageClass provides a way for administrators to describe the “classes” of storage they offer. Kubernetes itself is unopinionated about what classes represent.</li>
+  <li>Persistent Volumes that are dynamically created by a storage class will have the reclaim policy specified in the <strong>reclaimPolicy</strong> field of the class, which can be either Delete or Retain. If no reclaimPolicy is specified when a StorageClass object is created, it will default to Delete.</li>
+  <li>Persistent Volumes that are created manually and managed via a storage class will have whatever reclaim policy they were assigned at creation.</li>
+  <li>By default, the <strong>Immediate</strong> mode indicates that volume binding and dynamic provisioning occurs once the PersistentVolumeClaim is created. For storage backends that are topology-constrained and not globally accessible from all Nodes in the cluster, PersistentVolumes will be bound or provisioned without knowledge of the Pod’s scheduling requirements. This may result in unschedulable Pods.</li>
+  <li>A cluster administrator can address this issue by specifying the <strong>WaitForFirstConsumer</strong> mode which will delay the binding and provisioning of a PersistentVolume until a Pod using the PersistentVolumeClaim is created.</li>
+</ul>
+
+<h5 id="local-storage-class">Local Storage Class</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">storage.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">StorageClass</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">namespace</span><span class="pi">:</span> <span class="s">kube-system</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">local</span>
+<span class="na">provisioner</span><span class="pi">:</span> <span class="s">kubernetes.io/no-provisioner</span>
+<span class="na">volumeBindingMode</span><span class="pi">:</span> <span class="s">WaitForFirstConsumer</span>
+</code></pre></div></div>
+
+<h5 id="azure-file-storage-class">Azure File Storage Class</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">storage.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">StorageClass</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">azurefile</span>
+<span class="na">provisioner</span><span class="pi">:</span> <span class="s">kubernetes.io/azure-file</span>
+<span class="na">parameters</span><span class="pi">:</span>
+  <span class="na">skuName</span><span class="pi">:</span> <span class="s">Standard_LRS</span>
+  <span class="na">location</span><span class="pi">:</span> <span class="s">eastus</span>
+  <span class="na">storageAccount</span><span class="pi">:</span> <span class="s">azure_storage_account_name</span>
+</code></pre></div></div>
+
+<h4 id="a-scratch-example-of-mongodb">A Scratch Example of MongoDB</h4>
+
+<h5 id="mongo-data-db-pvyaml">mongo-data-db-pv.yaml</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PersistentVolume</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongo-data-db</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">mongo</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">local</span>
+  <span class="na">capacity</span><span class="pi">:</span>
+    <span class="na">storage</span><span class="pi">:</span> <span class="s">64Mi</span>
+  <span class="na">accessModes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+  <span class="na">local</span><span class="pi">:</span>
+    <span class="na">path</span><span class="pi">:</span> <span class="s">/tmp/data/db</span>
+  <span class="na">nodeAffinity</span><span class="pi">:</span>
+    <span class="na">required</span><span class="pi">:</span>
+      <span class="na">nodeSelectorTerms</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">matchExpressions</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="na">key</span><span class="pi">:</span> <span class="s">node.kubernetes.io/mongodb</span>
+            <span class="na">operator</span><span class="pi">:</span> <span class="s">In</span>
+            <span class="na">values</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">data'</span><span class="pi">]</span>
+</code></pre></div></div>
+
+<h5 id="mongo-data-db-pvcyaml">mongo-data-db-pvc.yaml</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PersistentVolumeClaim</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongo-data-db</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">local</span>
+  <span class="na">resources</span><span class="pi">:</span>
+    <span class="na">requests</span><span class="pi">:</span>
+      <span class="na">storage</span><span class="pi">:</span> <span class="s">16Mi</span>
+  <span class="na">accessModes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+  <span class="na">selector</span><span class="pi">:</span>
+    <span class="na">matchLabels</span><span class="pi">:</span>
+      <span class="na">app</span><span class="pi">:</span> <span class="s">mongo</span>
+</code></pre></div></div>
+
+<h5 id="mongo-podyaml">mongo-pod.yaml</h5>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongo</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">volumes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">data-db</span>
+      <span class="na">persistentVolumeClaim</span><span class="pi">:</span>
+        <span class="na">claimName</span><span class="pi">:</span> <span class="s">mongo-data-db</span>
+  <span class="na">containers</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">mongo</span>
+      <span class="na">image</span><span class="pi">:</span> <span class="s">mongo:3.6</span>
+      <span class="na">volumeMounts</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">data-db</span>
+          <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/data/db</span>
+</code></pre></div></div>
+
+<h5 id="create-pod">Create Pod</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongo-pod.yaml 
+pod/mongo created
+<span class="nv">$ </span>kubectl get po
+NAME    READY   STATUS    RESTARTS   AGE
+mongo   0/1     Pending   0          3s
+<span class="nv">$ </span>kubectl describe po mongo 
+
+<span class="nb">.</span> <span class="nb">.</span> <span class="nb">.</span>
+
+Events:
+  Type     Reason            Age              From               Message
+  <span class="nt">----</span>     <span class="nt">------</span>            <span class="nt">----</span>             <span class="nt">----</span>               <span class="nt">-------</span>
+  Warning  FailedScheduling  9s <span class="o">(</span>x2 over 9s<span class="o">)</span>  default-scheduler  persistentvolumeclaim <span class="s2">"mongo-data-db"</span> not found
+</code></pre></div></div>
+
+<h5 id="create-pvc-1">Create PVC (1)</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongo-data-db-pvc.yaml 
+persistentvolumeclaim/mongo-data-db created
+<span class="nv">$ </span>kubectl get po
+NAME    READY   STATUS    RESTARTS   AGE
+mongo   0/1     Pending   0          2m42s
+<span class="nv">$ </span>kubectl get pvc
+NAME            STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+mongo-data-db   Pending                                      <span class="nb">local          </span>7s
+</code></pre></div></div>
+
+<h5 id="create-pvc-2">Create PVC (2)</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl describe po mongo 
+Events:
+  Type     Reason            Age                    From               Message
+  <span class="nt">----</span>     <span class="nt">------</span>            <span class="nt">----</span>                   <span class="nt">----</span>               <span class="nt">-------</span>
+  Warning  FailedScheduling  2m55s <span class="o">(</span>x2 over 2m55s<span class="o">)</span>  default-scheduler  persistentvolumeclaim <span class="s2">"mongo-data-db"</span> not found
+  Warning  FailedScheduling  16s <span class="o">(</span>x3 over 16s<span class="o">)</span>      default-scheduler  0/1 nodes are available: 1 node<span class="o">(</span>s<span class="o">)</span> didn<span class="s1">'t find available persistent volumes to bind.
+$ kubectl describe pvc mongo-data-db 
+Events:
+  Type       Reason                Age               From                         Message
+  ----       ------                ----              ----                         -------
+  Normal     WaitForFirstConsumer  4s (x5 over 37s)  persistentvolume-controller  waiting for first consumer to be created before binding
+Mounted By:  mongo
+</span></code></pre></div></div>
+
+<h5 id="create-pv-1">Create PV (1)</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongo-data-db-pv.yaml 
+persistentvolume/mongo-data-db created
+<span class="nv">$ </span>kubectl get pv,pvc
+NAME                             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+persistentvolume/mongo-data-db   64Mi       RWO            Retain           Available           <span class="nb">local                   </span>3s
+
+NAME                                  STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/mongo-data-db   Pending                                      <span class="nb">local          </span>57s
+</code></pre></div></div>
+
+<h5 id="create-pv-2">Create PV (2)</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl label no <span class="o">[</span>NODE_NAME] node.kubernetes.io/mongodb<span class="o">=</span>data
+node/far-seer-01 labeled
+<span class="nv">$ </span>kubectl get pv,pvc
+NAME                             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                   STORAGECLASS   REASON   AGE
+persistentvolume/mongo-data-db   64Mi       RWO            Retain           Bound    default/mongo-data-db   <span class="nb">local                   </span>34s
+
+NAME                                  STATUS   VOLUME          CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/mongo-data-db   Bound    mongo-data-db   64Mi       RWO            <span class="nb">local          </span>88s
+</code></pre></div></div>
+
+<h5 id="create-pv-3">Create PV (3)</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get po
+NAME    READY   STATUS              RESTARTS   AGE
+mongo   0/1     ContainerCreating   0          6m34s
+<span class="nv">$ </span>kubectl describe po mongo 
+Events:
+  Type     Reason            Age                    From                  Message
+  <span class="nt">----</span>     <span class="nt">------</span>            <span class="nt">----</span>                   <span class="nt">----</span>                  <span class="nt">-------</span>
+  Warning  FailedScheduling  5m48s <span class="o">(</span>x6 over 6m42s<span class="o">)</span>  default-scheduler     0/1 nodes are available: 1 node<span class="o">(</span>s<span class="o">)</span> didn<span class="s1">'t find available persistent volumes to bind.
+  Normal   Scheduled         5m21s                  default-scheduler     Successfully assigned default/mongo to far-seer-01
+  Warning  FailedMount       71s (x10 over 5m21s)   kubelet, far-seer-01  MountVolume.NewMounter initialization failed for volume "mongo-data-db" : path "/tmp/data/db" does not exist
+</span></code></pre></div></div>
+
+<h5 id="create-pv-4">Create PV (4)</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">mkdir</span> /tmp/data/db –p
+<span class="nv">$ </span>kubectl get po mongo <span class="nt">-w</span>
+NAME    READY   STATUS              RESTARTS   AGE
+mongo   0/1     ContainerCreating   0          9m37s
+mongo   1/1   Running   0     9m37s
+<span class="nv">$ </span><span class="nb">ls</span> /tmp/data/db/
+collection-0-8521021064489198322.wt  index-1-8521021064489198322.wt  journal          storage.bson      WiredTiger.turtle
+collection-2-8521021064489198322.wt  index-3-8521021064489198322.wt  _mdb_catalog.wt  WiredTiger        WiredTiger.wt
+collection-4-8521021064489198322.wt  index-5-8521021064489198322.wt  mongod.lock      WiredTigerLAS.wt
+diagnostic.data                      index-6-8521021064489198322.wt  sizeStorer.wt    WiredTiger.lock
+</code></pre></div></div>
+
+<h5 id="use-mongodb">Use MongoDB</h5>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl port-forward mongo 27017:27017
+Forwarding from 127.0.0.1:27017 -&gt; 27017
+Forwarding from <span class="o">[</span>::1]:27017 -&gt; 27017
+Handling connection <span class="k">for </span>27017
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>mongo <span class="nt">--quiet</span>
+<span class="nb">test</span>@mongo:<span class="nv">$ </span>show databases<span class="p">;</span>
+admin   0.000GB
+config  0.000GB
+<span class="nb">local   </span>0.000GB
+</code></pre></div></div>
+
+<h3 id="references">References</h3>
+
+<ul>
+  <li>https://docs.docker.com/storage/storagedriver/</li>
+  <li>https://docs.docker.com/storage/</li>
+  <li>https://docs.docker.com/v17.09/engine/userguide/eng-image/dockerfile_best-practices/#minimize-the-number-of-layers</li>
+  <li>https://docs.docker.com/v17.09/engine/userguide/eng-image/dockerfile_best-practices/#use-multi-stage-builds</li>
+  <li>https://kubernetes.io/docs/concepts/storage/volumes/#configmap</li>
+  <li>https://kubernetes.io/docs/concepts/storage/volumes/#emptydir</li>
+  <li>https://kubernetes.io/docs/concepts/storage/volumes/#hostpath</li>
+  <li>https://kubernetes.io/docs/concepts/storage/volumes/#local</li>
+  <li>https://kubernetes.io/docs/concepts/storage/persistent-volumes</li>
+  <li>https://kubernetes.io/docs/concepts/storage/storage-classes/</li>
+</ul>
+
+<h3 id="quit-or-not-quit-">Quit or not quit ?</h3>
+
+<p><a href="https://kubernetes.io/">https://kubernetes.io/</a></p>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/03/21/mathematical-induction-and-recusion/">&laquo; 数学归纳法之递归求值</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2019/03/30/number-system/">我们的十个数 &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

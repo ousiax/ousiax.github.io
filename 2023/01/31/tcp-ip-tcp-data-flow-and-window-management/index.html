@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>TCP/IP: TCP Data Flow and Window Management</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2023/01/31/tcp-ip-tcp-data-flow-and-window-management/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">TCP/IP: TCP Data Flow and Window Management</h1>
+    
+    
+    <p class="post-meta"><time datetime="2023-01-31T16:22:46+08:00" itemprop="datePublished">Jan 31, 2023</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>We now examine the dynamics of TCP data transfers, focusing initially on <em>interactive</em> connections and then introducing flow control and associated window management procedures that are used in conjunction with congestion control for bulk data transfers (i.e., <em>noninteractive</em> communications).</p>
+</div>
+<div class="paragraph">
+<p>An <em>interactive</em> TCP connection is one in which user input such as keystrokes, short messages, or joystick/mouse movements need to be delivered between a client and a server.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If small segments are used to carry such user input, the protocol imposes more overhead because there are fewer useful payload bytes per packet exchanged.</p>
+</li>
+<li>
+<p>On the other hand, filling packets with more data usually requires them to be delayed, which can have a negative impact on delay-sensitive applications such as online games and collaboration tools.</p>
+</li>
+</ul>
+</div>
+</div>
+<div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#interactive-communication">1. Interactive Communication</a></li>
+<li><a href="#delayed-acknowledgments">2. Delayed Acknowledgments</a></li>
+<li><a href="#nagle-algorithm">3. Nagle Algorithm</a>
+<ul class="sectlevel2">
+<li><a href="#delayed-ack-and-nagle-algorithm-interaction">3.1. Delayed ACK and Nagle Algorithm Interaction</a></li>
+<li><a href="#disabling-the-nagle-algorithm">3.2. Disabling the Nagle Algorithm</a></li>
+</ul>
+</li>
+<li><a href="#flow-control-and-window-management">4. Flow Control and Window Management</a>
+<ul class="sectlevel2">
+<li><a href="#sliding-windows">4.1. Sliding Windows</a></li>
+<li><a href="#zero-windows-and-the-tcp-persist-timer">4.2. Zero Windows and the TCP Persist Timer</a></li>
+<li><a href="#silly-window-syndrome-sws">4.3. Silly Window Syndrome (SWS)</a></li>
+<li><a href="#large-buffers-and-auto-tuning">4.4. Large Buffers and Auto-Tuning</a></li>
+</ul>
+</li>
+<li><a href="#urgent-mechanism">5. Urgent Mechanism</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+</div>
+<div class="sect1">
+<h2 id="interactive-communication">1. Interactive Communication</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Studies of TCP traffic usually find that 90% or more of all TCP segments contain <em>bulk data</em> (e.g., Web, file sharing, electronic mail, backups) and the remaining portion contains <em>interactive data</em> (e.g., remote login, network games).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Bulk data segments tend to be relatively large (1500 bytes or larger), while interactive data segments tend to be much smaller (tens of bytes of user data).</p>
+</li>
+<li>
+<p>TCP handles both types of data using the same protocol and packet format, but different algorithms come into play for each.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Let us look at the flow of data when we type an interactive command on an ssh connection.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+Secure shell (<code>ssh</code>) is a remote login protocol that provides strong security (privacy and authentication based on cryptography). It has mostly replaced the earlier UNIX <code>rlogin</code> and Telnet programs that provide remote login service but without strong security.
+</td>
+</tr>
+</table>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/ssh-echo.png" alt="ssh echo" width="75%" height="75%">
+</div>
+<div class="title">Figure 1. One possible way to remotely echo an interactive keystroke is a separate ACK and echo packet (a). A typical TCP coalesces the ACK for the data byte and the echo of the byte into a single packet (using <em>delayed acknowledgments</em> with <em>piggybacking</em>) (b).</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="delayed-acknowledgments">2. Delayed Acknowledgments</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In many cases, TCP does not provide an ACK for every incoming packet because of TCP&#8217;s cumulative ACK field.</p>
+</div>
+<div class="paragraph">
+<p>Using a cumulative ACK allows TCP to intentionally <em>delay</em> sending an ACK for some amount of time, in the hope that it can combine the ACK it needs to send with some data the local application wishes to send in the other direction, that is a form of <strong>piggybacking</strong> which is used most often in conjunction with bulk data transfers.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The Host Requirements RFC [RFC1122] states that TCP should implement a delayed ACK but the delay must be less than 500ms. Many implementations use a maximum of 200ms.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Delaying ACKs causes less traffic to be carried over the network than when ACKs are not delayed because fewer ACKs are used.</p>
+</div>
+<div class="paragraph">
+<p>Linux uses a dynamic adjustment algorithm whereby it can change between ACKing every segment (called <em>quickack</em> mode) and conventional delayed ACK mode.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>On Red Hat Enterprise Linux, there are two modes used by TCP to acknowledge data reception: <a href="#RHELDELACK">[RHELDELACK]</a></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Quick ACK</p>
+<div class="paragraph">
+<p>This mode is used at the start of a TCP connection so that the congestion window can grow quickly.</p>
+</div>
+<div class="paragraph">
+<p>The acknowledgment (ACK) timeout interval (ATO) is set to <code>tcp_ato_min</code>, the minimum timeout value.</p>
+</div>
+<div class="paragraph">
+<p>To change the default TCP ACK timeout value, write the required value in milliseconds to the <code>/proc/sys/net/ipv4/tcp_ato_min</code> file:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span><span class="nb">echo </span>4 <span class="o">&gt;</span> /proc/sys/net/ipv4/tcp_ato_min</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Delayed ACK</p>
+<div class="paragraph">
+<p>After the connection is established, TCP assumes this mode, in which ACKs for multiple received packets can be sent in a single packet.</p>
+</div>
+<div class="paragraph">
+<p>ATO is set to <code>tcp_delack_min</code> to restart or reset the timer.</p>
+</div>
+<div class="paragraph">
+<p>To change the default TCP Delayed ACK value, write the required value in milliseconds to the <code>/proc/sys/net/ipv4/tcp_delack_min</code> file:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">~]#</span><span class="w"> </span><span class="nb">echo </span>4 <span class="o">&gt;</span> /proc/sys/net/ipv4/tcp_delack_min</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>TCP switches between the two modes depending on the current congestion.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="nagle-algorithm">3. Nagle Algorithm</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using IPv4, sending one single key press across an ssh connection generates TCP/IPv4 packets of about 88 bytes in size (using the encryption and authentication from the example): 20 bytes for the IP header, 20 bytes for the TCP header (assuming no options), and 48 bytes of data.</p>
+</div>
+<div class="paragraph">
+<p>These small packets (called <strong>tinygrams</strong>) have a relatively high overhead for the network beacuse they contain relatively little useful application data compared to the rest of the packet contents.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Such high-overhead packets are normally not a problem on LANs, because most LANs are not congested and such packets would not need to be carried very far.</p>
+</li>
+<li>
+<p>However, these tinygrams can add to congestion and lead to inefficient use of capacity on wide area networks.</p>
+</li>
+<li>
+<p>A simple and elegant solution was proposed by John Nagle in <a href="#RFC0896">[RFC0896]</a>, now called the <em>Nagle algorithm</em>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The <strong>Nagle algorithm</strong> says that when a TCP connection has outstanding data that has not yet been acknowledged, small segments (those smaller than the SMSS) cannot be sent until all outstanding data is acknowledged.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Instead, small amounts of data are collected by TCP and sent in a single segment when an acknowledgment arrives.</p>
+<div class="paragraph">
+<p>This procedure effectively forces TCP into <em>stop-and-wait</em> behavior—it stops sending until an ACK is received for any outstanding data.</p>
+</div>
+</li>
+<li>
+<p>The beauty of this algorithm is that it is <em>self-clocking</em>: the faster the ACKs come back, the faster the data is sent.</p>
+<div class="paragraph">
+<p>On a comparatively high-delay WAN, where reducing the number of tinygrams is desirable, fewer segments are sent per unit time.</p>
+</div>
+<div class="paragraph">
+<p>Said another way, the RTT controls the packet sending rate.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To illustrate the effect of the Nagle algorithm, we can compare the behaviors of an application using TCP with the Nagle algorithm enabled and disabled.</p>
+</div>
+<div class="paragraph">
+<p>Using a connection with a relatively large RTT of about 190ms, we can see the differences.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Using the <code>tc</code> to emulate the network delay on the destination server:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>tc qdisc add dev ens32 root netem delay 190ms
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>tc qdisc show dev ens32
+<span class="go">qdisc netem 8001: root refcnt 2 limit 1000 delay 190.0ms</span></code></pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>First, we examine the case with typing a <code>date</code> command when Nagle is disabled (the default for ssh):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">00:00:00.000000 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>3968491625:3968491661, ack 2989677446, win 513, length 36
+<span class="gp">00:00:00.172405 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>36:72, ack 1, win 513, length 36
+<span class="gp">00:00:00.191476 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>1:37, ack 36, win 501, length 36
+<span class="gp">00:00:00.234297 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>.], ack 37, win 513, length 0
+<span class="gp">00:00:00.364007 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>37:73, ack 72, win 501, length 36
+<span class="gp">00:00:00.371952 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>72:108, ack 73, win 513, length 36
+<span class="gp">00:00:00.523976 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>108:144, ack 73, win 513, length 36
+<span class="gp">00:00:00.562856 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>73:109, ack 108, win 501, length 36
+<span class="gp">00:00:00.609221 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>.], ack 109, win 512, length 0
+<span class="gp">00:00:00.714586 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>109:145, ack 144, win 501, length 36
+<span class="gp">00:00:00.764111 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>.], ack 145, win 512, length 0
+<span class="gp">00:00:01.382426 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>144:180, ack 145, win 512, length 36
+<span class="gp">00:00:01.576594 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>145:181, ack 180, win 501, length 36
+<span class="gp">00:00:01.584727 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>181:249, ack 180, win 501, length 68
+<span class="gp">00:00:01.584731 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>249:285, ack 180, win 501, length 36
+<span class="gp">00:00:01.584731 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17203: Flags <span class="o">[</span>P.], <span class="nb">seq </span>285:353, ack 180, win 501, length 68
+<span class="gp">00:00:01.584995 IP 192.168.91.1.17203 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>.], ack 353, win 511, length 0</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An ssh trace showing a TCP connection with approximately a 190ms RTT.</p>
+</li>
+<li>
+<p>The Nagle algorithm is disabled.</p>
+</li>
+<li>
+<p>Transmissions and ACKs are intermingled, and the exchange takes 1.58s.</p>
+</li>
+<li>
+<p>Pure ACKs (segments with no data) indicate that command output at the server has been processed by the client.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If we repeat this measurement soon after (i.e., in similar network conditions) when Nagle is enabled:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">00:00:00.000000 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>3369922274:3369922310, ack 3162733327, win 513, length 36
+<span class="gp">00:00:00.191032 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>1:37, ack 36, win 501, length 36
+<span class="gp">00:00:00.191425 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>36:72, ack 37, win 513, length 36
+<span class="gp">00:00:00.381981 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>37:73, ack 72, win 501, length 36
+<span class="gp">00:00:00.382316 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>72:108, ack 73, win 513, length 36
+<span class="gp">00:00:00.573124 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>73:109, ack 108, win 501, length 36
+<span class="gp">00:00:00.573501 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>108:144, ack 109, win 512, length 36
+<span class="gp">00:00:00.763985 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>109:145, ack 144, win 501, length 36
+<span class="gp">00:00:00.816253 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>.], ack 145, win 512, length 0
+<span class="gp">00:00:01.191218 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>P.], <span class="nb">seq </span>144:180, ack 145, win 512, length 36
+<span class="gp">00:00:01.382047 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>145:181, ack 180, win 501, length 36
+<span class="gp">00:00:01.383712 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>181:249, ack 180, win 501, length 68
+<span class="gp">00:00:01.383716 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>249:285, ack 180, win 501, length 36
+<span class="gp">00:00:01.383717 IP 192.168.91.141.22 &gt;</span><span class="w"> </span>192.168.91.1.17263: Flags <span class="o">[</span>P.], <span class="nb">seq </span>285:353, ack 180, win 501, length 68
+<span class="gp">00:00:01.384295 IP 192.168.91.1.17263 &gt;</span><span class="w"> </span>192.168.91.141.22: Flags <span class="o">[</span>.], ack 353, win 511, length 0</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An ssh trace showing a TCP connection with a 190ms RTT and the Nagle algorithm in
+operation. Requests are followed in lockstep with responses, and the exchange takes
+0.80s using 11 packets.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Nagle algorithm forces TCP to operate in a stop-and-wait fashion, so that the TCP sender cannot proceed until ACKs are received.</p>
+</li>
+<li>
+<p>If we look at the times for each request/response pair—0.0, 0.19, 0.19, and 0.38—we see that they follow a pattern; each is separated by almost exactly 190ms, which is very close to the RTT of the connection.</p>
+<div class="paragraph">
+<p>This is the trade-off the Nagle algorithm makes: fewer and larger packets are used, but the required delay is higher.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/nagle-alg-comapring.png" alt="nagle alg comapring" width="35%" height="35%">
+</div>
+<div class="title">Figure 2. Comparing the use of the Nagle algorithm for TCP connections with a similar operating environment. With Nagle enabled, at most one packet is allowed to be outstanding at any given time. This reduces the number of small packets but increases delay.</div>
+</div>
+<div class="sect2">
+<h3 id="delayed-ack-and-nagle-algorithm-interaction">3.1. Delayed ACK and Nagle Algorithm Interaction</h3>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/delayack-nagle-inter.png" alt="delayack nagle inter" width="35%" height="35%">
+</div>
+<div class="title">Figure 3. The interaction between the Nagle algorithm and delayed ACKs. A temporary form of deadlock can occur until the delayed ACK timer fires.</div>
+</div>
+<div class="paragraph">
+<p>Here we see that the client, after receiving two packets from the server, withholds an ACK, hoping that additional data headed toward the server can be piggybacked.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+Generally, TCP is required to provide an ACK for two received packets only if they are full-size, and they are not here.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>At the server side, because the Nagle algorithm is operating, no additional packets are permitted to be sent to the client until an ACK is returned because at most one <em>small</em> packet is allowed to be outstanding.</p>
+</div>
+<div class="paragraph">
+<p>The combination of delayed ACKs and the Nagle algorithm leads to a form of <em>deadlock</em> (each side waiting for the other).</p>
+</div>
+<div class="paragraph">
+<p>Fortunately, this deadlock is not permanent and is broken when the delayed ACK timer fires, which forces the client to provide an ACK even if the client has no additional data to send.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="disabling-the-nagle-algorithm">3.2. Disabling the Nagle Algorithm</h3>
+<div class="paragraph">
+<p>The Nagle algorithm can be disabled in a number of ways. The ability to disable it is required by the Host Requirements RFC <a href="#RFC1122">[RFC1122]</a>.</p>
+</div>
+<div class="paragraph">
+<p>An application can specify the <code>TCP_NODELAY</code> option when using the Berkeley sockets API.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="man">TCP(7)                     Linux Programmer's Manual                    TCP(7)
+
+NAME
+       tcp - TCP protocol
+.....
+       TCP_NODELAY
+              If set, disable the Nagle algorithm.  This means  that  segments
+              are  always  sent  as  soon as possible, even if there is only a
+              small amount of data.  When not  set,  data  is  buffered  until
+              there  is  a sufficient amount to send out, thereby avoiding the
+              frequent sending of small packets, which results  in  poor  uti‐
+              lization of the network.  This option is overridden by TCP_CORK;
+              however, setting this option forces an explicit flush of pending
+              output, even if TCP_CORK is currently set.</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In addition, it is possible to disable the Nagle algorithm on a system-wide basis.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="flow-control-and-window-management">4. Flow Control and Window Management</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Every TCP segment (except those exchanged during connection establishment) includes a valid <em>Sequence Number</em> field, an <em>ACK Number</em> or <em>Acknowledgment</em> field, and a <em>Window Size</em> field (containing the window advertisement).</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/flow-control-window-update.png" alt="Flow Control and Window Management" width="45%" height="45%">
+</div>
+<div class="title">Figure 4. Each TCP connection is bidirectional. Data going in one direction causes the peer to respond with ACKs and window advertisements. The same is true for the reverse direction.</div>
+</div>
+<div class="paragraph">
+<p>When TCP-based applications are not busy doing other things, they are typically able to consume any and all data TCP has received and queued for them, leading to no change of the <em>Window Size</em> field as the connection progresses.</p>
+</div>
+<div class="paragraph">
+<p>On slow systems, or when the application has other things to accomplish, data may have arrived for the application, been acknowledged by TCP, and be sitting in a queue waiting for the application to read or <em>consume</em> it.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When TCP starts to queue data in this way, the amount of space available to hold new incoming data decreases, and this change is reflected by a decreasing value of the <em>Window Size</em> field.</p>
+</li>
+<li>
+<p>Eventually, if the application does not read or otherwise consume the data at all, TCP must take some action to cause the sender to cease sending new data entirely, because there would be no place to put it on arrival (zero window).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The <em>Window Size</em> field in each TCP header indicates the amount of empty space, in bytes, remaining in the receive buffer.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The field is 16 bits in TCP, but with the <em>Window Scale</em> option, values larger than 65,535 can be used.</p>
+</li>
+<li>
+<p>The largest sequence number the sender of a segment is willing to accept in the reverse direction is equal to the sum of the <em>Acknowledgment Number</em> and <em>Window Size</em> fields in the TCP header (scaled appropriately).</p>
+</li>
+</ul>
+</div>
+<details>
+<summary class="title"><em>Show slow_client.c</em></summary>
+<div class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="c"><span class="cm">/* slow_client.c */</span>
+<span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;stdbool.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;string.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;sys/types.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;sys/socket.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;arpa/inet.h&gt;</span><span class="cp">
+</span>
+<span class="cp">#define RCVBUFSIZE 4096
+</span>
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+    <span class="cm">/* Create a TCP socket */</span>
+    <span class="cm">/* Create a reliable, stream socket using TCP */</span>
+    <span class="kt">int</span> <span class="n">client_sock</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">((</span><span class="n">client_sock</span> <span class="o">=</span> <span class="n">socket</span><span class="p">(</span><span class="n">PF_INET</span><span class="p">,</span> <span class="n">SOCK_STREAM</span><span class="p">,</span> <span class="n">IPPROTO_TCP</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">perror</span><span class="p">(</span><span class="s">"socket() failed"</span><span class="p">);</span>
+        <span class="n">exit</span><span class="p">(</span><span class="n">EXIT_FAILURE</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="cm">/* Establish connection */</span>
+    <span class="kt">char</span> <span class="o">*</span><span class="n">serv_ip</span> <span class="o">=</span> <span class="s">"127.0.0.1"</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">serv_port</span> <span class="o">=</span> <span class="mi">6666</span><span class="p">;</span>
+    <span class="k">struct</span> <span class="n">sockaddr_in</span> <span class="n">serv_addr</span><span class="p">;</span>
+    <span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_family</span> <span class="o">=</span> <span class="n">AF_INET</span><span class="p">;</span>                     <span class="cm">/* Internet address family */</span>
+    <span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_addr</span><span class="p">.</span><span class="n">s_addr</span> <span class="o">=</span> <span class="n">inet_addr</span><span class="p">(</span><span class="n">serv_ip</span><span class="p">);</span>     <span class="cm">/* Server IP address*/</span>
+    <span class="n">serv_addr</span><span class="p">.</span><span class="n">sin_port</span> <span class="o">=</span> <span class="n">htons</span><span class="p">(</span><span class="n">serv_port</span><span class="p">);</span>              <span class="cm">/* Server port */</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">connect</span><span class="p">(</span><span class="n">client_sock</span><span class="p">,</span> <span class="p">(</span><span class="k">struct</span> <span class="n">sockaddr</span> <span class="o">*</span><span class="p">)</span> <span class="o">&amp;</span><span class="n">serv_addr</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">serv_addr</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">perror</span><span class="p">(</span><span class="s">"connect() failed"</span><span class="p">);</span>
+        <span class="n">exit</span><span class="p">(</span><span class="n">EXIT_FAILURE</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="cm">/* Communicate */</span>
+    <span class="kt">char</span> <span class="o">*</span><span class="n">read_buf</span> <span class="o">=</span> <span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">malloc</span><span class="p">(</span><span class="n">RCVBUFSIZE</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">char</span><span class="p">));</span>
+    <span class="kt">int</span> <span class="n">recv_msg_size</span><span class="p">;</span>
+    <span class="k">for</span><span class="p">(;;)</span> <span class="p">{</span>
+        <span class="cm">/* Sleep 1s */</span>
+        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+
+        <span class="cm">/* Receive mesage from server */</span>
+        <span class="k">if</span> <span class="p">((</span><span class="n">recv_msg_size</span> <span class="o">=</span> <span class="n">recv</span><span class="p">(</span><span class="n">client_sock</span><span class="p">,</span> <span class="n">read_buf</span><span class="p">,</span> <span class="n">RCVBUFSIZE</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">perror</span><span class="p">(</span><span class="s">"recv() failed"</span><span class="p">);</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="cm">/*  EOF */</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">recv_msg_size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="n">fputs</span><span class="p">(</span><span class="n">read_buf</span><span class="p">,</span> <span class="n">stdout</span><span class="p">);</span>
+        <span class="n">memset</span><span class="p">(</span><span class="n">read_buf</span><span class="p">,</span> <span class="sc">'\0'</span><span class="p">,</span> <span class="n">RCVBUFSIZE</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="cm">/* Close the connection */</span>
+    <span class="n">close</span><span class="p">(</span><span class="n">client_sock</span><span class="p">);</span>
+<span class="p">}</span></code></pre>
+</div>
+</div>
+</div>
+</details>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>zcat /usr/share/doc/linux-doc/Documentation/networking/ip-sysctl.rst.gz | nc <span class="nt">-l</span> <span class="nt">--send-only</span> 6666</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>cc slow_client.c <span class="nt">-o</span> slow_client
+<span class="gp">$</span><span class="w"> </span>./slow_client</code></pre>
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/win-update-wireshark.png" alt="win update wireshark" width="85%" height="85%">
+</div>
+</div>
+<details>
+<summary class="title"><em>Show tcpdump trace</em></summary>
+<div class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tttttn</span> <span class="nt">-i</span> lo port 6666 <span class="nt">-n</span> <span class="nt">--number</span> <span class="nt">-r</span> /tmp/win.pcap
+<span class="go">reading from file /tmp/win.pcap, link-type EN10MB (Ethernet), snapshot length 262144
+</span><span class="gp">    1   00:00:00.000000 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>S], <span class="nb">seq </span>3397576437, win 65495, options <span class="o">[</span>mss 65495,sackOK,TS val 3010873789 ecr 0,nop,wscale 7], length 0
+<span class="gp">    2   00:00:00.000010 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>S.], <span class="nb">seq </span>993859068, ack 3397576438, win 65483, options <span class="o">[</span>mss 65495,sackOK,TS val 3010873789 ecr 3010873789,nop,wscale 7], length 0
+<span class="gp">    3   00:00:00.000018 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 0
+<span class="gp">    4   00:00:00.000214 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>1:8193, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 8192
+<span class="gp">    5   00:00:00.000219 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 8193, win 475, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 0
+<span class="gp">    6   00:00:00.000230 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>8193:16385, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 8192
+<span class="gp">    7   00:00:00.000232 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 16385, win 443, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 0
+<span class="gp">    8   00:00:00.000241 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>16385:24577, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 8192
+<span class="gp">    9   00:00:00.000242 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 24577, win 411, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 0
+<span class="gp">   10   00:00:00.000249 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>24577:32769, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 8192
+<span class="gp">   11   00:00:00.000250 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 32769, win 379, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 0
+<span class="gp">   12   00:00:00.000260 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>32769:40961, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 8192
+<span class="gp">   13   00:00:00.000399 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>40961:73729, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873789 ecr 3010873789], length 32768
+<span class="gp">   14   00:00:00.019402 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>40961:73729, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010873808 ecr 3010873789], length 32768
+<span class="gp">   15   00:00:00.042870 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 73729, win 59, options <span class="o">[</span>nop,nop,TS val 3010873832 ecr 3010873789,nop,nop,sack 1 <span class="o">{</span>40961:73729<span class="o">}]</span>, length 0
+<span class="gp">   16   00:00:00.255179 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>P.], <span class="nb">seq </span>73729:81281, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010874044 ecr 3010873832], length 7552
+<span class="gp">   17   00:00:00.255208 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 0, options <span class="o">[</span>nop,nop,TS val 3010874044 ecr 3010874044], length 0
+<span class="gp">   18   00:00:00.467255 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010874256 ecr 3010874044], length 0
+<span class="gp">   19   00:00:00.467261 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 0, options <span class="o">[</span>nop,nop,TS val 3010874256 ecr 3010874044], length 0
+<span class="gp">   20   00:00:00.911243 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010874700 ecr 3010874256], length 0
+<span class="gp">   21   00:00:01.774727 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010875564 ecr 3010874256], length 0
+<span class="gp">   22   00:00:01.774733 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 0, options <span class="o">[</span>nop,nop,TS val 3010875564 ecr 3010874044], length 0
+<span class="gp">   23   00:00:03.471052 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010877260 ecr 3010875564], length 0
+<span class="gp">   24   00:00:03.471059 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 0, options <span class="o">[</span>nop,nop,TS val 3010877260 ecr 3010874044], length 0
+<span class="gp">   25   00:00:06.862590 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010880652 ecr 3010877260], length 0
+<span class="gp">   26   00:00:06.862598 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 0, options <span class="o">[</span>nop,nop,TS val 3010880652 ecr 3010874044], length 0
+<span class="gp">   27   00:00:13.775745 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010887565 ecr 3010880652], length 0
+<span class="gp">   28   00:00:13.775752 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 0, options <span class="o">[</span>nop,nop,TS val 3010887565 ecr 3010874044], length 0
+<span class="gp">   29   00:00:20.017166 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 81281, win 512, options <span class="o">[</span>nop,nop,TS val 3010893806 ecr 3010874044], length 0
+<span class="gp">   30   00:00:20.017177 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>FP.], <span class="nb">seq </span>81281:91177, ack 1, win 512, options <span class="o">[</span>nop,nop,TS val 3010893806 ecr 3010893806], length 9896
+<span class="gp">   31   00:00:20.058828 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>.], ack 91178, win 469, options <span class="o">[</span>nop,nop,TS val 3010893848 ecr 3010893806], length 0
+<span class="gp">   32   00:00:24.020231 IP 127.0.0.1.34804 &gt;</span><span class="w"> </span>127.0.0.1.6666: Flags <span class="o">[</span>F.], <span class="nb">seq </span>1, ack 91178, win 512, options <span class="o">[</span>nop,nop,TS val 3010897809 ecr 3010893806], length 0
+<span class="gp">   33   00:00:24.020242 IP 127.0.0.1.6666 &gt;</span><span class="w"> </span>127.0.0.1.34804: Flags <span class="o">[</span>.], ack 2, win 512, options <span class="o">[</span>nop,nop,TS val 3010897809 ecr 3010897809], length 0</code></pre>
+</div>
+</div>
+</div>
+</details>
+<div class="sect2">
+<h3 id="sliding-windows">4.1. Sliding Windows</h3>
+<div class="paragraph">
+<p>Each endpoint of a TCP connection is capable of sending and receiving data.</p>
+</div>
+<div class="paragraph">
+<p>The amount of data sent or received on a connection is maintained by a set of window structures.</p>
+</div>
+<div class="paragraph">
+<p>For each active connection, each TCP endpoint maintains a <em>send window structure</em> and a <em>receive window structure</em>.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/sender-side-sliding-window-structure.png" alt="Sender Sliding Window" width="45%" height="45%">
+</div>
+<div class="title">Figure 5. The TCP sender-side sliding window structure keeps track of which sequence numbers have already been acknowledged, which are in flight, and which are yet to be sent. The size of the offered window is controlled by the <em>Window Size</em> field sent by the receiver in each ACK.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>TCP maintains its window structures in terms of bytes (not packets).</p>
+</li>
+<li>
+<p>The window advertised by the receiver is called the <em>offered window</em> and covers bytes 4 through 9, meaning that the receiver has acknowledged all bytes up through and including number 3 and has advertised a window size of 6.</p>
+</li>
+<li>
+<p>The <em>Window Size</em> field contains a byte offset relative to the ACK number.</p>
+</li>
+<li>
+<p>The sender computes its <em>usable window</em>, which is how much data it can send immediately.</p>
+<div class="paragraph">
+<p>The usable window is the offered window minus the amount of data already sent but not yet acknowledged.</p>
+</div>
+</li>
+<li>
+<p>The variables SND.UNA and SND.WND are used to hold the values of the left window edge and offered window.</p>
+</li>
+<li>
+<p>The variable SND.NXT holds the next sequence number to be sent, so the usable window is equal to (SND.UNA + SND.WND – SND.NXT).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Over time this sliding window moves to the right, as the receiver acknowledges data. The relative motion of the two ends of the window increases or decreases the size of the window.
+Three terms are used to describe the movement of the right and left edges of the window:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The window <em>closes</em> as the left edge advances to the right. This happens when data that has been sent is acknowledged and the window size gets smaller.</p>
+</li>
+<li>
+<p>The window <em>opens</em> when the right edge moves to the right, allowing more data to be sent. This happens when the receiving process on the other end reads acknowledged data, freeing up space in its TCP receive buffer.</p>
+</li>
+<li>
+<p>The window <em>shrinks</em> when the right edge moves to the left. The Host Requirements RFC <a href="#RFC1122">[RFC1122]</a> strongly discourages this, but TCP must be able to cope with it.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Because every TCP segment contains both an ACK number and a window advertisement, a TCP sender adjusts the window structure based on both values whenever an incoming segment arrives.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The left edge of the window cannot move to the left, because this edge is controlled by the ACK number received from the other end that is cumulative and never goes backward.</p>
+</li>
+<li>
+<p>When the ACK number advances the window but the window size does not change (a common case), the window is said to advance or <em>slide</em> forward.</p>
+</li>
+<li>
+<p>If the ACK number advances but the window advertisement grows smaller with other arriving ACKs, the left edge of the window moves closer to the right edge.</p>
+</li>
+<li>
+<p>If the left edge reaches the right edge, it is called a <em>zero window</em>.</p>
+<div class="paragraph">
+<p>This stops the sender from transmitting any data.</p>
+</div>
+<div class="paragraph">
+<p>If this happens, the sending TCP begins to <em>probe</em> the peer&#8217;s window to look for an increase in the offered window.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The receiver also keeps a window structure, which is somewhat simpler than the sender&#8217;s.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The receiver window structure keeps track of what data has already been received and ACKed, as well as the maximum sequence number it is willing to receive.</p>
+</li>
+<li>
+<p>The TCP receiver depends on this structure to ensure the correctness of the data it receives.</p>
+<div class="paragraph">
+<p>In particular, it wishes to avoid storing duplicate bytes it has already received and ACKed, and it also wishes to avoid storing bytes that it should not have received (any bytes beyond the sender&#8217;s right window edge).</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/receiver-side-sliding-window-structure.png" alt="Receiver Sliding Window" width="45%" height="45%">
+</div>
+<div class="title">Figure 6. The TCP receiver-side sliding window structure helps the receiver know which sequence numbers to expect next. Sequence numbers in the receive window are stored when received. Those outside the window are discarded.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This structure also contains a left and right window edge like the sender&#8217;s window, but the in-window bytes (4–9 in this picture) need not be differentiated as they are in the sender&#8217;s window structure.</p>
+</li>
+<li>
+<p>For the receiver,</p>
+<div class="ulist">
+<ul>
+<li>
+<p>any bytes received with sequence numbers less than the left window edge (called RCV.NXT) are discarded as duplicates, and</p>
+</li>
+<li>
+<p>any bytes received with sequence numbers beyond the right window edge (RCV.WND bytes beyond RCV.NXT) are discarded as out of scope.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Bytes arriving with any sequence number in the receive window range are accepted.</p>
+</li>
+<li>
+<p>Note that the ACK number generated at the receiver may be advanced only when segments fill in directly at the left window edge because of TCP&#8217;s cumulative ACK structure.</p>
+</li>
+<li>
+<p>With selective ACKs, other in-window segments can be acknowledged using the TCP SACK option, but ultimately the ACK number itself is advanced only when data contiguous to the left window edge is received.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="zero-windows-and-the-tcp-persist-timer">4.2. Zero Windows and the TCP Persist Timer</h3>
+<div class="paragraph">
+<p>When the receiver&#8217;s advertised window goes to zero, the sender is effectively stopped from transmitting data until the window becomes nonzero.</p>
+</div>
+<div class="paragraph">
+<p>When the receiver once again has space available, it provides a <strong>window update</strong> to the sender to indicate that data is permitted to flow once again.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Because such updates do not generally contain data (they are a form of <em>pure ACK</em>), they are not reliably delivered by TCP.</p>
+</li>
+<li>
+<p>TCP must therefore handle the case where such window updates that would open the window are lost.</p>
+</li>
+<li>
+<p>If an acknowledgment (containing a window update) is lost, we could end up with both sides waiting for the other:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>the receiver waiting to receive data (because it provided the sender with a nonzero window and expects to see incoming data) and</p>
+</li>
+<li>
+<p>the sender waiting to receive the window update allowing it to send.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>To prevent this form of deadlock from occurring, the sender uses a <strong>persist timer</strong> to query the receiver periodically, to find out if the window size has increased. The persist timer triggers the transmission of <strong>window probes</strong>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Window probes are segments that force the receiver to provide an ACK, which also necessarily contains a <em>Window Size</em> field.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The Host Requirements RFC <a href="#RFC1122">[RFC1122]</a> suggests that the first probe should happen after one RTO and subsequent problems should occur at exponentially spaced intervals.</p>
+</li>
+<li>
+<p>Window probes contain a single byte of data and are therefore reliably delivered (retransmitted) by TCP if lost, thereby eliminating the potential deadlock condition caused by lost window updates.</p>
+</li>
+<li>
+<p>The probes are sent whenever the TCP persist timer expires, and the byte included may or may not be accepted by the receiver, depending on how much buffer space it has available.</p>
+</li>
+<li>
+<p>As with the TCP retransmission timer, the normal exponential backoff can be used when calculating the timeout for the persist timer. An important difference, however, is that a normal TCP never gives up sending window probes, whereas it may eventually give up trying to perform retransmissions.</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-data-flow-and-window-management/zero-window-probe.png" alt="ZeroWindowProbe" width="85%" height="85%">
+</div>
+</div>
+<details>
+<summary class="title"><em>Show tcpdump trace</em></summary>
+<div class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">00:00:00.000000 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>S], <span class="nb">seq </span>1303159618, win 1460, options <span class="o">[</span>mss 1460,sackOK,TS val 1413095399 ecr 0,nop,wscale 7], length 0
+<span class="gp">00:00:00.000827 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>S.], <span class="nb">seq </span>102306775, ack 1303159619, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="gp">00:00:00.000872 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1, win 1460, length 0
+<span class="gp">00:00:00.001144 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>P.], <span class="nb">seq </span>1:1461, ack 1, win 64240, length 1460
+<span class="gp">00:00:00.001162 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:00.001740 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:00.001757 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:00.202020 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:00.202045 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:00.606200 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:00.606252 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:01.417705 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:01.417742 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:03.017846 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:03.017872 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:06.225839 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:06.225879 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:12.638135 IP 10.170.109.10.6666 &gt;</span><span class="w"> </span>192.168.91.128.55534: Flags <span class="o">[</span>.], <span class="nb">seq </span>1461:1462, ack 1, win 64240, length 1
+<span class="gp">00:00:12.638153 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 0, length 0
+<span class="gp">00:00:20.002875 IP 192.168.91.128.55534 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1461, win 1460, length 0
+<span class="c">.....</span></code></pre>
+</div>
+</div>
+</div>
+</details>
+</div>
+<div class="sect2">
+<h3 id="silly-window-syndrome-sws">4.3. Silly Window Syndrome (SWS)</h3>
+<div class="paragraph">
+<p>Window-based flow control schemes, especially those that do not use fixed-size segments (such as TCP), can fall victim to a condition known as the <strong>silly window syndrome</strong> (SWS).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When it occurs, small data segments are exchanged across the connection instead of full-size segments <a href="#RFC0813">[RFC0813]</a>.</p>
+</li>
+<li>
+<p>This leads to undesirable inefficiency because each segment has relatively high overhead—a small number of data bytes relative to the number of bytes in the headers.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>SWS can be caused by either end of a TCP connection:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the receiver can advertise small windows (instead of waiting until a larger window can be advertised), and</p>
+</li>
+<li>
+<p>the sender can transmit small data segments (instead of waiting for additional data to send a larger segment).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Correct avoidance of silly window syndrome requires a TCP to implement rules specifically for this purpose, whether operating as a sender or a receiver. TCP never knows ahead of time how a peer TCP will behave. The following rules are applied:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>When operating as a receiver, small windows are not advertised.</p>
+<div class="paragraph">
+<p>The receive algorithm specified by <a href="#RFC1122">[RFC1122]</a> is to not send a segment advertising a larger window than is currently being advertised (which can be 0) until the window can be increased by either one full-size segment (i.e., the receive MSS) or by one-half of the receiver&#8217;s buffer space, whichever is smaller.</p>
+</div>
+<div class="paragraph">
+<p>Note that there are two cases where this rule can come into play: when buffer space has become available because of an application consuming data from the network, and when TCP must respond to a window probe.</p>
+</div>
+</li>
+<li>
+<p>When sending, small segments are not sent and the Nagle algorithm governs when to send.</p>
+<div class="paragraph">
+<p>Senders avoid SWS by not transmitting a segment unless at least one of the following conditions is true:</p>
+</div>
+<div class="olist loweralpha">
+<ol class="loweralpha" type="a">
+<li>
+<p>A full-size (send MSS bytes) segment can be sent.</p>
+<div class="paragraph">
+<p>Condition (a) is the most straightforward and directly avoids the high-overhead segment problem.</p>
+</div>
+</li>
+<li>
+<p>TCP can send at least one-half of the maximum-size window that the other end has ever advertised on this connection.</p>
+<div class="paragraph">
+<p>Condition (b) deals with hosts that always advertise tiny windows, perhaps smaller than the segment size.</p>
+</div>
+</li>
+<li>
+<p>TCP can send everything it has to send and either (i) an ACK is not currently expected (i.e., we have no outstanding unacknowledged data) or (ii) the Nagle algorithm is disabled for this connection.</p>
+<div class="paragraph">
+<p>Condition (c) prevents TCP from sending small segments when there is unacknowledged data waiting to be ACKed and the Nagle algorithm is enabled. If the sending application is doing small writes (e.g., smaller than the segment size), condition (c) avoids silly window syndrome.</p>
+</div>
+</li>
+</ol>
+</div>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="large-buffers-and-auto-tuning">4.4. Large Buffers and Auto-Tuning</h3>
+<div class="paragraph">
+<p>Many TCP stacks now decouple the allocation of the receive buffer from the size specified by the application.</p>
+</div>
+<div class="paragraph">
+<p>In most cases, the size specified by the application is effectively ignored, and the operating system instead uses either a large fixed value or a dynamically calculated value.</p>
+</div>
+<div class="paragraph">
+<p>With auto-tuning, the amount of data that can be outstanding in the connection (its bandwidth-delay product) is continuously estimated, and the advertised window is arranged to always be at least this large (provided enough buffer space remains to do so).</p>
+</div>
+<div class="paragraph">
+<p>This has the advantage of allowing TCP to achieve its maximum available throughput rate (subject to the available network capacity) without having to allocate excessively large buffers at the sender or receiver ahead of time.</p>
+</div>
+<div class="paragraph">
+<p>In Windows (Vista/7) , the receiver&#8217;s buffer size is auto-sized by the operating system by default.</p>
+</div>
+<div class="paragraph">
+<p>With Linux 2.4 and later, sender-side auto-tuning is supported. With version 2.6.7 and later, both receiver- and sender-side auto-tuning is supported. However, auto-tuning is subject to limits placed on the buffer sizes.</p>
+</div>
+<div class="paragraph">
+<p>The following Linux <code>sysctl</code> variables control the sender and receiver maximum buffer sizes.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The values after the equal sign are the default values (which may vary depending on the particular Linux distribution), which should be increased if the system is to be used in high bandwidth-delay-product environments:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="ini"><span class="py">net.core.rmem_default</span> <span class="p">=</span> <span class="s">212992</span>
+<span class="py">net.core.wmem_default</span> <span class="p">=</span> <span class="s">212992</span>
+<span class="py">net.core.rmem_max</span> <span class="p">=</span> <span class="s">212992</span>
+<span class="py">net.core.wmem_max</span> <span class="p">=</span> <span class="s">212992</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>In addition, the auto-tuning parameters are given by the following variables:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="ini"><span class="py">net.ipv4.tcp_rmem</span> <span class="p">=</span> <span class="s">4096	131072	6291456</span>
+<span class="py">net.ipv4.tcp_wmem</span> <span class="p">=</span> <span class="s">4096	16384	4194304</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each of these variables contains three values: the minimum, default, and maximum buffer size used by auto-tuning.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-n</span> <span class="s2">"dst port 6666 and tcp[14:2] &gt; 0"</span>
+<span class="gp">19:00:52.774633 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>S], <span class="nb">seq </span>4259244136, win 2920, options <span class="o">[</span>mss 1460,sackOK,TS val 1089797899 ecr 0,nop,wscale 7], length 0
+<span class="gp">19:00:52.775403 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 1713968064, win 2920, length 0
+<span class="gp">19:00:52.911851 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 2921, win 1460, length 0
+<span class="gp">19:00:54.776998 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 4381, win 2920, length 0
+<span class="gp">19:00:54.777424 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 7301, win 1460, length 0
+<span class="gp">19:00:56.777414 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 8761, win 2920, length 0
+<span class="gp">19:00:56.777741 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 11681, win 8760, length 0
+<span class="gp">19:00:56.778085 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 20441, win 26280, length 0
+<span class="gp">19:00:56.778334 IP 192.168.91.128.56256 &gt;</span><span class="w"> </span>10.170.109.10.6666: Flags <span class="o">[</span>.], ack 46721, win 65535, length 0
+<span class="c">.....</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="urgent-mechanism">5. Urgent Mechanism</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>An application is able to mark data as urgent by specifying a special option to the Berkeley sockets API (MSG_OOB) when it performs a write operation, although the use of urgent data is no longer recommended [RFC6093].</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist bibliography">
+<ul class="bibliography">
+<li>
+<p><a id="TCPIPV1"></a>[TCPIPV1] Kevin Fall, W. Stevens <em>TCP/IP Illustrated: The Protocols, Volume 1</em>. 2nd edition, Addison-Wesley Professional, 2011</p>
+</li>
+<li>
+<p><a id="RFC0813"></a>[RFC0813] D. Clark, <em>Window and Acknowledgment Strategy in TCP</em>, Internet RFC 0813, July 1982.</p>
+</li>
+<li>
+<p><a id="RFC0896"></a>[RFC0896] J. Nagle, <em>Congestion Control in IP/TCP Internetworks</em>, Internet RFC 0896, Jan. 1984. See <a href="https://www.rfc-editor.org/rfc/rfc896" class="bare">https://www.rfc-editor.org/rfc/rfc896</a></p>
+</li>
+<li>
+<p><a id="RFC1112"></a>[RFC1112] S. E. Deering, <em>Host Extensions for IP Multicasting</em>, Internet RFC 1112/STD 0005, Aug. 1989.</p>
+</li>
+<li>
+<p><a id="RHELDELACK"></a>[RHELDELACK] <em>Reducing the TCP Delayed ACK Timeout</em> [online]. <a href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/7/html/tuning_guide/reducing_the_tcp_delayed_ack_timeout" class="bare">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/7/html/tuning_guide/reducing_the_tcp_delayed_ack_timeout</a></p>
+</li>
+<li>
+<p><a id="WTCP"></a>[WTCP] <a href="https://en.wikipedia.org/wiki/Transmission_Control_Protocol" class="bare">https://en.wikipedia.org/wiki/Transmission_Control_Protocol</a></p>
+</li>
+<li>
+<p><a id="WSCALE"></a>[WSCALE] <a href="https://en.wikipedia.org/wiki/TCP_window_scale_option" class="bare">https://en.wikipedia.org/wiki/TCP_window_scale_option</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2023/01/17/tcp-ip-tcp-timeout-and-retransmission/">&laquo; TCP/IP: TCP Timeout and Retransmission</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2023/02/07/tcp-ip-tcp-congestion-control/">TCP/IP: TCP Congestion Control &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

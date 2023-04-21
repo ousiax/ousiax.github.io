@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Kubernetes Resources, Scheduler and Autoscaler</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/11/22/kubernetes-resources-scheduler-autoscaler/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Kubernetes Resources, Scheduler and Autoscaler</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-11-22T09:53:27+08:00" itemprop="datePublished">Nov 22, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#kubernetes-components">1. Kubernetes Components</a></li>
+<li><a href="#resources-for-containers">2. Resources for Containers</a>
+<ul class="sectlevel2">
+<li><a href="#resource-requests-and-limits">2.1. Resource requests and limits</a></li>
+<li><a href="#local-ephemeral-storage">2.2. Local ephemeral storage</a></li>
+<li><a href="#the-lifecycle-of-a-kubernetes-pod">2.3. The lifecycle of a Kubernetes Pod</a></li>
+<li><a href="#quality-of-service-for-pods">2.4. Quality of Service for Pods</a></li>
+<li><a href="#node-allocatable">2.5. Node Allocatable</a></li>
+</ul>
+</li>
+<li><a href="#pod-disruptions">3. Pod Disruptions</a>
+<ul class="sectlevel2">
+<li><a href="#pod-disruption-budgets">3.1. Pod disruption budgets</a></li>
+<li><a href="#think-about-how-your-application-reacts-to-disruptions">3.2. Think about how your application reacts to disruptions</a></li>
+</ul>
+</li>
+<li><a href="#scheduling-preemption-and-eviction">4. Scheduling, Preemption and Eviction</a>
+<ul class="sectlevel2">
+<li><a href="#taints-and-tolerations">4.1. Taints and Tolerations</a></li>
+<li><a href="#pod-priority-and-preemption">4.2. Pod Priority and Preemption</a></li>
+<li><a href="#node-pressure-eviction">4.3. Node-pressure Eviction</a></li>
+</ul>
+</li>
+<li><a href="#kubernetes-autoscaling">5. Kubernetes Autoscaling</a>
+<ul class="sectlevel2">
+<li><a href="#horizontal-pod-autoscaler">5.1. Horizontal Pod Autoscaler</a></li>
+<li><a href="#vertical-pod-autoscaler">5.2. Vertical Pod Autoscaler</a></li>
+<li><a href="#cluster-autoscaler">5.3. Cluster Autoscaler</a></li>
+</ul>
+</li>
+<li><a href="#references">6. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="kubernetes-components">1. Kubernetes Components</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A Kubernetes cluster consists of a set of worker machines, called <strong>nodes</strong>, that run containerized applications. Every cluster has at least one worker node.</p>
+</div>
+<div class="paragraph">
+<p>The worker node(s) host the <strong>Pods</strong> that are the components of the application workload. The <strong>control plane</strong> manages the worker nodes and the Pods in the cluster. In production environments, the control plane usually runs across multiple computers and a cluster usually runs multiple nodes, providing fault-tolerance and high availability.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/2475489eaf20163ec0f54ddc1d92aa8d4c87c96b/e7c81/images/docs/components-of-kubernetes.svg" alt="The components of a Kubernetes cluster" width="90%" height="90%">
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="resources-for-containers">2. Resources for Containers</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When you specify a Pod, you can optionally specify how much of each resource a <strong>Container</strong> needs. The most common resources to specify are <strong>CPU</strong> and <strong>memory</strong> (RAM); there are others.</p>
+</div>
+<div class="paragraph">
+<p>When you specify the <strong>resource request</strong> for Containers in a Pod, the scheduler uses this information to decide which node to place the Pod on. When you specify a <strong>resource limit</strong> for a Container, the kubelet enforces those limits so that the running container is not allowed to use more of that resource than the limit you set. The kubelet also reserves at least the request amount of that system resource specifically for that container to use.</p>
+</div>
+<div class="sect2">
+<h3 id="resource-requests-and-limits">2.1. Resource requests and limits</h3>
+<div class="paragraph">
+<p>If the node where a Pod is running has enough of a resource available, it&#8217;s possible (and allowed) for a container to use more resource than its <code>request</code> for that resource specifies. However, a container is not allowed to use more than its resource <code>limit</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>CPU</code> and <code>memory</code> are each a <strong>resource type</strong>. A resource type has a base unit. CPU represents compute processing and is specified in units of <strong>Kubernetes CPUs</strong>. Memory is specified in units of bytes. <code>Huge pages</code> are a Linux-specific feature where the node kernel allocates blocks of memory that are much larger than the default page size.</p>
+</div>
+<div class="paragraph">
+<p>Each Container of a Pod can specify one or more of the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="s">spec.containers[].resources.limits.cpu</span>
+<span class="s">spec.containers[].resources.limits.memory</span>
+<span class="s">spec.containers[].resources.limits.hugepages-&lt;size&gt;</span>
+<span class="s">spec.containers[].resources.requests.cpu</span>
+<span class="s">spec.containers[].resources.requests.memory</span>
+<span class="s">spec.containers[].resources.requests.hugepages-&lt;size&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Although requests and limits can only be specified on individual Containers, it is convenient to talk about Pod resource requests and limits. A Pod resource request/limit for a particular resource type is the sum of the resource requests/limits of that type for each Container in the Pod.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Meaning of CPU</strong></p>
+<div class="paragraph">
+<p>Limits and requests for CPU resources are measured in cpu units. One cpu, in Kubernetes, is equivalent to <strong>1 vCPU/Core</strong> for cloud providers and <strong>1 hyperthread</strong> on bare-metal Intel processors.</p>
+</div>
+<div class="paragraph">
+<p>Fractional requests are allowed. When you define a container with <code>spec.containers[].resources.requests.cpu</code> set to <code>0.5</code>, you are requesting half as much CPU time compared to if you asked for 1.0 CPU. For CPU resource units, the expression <code>0.1</code> is equivalent to the expression <code>100m</code>, which can be read as "one hundred <strong>millicpu</strong>". Some people say "one hundred <strong>millicore</strong>s", and this is understood to mean the same thing. A request with a decimal point, like 0.1, is converted to 100m by the API, and precision finer than 1m is not allowed. For this reason, the form 100m might be preferred.</p>
+</div>
+<div class="paragraph">
+<p>CPU is always requested as an absolute quantity, never as a relative quantity; 0.1 is the same amount of CPU on a single-core, dual-core, or 48-core machine.</p>
+</div>
+<div class="paragraph">
+<p>CPU is considered a “compressible” resource. If your app starts hitting your CPU limits, Kubernetes starts throttling your container. This means the CPU will be artificially restricted, giving your app potentially worse performance! However, it won’t be terminated or evicted. You can use a <em>liveness health check</em> to make sure performance has not been impacted.</p>
+</div>
+</li>
+<li>
+<p><strong>Meaning of memory</strong></p>
+<div class="paragraph">
+<p>Limits and requests for memory are measured in bytes. You can express memory as a plain integer or as a fixed-point number using one of these suffixes: E, P, T, G, M, k. You can also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki.</p>
+</div>
+<div class="paragraph">
+<p>Unlike CPU resources, memory cannot be compressed. Because there is no way to throttle memory usage, if a container goes past its memory limit it will be terminated. If your pod is managed by a Deployment, StatefulSet, DaemonSet, or another type of controller, then the controller spins up a replacement.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="local-ephemeral-storage">2.2. Local ephemeral storage</h3>
+<div class="paragraph">
+<p><strong>FEATURE STATE</strong>: Kubernetes v1.10 [beta]</p>
+</div>
+<div class="paragraph">
+<p>Nodes have local ephemeral storage, backed by locally-attached writeable devices or, sometimes, by RAM. "Ephemeral" means that there is no long-term guarantee about durability.</p>
+</div>
+<div class="paragraph">
+<p>Pods use ephemeral local storage for scratch space, caching, and for logs. The kubelet can provide scratch space to Pods using local ephemeral storage to mount <code>emptyDir</code> volumes into containers.</p>
+</div>
+<div class="paragraph">
+<p>The kubelet also uses this kind of storage to hold node-level container logs, container images, and the writable layers of running containers.</p>
+</div>
+<div class="paragraph">
+<p>You can use ephemeral-storage for managing local ephemeral storage. Each Container of a Pod can specify one or more of the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="s">spec.containers[].resources.limits.ephemeral-storage</span>
+<span class="s">spec.containers[].resources.requests.ephemeral-storage</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Limits and requests for ephemeral-storage are measured in bytes. You can express storage as a plain integer or as a fixed-point number using one of these suffixes: E, P, T, G, M, K. You can also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki.</p>
+</div>
+<div class="paragraph">
+<p>If the kubelet is managing local ephemeral storage as a resource, then the kubelet measures storage use in:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>emptyDir</code> volumes, except <code>tmpfs</code> emptyDir volumes</p>
+</li>
+<li>
+<p>directories holding node-level logs</p>
+</li>
+<li>
+<p>writeable container layers</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If a Pod is using more ephemeral storage than you allow it to, the kubelet sets an eviction signal that triggers Pod eviction.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-lifecycle-of-a-kubernetes-pod">2.3. The lifecycle of a Kubernetes Pod</h3>
+<div class="paragraph">
+<p>Kubernetes then checks to see if the Node has enough resources to fulfill the resources requests on the Pod’s containers. If it doesn’t, it moves on to the next node.</p>
+</div>
+<div class="paragraph">
+<p>If none of the Nodes in the system have resources left to fill the requests, then Pods go into a <strong>pending state</strong>. By using GKE features such as the <strong>Node Autoscaler</strong>, Kubernetes Engine can automatically detect this state and create more Nodes automatically. If there is excess capacity, the autoscaler can also scale down and remove Nodes to save you money!</p>
+</div>
+<div class="paragraph">
+<p>But what about limits? As you know, limits can be higher than the requests. What if you have a Node where the sum of all the container Limits is actually higher than the resources available on the machine?</p>
+</div>
+<div class="paragraph">
+<p>At this point, Kubernetes goes into something called an <strong>overcommitted state</strong>. Here is where things get interesting. Because CPU can be compressed, Kubernetes will make sure your containers get the CPU they requested and will throttle the rest. Memory cannot be compressed, so Kubernetes needs to start making decisions on what containers to terminate if the Node runs out of memory.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="quality-of-service-for-pods">2.4. Quality of Service for Pods</h3>
+<div class="paragraph">
+<p>In an overcommitted system (where sum of limits &gt; machine capacity) containers might eventually have to be killed, for example if the system runs out of CPU or memory resources. Ideally, we should kill containers that are less important. For each resource, we divide containers into 3 QoS classes: <em>Guaranteed</em>, <em>Burstable</em>, and <em>BestEffort</em>, in decreasing order of priority.</p>
+</div>
+<div class="paragraph">
+<p>For a Pod to be given a QoS class of <strong>Guaranteed</strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Every Container in the Pod must have a memory limit and a memory request.</p>
+</li>
+<li>
+<p>For every Container in the Pod, the memory limit must equal the memory request.</p>
+</li>
+<li>
+<p>Every Container in the Pod must have a CPU limit and a CPU request.</p>
+</li>
+<li>
+<p>For every Container in the Pod, the CPU limit must equal the CPU request.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>These restrictions apply to init containers and app containers equally.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+If a Container specifies its own memory limit, but does not specify a memory request, Kubernetes automatically assigns a memory request that matches the limit. Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, Kubernetes automatically assigns a CPU request that matches the limit.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>A Pod is given a QoS class of <strong>Burstable</strong> if:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The Pod does not meet the criteria for QoS class Guaranteed.</p>
+</li>
+<li>
+<p>At least one Container in the Pod has a memory or CPU request.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For a Pod to be given a QoS class of <strong>BestEffort</strong>, the Containers in the Pod must not have any memory or CPU limits or requests.</p>
+</div>
+<div class="paragraph">
+<p>Pods will not be killed if CPU guarantees cannot be met (for example if system tasks or daemons take up lots of CPU), they will be temporarily throttled.</p>
+</div>
+<div class="paragraph">
+<p>Memory is an incompressible resource and so let&#8217;s discuss the semantics of memory management a bit.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>BestEffort pods will be treated as lowest priority. Processes in these pods are the first to get killed if the system runs out of memory. These containers can use any amount of free memory in the node though.</p>
+</li>
+<li>
+<p>Guaranteed pods are considered top-priority and are guaranteed to not be killed until they exceed their limits, or if the system is under memory pressure and there are no lower priority containers that can be evicted.</p>
+</li>
+<li>
+<p>Burstable pods have some form of minimal resource guarantee, but can use more resources when available. Under system memory pressure, these containers are more likely to be killed once they exceed their requests and no BestEffort pods exist.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="node-allocatable">2.5. Node Allocatable</h3>
+<div class="paragraph">
+<p>Kubernetes nodes can be scheduled to <strong>Capacity</strong>. Pods can consume all the available capacity on a node by default. This is an issue because nodes typically run quite a few system daemons that power the OS and Kubernetes itself. Unless resources are set aside for these system daemons, pods and system daemons compete for resources and lead to resource starvation issues on the node.</p>
+</div>
+<div class="paragraph">
+<p>The <strong>kubelet</strong> exposes a feature named '<strong>Node Allocatable</strong>' that helps to reserve compute resources for system daemons.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/node-capacity.svg" alt="node capacity" width="55%" height="55%">
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="c">...
+</span><span class="go">
+Capacity:
+  cpu:                2
+  ephemeral-storage:  102685624Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             3993764Ki
+  pods:               110
+Allocatable:
+  cpu:                1800m
+  ephemeral-storage:  94425355722
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             3686564Ki
+  pods:               110
+
+</span><span class="c">...
+</span><span class="go">
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests     Limits
+  --------           --------     ------
+  cpu                1255m (69%)  5110m (283%)
+  memory             685Mi (19%)  5120400Mi (142227%)
+  ephemeral-storage  1Mi (0%)     2Mi (0%)
+  hugepages-1Gi      0 (0%)       0 (0%)
+  hugepages-2Mi      0 (0%)       0 (0%)</span></code></pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="kube-reserved">2.5.1. Kube Reserved</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Kubelet Flag: <code>--kube-reserved=[cpu=100m][,][memory=100Mi][,][ephemeral-storage=1Gi][,][pid=1000]</code></p>
+</li>
+<li>
+<p>Kubelet Flag: <code>--kube-reserved-cgroup=</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><code>kube-reserved</code> is meant to capture resource reservation for kubernetes system daemons like the <code>kubelet</code>, <code>container runtime</code>, <code>node problem detector</code>, etc. It is not meant to reserve resources for system daemons that are run as pods. kube-reserved is typically a function of <code>pod density</code> on the nodes.</p>
+</div>
+<div class="paragraph">
+<p>In addition to <code>cpu</code>, <code>memory</code>, and <code>ephemeral-storage</code>, <code>pid</code> may be specified to reserve the specified number of process IDs for kubernetes system daemons.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="system-reserved">2.5.2. System Reserved</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Kubelet Flag: <code>--system-reserved=[cpu=100m][,][memory=100Mi][,][ephemeral-storage=1Gi][,][pid=1000]</code></p>
+</li>
+<li>
+<p>Kubelet Flag: <code>--system-reserved-cgroup=</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><code>system-reserved</code> is meant to capture resource reservation for OS system daemons like <code>sshd</code>, <code>udev</code>, etc. system-reserved should reserve memory for the kernel too since <code>kernel memory</code> is not accounted to pods in Kubernetes at this time. Reserving resources for user login sessions is also recommended (<code>user.slice</code> in systemd world).</p>
+</div>
+<div class="paragraph">
+<p>In addition to <code>cpu</code>, <code>memory</code>, and <code>ephemeral-storage</code>, <code>pid</code> may be specified to reserve the specified number of process IDs for OS system daemons.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="eviction-thresholds">2.5.3. Eviction Thresholds</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Kubelet Flag: <code>--eviction-hard=[memory.available&lt;500Mi]</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Memory pressure at the node level leads to System OOMs which affects the entire node and all pods running on it. Nodes can go offline temporarily until memory has been reclaimed. To avoid (or reduce the probability of) system OOMs kubelet provides <strong>out of resource</strong> management. Evictions are supported for <code>memory</code> and <code>ephemeral-storage</code> only.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="pod-disruptions">3. Pod Disruptions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Pods do not disappear until someone (a person or a controller) destroys them, or there is an unavoidable hardware or system software error.</p>
+</div>
+<div class="paragraph">
+<p>We call these unavoidable cases <strong>involuntary disruptions</strong> to an application. Examples are:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>a hardware failure of the physical machine backing the node</p>
+</li>
+<li>
+<p>cluster administrator deletes VM (instance) by mistake</p>
+</li>
+<li>
+<p>cloud provider or hypervisor failure makes VM disappear</p>
+</li>
+<li>
+<p>a kernel panic</p>
+</li>
+<li>
+<p>the node disappears from the cluster due to cluster network partition</p>
+</li>
+<li>
+<p>eviction of a pod due to the node being <em>out-of-resources</em>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Except for the out-of-resources condition, all these conditions should be familiar to most users; they are not specific to Kubernetes.</p>
+</div>
+<div class="paragraph">
+<p>We call other cases <strong>voluntary disruptions</strong>. These include both actions initiated by the application owner and those initiated by a Cluster Administrator. Typical application owner actions include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>deleting the deployment or other controller that manages the pod</p>
+</li>
+<li>
+<p>updating a deployment&#8217;s pod template causing a restart</p>
+</li>
+<li>
+<p>directly deleting a pod (e.g. by accident)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Cluster administrator actions include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Draining a node for repair or upgrade.</p>
+</li>
+<li>
+<p>Draining a node from a cluster to scale the cluster down</p>
+</li>
+<li>
+<p>Removing a pod from a node to permit something else to fit on that node.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If none voluntary disruptions are enabled for your cluster, you can skip creating Pod Disruption Budgets.</p>
+</div>
+<div class="sect2">
+<h3 id="pod-disruption-budgets">3.1. Pod disruption budgets</h3>
+<div class="paragraph">
+<p>Kubernetes offers features to help you run highly available applications even when you introduce frequent voluntary disruptions.</p>
+</div>
+<div class="paragraph">
+<p>As an application owner, you can create a <code>PodDisruptionBudget</code> (PDB) for each application. A PDB limits the number of Pods of a replicated application that are down simultaneously from voluntary disruptions.</p>
+</div>
+<div class="paragraph">
+<p>Cluster managers and hosting providers should use tools which respect PodDisruptionBudgets by calling the Eviction API (e.g. <code>kubectl drain</code>) instead of directly deleting pods or deployments.</p>
+</div>
+<div class="paragraph">
+<p>PDBs cannot prevent involuntary disruptions from occurring, but they do count against the budget.</p>
+</div>
+<div class="paragraph">
+<p>Pods which are deleted or unavailable due to a <strong>rolling upgrade</strong> to an application do count against the disruption budget, but workload resources (such as <code>Deployment</code> and <code>StatefulSet</code>) are not limited by PDBs when doing rolling upgrades. Instead, the handling of failures during application updates is configured in the spec for the specific workload resource.</p>
+</div>
+<div class="paragraph">
+<p>When a pod is evicted using the eviction API, it is gracefully terminated, honoring the <code>terminationGracePeriodSeconds</code> setting in its PodSpec.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="think-about-how-your-application-reacts-to-disruptions">3.2. Think about how your application reacts to disruptions</h3>
+<div class="paragraph">
+<p>Decide how many instances can be down at the same time for a short period due to a voluntary disruption.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Stateless frontends:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Concern: don&#8217;t reduce serving capacity by more than 10%.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Solution: use PDB with minAvailable 90% for example.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Single-instance Stateful Application:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Concern: do not terminate this application without talking to me.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Possible Solution 1: Do not use a PDB and tolerate occasional downtime.</p>
+</li>
+<li>
+<p>Possible Solution 2: Set PDB with maxUnavailable=0. Have an understanding (outside of Kubernetes) that the cluster operator needs to consult you before termination. When the cluster operator contacts you, prepare for downtime, and then delete the PDB to indicate readiness for disruption. Recreate afterwards.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Multiple-instance Stateful application such as Consul, ZooKeeper, or etcd:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Concern: Do not reduce number of instances below quorum, otherwise writes fail.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Possible Solution 1: set maxUnavailable to 1 (works with varying scale of application).</p>
+</li>
+<li>
+<p>Possible Solution 2: set minAvailable to quorum-size (e.g. 3 when scale is 5). (Allows more disruptions at once).</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Restartable Batch Job:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Concern: Job needs to complete in case of voluntary disruption.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Possible solution: Do not create a PDB. The Job controller will create a replacement pod.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="scheduling-preemption-and-eviction">4. Scheduling, Preemption and Eviction</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Kubernetes, scheduling refers to making sure that <strong>Pods</strong> are matched to <strong>Nodes</strong> so that the <strong>kubelet</strong> can run them. Preemption is the process of terminating Pods with lower <strong>Priority</strong> so that Pods with higher Priority can schedule on Nodes. Eviction is the process of terminating one or more Pods on Nodes.</p>
+</div>
+<div class="sect2">
+<h3 id="taints-and-tolerations">4.1. Taints and Tolerations</h3>
+<div class="paragraph">
+<p><strong>Node affinity</strong> is a property of Pods that attracts them to a set of nodes (either as a preference or a hard requirement). <strong>Taints</strong> are the opposite&#8201;&#8212;&#8201;they allow a node to repel a set of pods.</p>
+</div>
+<div class="paragraph">
+<p><strong>Tolerations</strong> are applied to pods, and allow (but do not require) the pods to schedule onto nodes with matching taints.</p>
+</div>
+<div class="paragraph">
+<p>Taints and tolerations work together to ensure that pods are not scheduled onto inappropriate nodes. One or more taints are applied to a node; this marks that the node should not accept any pods that do not tolerate the taints.</p>
+</div>
+<div class="paragraph">
+<p>You add a taint to a node using <code>kubectl taint</code>. For example,</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">kubectl taint nodes node1 <span class="nv">key1</span><span class="o">=</span>value1:NoSchedule</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>places a taint on node <code>node1</code>. The taint has key <code>key1</code>, value <code>value1</code>, and taint effect <code>NoSchedule</code>. This means that no pod will be able to schedule onto node1 unless it has a matching toleration.</p>
+</div>
+<div class="paragraph">
+<p>To remove the taint added by the command above, you can run:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">kubectl taint nodes node1 <span class="nv">key1</span><span class="o">=</span>value1:NoSchedule-</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You specify a toleration for a pod in the PodSpec. Both of the following tolerations "match" the taint created by the <code>kubectl taint</code> line above, and thus a pod with either toleration would be able to schedule onto node1:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">tolerations</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">key</span><span class="pi">:</span> <span class="s2">"</span><span class="s">key1"</span>
+  <span class="na">operator</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Equal"</span>
+  <span class="na">value</span><span class="pi">:</span> <span class="s2">"</span><span class="s">value1"</span>
+  <span class="na">effect</span><span class="pi">:</span> <span class="s2">"</span><span class="s">NoSchedule"</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">tolerations</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">key</span><span class="pi">:</span> <span class="s2">"</span><span class="s">key1"</span>
+  <span class="na">operator</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Exists"</span>
+  <span class="na">effect</span><span class="pi">:</span> <span class="s2">"</span><span class="s">NoSchedule"</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The default value for <code>operator</code> is <code>Equal</code>.</p>
+</div>
+<div class="paragraph">
+<p>A toleration "matches" a taint if the keys are the same and the effects are the same, and:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the <code>operator</code> is <code>Exists</code> (in which case no <code>value</code> should be specified), or</p>
+</li>
+<li>
+<p>the <code>operator</code> is <code>Equal</code> and the `value`s are equal.</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>There are two special cases:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An empty <code>key</code> with operator <code>Exists</code> matches all keys, values and effects which means this will tolerate everything.</p>
+</li>
+<li>
+<p>An empty <code>effect</code> matches all effects with key <code>key1</code>.</p>
+</li>
+</ul>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>The <code>NoExecute</code> taint effect affects pods that are already running on the node as follows</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>pods that do not tolerate the taint are evicted immediately</p>
+</li>
+<li>
+<p>pods that tolerate the taint without specifying <code>tolerationSeconds</code> in their toleration specification remain bound forever</p>
+</li>
+<li>
+<p>pods that tolerate the taint with a specified <code>tolerationSeconds</code> remain bound for the specified amount of time</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The <strong>node controller</strong> automatically taints a Node when certain conditions are true. The following taints are built in:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>node.kubernetes.io/not-ready</code>:</p>
+<div class="paragraph">
+<p>Node is not ready. This corresponds to the NodeCondition <code>Ready</code> being "False".</p>
+</div>
+</li>
+<li>
+<p><code>node.kubernetes.io/unreachable</code>:</p>
+<div class="paragraph">
+<p>Node is unreachable from the node controller. This corresponds to the NodeCondition <code>Ready</code> being "Unknown".</p>
+</div>
+</li>
+<li>
+<p><code>node.kubernetes.io/memory-pressure</code>:</p>
+<div class="paragraph">
+<p>Node has memory pressure.</p>
+</div>
+</li>
+<li>
+<p><code>node.kubernetes.io/disk-pressure</code>:</p>
+<div class="paragraph">
+<p>Node has disk pressure.</p>
+</div>
+</li>
+<li>
+<p><code>node.kubernetes.io/pid-pressure</code>:</p>
+<div class="paragraph">
+<p>Node has PID pressure.</p>
+</div>
+</li>
+<li>
+<p><code>node.kubernetes.io/network-unavailable</code>:</p>
+<div class="paragraph">
+<p>Node&#8217;s network is unavailable.</p>
+</div>
+</li>
+<li>
+<p><code>node.kubernetes.io/unschedulable</code>:</p>
+<div class="paragraph">
+<p>Node is unschedulable.</p>
+</div>
+</li>
+<li>
+<p><code>node.cloudprovider.kubernetes.io/uninitialized</code>:</p>
+<div class="paragraph">
+<p>When the kubelet is started with "external" cloud provider, this taint is set on a node to mark it as unusable. After a controller from the cloud-controller-manager initializes this node, the kubelet removes this taint.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In case a node is to be evicted, the node controller or the kubelet adds relevant taints with <code>NoExecute</code> effect. If the fault condition returns to normal the kubelet or node controller can remove the relevant taint(s).</p>
+</div>
+<div class="paragraph">
+<p><strong>DaemonSet</strong> pods are created with <code>NoExecute</code> tolerations for the following taints with no <code>tolerationSeconds</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>node.kubernetes.io/unreachable</code></p>
+</li>
+<li>
+<p><code>node.kubernetes.io/not-ready</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This ensures that DaemonSet pods are never evicted due to these problems.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="pod-priority-and-preemption">4.2. Pod Priority and Preemption</h3>
+<div class="paragraph">
+<p>Pods can have priority. <strong>Priority</strong> indicates the importance of a Pod relative to other Pods. If a Pod cannot be scheduled, the scheduler tries to preempt (evict) lower priority Pods to make scheduling of the pending Pod possible.</p>
+</div>
+<div class="paragraph">
+<p>To use priority and preemption:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Add one or more <strong>PriorityClasses</strong>.</p>
+</li>
+<li>
+<p>Create Pods with <code>priorityClassName</code> set to one of the added PriorityClasses.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A <strong>PriorityClass</strong> is a non-namespaced object that defines a mapping from a priority class name to the integer value of the priority. The <code>name</code> is specified in the name field of the PriorityClass object&#8217;s metadata. The <code>value</code> is specified in the required value field. The higher the value, the higher the priority. The name of a PriorityClass object must be a valid DNS subdomain name, and it cannot be prefixed with <code>system-</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl get pc
+<span class="go">NAME                      VALUE        GLOBAL-DEFAULT   AGE
+system-cluster-critical   2000000000   false            60d
+system-node-critical      2000001000   false            60d
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl get pc system-cluster-critical <span class="nt">-oyaml</span>
+<span class="go">apiVersion: scheduling.k8s.io/v1
+description: Used for system critical pods that must run in the cluster, but can be
+  moved to another node if necessary.
+kind: PriorityClass
+metadata:
+  creationTimestamp: "2021-09-22T09:29:35Z"
+  generation: 1
+  name: system-cluster-critical
+  resourceVersion: "84"
+  uid: ff8cb5f8-d989-4a68-b902-d3b1ed891f9b
+preemptionPolicy: PreemptLowerPriority
+value: 2000000000</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>kubelet node-pressure eviction does not evict Pods when their usage does not exceed their requests. If a Pod with lower priority is not exceeding its requests, it won&#8217;t be evicted. Another Pod with higher priority that exceeds its requests may be evicted.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="node-pressure-eviction">4.3. Node-pressure Eviction</h3>
+<div class="paragraph">
+<p>Node-pressure eviction is the process by which the <strong>kubelet</strong> proactively terminates pods to reclaim resources on nodes.</p>
+</div>
+<div class="paragraph">
+<p>The kubelet monitors resources like CPU, memory, disk space, and filesystem inodes on your cluster&#8217;s nodes. When one or more of these resources reach specific consumption levels, the kubelet can proactively fail one or more pods on the node to reclaim resources and prevent starvation.</p>
+</div>
+<div class="paragraph">
+<p>During a node-pressure eviction, the kubelet sets the <code>PodPhase</code> for the selected pods to <code>Failed</code>. This terminates the pods.</p>
+</div>
+<div class="paragraph">
+<p>Node-pressure eviction is not the same as API-initiated eviction (e.g. <code>kubectl drain</code>).</p>
+</div>
+<div class="paragraph">
+<p>The kubelet does not respect your configured <code>PodDisruptionBudget</code> or the pod&#8217;s <code>terminationGracePeriodSeconds</code>. If you use soft eviction thresholds, the kubelet respects your configured <code>eviction-max-pod-grace-period</code>. If you use hard eviction thresholds, it uses a <code>0s</code> grace period for termination.</p>
+</div>
+<div class="paragraph">
+<p>If the pods are managed by a workload resource (such as StatefulSet or Deployment) that replaces failed pods, the control plane or <code>kube-controller-manager</code> creates new pods in place of the evicted pods.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The kubelet attempts to reclaim node-level resources before it terminates end-user pods. For example, it removes unused container images when disk resources are starved.
+</td>
+</tr>
+</table>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Eviction signals</strong></p>
+<div class="paragraph">
+<p>Eviction signals are the current state of a particular resource at a specific point in time. Kubelet uses eviction signals to make eviction decisions by comparing the signals to eviction thresholds, which are the minimum amount of the resource that should be available on the node.</p>
+</div>
+<div class="paragraph">
+<p>Kubelet uses the following eviction signals:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 83.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Eviction Signal</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">memory.available</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">memory.available := node.status.capacity[memory] - node.stats.memory.workingSet</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">nodefs.available</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">nodefs.available := node.stats.fs.available</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">nodefs.inodesFree</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">nodefs.inodesFree := node.stats.fs.inodesFree</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">imagefs.available</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">imagefs.available := node.stats.runtime.imagefs.available</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">imagefs.inodesFree</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">imagefs.inodesFree := node.stats.runtime.imagefs.inodesFree</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">pid.available</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">pid.available := node.stats.rlimit.maxpid - node.stats.rlimit.curproc</p></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p><strong>Eviction thresholds</strong></p>
+<div class="paragraph">
+<p>You can specify custom eviction thresholds for the kubelet to use when it makes eviction decisions.</p>
+</div>
+<div class="paragraph">
+<p>Eviction thresholds have the form <code>[eviction-signal][operator][quantity]</code>, where:</p>
+</div>
+</li>
+<li>
+<p><code>eviction-signal</code> is the eviction signal to use.</p>
+</li>
+<li>
+<p><code>operator</code> is the relational operator you want, such as <code>&lt;</code> (less than).</p>
+</li>
+<li>
+<p><code>quantity</code> is the eviction threshold amount, such as 1Gi. The value of quantity must match the quantity representation used by Kubernetes. You can use either literal values or percentages (%).</p>
+<div class="paragraph">
+<p>For example, if a node has <code>10Gi</code> of total memory and you want trigger eviction if the available memory falls below <code>1Gi</code>, you can define the eviction threshold as either <code>memory.available&lt;10%</code> or <code>memory.available&lt;1Gi</code>. You cannot use both.</p>
+</div>
+<div class="paragraph">
+<p>You can configure soft and hard eviction thresholds.</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Soft eviction thresholds</strong></p>
+<div class="paragraph">
+<p>A soft eviction threshold pairs an eviction threshold with a required administrator-specified grace period. The kubelet does not evict pods until the grace period is exceeded. The kubelet returns an error on startup if there is no specified grace period.</p>
+</div>
+<div class="paragraph">
+<p>You can specify both a soft eviction threshold grace period and a maximum allowed pod termination grace period for kubelet to use during evictions. If you specify a maximum allowed grace period and the soft eviction threshold is met, the kubelet uses the lesser of the two grace periods. If you do not specify a maximum allowed grace period, the kubelet kills evicted pods immediately without graceful termination.</p>
+</div>
+<div class="paragraph">
+<p>You can use the following flags to configure soft eviction thresholds:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>eviction-soft</code>: A set of eviction thresholds like <code>memory.available&lt;1.5Gi</code> that can trigger pod eviction if held over the specified grace period.</p>
+</li>
+<li>
+<p>eviction-soft-grace-period: A set of eviction grace periods like <code>memory.available=1m30s</code> that define how long a soft eviction threshold must hold before triggering a Pod eviction.</p>
+</li>
+<li>
+<p><code>eviction-max-pod-grace-period</code>: The maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Hard eviction thresholds</strong></p>
+<div class="paragraph">
+<p>A hard eviction threshold has no grace period. When a hard eviction threshold is met, the kubelet kills pods immediately without graceful termination to reclaim the starved resource.</p>
+</div>
+<div class="paragraph">
+<p>You can use the <code>eviction-hard</code> flag to configure a set of hard eviction thresholds like <code>memory.available&lt;1Gi</code>.</p>
+</div>
+<div class="paragraph">
+<p>The kubelet has the following default hard eviction thresholds:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">memory.available&lt;100Mi
+nodefs.available&lt;10%
+imagefs.available&lt;15%
+nodefs.inodesFree&lt;5% (Linux nodes)</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="pod-selection-for-kubelet-eviction">4.3.1. Pod selection for kubelet eviction</h4>
+<div class="paragraph">
+<p>If the kubelet&#8217;s attempts to reclaim node-level resources don&#8217;t bring the eviction signal below the threshold, the kubelet begins to evict end-user pods.</p>
+</div>
+<div class="paragraph">
+<p>The kubelet uses the following parameters to determine pod eviction order:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Whether the pod&#8217;s <strong>resource usage exceeds requests</strong></p>
+</li>
+<li>
+<p>Pod <strong>Priority</strong></p>
+</li>
+<li>
+<p>The pod&#8217;s <strong>resource usage relative to requests</strong></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>As a result, kubelet ranks and evicts pods in the following order:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>BestEffort</code> or <code>Burstable</code> pods where the usage exceeds requests. These pods are evicted based on their Priority and then by how much their usage level exceeds the request.</p>
+</li>
+<li>
+<p><code>Guaranteed</code> pods and <code>Burstable</code> pods where the usage is less than requests are evicted last, based on their Priority.</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The kubelet does not use the pod&#8217;s QoS class to determine the eviction order. You can use the QoS class to estimate the most likely pod eviction order when reclaiming resources like memory. QoS does not apply to EphemeralStorage requests, so the above scenario will not apply if the node is, for example, under <code>DiskPressure</code>.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="kubernetes-autoscaling">5. Kubernetes Autoscaling</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The foundation of building cost-optimized applications is spreading the cost-saving culture across teams. Beyond moving cost discussions to the beginning of the development process, this approach forces you to better understand the environment that your applications are running in—in this context, the GKE environment.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-approach.svg" alt="bp for running cost effective kubernetes apps on gke approach" width="75%" height="75%">
+</div>
+</div>
+<div class="paragraph">
+<p>In order to achieve low cost and application stability, you must correctly set or tune some features and configurations (such as autoscaling, machine types, and region selection). Another important consideration is your workload type because, depending on the workload type and your application&#8217;s requirements, you must apply different configurations in order to further lower your costs. Finally, you must monitor your spending and create guardrails so that you can enforce best practices early in your development cycle.</p>
+</div>
+<div class="paragraph">
+<p>Kubernetes has three scalability tools. Two of these, the <a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/">Horizontal pod autoscaler</a> (<strong>HPA</strong>) and the <a href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler">Vertical pod autoscaler</a> (<strong>VPA</strong>), function on the application abstraction layer. The <a href="https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler">cluster autoscaler</a> (<strong>CA</strong>) works on the infrastructure layer.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-scenarios.svg" alt="bp for running cost effective kubernetes apps on gke scenarios" width="35%" height="35%">
+</div>
+</div>
+<div class="sect2">
+<h3 id="horizontal-pod-autoscaler">5.1. Horizontal Pod Autoscaler</h3>
+<div class="paragraph">
+<p><a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/">Horizontal Pod Autoscaler</a> (HPA) is meant for scaling applications that are running in Pods based on metrics that express load. You can configure either CPU utilization or other custom metrics (for example, requests per second). In short, HPA adds and deletes Pods replicas, and it is best suited for stateless workers that can spin up quickly to react to usage spikes, and shut down gracefully to avoid workload instability.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-threshold.svg" alt="bp for running cost effective kubernetes apps on gke threshold" width="75%" height="75%">
+</div>
+</div>
+<div class="paragraph">
+<p>Even if you guarantee that your application can start up in a matter of seconds, this extra time is required when <a href="https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler">Cluster Autoscaler</a> adds new nodes to your cluster or when Pods are throttled due to lack of resources.</p>
+</div>
+<div class="paragraph">
+<p>The following are best practices for enabling HPA in your application:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Size your application correctly by setting appropriate <strong>resource requests and limits</strong>.</p>
+</li>
+<li>
+<p>Set your target utilization to <strong>reserve a buffer</strong> that can handle requests during a spike.</p>
+</li>
+<li>
+<p>Make sure your application <strong>starts as quickly as possible</strong> and <strong>shuts down according to Kubernetes expectations</strong>.</p>
+</li>
+<li>
+<p>Set meaningful <strong>readiness and liveness probes</strong>.</p>
+</li>
+<li>
+<p>Make sure that your <strong>Metrics Server</strong> is always up and running.</p>
+</li>
+<li>
+<p>Inform clients of your application that they must consider implementing <strong>exponential retries for handling transient issues</strong>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Make sure your applications are shutting down according to Kubernetes expectations:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Don&#8217;t stop accepting new requests right after <code>SIGTERM</code>.</p>
+<div class="paragraph">
+<p>Your application must not stop immediately, but instead finish all requests that are in flight and still listen to incoming connections that arrive after the Pod termination begins. It might take a while for Kubernetes to update all <strong>kube-proxie</strong>s and load balancers. If your application terminates before these are updated, some requests might cause errors on the client side.</p>
+</div>
+</li>
+<li>
+<p>If your application doesn&#8217;t follow the preceding practice, use the <code>preStop</code> hook.</p>
+<div class="paragraph">
+<p>Most programs don&#8217;t stop accepting requests right away. However, if you&#8217;re using third-party code or are managing a system that you don&#8217;t have control over, such as nginx, the preStop hook is a good option for triggering a graceful shutdown without modifying the application. One common strategy is to execute, in the preStop hook, a sleep of a few seconds to postpone the SIGTERM. This gives Kubernetes extra time to finish the Pod deletion process, and reduces connection errors on the client side.</p>
+</div>
+</li>
+<li>
+<p>Handle <code>SIGTERM</code> for cleanups.</p>
+<div class="paragraph">
+<p>If your application must clean up or has an in-memory state that must be persisted before the process terminates, now is the time to do it. Different programming languages have different ways to catch this signal, so find the right way in your language.</p>
+</div>
+</li>
+<li>
+<p>Configure <code>terminationGracePeriodSeconds</code> to fit your application needs.</p>
+<div class="paragraph">
+<p>Some applications need more than the default 30 seconds to finish. In this case, you must specify terminationGracePeriodSeconds. High values might increase time for node upgrades or rollouts, for example. Low values might not allow enough time for Kubernetes to finish the Pod termination process. Either way, we recommend that you set your application&#8217;s termination period to less than 10 minutes because Cluster Autoscaler honors it for 10 minutes only.</p>
+</div>
+</li>
+<li>
+<p>If your application uses container-native load balancing, start failing your <code>readiness probe</code> when you receive a <code>SIGTERM</code>.</p>
+<div class="paragraph">
+<p>This action directly signals load balancers to stop forwarding new requests to the backend Pod. Depending on the race between health check configuration and endpoint programming, the backend Pod might be taken out of traffic earlier.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="vertical-pod-autoscaler">5.2. Vertical Pod Autoscaler</h3>
+<div class="paragraph">
+<p>Unlike HPA, which adds and deletes Pod replicas for rapidly reacting to usage spikes, Vertical Pod Autoscaler (VPA) observes Pods over time and gradually finds the optimal CPU and memory resources required by the Pods. Setting the right resources is important for stability and cost efficiency. If your Pod resources are too small, your application can either be throttled or it can fail due to out-of-memory errors. If your resources are too large, you have waste and, therefore, larger bills. VPA is meant for stateless and stateful workloads not handled by HPA or when you don&#8217;t know the proper Pod resource requests.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-vpa.svg" alt="bp for running cost effective kubernetes apps on gke vpa" width="45%" height="45%">
+</div>
+</div>
+<div class="paragraph">
+<p>VPA can work in three different modes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Off:</strong>.</p>
+<div class="paragraph">
+<p>In this mode, also known as recommendation mode, VPA does not apply any change to your Pod. The recommendations are calculated and can be inspected in the VPA object.</p>
+</div>
+</li>
+<li>
+<p><strong>Initial</strong>:</p>
+<div class="paragraph">
+<p>VPA assigns resource requests only at Pod creation and never changes them later.</p>
+</div>
+</li>
+<li>
+<p><strong>Auto</strong>:</p>
+<div class="paragraph">
+<p>VPA updates CPU and memory requests during the life of a Pod. That means, the Pod is deleted, CPU and memory are adjusted, and then a new Pod is started.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If you plan to use VPA, the best practice is to start with the <code>Off</code> mode for pulling VPA recommendations. Make sure it&#8217;s running for 24 hours, ideally one week or more, before pulling recommendations. Then, only when you feel confident, consider switching to either <code>Initial</code> or <code>Auto</code> mode.</p>
+</div>
+<div class="paragraph">
+<p>Follow these best practices for enabling VPA, either in <code>Initial</code> or <code>Auto</code> mode, in your application:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Don&#8217;t use VPA either <code>Initial</code> or <code>Auto</code> mode if you need to handle sudden spikes in traffic. Use HPA instead.</p>
+</li>
+<li>
+<p>Make sure your application can grow vertically.
+Set minimum and maximum container sizes in the VPA objects to avoid the autoscaler making significant changes when your application is not receiving traffic.</p>
+</li>
+<li>
+<p>Don&#8217;t make abrupt changes, such as dropping the Pod&#8217;s replicas from 30 to 5 all at once. This kind of change requires a new deployment, new label set, and new VPA object.</p>
+</li>
+<li>
+<p>Make sure your application starts as quickly as possible and shuts down according to Kubernetes expectations.</p>
+</li>
+<li>
+<p>Set meaningful readiness and liveness probes.</p>
+</li>
+<li>
+<p>Make sure that your Metrics Server is always up and running.</p>
+</li>
+<li>
+<p>Inform clients of your application that they must consider implementing exponential retries for handling transient issues.</p>
+</li>
+<li>
+<p>Consider using node auto-provisioning along with VPA so that if a Pod gets large enough to fit into existing machine types, Cluster Autoscaler provisions larger machines to fit the new Pod.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Whether you are considering using <code>Auto</code> mode, make sure you also follow these practices:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Make sure your application can be restarted while receiving traffic.</p>
+</li>
+<li>
+<p>Add Pod Disruption Budget (PDB) to control how many Pods can be taken down at the same time.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="cluster-autoscaler">5.3. Cluster Autoscaler</h3>
+<div class="paragraph">
+<p>Cluster Autoscaler (CA) automatically resizes the underlying computer infrastructure. CA provides nodes for Pods that don&#8217;t have a place to run in the cluster and removes under-utilized nodes. CA is optimized for the cost of infrastructure. In other words, if there are two or more node types in the cluster, CA chooses the least expensive one that fits the given demand.</p>
+</div>
+<div class="paragraph">
+<p><strong>Unlike HPA and VPA, CA doesn&#8217;t depend on load metrics. Instead, it&#8217;s based on scheduling simulation and declared Pod requests.</strong> It&#8217;s a best practice to enable CA whenever you are using either HPA or VPA. This practice ensures that if your Pod autoscalers determine that you need more capacity, your underlying infrastructure grows accordingly.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-ca.svg" alt="bp for running cost effective kubernetes apps on gke ca" width="75%" height="75%">
+</div>
+</div>
+<div class="paragraph">
+<p>As these diagrams show, CA automatically adds and removes compute capacity to handle traffic spikes and save you money when your customers are sleeping. It is a best practice to define <strong>Pod Disruption Budget</strong> (PDB) for all your applications. It is particularly important at the CA scale-down phase when PDB controls the number of replicas that can be taken down at one time.</p>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#what-types-of-pods-can-prevent-ca-from-removing-a-node">Certain Pods cannot be restarted by any autoscaler</a> when they cause some temporary disruption, so the node they run on can&#8217;t be deleted. For example, system Pods (such as <code>metrics-server</code> and <code>kube-dns</code>), and Pods using local storage won&#8217;t be restarted. However, you can change this behavior by defining <strong>PDB</strong>s for these system Pods and by setting <code>"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"</code> annotation for Pods using local storage that are safe for the autoscaler to restart. Moreover, consider running long-lived Pods that can&#8217;t be restarted on a separate node pool, so they don&#8217;t block scale-down of other nodes. Finally, learn how to analyze CA events in the logs to understand why a particular scaling activity didn&#8217;t happen as expected.</p>
+</div>
+<div class="paragraph">
+<p>The following is a summary of the best practices for enabling Cluster Autoscaler in your cluster:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Use either HPA or VPA to autoscale your workloads.</p>
+</li>
+<li>
+<p>Make sure you are following the best practices described in the chosen Pod autoscaler.</p>
+</li>
+<li>
+<p>Size your application correctly by setting appropriate resource requests and limits or use VPA.</p>
+</li>
+<li>
+<p>Define a PDB for your applications.</p>
+</li>
+<li>
+<p>Define PDB for system Pods that might block your scale-down. For example, kube-dns. To avoid temporary disruption in your cluster, don&#8217;t set PDB for system Pods that have only 1 replica (such as metrics-server).</p>
+</li>
+<li>
+<p>Run short-lived Pods and Pods that can be restarted in separate node pools, so that long-lived Pods don&#8217;t block their scale-down.</p>
+</li>
+<li>
+<p>Avoid over-provisioning by configuring idle nodes in your cluster. For that, you must know your minimum capacity—for many companies it&#8217;s during the night—and set the minimum number of nodes in your node pools to support that capacity.</p>
+</li>
+<li>
+<p>If you need extra capacity to handle requests during spikes, use pause Pods, which are discussed in [](Autoscaler and over-provisioning).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>However, as noted in the Horizontal Pod Autoscaler section, scale-ups might take some time due to infrastructure provisioning. To visualize this difference in time and possible scale-up scenarios, consider the following image.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/cluster-autoscaler/bp-for-running-cost-effective-kubernetes-apps-on-gke-scale-up.svg" alt="bp for running cost effective kubernetes apps on gke scale up" width="100%" height="100%">
+</div>
+</div>
+<div class="paragraph">
+<p>When your cluster has enough room for deploying new Pods, one of the <strong>Workload scale-up scenarios</strong> is triggered. Meaning, if an existing node never deployed your application, it must download its container images before starting the Pod (scenario 1). However, if the same node must start a new Pod replica of your application, the total scale-up time decreases because no image download is required (scenario 2).</p>
+</div>
+<div class="paragraph">
+<p>When your cluster doesn&#8217;t have enough room for deploying new Pods, one of the <strong>Infrastructure and Workload scale-up scenarios</strong> is triggered. This means that Cluster Autoscaler must provision new nodes and start the required software before approaching your application (scenario 1). If you use node auto-provisioning, depending on the workload scheduled, new node pools might be required. In this situation, the total scale-up time increases because Cluster Autoscaler has to provision nodes and node pools (scenario 2).</p>
+</div>
+<div class="paragraph">
+<p>For scenarios where new infrastructure is required, don&#8217;t squeeze your cluster too much—meaning, you must over-provision but only for reserving the necessary buffer to handle the expected peak requests during scale-ups.</p>
+</div>
+<div class="paragraph">
+<p>There are two main strategies for this kind of over-provisioning:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Fine-tune the HPA utilization target</strong>. The following equation is a simple and safe way to find a good CPU target:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">(1 - buff)/(1 + perc)</span></code></pre>
+</div>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p><em>buff</em> is a safety buffer that you can set to avoid reaching 100% CPU. This variable is useful because reaching 100% CPU means that the latency of request processing is much higher than usual.</p>
+</li>
+<li>
+<p><em>perc</em> is the percentage of traffic growth you expect in two or three minutes.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="paragraph">
+<p>For example, if you expect a growth of 30% in your requests and you want to avoid reaching 100% of CPU by defining a 10% safety buffer, your formula would look like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">(1 - 0.1)/(1 + 0.3) = 0.69</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Configure pause Pods</strong>. There is no way to configure Cluster Autoscaler to spin up nodes upfront. Instead, you can set an HPA utilization target to provide a buffer to help handle spikes in load. However, if you expect large bursts, setting a small HPA utilization target might not be enough or might become too expensive.</p>
+<div class="paragraph">
+<p>An alternative solution for this problem is to use <a href="https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-can-i-configure-overprovisioning-with-cluster-autoscaler">pause Pods</a>. Pause Pods are low-priority deployments that do nothing but reserve room in your cluster. Whenever a high-priority Pod is scheduled, pause Pods get evicted and the high-priority Pod immediately takes their place. The evicted pause Pods are then rescheduled, and if there is no room in the cluster, Cluster Autoscaler spins up new nodes for fitting them. It&#8217;s a best practice to have only a single pause Pod per node. For example, if you are using 4 CPU nodes, configure the pause Pods' CPU request with around 3200m.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">6. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/overview/components/" class="bare">https://kubernetes.io/docs/concepts/overview/components/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" class="bare">https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/" class="bare">https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/workloads/pods/disruptions/" class="bare">https://kubernetes.io/docs/concepts/workloads/pods/disruptions/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/" class="bare">https://kubernetes.io/docs/tasks/run-application/configure-pdb/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/" class="bare">https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/</a></p>
+</li>
+<li>
+<p><a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md#qos-classes" class="bare">https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/resource-qos.md#qos-classes</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/scheduling-eviction/" class="bare">https://kubernetes.io/docs/concepts/scheduling-eviction/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/" class="bare">https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/</a></p>
+</li>
+<li>
+<p><a href="https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler" class="bare">https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler</a></p>
+</li>
+<li>
+<p><a href="https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits" class="bare">https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits</a></p>
+</li>
+<li>
+<p><a href="https://cloud.google.com/architecture/best-practices-for-running-cost-effective-kubernetes-applications-on-gke" class="bare">https://cloud.google.com/architecture/best-practices-for-running-cost-effective-kubernetes-applications-on-gke</a></p>
+</li>
+<li>
+<p><a href="https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-terminating-with-grace" class="bare">https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-terminating-with-grace</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/11/18/system-architect-diagram/">&laquo; System Architect and Diagrams</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/11/23/linux-cgroups-containers/">Linux CGroups and Containers &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

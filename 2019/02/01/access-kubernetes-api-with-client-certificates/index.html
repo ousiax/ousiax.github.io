@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Access Kubernetes API with Client Certificates</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2019/02/01/access-kubernetes-api-with-client-certificates/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Access Kubernetes API with Client Certificates</h1>
+    
+    
+    <p class="post-meta"><time datetime="2019-02-01T15:05:40+08:00" itemprop="datePublished">Feb 1, 2019</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#controlling-access-to-the-kubernetes-api" id="markdown-toc-controlling-access-to-the-kubernetes-api">Controlling Access to the Kubernetes API</a></li>
+  <li><a href="#users-in-kubernetes" id="markdown-toc-users-in-kubernetes">Users in Kubernetes</a>    <ul>
+      <li><a href="#authentication-strategies" id="markdown-toc-authentication-strategies">Authentication strategies</a></li>
+      <li><a href="#x509-client-certs" id="markdown-toc-x509-client-certs">X509 Client Certs</a></li>
+      <li><a href="#determine-whether-a-request-is-allowed-or-denied" id="markdown-toc-determine-whether-a-request-is-allowed-or-denied">Determine Whether a Request is Allowed or Denied</a></li>
+      <li><a href="#rbac-authorization" id="markdown-toc-rbac-authorization">RBAC Authorization</a>        <ul>
+          <li><a href="#role-and-clusterrole" id="markdown-toc-role-and-clusterrole">Role and ClusterRole</a></li>
+          <li><a href="#rolebinding-and-clusterrolebinding" id="markdown-toc-rolebinding-and-clusterrolebinding">RoleBinding and ClusterRoleBinding</a></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li><a href="#configure-access-to-kubernetes-cluster" id="markdown-toc-configure-access-to-kubernetes-cluster">Configure Access to Kubernetes Cluster</a>    <ul>
+      <li><a href="#1-create-a-normal-user-with-x509-client-certificate" id="markdown-toc-1-create-a-normal-user-with-x509-client-certificate">1. Create a Normal User with X.509 Client Certificate</a></li>
+      <li><a href="#2-create-a-kubeconfig-file" id="markdown-toc-2-create-a-kubeconfig-file">2. Create a KUBECONFIG file.</a></li>
+      <li><a href="#3-grant-the-cluster-admin-clusterrole-to-a-user-named-kube-ops" id="markdown-toc-3-grant-the-cluster-admin-clusterrole-to-a-user-named-kube-ops">3. Grant the <code class="language-plaintext highlighter-rouge">cluster-admin</code> <code class="language-plaintext highlighter-rouge">ClusterRole</code> to a user named “kube-ops”</a></li>
+      <li><a href="#4-test-the-config-and-rbac-rule" id="markdown-toc-4-test-the-config-and-rbac-rule">4. Test the <em>config</em> and RBAC rule.</a></li>
+    </ul>
+  </li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+</ul>
+
+<hr />
+
+<h2 id="controlling-access-to-the-kubernetes-api">Controlling Access to the Kubernetes API</h2>
+
+<p>Users <a href="https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/">access the API</a> using <strong>kubectl</strong>, client libraries, or by making REST requests. Both human users and <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">Kubernetes serevice accounts</a> can be authorized for API access. When a request reaches the API, it goes through several stages, illustrated in the following diagram:</p>
+
+<p><img src="https://d33wubrfki0l68.cloudfront.net/673dbafd771491a080c02c6de3fdd41b09623c90/50100/images/docs/admin/access-control-overview.svg" alt="Diagram of request handling steps for Kubernetes API request" /></p>
+
+<p>For more information, see <a href="https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/">Controlling Access to the Kubernetes API</a>.</p>
+
+<h2 id="users-in-kubernetes">Users in Kubernetes</h2>
+
+<p>All Kubernetes clusters have two categories of users: service accounts managed by Kubernetes, and normal users.</p>
+
+<p>Normal users are assumed to be managed by an outside, independent service. An admin distributing private keys, a user store like Keystone or Google Accounts, even a file with a list of usernames and passwords. In this regard, <em>Kubernetes does not have objects which represent normal user accounts.</em> Normal users cannot be added to a cluster through an API call.</p>
+
+<p>In contrast, service accounts are users managed by the Kubernetes API. They are bound to specific namespaces, and created automatically by the API server or mannually through API calls. Service accounts are tied to a set of credential stored as <strong>Secret</strong>, which are mounted into pods allowing in-cluster processed to talk to the Kubernetes API.</p>
+
+<p>API requests are tied to either a normal user or a service account, or are treated as anonymous requests. This means every process inside or outside the cluster, from a human user typing <strong>kubectl</strong> on a workstation, to <strong>kubelets</strong> on nodes, to members of the control plane, must authenticate when making requests to the API server, or be treated as an anonymous user.</p>
+
+<p>For more information, see <a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/">Authenticating in Kubernetes</a></p>
+
+<h3 id="authentication-strategies">Authentication strategies</h3>
+
+<p>Kubernetes uses client certificates, bearer tokens, an authenticating proxy, or HTTP basic auth to authenticate API requests through authentication plugins. As HTTP request are made to the API server, plugins attempt to associate the following attributes with the request:</p>
+
+<ul>
+  <li>Username: a string which identifies the end user. Common values might be <strong>kube-admin</strong> or <strong>jane@example.com</strong>.</li>
+  <li>UID: a string which identifies the end user and attempts to be more consistent and unique than username.</li>
+  <li>Groups: a set of strings which associate users with a set of commonly grouped users.</li>
+  <li>Extra fields: a map of strings to list of strings which holds additional information authorizers may find useful.</li>
+</ul>
+
+<h3 id="x509-client-certs">X509 Client Certs</h3>
+
+<p>Client certificate authentication is enabled by passing the <strong>–client-ca-file=SOMEFILE</strong> option to API server. The referenced file must contain one or more certificates authorities to use to validate client certificates presented to the API server. If a client certificate is presented and verified, the common name of the subject is used as the user name for the request. As of Kubernetes 1.4, client certificates can also indicate a user’s group memberships using the certificate’s organization fields. To include multiple group memberships for a user, include multiple organization fields in the certificate.</p>
+
+<p>For example, using the <strong>openssl</strong> command line tool to generate a certificate signing request:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-new</span> <span class="nt">-key</span> jbeda.pem <span class="nt">-out</span> jbeda-csr.pem <span class="nt">-subj</span> <span class="s2">"/CN=jbeda/O=app1/O=app2"</span>
+</code></pre></div></div>
+
+<p>This would create a CSR for the username “jbeda”, belonging to two groups, “app1” and “app2”.</p>
+
+<p>See <a href="https://kubernetes.io/docs/concepts/cluster-administration/certificates/">Managing Certificates</a> for how to generate a client cert.</p>
+
+<h3 id="determine-whether-a-request-is-allowed-or-denied">Determine Whether a Request is Allowed or Denied</h3>
+
+<p>Kubernetes authorizes API requests using the API server. It evaluates all of the request attributes against all policies and allows or denies the request. All parts of an API request must be allowed by some policy in order to proceed. This means that permissions are denied by default.</p>
+
+<p>For more information, see <a href="https://kubernetes.io/docs/reference/access-authn-authz/authorization/">Authorization Overview</a></p>
+
+<h3 id="rbac-authorization">RBAC Authorization</h3>
+
+<h4 id="role-and-clusterrole">Role and ClusterRole</h4>
+
+<p>In the RABC API, a role contains rules that represent a set of permissions. Perminssions are purely additive (there are no “deny” rules). A role can be defined within a namespace with a <strong>Role</strong>, or cluster-wide with a <strong>ClusterRole</strong>.</p>
+
+<p>A <strong>Role</strong> can only be used to grant access to resources within a single namespace.</p>
+
+<p>A <strong>ClusterRole</strong> can be used to grant the same permissions as a <strong>Role</strong>, but because they are cluster-scoped, they can also be used to grant access to:</p>
+
+<ul>
+  <li>cluster-scoped resources (like nodes)</li>
+  <li>no-resource endpoints (like “/healthz”)</li>
+  <li>namespaced resources (like pods) across all namespaces (need to <strong>kubectl get pods –all-namespaces</strong>, for example)</li>
+</ul>
+
+<h4 id="rolebinding-and-clusterrolebinding">RoleBinding and ClusterRoleBinding</h4>
+
+<p>A role binding grants the permissions defined in a role to a user or set of users. It holds a list of subjects (users, groups, or service accounts), and a reference to the role being granted. Permissions can be granted within a namespace with a <strong>RoleBinding</strong>, or cluster-wide with a <strong>ClusterRoleBinding</strong>.</p>
+
+<p><strong>roleRef</strong> is how you will actually create the binding. The <strong>kind</strong> will be either <strong>Role</strong> or <strong>ClusterRole</strong>, and the <strong>name</strong> will reference the name of the specific <strong>Role</strong> or <strong>ClusterRole</strong> you want.</p>
+
+<p>A <strong>RoleBinding</strong> may reference a <strong>Role</strong> in the same namespace.</p>
+
+<p>A <strong>RoleBinding</strong> may also reference a <strong>ClusterRole</strong> to grant the permissions to namespaced resources defined in the <strong>ClusterRole</strong> within the <strong>RoleBinding</strong>’s namespace. This allows administrators to define a set of common roles for the entire cluster, then reuse them with multiple namespaces.</p>
+
+<p>Finally, a <strong>ClusterRoleBinding</strong> may be used to grant permissions at the cluster level and in all namespaces.</p>
+
+<p>For more information, see <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">Using RBAC Authorization</a>.</p>
+<h2 id="configure-access-to-kubernetes-cluster">Configure Access to Kubernetes Cluster</h2>
+
+<h4 id="1-create-a-normal-user-with-x509-client-certificate">1. Create a Normal User with X.509 Client Certificate</h4>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Generate a certificate signing request</span>
+openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-nodes</span> <span class="nt">-keyout</span> kube-ops.key <span class="nt">-out</span> kube-ops.csr <span class="nt">-subj</span> <span class="s2">"/CN=kube-ops"</span>
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Sign the certificate signing request kube-ops.csr with Kubernetes CA certificate.
+sudo openssl x509 -req -in kube-ops.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out kube-ops.crt -days 1000
+</code></pre></div></div>
+
+<p>You can also use <code class="language-plaintext highlighter-rouge">CertificateSigningRequest</code>:</p>
+
+<ol>
+  <li>
+    <p>Create CertificateSigningRequest</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="c"># Generate a certificate signing request</span>
+ openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-nodes</span> <span class="nt">-keyout</span> kube-ops.key <span class="nt">-out</span> kube-ops.csr <span class="nt">-subj</span> <span class="s2">"/CN=kube-ops"</span>
+</code></pre></div>    </div>
+
+    <div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="c1"># kube-ops-csr.yaml</span>
+ <span class="na">apiVersion</span><span class="pi">:</span> <span class="s">certificates.k8s.io/v1</span>
+ <span class="na">kind</span><span class="pi">:</span> <span class="s">CertificateSigningRequest</span>
+ <span class="na">metadata</span><span class="pi">:</span>
+   <span class="na">name</span><span class="pi">:</span> <span class="s">kube-ops</span>
+ <span class="na">spec</span><span class="pi">:</span>
+   <span class="na">groups</span><span class="pi">:</span>
+     <span class="pi">-</span> <span class="s">system:authenticated</span>
+       <span class="s"># request is the base64 encoded value of the CSR file content.</span>
+       <span class="s"># You can get the content using this command</span><span class="err">:</span> <span class="s">cat kube-ops.csr | base64 | tr -d '\n'</span>
+   <span class="na">request</span><span class="pi">:</span> <span class="s">LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1dEQ0NBVUFDQVFBd0V6RVJNQThHQTFVRUF3d0lhM1ZpWlMxdmNITXdnZ0VpTUEwR0NTcUdTSWIzRFFFQgpBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRREJyNEJmZXVIMG5OTTRwT0NYOG9oNTY1bmsyandLS0RDcW9wbGZRT1J4CnhTM29ZbjduU0ZSUXM3b2RldGtlYktIU3ZibWlpMDF1d25vTStXTW5RRGhzTzA3clNOQ09ocHlzZlhiRnhyZW4KTnhmeGtwUjBCRTNvczNwL1pLOUNXU051bEtmd0owRUg0T24xU29sSFY0T21CR2dLNEY5WnBXcXpKWHdPaHY3bApnN2FGeTM0NHVMRzEwM2tud1o0eGQ2eStrTEk4Ny9zbmd6WUh2OGxXU3kvVDBPdVV1Nk1xN0hURXE3SGQrZ09XCk4xbml0aE92ZUErUWNxSGdZNlJZWnI3cmhkVzV0aEx3aGxlSTI3amtDSGNpdXEvS014QnJpbXEyaDcyakFtVC8KQmRqYjM0MWxJOEhzd0UwTlNUUnJuVzk3Qk1VVzhuc2VQM1A0RkhNcnYzNGpBZ01CQUFHZ0FEQU5CZ2txaGtpRwo5dzBCQVFzRkFBT0NBUUVBVjRJd0VweW0wS0ZJVkNrQXRKbkdwT3JVNVpBbXd5bTR2TDZxWTY4a0l5anMxVDRFCmNGdmNwTUFxVXpXNU1BeC9TVXN4R081NEFkZWlpbWRuMTZQaWhZbXFRNmh6UnhJSEdZY0xmNGg3ajZvMjN2S3YKUzNzd3JvVnpsa3liUEhTcVNoc0ZHejVQRE1HdWhNS0dRM2dFZklzUThHZnF0b3NiRVhLSWdQZTI5ZGVRcXRZMgpxTFh4WnJsTjZJSldwdU9hN3BRd1ZvSWFpTlEvc2t1ZGtScHFKSWRTWjBtNFNyYkVYZjdhaStoM0xKVU55MXlTCmJhZEI0dnl0clR0elNxdzE5eTdEQU1xU3VTOE44S0hMOU13djZYOEZ4Zno0L2FRZWsvcVhZZXNQc2xOVlNwS3YKKzhZYUh6MlRaOWtqYkp2WjI5WmNBUVlFbFdaUmtBVG44aWNCNGc9PQotLS0tLUVORCBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0K</span>
+   <span class="na">signerName</span><span class="pi">:</span> <span class="s">kubernetes.io/kube-apiserver-client</span>
+   <span class="na">usages</span><span class="pi">:</span>
+     <span class="pi">-</span> <span class="s">client auth</span>
+</code></pre></div>    </div>
+
+    <div class="language-console highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gp"> $</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> kube-ops-csr.yml 
+<span class="go"> certificatesigningrequest.certificates.k8s.io/kube-ops created
+</span><span class="gp"> $</span><span class="w"> </span>kubectl get csr
+<span class="go"> NAME       AGE   SIGNERNAME                            REQUESTOR          CONDITION
+ kube-ops   4s    kubernetes.io/kube-apiserver-client   kubernetes-admin   Pending
+</span></code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Approve certificate signing request</p>
+
+    <div class="language-console highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gp"> $</span><span class="w"> </span>kubectl certificate approve kube-ops
+<span class="go"> certificatesigningrequest.certificates.k8s.io/kube-ops approved
+</span><span class="gp"> $</span><span class="w"> </span>kubectl get csr
+<span class="go"> NAME       AGE     SIGNERNAME                            REQUESTOR          CONDITION
+ kube-ops   2m28s   kubernetes.io/kube-apiserver-client   kubernetes-admin   Approved,Issued
+</span></code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Get the certificate</p>
+
+    <div class="language-console highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gp">   $</span><span class="w"> </span>kubectl get csr kube-ops <span class="nt">-ojsonpath</span><span class="o">=</span><span class="s1">'{.status.certificate}'</span> | <span class="nb">base64</span> <span class="nt">-d</span> <span class="o">&gt;</span> kube-ops.crt
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<h4 id="2-create-a-kubeconfig-file">2. Create a KUBECONFIG file.</h4>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">clusters</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">cluster</span><span class="pi">:</span>
+    <span class="na">certificate-authority-data</span><span class="pi">:</span> <span class="s">&lt;CA-DATA&gt;</span>
+    <span class="na">server</span><span class="pi">:</span> <span class="s">https://&lt;APISERVER-HOST&gt;:&lt;APISERVER-PORT&gt;</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;CLUSTER-NAME&gt;</span>
+<span class="na">contexts</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">context</span><span class="pi">:</span>
+    <span class="na">cluster</span><span class="pi">:</span> <span class="s">&lt;CLUSTER-NAME&gt;</span>
+    <span class="na">user</span><span class="pi">:</span> <span class="s">&lt;USER&gt;</span> <span class="c1"># e.g. kube-ops</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;USER&gt;@&lt;CLUSTER-NAME&gt;</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Config</span>
+<span class="na">users</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;USER&gt;</span> <span class="c1"># e.g. kube-ops</span>
+  <span class="na">user</span><span class="pi">:</span>
+    <span class="na">client-certificate-data</span><span class="pi">:</span> <span class="s">&lt;CLIENT-CRT-DATA&gt;</span>
+    <span class="na">client-key-data</span><span class="pi">:</span> <span class="s">&lt;CLIENT-KEY-DATA&gt;</span>
+</code></pre></div></div>
+
+<ol>
+  <li>Update <code class="language-plaintext highlighter-rouge">&lt;APISERVER-HOST&gt;</code> and <code class="language-plaintext highlighter-rouge">&lt;APISERVER-PORT&gt;</code> with you Kubernetes API server (i.e. master) host and port.</li>
+  <li>Update <code class="language-plaintext highlighter-rouge">&lt;CLUSTER-NAME&gt;</code> with your Kubernetes cluster name.</li>
+  <li>Update <code class="language-plaintext highlighter-rouge">&lt;USER&gt;</code> with “kube-ops”</li>
+  <li>Update <code class="language-plaintext highlighter-rouge">&lt;CA-DATA&gt;</code> with the based64 encoded Kubernetes CA certificate.</li>
+  <li>Update <code class="language-plaintext highlighter-rouge">&lt;CLIENT-CRT-DATA&gt;</code> with the based64 encoded client certificate <em>kube-ops.crt</em>.</li>
+  <li>Update <code class="language-plaintext highlighter-rouge">&lt;CLIENT-KEY-DATA&gt;</code> with the based64 encoded cleint key <em>kube-ops.key</em>.</li>
+</ol>
+
+<p>You can generate <code class="language-plaintext highlighter-rouge">&lt;CA-DATA&gt;</code>, <code class="language-plaintext highlighter-rouge">&lt;CLIENT-CRT-DATA&gt;</code> and <code class="language-plaintext highlighter-rouge">&lt;CLIENT-KEY-DATA</code> with the following command:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Generate the &lt;CA-DATA&gt;</span>
+<span class="nb">sudo cat</span> /etc/kubernetes/pki/ca.crt | <span class="nb">base64</span> | <span class="nb">tr</span> <span class="nt">-d</span> <span class="s1">'\n'</span>
+<span class="c"># Generate the &lt;CLIENT-CRT-DATA&gt;</span>
+<span class="nb">cat </span>kube-ops.crt | <span class="nb">base64</span> | <span class="nb">tr</span> <span class="nt">-d</span> <span class="s1">'\n'</span>
+<span class="c"># Generate the &lt;CLIENT-KEY-DATA&gt;</span>
+<span class="nb">cat </span>kube-ops.key | <span class="nb">base64</span> | <span class="nb">tr</span> <span class="nt">-d</span> <span class="s1">'\n'</span>
+</code></pre></div></div>
+
+<h4 id="3-grant-the-cluster-admin-clusterrole-to-a-user-named-kube-ops">3. Grant the <code class="language-plaintext highlighter-rouge">cluster-admin</code> <code class="language-plaintext highlighter-rouge">ClusterRole</code> to a user named “kube-ops”</h4>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Gives the user *kube-ops* full control over every resource in the cluster and in all namespace with a **ClusterRoleBinding** with the default **ClusterRole** *cluster-admin*.</span>
+kubectl create clusterrolebinding kube-ops <span class="nt">--clusterrole</span><span class="o">=</span>cluster-admin <span class="nt">--user</span><span class="o">=</span>kube-ops
+</code></pre></div></div>
+
+<h4 id="4-test-the-config-and-rbac-rule">4. Test the <em>config</em> and RBAC rule.</h4>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Update &lt;CLUSTER-NAME&gt; with your Kubernetes cluster name.</span>
+kubectl <span class="nt">--kubeconfig</span><span class="o">=</span>./config <span class="nt">--context</span><span class="o">=</span>kube-ops@&lt;CLUSTER-NAME&gt; get clusterrolebindings kube-ops
+</code></pre></div></div>
+
+<h2 id="references">References</h2>
+
+<ol>
+  <li><a href="https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/">https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/</a></li>
+  <li><a href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/">https://kubernetes.io/docs/reference/access-authn-authz/authentication/</a></li>
+  <li><a href="https://kubernetes.io/docs/reference/access-authn-authz/authorization/">https://kubernetes.io/docs/reference/access-authn-authz/authorization/</a></li>
+  <li><a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">https://kubernetes.io/docs/reference/access-authn-authz/rbac/</a></li>
+  <li><a href="https://kubernetes.io/docs/concepts/cluster-administration/certificates/">https://kubernetes.io/docs/concepts/cluster-administration/certificates/</a></li>
+  <li><a href="https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/">https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/</a></li>
+  <li><a href="https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/">https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/</a></li>
+  <li><a href="https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/">https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/</a></li>
+  <li><a href="/2019/01/31/public-key-cryptography-and-x509/">https://blog.codefarm.me/2019/01/31/public-key-cryptography-and-x509/</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/01/31/public-key-cryptography-and-x509/">&laquo; Cryptography and Public Key Infrastructure</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2019/02/21/kubernetes-crash-course-0/">0 - Kubernetes Overview &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

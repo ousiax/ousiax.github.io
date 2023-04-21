@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Goroutines and Channels in Go Lanugage</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/06/11/goroutines-and-channels-in-go-lanugage/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Goroutines and Channels in Go Lanugage</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-06-11T11:33:43+08:00" itemprop="datePublished">Jun 11, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#goroutines" id="markdown-toc-goroutines">Goroutines</a></li>
+  <li><a href="#channels" id="markdown-toc-channels">Channels</a>    <ul>
+      <li><a href="#unbuffered-channels" id="markdown-toc-unbuffered-channels">Unbuffered Channels</a></li>
+      <li><a href="#unidirectional-channel-types" id="markdown-toc-unidirectional-channel-types">Unidirectional Channel Types</a></li>
+      <li><a href="#buffered-channels" id="markdown-toc-buffered-channels">Buffered Channels</a></li>
+    </ul>
+  </li>
+  <li><a href="#multiplexing-with-select" id="markdown-toc-multiplexing-with-select">Multiplexing with select</a></li>
+  <li><a href="#cancellation" id="markdown-toc-cancellation">Cancellation</a></li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+</ul>
+
+<hr />
+
+<p>Go enables two styles of concurrent programming, <strong><em>communicating sequential processes</em></strong> and <strong><em>shared memory multithreading</em></strong>. Goroutines and channels, which support <em>communicating sequential processes</em> or CSP, a model of concurrency in which values are passed between independent activities (goroutines) but variables are for the most part confined to a single activity.</p>
+
+<h3 id="goroutines">Goroutines</h3>
+
+<p>In Go, each concurrently executing activity is called a <em>goroutine</em>. When a program starts, is only goroutine is the one that calls the <strong>main</strong> function, so we call it the <strong><em>main goroutine</em></strong>. New goroutines are created by the <strong>go</strong> statement. Syntacticaly, a <strong>go</strong> statement is an ordinary function or method call prefixed by the keyword <strong>go</strong>. A <strong>go</strong> statement causes the function to be called in a newly created goroutine. The <strong>go</strong> statement itself completes immediately:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="n">f</span><span class="p">()</span>    <span class="c">// call f(); wait for it to return</span>
+	<span class="k">go</span> <span class="n">f</span><span class="p">()</span> <span class="c">// create a new goroutine that calls f(); don't wait</span>
+</code></pre></div></div>
+
+<p>Other than by returning from <strong>main</strong> or exiting the program, there is no programmatic way for one goroutine to stop another, but there are ways to communicate with a goroutine to request that it stop itself.</p>
+
+<h3 id="channels">Channels</h3>
+
+<p>If goroutines are the activities of a concurrent Go program, <strong><em>channels</em></strong> are the connections between them. A channel is a communication mechanism that lets one goroutine send values to another goroutine. Each chanel is conduit for values of a particular type, called the channel’s <strong><em>element type</em></strong>.</p>
+
+<p>To create a channel, we use the built-in <strong>make</strong> function:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="n">ch</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="c">// ch has type 'chan int'</span>
+</code></pre></div></div>
+
+<p>As with maps, a channel is a <em>reference</em> to the data structure created bye <strong>make</strong>. As with other reference types, the zero value of a channel is <strong>nil</strong>.</p>
+
+<p>Two channels of the same type may be compared using <strong>==</strong>. The comparision is true if both are references to the same channel data structure. A channel may also be compared to <strong>nil</strong>.</p>
+
+<p>A channel has two principal operations, <strong><em>send</em></strong> and <strong><em>receive</em></strong>, collectively known as <strong><em>communications</em></strong>.  A <em>send statement</em> transmits a value from one goroutine, through the channel, to another goroutine executing a corresponding <em>receive expression</em>. Both operations are written using the <strong>&lt;-</strong> operator. In a send statement, the <strong>&lt;-</strong> separates the channel and value operands. In a receive expression, <strong>&lt;-</strong> preceds the channel operand. A receive expression whose result is not used is a valid statement.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="n">ch</span> <span class="o">&lt;-</span> <span class="n">x</span>  <span class="c">// a send statement</span>
+	<span class="n">x</span> <span class="o">=</span> <span class="o">&lt;-</span><span class="n">ch</span> <span class="c">// a receive expression in an assignment statement</span>
+	<span class="o">&lt;-</span><span class="n">ch</span>     <span class="c">// a receive expression; the result is discarded</span>
+</code></pre></div></div>
+
+<p>Channels support a third operation, <strong><em>close</em></strong>, which sets a flag indicating that no more values will ever be sent on this channel, subsequent attempts to send will panic. Receive operations on a closed channel yield the values that has been sent until no more value are left, any receive operations thereafter complete immediately and yield the zero value of the channel’s element type.</p>
+
+<p>To close a channel, we call the buit-in <strong>close</strong> function:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="nb">close</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>There is no way to test directly whether a chanel has been closed, but there is a variant of the receive operation that produces two results: the received channel element, plus a boolean value, conventionnaly called <strong>ok</strong>, which is <strong>true</strong> for a successful receive and <strong>false</strong> for a receive on a closed and drained channel.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="n">x</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="n">ch</span>
+	<span class="k">if</span> <span class="o">!</span><span class="n">ok</span> <span class="p">{</span>
+		<span class="c">// channel was closed and drained</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Because the syntax above is clumsy and this pattern is common, there is a more convenient syntax for receving all the values sent on a channel with a <strong>range</strong> loop to interate over the channel and terminating the loop after the last one.</p>
+
+<p>You don’t close every channel when you’ve finished with it. It’s only necessary to close a channel when it is important to tell the receiving goroutines that all data have been sendt. A channel that the garbage collector determines to be unreachable will have its resources reclaimed whether or not it is closed. (Don’t confuse this with the close operation for open files. It <em>is</em> important to call the <strong>Close</strong> method on every file when you’ve finished with it.)</p>
+
+<p>Attempting to close an already-closed channel causes a panic, as does closing a nil channel.</p>
+
+<p>A channel create with a simple call to <strong>make</strong> is called an <em>unbuffered</em> channel, but <strong>make</strong> accepts an optional second argument, an integer called the channel’s <em>capacity</em>. If the capacity is non-zero, <strong>make</strong> create a <em>buffered</em> channel.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="n">ch</span> <span class="o">=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>    <span class="c">// unbuffered channel</span>
+	<span class="n">ch</span> <span class="o">=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="m">0</span><span class="p">)</span> <span class="c">// unbuffered channel</span>
+	<span class="n">ch</span> <span class="o">=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="m">3</span><span class="p">)</span> <span class="c">// buffered channel</span>
+</code></pre></div></div>
+
+<h4 id="unbuffered-channels">Unbuffered Channels</h4>
+
+<p>A send operation on an unbuffered channel blocks the sending goroutine until another goroutine executes a corresponding receive on the same channel, at which point the value is transmitted and both goroutines may continue. Conversely, if the receive operation was attempted first, the receiving goroutine is blocked until another goroutine performs a send on the same chanel.</p>
+
+<p>Communication over an unbuffered channel causes the sending and receving goroutines to <strong><em>synchornize</em></strong>. Because of this, unbuffered channels are sometimes called <strong><em>synchornous channels</em></strong>. When a value is sent on an unbuffered channel, the receipt of the value <em>happens before</em> the reawakening of the sending goroutine.</p>
+
+<p>Channels can be used to connect goroutines together so that the output of one is the input to another. This is called a <strong><em>pipeline</em></strong>.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// Counter generates the integers 0, 1, 2, ..., </span>
+<span class="c">// and sends them over a channel to the second goroutine,</span>
+<span class="c">// squarer, which receives each value, squares it,</span>
+<span class="c">// and sends the result over another channel to the third goroutine,</span>
+<span class="c">// printer, which receives the squared values and prints them.</span>
+<span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">naturals</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+	<span class="n">squares</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+
+	<span class="k">go</span> <span class="k">func</span><span class="p">(</span><span class="n">out</span> <span class="k">chan</span><span class="o">&lt;-</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="n">x</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="m">100</span><span class="p">;</span> <span class="n">x</span><span class="o">++</span> <span class="p">{</span>
+			<span class="n">out</span> <span class="o">&lt;-</span> <span class="n">x</span>
+		<span class="p">}</span>
+		<span class="nb">close</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+	<span class="p">}(</span><span class="n">naturals</span><span class="p">)</span>
+
+	<span class="c">// Squarer</span>
+	<span class="k">go</span> <span class="k">func</span><span class="p">(</span><span class="n">out</span> <span class="k">chan</span><span class="o">&lt;-</span> <span class="kt">int</span><span class="p">,</span> <span class="n">in</span> <span class="o">&lt;-</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">in</span> <span class="p">{</span>
+			<span class="n">out</span> <span class="o">&lt;-</span> <span class="n">v</span> <span class="o">*</span> <span class="n">v</span>
+		<span class="p">}</span>
+		<span class="nb">close</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+	<span class="p">}(</span><span class="n">squares</span><span class="p">,</span> <span class="n">naturals</span><span class="p">)</span>
+
+	<span class="c">// Printer (main goroutine)</span>
+	<span class="k">for</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">squares</span> <span class="p">{</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="unidirectional-channel-types">Unidirectional Channel Types</h4>
+
+<p>When a channel is supplied as a function parameter, it is nearly always with the intent that is be used exclusively for sending or exclusively for receiving.</p>
+
+<p>To document this intent and prevent misuse, the Go type system provides <em>unidirectional</em> channel types that expose only one or the other of the send and receive operations. The type <strong>chan&lt;- int</strong>, a <strong><em>send-only</em></strong> channel of <strong>int</strong>, allows sned but not receives. Conversely, the type <strong>&lt;-chan int</strong>, a <strong><em>receive-only</em></strong> channel of <strong>int</strong>, allows receives but not sends. (The position of the <strong>&lt;-</strong> arrow relative to the <strong>chan</strong> keyword is a mnemonic.) Violations of this discipline are detected at compile time.</p>
+
+<p>Since the <strong>close</strong> operation asserts that no more sends will occur on a channel, only sending goroutine is in a position to call it, and for this reason it it complie-time error to attempt to close a receive-only channel.</p>
+
+<p>Conversions from bidirectional to unidirectional channel types are permitted in any assignment. There is no going back, however: once you have a value of unidirectional type such as <strong>chan&lt;- int</strong>, there is no way to obtain from it a value of type <strong>chan int</strong> that refers to the same channel data structure.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="s">"fmt"</span>
+
+<span class="k">func</span> <span class="n">counter</span><span class="p">(</span><span class="n">out</span> <span class="k">chan</span><span class="o">&lt;-</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="n">x</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="m">100</span><span class="p">;</span> <span class="n">x</span><span class="o">++</span> <span class="p">{</span>
+		<span class="n">out</span> <span class="o">&lt;-</span> <span class="n">x</span>
+	<span class="p">}</span>
+	<span class="nb">close</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="k">func</span> <span class="n">squarer</span><span class="p">(</span><span class="n">out</span> <span class="k">chan</span><span class="o">&lt;-</span> <span class="kt">int</span><span class="p">,</span> <span class="n">in</span> <span class="o">&lt;-</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">in</span> <span class="p">{</span>
+		<span class="n">out</span> <span class="o">&lt;-</span> <span class="n">v</span> <span class="o">*</span> <span class="n">v</span>
+	<span class="p">}</span>
+	<span class="nb">close</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="k">func</span> <span class="n">printer</span><span class="p">(</span><span class="n">in</span> <span class="o">&lt;-</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="n">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">in</span> <span class="p">{</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">naturals</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+	<span class="n">squares</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int</span><span class="p">)</span>
+	<span class="k">go</span> <span class="n">counter</span><span class="p">(</span><span class="n">naturals</span><span class="p">)</span>
+	<span class="k">go</span> <span class="n">squarer</span><span class="p">(</span><span class="n">squares</span><span class="p">,</span> <span class="n">naturals</span><span class="p">)</span>
+	<span class="n">printer</span><span class="p">(</span><span class="n">squares</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="buffered-channels">Buffered Channels</h4>
+
+<p>A buffered channel has a queue of elements. The queue’s maximum size is determined when it is create, by the capacity argument to <strong>make</strong>.</p>
+
+<p>A send operation on a buffered channel inserts an element at the back of the queue, and a receive operation removes an element from the front. If the channel is full, the send opearation blocks its goroutine until space is make available by another goroutine’s receive. Conversely, if the channel is empty, a receive operation blocks until a value is sent by another goroutine.</p>
+
+<p>In the unlikely event that a program needs to know the channel’s buffer capacity, it can be obtained by calling the built-in <strong>cap</strong> function.</p>
+
+<p>When applied to a channel, the built-in <strong>len</strong> function returns the number of elements currently buffered. Since in a concurrent program this information is likely to be stale as soon as it is retrieved, its value is limited, but it could conceivably be useful during fault diagnosis or performance optimization.</p>
+
+<p>Novices are sometimes tempted to use buffered channels within a single goroutine as a queue, lured by their pleasingly simple syntax, but this is a mistake. Channels are deeply connected to goroutine scheduling, and without another goroutine receiving from the channel, a sender—and perhaps the whole program—risks becomminng blocked forever. If all you need is simple queue, make one using a slice.</p>
+
+<p><strong>The assembly line metaphor is useful one for channels and goroutines. For exmaple, if the second stage is more elaborate, a single cook may not be able to keep up with the supply from the first cook or meet the demand from the third. To sovle the problem, we could hire another cook to help the second, performing the same task but working independently. This is analogous to creating another goroutine communicating over the same channels.</strong></p>
+
+<p>To know when the last goroutine has finished (which may not be the last one to start), we need to increment a counter before each goroutine starts and decrement it as each gorutine finishes. This demands a special kind of counter, one that can be safely manipulated from multiple gorutines and that provides a way to wait unitl it becomes zero. This counter type is known as <strong>sync.WaitGroup</strong>.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// makeThumbnails makes thumbnails for each file received from the channel.</span>
+<span class="c">// It returns the number of bytes occupied by the files it creates.</span>
+<span class="k">func</span> <span class="n">makeThumbnails</span><span class="p">(</span><span class="n">filenames</span> <span class="o">&lt;-</span><span class="k">chan</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">int64</span> <span class="p">{</span>
+	<span class="n">size</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="kt">int64</span><span class="p">)</span>
+	<span class="k">var</span> <span class="n">wg</span> <span class="n">sync</span><span class="o">.</span><span class="n">WaitGroup</span> <span class="c">// number of working goroutines</span>
+	<span class="k">for</span> <span class="n">f</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">filenames</span> <span class="p">{</span>
+		<span class="n">wg</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="m">1</span><span class="p">)</span>
+		<span class="c">// worker</span>
+		<span class="k">go</span> <span class="k">func</span><span class="p">(</span><span class="n">f</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+			<span class="k">defer</span> <span class="n">wg</span><span class="o">.</span><span class="n">Done</span><span class="p">()</span>
+			<span class="n">thumb</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">thumbnail</span><span class="o">.</span><span class="n">ImageFile</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+			<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="n">info</span><span class="p">,</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">os</span><span class="o">.</span><span class="n">Stat</span><span class="p">(</span><span class="n">thumb</span><span class="p">)</span> <span class="c">// OK to ignore error</span>
+			<span class="n">sizes</span> <span class="o">&lt;-</span> <span class="n">info</span><span class="o">.</span><span class="n">Size</span><span class="p">()</span>
+		<span class="p">}(</span><span class="n">f</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="c">// closer</span>
+	<span class="k">go</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+		<span class="nb">close</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span>
+	<span class="p">}()</span>
+
+	<span class="k">var</span> <span class="n">total</span> <span class="kt">int64</span>
+	<span class="k">for</span> <span class="n">size</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">sizes</span> <span class="p">{</span>
+		<span class="n">total</span> <span class="o">+=</span> <span class="n">size</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="n">total</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Note the asymmetry in the <strong>Add</strong> and <strong>Done</strong> methods. <strong>Add</strong>, which increments the counter, must be called before the worker goroutine starts, not within it; otherwise we would not be sure that the <strong>Add</strong> <em>happens before</em> the “closer” goroutine call <strong>Wait</strong>. Also, <strong>Add</strong> take a parameter, but <strong>Done</strong> does not; it equivalent to <strong>Add(-1)</strong>. We use <strong>defer</strong> to ensure that the counter is decremented even in the eror case. The structure of the code above is a common and idiomatic pattern for loopingg in parallel when we don’t know the number of iterations.</p>
+
+<p><strong>Unbounded parallelism is rarely a good idea since there is always a limiting factor in the system, such as the number of CPU cores for compute-bound workloads, the number of spindles and heads for local disk I/O operations, the bandwidth of the network for streaming downloads, or the serving capacity of a web services.</strong> The solution is to limit the number of parallel uses of the resource to match the level of parallelism that is available.</p>
+
+<p>We can limit parallelism using a buffered channel of capacity <strong>n</strong> to model a concurreny primitive called a <strong><em>couting semaphore</em></strong>. Conceptually, each of the <em>n</em> vacant slots in the channel buffer represents a token entitling the holder to proceed. Sending a value into the channel <strong>acquires a token</strong>, and receving a value from the channel <strong>releases a token</strong>, creating a new vacant slot. This ensures that at most <strong>n</strong> sends can occur without an intervening receive. (Although it might be more intuitive to treat <strong>filled</strong> slots in the channel buffer as tokens, using vacant slots avoids the need to fill the channel buffer after creating it.) Since the channel element type is not imporatnt, we’ll use <strong>struct{}</strong>, which has size zero.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// tokens is a counting semaphore used to</span>
+<span class="c">// enfore a limit of 20 concurrent request.</span>
+<span class="k">var</span> <span class="n">tokens</span> <span class="o">=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="k">struct</span><span class="p">{},</span> <span class="m">20</span><span class="p">)</span>
+
+<span class="k">func</span> <span class="n">crawl</span><span class="p">(</span><span class="n">url</span> <span class="kt">string</span><span class="p">)</span> <span class="p">[]</span><span class="kt">string</span> <span class="p">{</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+	<span class="n">token</span> <span class="o">&lt;-</span> <span class="k">struct</span><span class="p">{}{}</span> <span class="c">// acquire a token</span>
+	<span class="k">defer</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>      <span class="c">// release the token</span>
+		<span class="o">&lt;-</span><span class="n">tokens</span>
+	<span class="p">}()</span>
+	<span class="n">list</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">links</span><span class="o">.</span><span class="n">Extract</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">Print</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="n">list</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="multiplexing-with-select">Multiplexing with select</h3>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="k">select</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="o">&lt;-</span><span class="n">ch1</span><span class="o">:</span>
+		<span class="c">// ...</span>
+	<span class="k">case</span> <span class="n">x</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="n">ch2</span><span class="o">:</span>
+		<span class="c">// ...use x...</span>
+	<span class="k">case</span> <span class="n">ch3</span> <span class="o">&lt;-</span> <span class="n">y</span><span class="o">:</span>
+		<span class="c">// ...</span>
+	<span class="k">default</span><span class="o">:</span>
+		<span class="c">// ...</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The general form of a <em>select statement</em> is shown above. Like a switch statement, it has a number of cases and an optional <strong>default</strong>. Each case specifies a <strong>*communication</strong> (a send or receive operation on some channel) and an associated block of statements. A receive expression may appear on its own, as in the first case, or within a short variable declaration, as in the second case, the second form lets you refer to the received value.</p>
+
+<p>A <strong>select</strong> waits until a communication for some case is ready to proceed. It then performs that communication and executes the case’s associated statements; the other communications do not happen. A <strong>select</strong> with no cases, <strong>select{}</strong>, waits forever.</p>
+
+<p>If multiple cases are ready, <strong>select</strong> picks one at random, which ensures that every channel has an equal chance of being selected.</p>
+
+<p>A <strong>select</strong> may have a <strong>default</strong>, which specifies what to do when none of the other communications can proceed immediately (a <em>non-blocking</em> communication).</p>
+
+<p>Becaulse send and receive operations on a nil channel block forever, a case in a select statment whose channel is nil is never selected.</p>
+
+<h3 id="cancellation">Cancellation</h3>
+
+<p>There is no way for one goroutine to terminate another directly, since that would leave all its shared variables in undefined states. We could send a single value on a channel named <strong>abort</strong>, which the goroutine interpreted as a request to stop itself. But what if we need to cancel two goroutines, or an arbitrary number?</p>
+
+<p>One possibility might be to send as many events on the <strong>abort</strong> channel as there are goroutines to cancel. If some of the goroutines have already terminated themselves, however, our count will be too large, and our sends will get stuck. On the other hand, if those goroutines have spawned other goroutines, our count will be too small, and so goroutines will remian on out behalf at any give moment. Moreover, when a goroutine receives a value from the <strong>abort</strong> channel, it consumes that value so that other goroutines won’t see it. <strong>For cancellation, what we need is a relable mechanism to <em>broadcast</em> an event over a channel so that many goroutines can see it <em>as</em> it occurs and can later see that is <em>has</em> occurred.</strong></p>
+
+<p><strong>Recall that after a channel has been closed and drained of all sent values, subsequent receive operations proceed immediately, yielding zero values. We can exploit this to create a broadcast mechanism: don’t send a value on the channel, <em>close</em> it.</strong></p>
+
+<p>First, we create a cancellation channel on which no values are ever sent, but whose closure indicates that it is time for the program to stop what it is doing. We also define a utility function, <strong>cancelled</strong>, that check or <strong><em>polls</em></strong> the cancellation state at the instant it is called.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">var</span> <span class="n">done</span> <span class="o">=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="k">struct</span><span class="p">{})</span>
+
+<span class="k">func</span> <span class="n">cancelled</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+	<span class="k">select</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="o">&lt;-</span><span class="n">done</span><span class="o">:</span>
+		<span class="k">return</span> <span class="no">true</span>
+	<span class="k">default</span><span class="o">:</span>
+		<span class="k">return</span> <span class="no">false</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Next, we create a goroutine that will read from the standard input, which is typically connected to the terminal. As soon as any input is read (for instance, the user presses the return key), this goroutine broadcasts the cancellation by closing the <strong>done</strong> channel.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="c">// Cancel traversal when input is detected.</span>
+	<span class="k">go</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="n">os</span><span class="o">.</span><span class="n">Stdin</span><span class="o">.</span><span class="n">Read</span><span class="p">(</span><span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="m">1</span><span class="p">))</span> <span class="c">// read a single byte</span>
+		<span class="nb">close</span><span class="p">(</span><span class="n">done</span><span class="p">)</span>
+	<span class="p">}()</span>
+</code></pre></div></div>
+
+<p>Now we need to make our goroutines respond to the cancellation. In the main goroutines, we add a third case to the select statement that tries to receive from the <strong>done</strong> channel.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code>	<span class="k">for</span> <span class="p">{</span>
+		<span class="k">select</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="n">done</span><span class="o">:</span>
+			<span class="c">// Drain fileSizes to allow existing goroutines to finish.</span>
+			<span class="k">for</span> <span class="k">range</span> <span class="n">fileSizes</span> <span class="p">{</span>
+				<span class="c">// Do nothing.</span>
+			<span class="p">}</span>
+		<span class="k">case</span> <span class="n">size</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="n">fileSizes</span><span class="o">:</span>
+			<span class="c">// ...</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <strong>walkDir</strong> goroutine polls the cancellation status when it begins, and returns without doing anything if the status is set. This turns all goroutines created after cancellation into no-ops:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">walkDir</span><span class="p">(</span><span class="n">dir</span> <span class="kt">string</span><span class="p">,</span> <span class="n">n</span> <span class="o">*</span><span class="n">sync</span><span class="o">.</span><span class="n">WaitGroup</span><span class="p">,</span> <span class="n">fileSizes</span> <span class="k">chan</span><span class="o">&lt;-</span> <span class="kt">int64</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">defer</span> <span class="n">n</span><span class="o">.</span><span class="n">Done</span><span class="p">()</span>
+	<span class="k">if</span> <span class="n">cancelled</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+	<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">entry</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">dirents</span><span class="p">(</span><span class="n">dir</span><span class="p">)</span> <span class="p">{</span>
+		<span class="c">// ...</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>It might be profitable to poll the cancellation status again with <strong>walkDir</strong>’s loop, to avoid creating goroutines after the cancellation event. Cancellation involves a trade-off; a quicker response often requires more intrusive changes to program logic. Ensuring that no expensive operations ever occur after the cancellation event may require updating may places in your code, but often most of the benefit can be obtained by checking for cancellation in a few important places.</p>
+
+<p>Of course, when <strong>main</strong> returns, a program exits, so it can be hard to tell a main function that clean up after itself from one that does not. There’s handy trick we can use during testing: if instead of returning from <strong>main</strong> in the event of cancellation, we execute a call to <strong>panic</strong>, then the runtime will dump the stack of every goroutine in the program.</p>
+
+<hr />
+
+<h3 id="references">References</h3>
+
+<ol>
+  <li>Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.</li>
+  <li><a href="http://divan.github.io/posts/go_concurrency_visualize/">Visualizing Concurrency in Go ·  divan’s blog</a></li>
+  <li><a href="https://golang.org/doc/effective_go.html#concurrency">Concurrency</a>, Effective Go - The Go Programming Language</li>
+  <li><a href="https://golang.org/ref/spec#Channel_types">Channel types</a>, The Go Programming Language Specification.</li>
+  <li><a href="http://www.sizeofvoid.net/goroutine-under-the-hood/">goroutine背后的系统知识</a>, http://www.sizeofvoid.net/goroutine-under-the-hood/</li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/05/21/object-oriented-programming-in-go-language/">&laquo; Object-oriented Programming in Go Language</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/06/17/concurrency-with-shared-variables-in-go-language/">Concurrency with Shared Variables in Go Language &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

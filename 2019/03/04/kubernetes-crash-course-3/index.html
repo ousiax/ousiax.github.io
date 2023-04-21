@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>3 - Kubernetes Services and Ingress</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2019/03/04/kubernetes-crash-course-3/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">3 - Kubernetes Services and Ingress</h1>
+    
+    
+    <p class="post-meta"><time datetime="2019-03-04T17:55:05+08:00" itemprop="datePublished">Mar 4, 2019</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#contents" id="markdown-toc-contents">Contents</a></li>
+  <li><a href="#services-discover--environment-variables-00" id="markdown-toc-services-discover--environment-variables-00">Services Discover <small>&amp; Environment variables (00)</small></a></li>
+  <li><a href="#services-discover--environment-variables-01" id="markdown-toc-services-discover--environment-variables-01">Services Discover <small>&amp; Environment variables (01)</small></a></li>
+  <li><a href="#services-discover--environment-variables-10" id="markdown-toc-services-discover--environment-variables-10">Services Discover <small>&amp; Environment variables (10)</small></a></li>
+  <li><a href="#services-discover--dns-00" id="markdown-toc-services-discover--dns-00">Services Discover <small>&amp; DNS (00)</small></a></li>
+  <li><a href="#services-discover--dns-01" id="markdown-toc-services-discover--dns-01">Services Discover <small>&amp; DNS (01)</small></a></li>
+  <li><a href="#services-discover--dns-10" id="markdown-toc-services-discover--dns-10">Services Discover <small>&amp; DNS (10)</small></a></li>
+  <li><a href="#services-discover--dns-11" id="markdown-toc-services-discover--dns-11">Services Discover <small>&amp; DNS (11)</small></a></li>
+  <li><a href="#services-with-label-selectors-00" id="markdown-toc-services-with-label-selectors-00">Services <small>with Label Selectors (00)</small></a></li>
+  <li><a href="#services-with-label-selectors-01" id="markdown-toc-services-with-label-selectors-01">Services <small>with Label Selectors (01)</small></a></li>
+  <li><a href="#services-with-label-selectors-10" id="markdown-toc-services-with-label-selectors-10">Services <small>with Label Selectors (10)</small></a></li>
+  <li><a href="#services-with-label-selectors-11" id="markdown-toc-services-with-label-selectors-11">Services <small>with Label Selectors (11)</small></a></li>
+  <li><a href="#services-without-label-selectors-00" id="markdown-toc-services-without-label-selectors-00">Services <small>without Label Selectors (00)</small></a></li>
+  <li><a href="#services-without-label-selectors-01" id="markdown-toc-services-without-label-selectors-01">Services <small>without Label Selectors (01)</small></a></li>
+  <li><a href="#headless-services-with-label-selectors-00" id="markdown-toc-headless-services-with-label-selectors-00">Headless Services <small>with Label Selectors (00)</small></a></li>
+  <li><a href="#headless-services-with-label-selectors-01" id="markdown-toc-headless-services-with-label-selectors-01">Headless Services <small>with Label Selectors (01)</small></a></li>
+  <li><a href="#headless-services-without-label-selectors-00" id="markdown-toc-headless-services-without-label-selectors-00">Headless Services <small>without Label Selectors (00)</small></a></li>
+  <li><a href="#headless-services-without-label-selectors-01" id="markdown-toc-headless-services-without-label-selectors-01">Headless Services <small>without Label Selectors (01)</small></a></li>
+  <li><a href="#nodeport-services-00" id="markdown-toc-nodeport-services-00">NodePort Services (00)</a></li>
+  <li><a href="#nodeport-services-01" id="markdown-toc-nodeport-services-01">NodePort Services (01)</a></li>
+  <li><a href="#nodeport-services-10" id="markdown-toc-nodeport-services-10">NodePort Services (10)</a></li>
+  <li><a href="#nodeport-services-11" id="markdown-toc-nodeport-services-11">NodePort Services (11)</a></li>
+  <li><a href="#ingress" id="markdown-toc-ingress">Ingress</a></li>
+  <li><a href="#ingress-controller" id="markdown-toc-ingress-controller">Ingress Controller</a></li>
+  <li><a href="#ingress-controller-1" id="markdown-toc-ingress-controller-1">Ingress Controller</a></li>
+  <li><a href="#ingress-tls--rules-00" id="markdown-toc-ingress-tls--rules-00">Ingress TLS &amp; Rules (00)</a></li>
+  <li><a href="#ingress-tls--rules-01" id="markdown-toc-ingress-tls--rules-01">Ingress TLS &amp; Rules (01)</a></li>
+  <li><a href="#ingress-tls--rules-10" id="markdown-toc-ingress-tls--rules-10">Ingress TLS &amp; Rules (10)</a></li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+  <li><a href="#quit-or-not-quit-" id="markdown-toc-quit-or-not-quit-">Quit or not quit ?</a></li>
+</ul>
+
+<hr />
+
+<h3 id="contents">Contents</h3>
+
+<ul>
+  <li>Services Discover
+    <ul>
+      <li>Environment Variables</li>
+      <li><strong>DNS</strong> (recommended)</li>
+    </ul>
+  </li>
+  <li>Services <small>with/without Label Selector</small></li>
+  <li>Headless Services <small>with/without Label Selector</small></li>
+  <li>Service Types <strong>ClusterIP/ExternalName/NodePort</strong></li>
+  <li>Ingress</li>
+</ul>
+
+<h3 id="services-discover--environment-variables-00">Services Discover <small>&amp; Environment variables (00)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get svc
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>   AGE
+kubernetes   ClusterIP   10.96.0.1    &lt;none&gt;        443/TCP   32h
+<span class="nv">$ </span>kubectl create deployment nginx <span class="nt">--image</span><span class="o">=</span>nginx:1.15
+deployment.apps/nginx created
+<span class="nv">$ </span>kubectl <span class="nb">exec </span>nginx-5f47c69c5b-8ppph <span class="nb">env
+</span><span class="nv">KUBERNETES_SERVICE_HOST</span><span class="o">=</span>10.96.0.1
+<span class="nv">KUBERNETES_SERVICE_PORT</span><span class="o">=</span>443
+</code></pre></div></div>
+
+<h3 id="services-discover--environment-variables-01">Services Discover <small>&amp; Environment variables (01)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl expose deployment nginx <span class="nt">--port</span><span class="o">=</span>80
+service/nginx exposed
+<span class="nv">$ </span>kubectl get svc
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>   AGE
+kubernetes   ClusterIP   10.96.0.1       &lt;none&gt;        443/TCP   33h
+nginx        ClusterIP   10.101.123.96   &lt;none&gt;        80/TCP    9m50s
+<span class="nv">$ </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> nginx-5f47c69c5b-8ppph <span class="nb">env
+</span><span class="nv">KUBERNETES_SERVICE_HOST</span><span class="o">=</span>10.96.0.1
+<span class="nv">KUBERNETES_SERVICE_PORT</span><span class="o">=</span>443
+</code></pre></div></div>
+
+<h3 id="services-discover--environment-variables-10">Services Discover <small>&amp; Environment variables (10)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl delete po nginx-5f47c69c5b-8ppph 
+pod <span class="s2">"nginx-5f47c69c5b-8ppph"</span> deleted
+<span class="nv">$ </span>kubectl <span class="nb">exec </span>nginx-5f47c69c5b-v7kkm <span class="nb">env
+</span><span class="nv">KUBERNETES_SERVICE_PORT</span><span class="o">=</span>443
+<span class="nv">KUBERNETES_SERVICE_HOST</span><span class="o">=</span>10.96.0.1
+<span class="nv">NGINX_SERVICE_HOST</span><span class="o">=</span>10.101.123.96
+<span class="nv">NGINX_SERVICE_PORT</span><span class="o">=</span>80
+</code></pre></div></div>
+
+<h3 id="services-discover--dns-00">Services Discover <small>&amp; DNS (00)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get svc <span class="nt">--all-namespaces</span> 
+NAMESPACE     NAME                   TYPE        CLUSTER-IP       EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>         AGE
+default       kubernetes             ClusterIP   10.96.0.1        &lt;none&gt;        443/TCP         33h
+kube-system   default-http-backend   NodePort    10.108.162.115   &lt;none&gt;        80:30001/TCP    3d4h
+kube-system   kube-dns               ClusterIP   10.96.0.10       &lt;none&gt;        53/UDP,53/TCP   10d
+kube-system   kubernetes-dashboard   NodePort    10.108.191.216   &lt;none&gt;        443:31115/TCP   33h
+</code></pre></div></div>
+
+<h3 id="services-discover--dns-01">Services Discover <small>&amp; DNS (01)</small></h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># network-utils-pod.yaml </span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">network-utils</span>
+  <span class="na">namespace</span><span class="pi">:</span> <span class="s">default</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">network-utils</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">containers</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">network-utils</span> 
+      <span class="na">image</span><span class="pi">:</span> <span class="s">amouat/network-utils</span>
+      <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">sleep'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">10h'</span><span class="pi">]</span>
+</code></pre></div></div>
+
+<h3 id="services-discover--dns-10">Services Discover <small>&amp; DNS (10)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> network-utils-pod.yaml 
+pod/network-utils created
+<span class="nv">$ </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> network-utils bash
+root@network-utils:/# nslookup kubernetes
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   kubernetes.default.svc.cluster.local
+Address: 10.96.0.1
+
+root@network-utils:/# nslookup kubernetes.default
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   kubernetes.default.svc.cluster.local
+Address: 10.96.0.1
+</code></pre></div></div>
+
+<h3 id="services-discover--dns-11">Services Discover <small>&amp; DNS (11)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@network-utils:/# nslookup kube-dns          
+<span class="p">;;</span> connection timed out<span class="p">;</span> no servers could be reached
+
+root@network-utils:/# nslookup kube-dns.kube-system
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   kube-dns.kube-system.svc.cluster.local
+Address: 10.96.0.10
+</code></pre></div></div>
+
+<h3 id="services-with-label-selectors-00">Services <small>with Label Selectors (00)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create deployment nginx <span class="nt">--image</span><span class="o">=</span>nginx:1.15
+deployment.apps/nginx created
+<span class="nv">$ </span>kubectl expose deployment nginx <span class="nt">--port</span><span class="o">=</span>80
+service/nginx exposed
+<span class="nv">$ </span>kubectl get svc,ep <span class="nt">-l</span> <span class="nv">app</span><span class="o">=</span>nginx
+NAME            TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>   AGE
+service/nginx   ClusterIP   10.111.193.91   &lt;none&gt;        80/TCP    59s
+
+NAME              ENDPOINTS         AGE
+endpoints/nginx   10.244.0.124:80   59s
+<span class="nv">$ </span>kubectl <span class="nb">exec </span>network-utils nslookup nginx
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   nginx.default.svc.cluster.local
+Address: 10.111.193.91
+</code></pre></div></div>
+
+<h3 id="services-with-label-selectors-01">Services <small>with Label Selectors (01)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get ep nginx <span class="nt">-oyaml</span> <span class="nt">--export</span> 
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    app: nginx
+  name: nginx
+subsets:
+- addresses:
+  - ip: 10.244.0.124
+    targetRef:
+      kind: Pod
+      name: nginx-5f47c69c5b-vlt69
+  ports:
+  - port: 80
+    protocol: TCP
+</code></pre></div></div>
+
+<h3 id="services-with-label-selectors-10">Services <small>with Label Selectors (10)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get svc nginx <span class="nt">-oyaml</span> <span class="nt">--export</span> 
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nginx
+  name: nginx
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: nginx
+  <span class="nb">type</span>: ClusterIP
+</code></pre></div></div>
+
+<h3 id="services-with-label-selectors-11">Services <small>with Label Selectors (11)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl scale deployment nginx <span class="nt">--replicas</span><span class="o">=</span>3
+deployment.extensions/nginx scaled
+<span class="nv">$ </span>kubectl get po <span class="nt">-l</span> <span class="nv">app</span><span class="o">=</span>nginx <span class="nt">-owide</span>
+NAME                     READY   STATUS    RESTARTS   AGE     IP             NODE          NOMINATED NODE   READINESS GATES
+nginx-5f47c69c5b-bw7wm   1/1     Running   0          15s     10.244.0.127   far-seer-01   &lt;none&gt;           &lt;none&gt;
+nginx-5f47c69c5b-shcch   1/1     Running   0          15s     10.244.0.128   far-seer-01   &lt;none&gt;           &lt;none&gt;
+nginx-5f47c69c5b-vlt69   1/1     Running   0          6m10s   10.244.0.124   far-seer-01   &lt;none&gt;           &lt;none&gt;
+<span class="nv">$ </span>kubectl get ep <span class="nt">-l</span> <span class="nv">app</span><span class="o">=</span>nginx
+NAME    ENDPOINTS                                         AGE
+nginx   10.244.0.124:80,10.244.0.127:80,10.244.0.128:80   6m13s
+<span class="nv">$ </span>kubectl <span class="nb">exec </span>network-utils nslookup nginx
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   nginx.default.svc.cluster.local
+Address: 10.102.44.128
+</code></pre></div></div>
+
+<h3 id="services-without-label-selectors-00">Services <small>without Label Selectors (00)</small></h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># mongo-svc.yaml (1)</span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongo</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">mongo</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+      <span class="na">targetPort</span><span class="pi">:</span> <span class="m">27017</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">ClusterIP</span>
+</code></pre></div></div>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># mongo-svc.yaml (2)</span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Endpoints</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">mongo</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">mongo</span>
+<span class="na">subsets</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">addresses</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">ip</span><span class="pi">:</span> <span class="s">10.200.200.157</span>
+    <span class="na">ports</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+</code></pre></div></div>
+
+<h3 id="services-without-label-selectors-01">Services <small>without Label Selectors (01)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> mongo-svc.yaml 
+service/mongo created
+endpoints/mongo created
+<span class="nv">$ </span>kubectl get svc,ep <span class="nt">-l</span> <span class="nv">app</span><span class="o">=</span>mongo
+NAME            TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>     AGE
+service/mongo   ClusterIP   10.103.114.91   &lt;none&gt;        27017/TCP   12s
+
+NAME              ENDPOINTS              AGE
+endpoints/mongo   10.200.200.157:27017   11s
+<span class="nv">$ </span>kubectl <span class="nb">exec </span>network-utils nslookup mongo
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   mongo.default.svc.cluster.local
+Address: 10.103.114.91
+</code></pre></div></div>
+
+<h3 id="headless-services-with-label-selectors-00">Headless Services <small>with Label Selectors (00)</small></h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># hmac-svc.yaml </span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">hmacsvc</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">hmacsvc</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">externalName</span><span class="pi">:</span> <span class="s">hmac.internal.example.com</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">ExternalName</span>
+</code></pre></div></div>
+
+<h3 id="headless-services-with-label-selectors-01">Headless Services <small>with Label Selectors (01)</small></h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">$ kubectl create -f hmac-svc.yaml</span> 
+<span class="s">service/hmacsvc created</span>
+<span class="s">$ kubectl get svc hamcsvc</span> 
+<span class="s">NAME      TYPE           CLUSTER-IP   EXTERNAL-IP                          PORT(S)   AGE</span>
+<span class="s">hmacsvc   ExternalName   &lt;none&gt;       hmac.internal.example.com   &lt;none&gt;    7s</span>
+<span class="s">$ kubectl exec network-utils nslookup hmacsvc</span>
+<span class="na">Server</span><span class="pi">:</span>     <span class="s">10.96.0.10</span>
+<span class="na">Address</span><span class="pi">:</span>    <span class="s">10.96.0.10#53</span>
+
+<span class="s">hmacsvc.default.svc.cluster.local   canonical name = hmac.internal.example.com.</span>
+</code></pre></div></div>
+
+<h3 id="headless-services-without-label-selectors-00">Headless Services <small>without Label Selectors (00)</small></h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># prod-mongo-svc.yaml</span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">prod-mongo</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">prod-mongo</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+      <span class="na">targetPort</span><span class="pi">:</span> <span class="m">27017</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">ClusterIP</span>
+</code></pre></div></div>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># prod-mongo-svc.yaml</span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Endpoints</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">prod-mongo</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">prod-mongo</span>
+<span class="na">subsets</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">addresses</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">ip</span><span class="pi">:</span> <span class="s">10.10.43.10</span>
+    <span class="na">ports</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+  <span class="pi">-</span> <span class="na">addresses</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">ip</span><span class="pi">:</span> <span class="s">10.10.43.11</span>
+    <span class="na">ports</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+  <span class="pi">-</span> <span class="na">addresses</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">ip</span><span class="pi">:</span> <span class="s">10.10.43.12</span>
+    <span class="na">ports</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">27017</span>
+</code></pre></div></div>
+
+<h3 id="headless-services-without-label-selectors-01">Headless Services <small>without Label Selectors (01)</small></h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> prod-mongo-svc.yaml 
+service/prod-mongo created
+endpoints/prod-mongo created
+<span class="nv">$ </span>kubectl get svc,ep <span class="nt">-l</span> <span class="nv">app</span><span class="o">=</span>prod-mongo
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>     AGE
+service/prod-mongo   ClusterIP   None         &lt;none&gt;        27017/TCP   7s
+
+NAME                   ENDPOINTS                                                     AGE
+endpoints/prod-mongo   10.10.43.10:27017,10.10.43.11:27017,10.10.43.12:27017   7s
+<span class="nv">$ </span>kubectl <span class="nb">exec </span>network-utils nslookup prod-mongo
+Server:     10.96.0.10
+Address:    10.96.0.10#53
+
+Name:   prod-mongo.default.svc.cluster.local
+Address: 10.10.43.11
+Name:   prod-mongo.default.svc.cluster.local
+Address: 10.10.43.10
+Name:   prod-mongo.default.svc.cluster.local
+Address: 10.10.43.12
+</code></pre></div></div>
+
+<h3 id="nodeport-services-00">NodePort Services (00)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create deployment nginx <span class="nt">--image</span><span class="o">=</span>nginx:1.15
+deployment.apps/nginx created
+<span class="nv">$ </span>kubectl expose deployment nginx <span class="nt">--type</span><span class="o">=</span>NodePort <span class="nt">--port</span><span class="o">=</span>80
+service/nginx exposed
+<span class="nv">$ </span>kubectl get svc <span class="nt">-l</span> app
+NAME    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>        AGE
+nginx   NodePort   10.106.42.214   &lt;none&gt;        80:31868/TCP   32s
+<span class="nv">$ </span>curl <span class="nt">-iI</span> localhost:31868
+HTTP/1.1 200 OK
+Server: nginx/1.15.8
+Date: Mon, 11 Mar 2019 02:42:28 GMT
+Content-Type: text/html
+Content-Length: 612
+Last-Modified: Tue, 25 Dec 2018 09:56:47 GMT
+Connection: keep-alive
+ETag: <span class="s2">"5c21fedf-264"</span>
+Accept-Ranges: bytes
+</code></pre></div></div>
+
+<h3 id="nodeport-services-01">NodePort Services (01)</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># kubectl get svc nginx -oyaml --export </span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">nginx</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">ports</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">80</span>
+    <span class="na">targetPort</span><span class="pi">:</span> <span class="m">80</span>
+  <span class="na">selector</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">nginx</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
+</code></pre></div></div>
+
+<h3 id="nodeport-services-10">NodePort Services (10)</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># nginx-svc.yaml </span>
+<span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">labels</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">nginx</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">nginx-01</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="m">80</span>
+      <span class="na">targetPort</span><span class="pi">:</span> <span class="m">80</span>
+      <span class="na">nodePort</span><span class="pi">:</span> <span class="m">31115</span>
+  <span class="na">selector</span><span class="pi">:</span>
+    <span class="na">app</span><span class="pi">:</span> <span class="s">nginx</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
+</code></pre></div></div>
+
+<h3 id="nodeport-services-11">NodePort Services (11)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> nginx-svc.yaml 
+service/nginx-01 created
+<span class="nv">$ </span>kubectl get svc <span class="nt">-l</span> app
+NAME       TYPE       CLUSTER-IP      EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>        AGE
+nginx      NodePort   10.106.42.214   &lt;none&gt;        80:31868/TCP   12m
+nginx-01   NodePort   10.104.36.29    &lt;none&gt;        80:31115/TCP   5s
+<span class="nv">$ </span>curl <span class="nt">-iI</span> localhost:31115
+HTTP/1.1 200 OK
+Server: nginx/1.15.8
+Date: Mon, 11 Mar 2019 02:54:30 GMT
+Content-Type: text/html
+Content-Length: 612
+Last-Modified: Tue, 25 Dec 2018 09:56:47 GMT
+Connection: keep-alive
+ETag: <span class="s2">"5c21fedf-264"</span>
+Accept-Ranges: bytes
+</code></pre></div></div>
+
+<h3 id="ingress">Ingress</h3>
+
+<p><img src="/assets/kubernetes/ingress.png" alt="Ingress Topo" /></p>
+
+<h3 id="ingress-controller">Ingress Controller</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl get po <span class="nt">-n</span> kube-system 
+NAME                                       READY   STATUS    RESTARTS   AGE
+coredns-86c58d9df4-cnx48                   1/1     Running   11         13d
+coredns-86c58d9df4-x46nn                   1/1     Running   15         13d
+default-http-backend-676d78555d-54jvx      1/1     Running   23         6d1h
+etcd-far-seer-01                           1/1     Running   9          13d
+kube-apiserver-far-seer-01                 1/1     Running   1          3d1h
+kube-controller-manager-far-seer-01        1/1     Running   71         13d
+kube-flannel-ds-amd64-vrt27                1/1     Running   11         13d
+kube-proxy-b4lqx                           1/1     Running   9          13d
+kube-scheduler-far-seer-01                 1/1     Running   69         13d
+kubernetes-dashboard-7bbbdc6696-rrzk4      1/1     Running   0          6h4m
+nginx-ingress-controller-779d9d54f-k795k   1/1     Running   83         6d1h
+</code></pre></div></div>
+
+<h3 id="ingress-controller-1">Ingress Controller</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># kubectl -n kube-system get po nginx-ingress-controller-779d9d54f-k795k -oyaml </span>
+spec:
+  containers:
+  - args:
+    - /nginx-ingress-controller
+    - <span class="nt">--default-backend-service</span><span class="o">=</span><span class="si">$(</span>POD_NAMESPACE<span class="si">)</span>/default-http-backend
+    - <span class="nt">--configmap</span><span class="o">=</span><span class="si">$(</span>POD_NAMESPACE<span class="si">)</span>/nginx-load-balancer-conf
+    - <span class="nt">--tcp-services-configmap</span><span class="o">=</span><span class="si">$(</span>POD_NAMESPACE<span class="si">)</span>/tcp-services
+    - <span class="nt">--udp-services-configmap</span><span class="o">=</span><span class="si">$(</span>POD_NAMESPACE<span class="si">)</span>/udp-services
+    - <span class="nt">--annotations-prefix</span><span class="o">=</span>nginx.ingress.kubernetes.io
+    - <span class="nt">--report-node-internal-ip-address</span>
+    name: nginx-ingress-controller
+    ports:
+    - containerPort: 80
+      hostPort: 80
+      protocol: TCP
+    - containerPort: 443
+      hostPort: 443
+      protocol: TCP
+</code></pre></div></div>
+
+<h3 id="ingress-tls--rules-00">Ingress TLS &amp; Rules (00)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>openssl req <span class="nt">-x509</span> <span class="nt">-nodes</span> <span class="nt">-newkey</span> rsa:2048 <span class="nt">-keyout</span> tls.key <span class="nt">-out</span> tls.crt <span class="nt">-subj</span> <span class="s2">"/CN=*.bar.com"</span>
+Generating a RSA private key
+...........................................................................................................................+++++
+........................................................................+++++
+writing new private key to <span class="s1">'tls.key'</span>
+<span class="nt">-----</span>
+<span class="nv">$ </span>kubectl create secret tls tls-crt <span class="nt">--cert</span><span class="o">=</span>tls.crt <span class="nt">--key</span><span class="o">=</span>tls.key
+secret/tls-crt created
+<span class="nv">$ </span>kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+default-token-5gh7g   kubernetes.io/service-account-token   3      13d
+tls-crt               kubernetes.io/tls                     2      31s
+</code></pre></div></div>
+
+<h3 id="ingress-tls--rules-01">Ingress TLS &amp; Rules (01)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># foo-bar-ing.yaml</span>
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: foo-bar
+  annotations:
+    kubernetes.io/ingress.class: <span class="s2">"nginx"</span>
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  tls:
+    - hosts:
+        - <span class="s1">'*.bar.com'</span>
+      secretName: tls-crt
+  rules:
+    - host: <span class="s1">'foo.bar.com'</span>
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: foo-bar
+              servicePort: 80
+</code></pre></div></div>
+
+<h3 id="ingress-tls--rules-10">Ingress TLS &amp; Rules (10)</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>kubectl create <span class="nt">-f</span> ingress.yaml 
+ingress.extensions/foo-bar created
+<span class="nv">$ </span>kubectl get ing
+NAME      HOSTS         ADDRESS          PORTS     AGE
+foo-bar   foo.bar.com   192.168.66.128   80, 443   101s
+<span class="nv">$ </span>curl <span class="nt">-iILk</span> http://foo.bar.com
+HTTP/1.1 308 Permanent Redirect
+Location: https://foo.bar.com/
+
+HTTP/2 200 
+server: nginx/1.15.8
+</code></pre></div></div>
+
+<h3 id="references">References</h3>
+
+<ul>
+  <li>https://kubernetes.io/docs/concepts/services-networking/service/</li>
+  <li>https://kubernetes.io/docs/concepts/services-networking/service/#discovering-services</li>
+  <li>https://kubernetes.io/docs/concepts/services-networking/service/#headless-services</li>
+  <li>https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types</li>
+  <li>https://kubernetes.io/docs/concepts/services-networking/ingress/</li>
+  <li>https://kubernetes.io/docs/concepts/services-networking/ingress/#name-based-virtual-hosting</li>
+  <li>https://kubernetes.io/docs/concepts/services-networking/ingress/#tls</li>
+  <li>https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#custom-timeouts</li>
+</ul>
+
+<h3 id="quit-or-not-quit-">Quit or not quit ?</h3>
+
+<p><a href="https://kubernetes.io/">https://kubernetes.io/</a></p>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/03/04/kubernetes-crash-course-2/">&laquo; 2 - Kubernetes Pods</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2019/03/21/mathematical-induction-and-recusion/">数学归纳法之递归求值 &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

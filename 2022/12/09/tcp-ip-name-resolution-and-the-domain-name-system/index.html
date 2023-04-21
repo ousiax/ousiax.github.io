@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>TCP/IP: Name Resolution and the Domain Name System (DNS)</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2022/12/09/tcp-ip-name-resolution-and-the-domain-name-system/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">TCP/IP: Name Resolution and the Domain Name System (DNS)</h1>
+    
+    
+    <p class="post-meta"><time datetime="2022-12-09T09:35:45+08:00" itemprop="datePublished">Dec 9, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#the-dns-name-space">1. The DNS Name Space</a>
+<ul class="sectlevel2">
+<li><a href="#dns-naming-syntax">1.1. DNS Naming Syntax</a></li>
+</ul>
+</li>
+<li><a href="#name-servers-and-zones">2. Name Servers and Zones</a></li>
+<li><a href="#caching">3. Caching</a></li>
+<li><a href="#the-dns-protocol">4. The DNS Protocol</a>
+<ul class="sectlevel2">
+<li><a href="#dns-message-format">4.1. DNS Message Format</a></li>
+<li><a href="#udp-or-tcp">4.2. UDP or TCP</a></li>
+<li><a href="#question-query-and-zone-section-format">4.3. Question (Query) and Zone Section Format</a></li>
+<li><a href="#answer-authority-and-additional-information-section-formats">4.4. Answer, Authority, and Additional Information Section Formats</a></li>
+<li><a href="#resource-record-types">4.5. Resource Record Types</a>
+<ul class="sectlevel3">
+<li><a href="#authority-soa-records">4.5.1. Authority (SOA) Records</a></li>
+<li><a href="#mail-exchanger-mx-records">4.5.2. Mail Exchanger (MX) Records</a></li>
+<li><a href="#fighting-spam-the-sender-policy-framework-spf-and-text-txt-records">4.5.3. Fighting Spam: The Sender Policy Framework (SPF) and Text (TXT) Records</a></li>
+</ul>
+</li>
+<li><a href="#zone-transfers-and-dns-notify">4.6. Zone Transfers and DNS NOTIFY</a></li>
+</ul>
+</li>
+<li><a href="#sort-lists-round-robin-and-split-dns">5. Sort Lists, Round-Robin, and Split DNS</a></li>
+<li><a href="#open-dns-servers-and-dyndns">6. Open DNS Servers and DynDNS</a></li>
+<li><a href="#llmnr-and-mdns">7. LLMNR and mDNS</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>IP addresses (especially IPv6 addresses) are cumbersome for humans to use and remember, so the Internet supports the use of <strong>host names</strong> to identify hosts, both clients and servers.</p>
+</div>
+<div class="paragraph">
+<p>In order to be used by protocols such as TCP and IP, host names are converted into IP addresses using a process known as <strong>name resolution</strong>.</p>
+</div>
+<div class="paragraph">
+<p>There are different forms of name resolution in the Internet, but the most prevalent and important one uses a distributed database system known as the <strong>Domain Name System (DNS)</strong> .</p>
+</div>
+<div class="paragraph">
+<p>DNS is a distributed client/server networked database that is used by TCP/IP applications to map between host names and IP addresses (and vice versa).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>DNS runs as an application on the Internet, using IPv4 or IPv6 (or both).</p>
+</li>
+<li>
+<p>For scalability, DNS names are hierarchical, as are the servers that support name resolution.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>From an application&#8217;s point of view, access to the DNS is through an application library called a <strong>resolver</strong>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In general, an application must convert a host name to an IPv4 and/or IPv6 address before it can ask TCP to open a connection or send a unicast datagram using UDP.</p>
+</li>
+<li>
+<p>The TCP and IP protocol implementations know nothing about the DNS; they operate only with the addresses.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-dns-name-space">1. The DNS Name Space</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The set of all names used with DNS constitutes the DNS <strong>name space</strong>. This space is partitioned hierarchically and is case insensitive, similar to computer file system folders (directories) and files.</p>
+</div>
+<div class="paragraph">
+<p>The current DNS name space is a tree of domains with an <strong>unnamed root</strong> at the top. The top echelons of the tree are the so-called <strong>top-level domains (TLDs)</strong>, which include</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>generic TLDs (gTLDs),</p>
+</li>
+<li>
+<p>country-code TLDs (ccTLDs),</p>
+</li>
+<li>
+<p>and internationalized country-code TLDs (IDN ccTLDs), plus a special infrastructure TLD called,</p>
+</li>
+<li>
+<p>for historical reasons, ARPA [RFC3172].</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-name-space.png" alt="DNS Name Space" width="75%" height="75%">
+</div>
+<div class="title">Figure 1. The DNS name space forms a hierarchy with an unnamed root at the top. The top-level domains (TLDs) include generic TLDs (gTLDs), country-code TLDs (ccTLDs), internationalized TLDs (IDN ccTLDs), and a special infrastructure TLD called <em>ARPA</em>.</div>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 1. Special-use domain name</caption>
+<colgroup>
+<col style="width: 10%;">
+<col style="width: 70%;">
+<col style="width: 20%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Domain</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">intranet.</p></td>
+<td class="tableblock halign-left valign-top" rowspan="6"><p class="tableblock">Used for Private/internal DNS Namespaces</p></td>
+<td class="tableblock halign-left valign-top" rowspan="6"><p class="tableblock">RFC 6762 (Appendix G)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">internal.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">private.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">corp.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">home.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">lan.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">local.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Used for <em>Multicast DNS</em> as link-local host names</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">RFC 6762 (Section 3)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">localhost.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reserved to avoid conflict with the traditional use of <em>localhost</em> as a hostname</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">RFC 6761</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">onion.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Anonymous onion service</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">RFC 7686</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>
+<p>RFC 6762 reserves the use of <em>.local</em> for link-local host names that can be resolved via the Multicast DNS name resolution protocol.</p>
+</li>
+<li>
+<p>RFC 7686 reserves the use of <em>.onion</em> for the self-authenticating names of <em>Tor onion services</em>.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="dns-naming-syntax">1.1. DNS Naming Syntax</h3>
+<div class="paragraph">
+<p>The names below a TLD in the DNS name tree are further partitioned into groups known as <strong>subdomains</strong>. This is very common practice, especially for the ccTLDs.</p>
+</div>
+<div class="paragraph">
+<p>For example, the site <em>www.ci.manhattan-beach.ca.us</em> is the site of Manhattan Beach, California&#8217;s, city government in the United States, also known as <strong>fully qualified domain names</strong> (FQDNs).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>FQDNs are sometimes written more formally with a trailing period (e.g., <em>mit.edu.</em>).</p>
+</li>
+<li>
+<p>The trailing period indicates that the name is complete; no additional information should be added to the name when performing a name resolution.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In contrast to the FQDN, an <strong>unqualified domain name</strong>, which is used in combination with a default domain or domain search list set during system configuration, has one or more strings appended to the end.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When a system is configured, it is typically assigned a default domain extension and search list using DHCP (or, less commonly, the RDNSS and DNSSL RA options).</p>
+<div class="paragraph">
+<p>For example, the default domain <em>cs.berkeley.edu</em> might be configured in systems at the computer science department at UC Berkeley.</p>
+</div>
+<div class="paragraph">
+<p>If a user on one of these machines types in the name <em>vangogh</em>, the local resolver software converts this name to the FQDN <em>vangogh.cs.berkeley.edu.</em> before invoking a resolver to determine vangogh&#8217;s IP address.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A domain name consists of a sequence of <strong>labels</strong> separated by periods.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The name represents a location in the name hierarchy, where the period is the hierarchy delimiter and descending down the tree takes place from right to left in the name.</p>
+</li>
+<li>
+<p>Each label can be up to 63 characters long, and an entire FQDN is limited to at most 255 (1-byte) characters.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The hierarchical structure of the DNS name space allows different administrative authorities to manage different parts of the name space. For example,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>creating a new DNS name of the form <em>elevator.cs.berkeley.edu</em> would likely require dealing with the owner of the <em>cs.berkeley.edu</em> subdomain only.</p>
+</li>
+<li>
+<p>The berkeley <em>.edu</em> and <em>edu</em> portions of the name space would not require alteration, so the owners of those would not need to be bothered.</p>
+</li>
+<li>
+<p>This feature of DNS is one key aspect of its <em>scalability</em>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="name-servers-and-zones">2. Name Servers and Zones</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Management responsibility for portions of the DNS name space is assigned to individuals or organizations.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The active DNS name space (domains) is supposed to arrange for at least two <strong>name servers</strong> or <strong>DNS servers</strong> to hold information about the name space so that users of the Internet can perform queries on the names.</p>
+</li>
+<li>
+<p>The collection of servers forms the DNS (service) itself, a distributed system whose primary job is to provide name-to-address mappings.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The unit of administrative delegation, in the language of DNS servers, is called a <strong>zone</strong>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A zone is a subtree of the DNS name space that can be administered separately from other zones.</p>
+</li>
+<li>
+<p>Every domain name exists within some zone, even the TLDs that exist in the <strong>root zone</strong>.</p>
+</li>
+<li>
+<p>Whenever a new record is added to a zone, the DNS administrator for the zone allocates a name and additional information (usually an IP address) for the new entry and enters these into the name server&#8217;s database.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A DNS server can contain information for more than one zone.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>At any hierarchical change point in a domain name (i.e., wherever a period appears), a different zone and containing server may be accessed to provide information for the name. This is called a <strong>delegation</strong>.</p>
+</li>
+<li>
+<p>Each zone has a designated owner or responsible party who is given authority to manage the names, addresses, and subordinate zones, also the name servers that contain the zone&#8217;s database(s) within the zone.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Zone information is supposed to exist in at least two places, implying that there should be at least two servers containing information for each zone.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This is for redundancy; if one server is not functioning properly, at least one other server is available.</p>
+</li>
+<li>
+<p>All of these servers contain identical information about a zone.</p>
+</li>
+<li>
+<p>Typically, among the servers, a <strong>primary server</strong> contains the zone database in a disk file, and one or more <strong>secondary servers</strong> obtain copies of the database in its entirety from the primary using a process called a <strong>zone transfer</strong>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="caching">3. Caching</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Name servers contain information such as name-to-IP-address mappings that may be obtained from three sources.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The name server obtains the information directly from the zone database,</p>
+<div class="paragraph">
+<p>The server is said to contain authoritative information about the zone and may be called an <strong>authoritative server</strong> for the zone. Such servers are identified by name within the zone information.</p>
+</div>
+</li>
+<li>
+<p>as the result of a zone transfer (e.g., for a slave server),</p>
+</li>
+<li>
+<p>or from another server in the course of processing a resolution.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Most name servers (except some of the root and TLD servers) also <strong>cache</strong> zone information they learn, up to a time limit called the <strong>time to live</strong> (TTL). They use this cached information to answer queries.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Doing so can greatly decrease the amount of DNS message traffic that would otherwise be carried on the Internet.</p>
+</li>
+<li>
+<p>When answering a query, a server indicates whether the information it is returning has been derived from its cache or from its authoritative copy of the zone.</p>
+</li>
+<li>
+<p>When cached information is returned, it is common for a server to also include the domain names of the name servers that can be contacted to retrieve authoritative information about the corresponding zone.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is worth mentioning that caching is applied both for successful resolutions and for unsuccessful resolutions (called <strong>negative caching</strong>).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If a request for a particular domain name fails to return a record, this fact is also cached.</p>
+</li>
+<li>
+<p>Doing so can help to reduce Internet traffic when errant applications repeatedly make requests for names that do not exist.</p>
+</li>
+<li>
+<p>Negative caching was changed from optional to mandatory by [RFC2308].</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In some network configurations (e.g., those using older UNIX-compatible systems), the cache is maintained in a nearby name server, not in the resolvers resident in the clients.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Placing the cache in the server allows any hosts on the LAN that use the nearby server to benefit from the server&#8217;s cache but implies a small delay in accessing the cache over the local network.</p>
+</li>
+<li>
+<p>In Windows and more recent systems (e.g., Linux), the client can maintain a cache, and it is made available to all applications running on the same system.</p>
+<div class="paragraph">
+<p>In Windows, this happens by default, and in Linux, it is a service that can be enabled or disabled.</p>
+</div>
+</li>
+<li>
+<p>On Windows, the local system&#8217;s cache parameters may be modified by editing the following registry entry:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">HKLM\SYSTEM\CurrentControlSet\Services\DNSCache\Parameters</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The DWORD value <em>MaxNegativeCacheTtl</em> gives the maximum number of seconds that a negative DNS result remains in the resolver cache.</p>
+</div>
+<div class="paragraph">
+<p>The DWORD value <em>MaxCacheTtl</em> gives the maximum number of seconds that a DNS record may remain in the resolver cache.</p>
+</div>
+<div class="paragraph">
+<p>If this value is less than the <em>TTL</em> of a received DNS record, the lesser value controls how long the record remains in cache.</p>
+</div>
+<div class="paragraph">
+<p>These two registry keys do not exist by default, so they must be created in order to be used.</p>
+</div>
+</li>
+<li>
+<p>In Linux and other systems that support it, the <em>Name Service Caching Daemon</em> (NSCD) provides a client-side caching capability.</p>
+<div class="paragraph">
+<p>It is controlled by the <em>/etc/nscd.conf</em> file that can indicate which types of resolutions (for DNS and some other services) are cached, along with some cache parameters such as <em>TTL</em> settings.</p>
+</div>
+<div class="paragraph">
+<p>In addition, the file <em>/etc/nsswitch.conf</em> controls how name resolution for applications takes place. Among other things, it can control whether local files, the DNS protocol, and/or NSCD is employed for mappings.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-dns-protocol">4. The DNS Protocol</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The DNS protocol consists of two main parts:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>a query/response protocol used for performing queries against the DNS for particular names,</p>
+</li>
+<li>
+<p>and another protocol for name servers to exchange database records (zone transfers).</p>
+</li>
+<li>
+<p>It also has a way to notify secondary servers that the zone database has evolved and a zone transfer is necessary (DNS Notify), and a way to dynamically update the zone (dynamic updates).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>DNS query/response operations are supported over the distributed DNS infrastructure consisting of</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>servers deployed locally at each site or ISP,</p>
+</li>
+<li>
+<p>and a special set of <strong>root servers</strong>,</p>
+</li>
+<li>
+<p>also a special set of <strong>generic top-level domain servers</strong> used for scaling some of the larger gTLDs.</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-recursive-query-example-com.png" alt="DNS resurcive query" width="75%" height="75%">
+</div>
+<div class="title">Figure 2. A typical recursive DNS query for <code>EXAMPLE.COM</code> from <code>A.HOME</code> involves up to ten messages. The local recursive server (<code>GW.HOME</code> here) uses a DNS server provided by its ISP. That server, in turn, uses an Internet root name server and a gTLD server (for <code>COM</code> and <code>NET</code> TLDs) to find the name server for the <code>EXAMPLE.COM</code> domain. That name server (<code>A.IANA-SERVERS.NET</code> here) provides the required IP address for the host <code>EXAMPLE.COM</code>. All of the recursive servers cache any information learned for later use.</div>
+</div>
+<div class="paragraph">
+<p>Here, we have a laptop called <em>A.HOME</em> residing nearby the DNS server <em>GW.HOME</em>. The domain <em>HOME</em> is private, so it is not known to the Internet—only locally at the user&#8217;s residence.</p>
+</div>
+<div class="paragraph">
+<p>When <em>A.HOME</em> wishes to connect to the host <em>EXAMPLE.COM</em>, it must determine the IP address of <em>EXAMPLE.COM</em>.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Assuming it does not know this address already, the resolver software on <em>A.HOME</em> first makes a request to its local name server, <em>GW.HOME</em>, to convert the name <em>EXAMPLE.COM</em> into an address and constitutes <em>message 1</em>.</p>
+</li>
+<li>
+<p>If <em>GW.HOME</em> does not already know the IP address for <em>EXAMPLE.COM</em> or the name servers for either the <em>EXAMPLE.COM</em> domain or the <em>COM TLD</em>, it forwards the request to another DNS server (called <strong>recursion</strong>). In this case, a request (<em>message 2</em>) goes to an ISP-provided DNS server.</p>
+</li>
+<li>
+<p>Assuming that this server also does not know the required address or other information, it contacts one of the root name servers (<em>message 3</em>).</p>
+</li>
+<li>
+<p>The root servers are not recursive, so they do not process the request further but instead return the information required to contact a name server for the <em>COM TLD</em>.</p>
+<div class="paragraph">
+<p>For example, it might return the name <em>A.GTLD-SERVERS.NET</em> and one or more of its IP addresses (<em>message 4</em>).</p>
+</div>
+</li>
+<li>
+<p>With this information, the ISP-provided server contacts the gTLD server (<em>message 5</em>) and discovers the name and IP addresses of the name servers for the domain <em>EXAMPLE.COM</em> (<em>message 6</em>). In this case, one of the servers is <em>A.IANA-SERVERS.NET</em>.</p>
+</li>
+<li>
+<p>Given the correct server for the domain, the ISP-provided server contacts the appropriate server (<em>message 7</em>), which responds with the requested IP address (<em>message 8</em>).</p>
+</li>
+<li>
+<p>At this point, the ISP-provided server can respond to <em>GW.HOME</em> with the required information (<em>message 9</em>).</p>
+</li>
+<li>
+<p><em>GW.HOME</em> is now able to complete the initial query and responds to the client with the desired IPv4 and/or IPv6 address(es) (<em>message 10</em>).</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>From the perspective of <em>A.HOME</em>, the local name server was able to perform the request.</p>
+</div>
+<div class="paragraph">
+<p>However, what really happened is a <strong>recursive query</strong>, where the <em>GW.HOME</em> and ISP-provided servers in turn made additional DNS requests to satisfy <em>A.HOME</em>'s query.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In general, most name servers perform recursive queries such as this.</p>
+</li>
+<li>
+<p>The notable exceptions are the root servers and other TLD servers that do not perform recursive queries.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="dns-message-format">4.1. DNS Message Format</h3>
+<div class="paragraph">
+<p>There is one basic DNS message format [RFC6195] used for all DNS operations (queries, responses, zone transfers, notifications, and dynamic updates).</p>
+</div>
+<div class="paragraph">
+<p>The basic DNS message begins with a fixed 12-byte header followed by four variable-length <strong>sections</strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>questions (or queries),</p>
+</li>
+<li>
+<p>answers,</p>
+</li>
+<li>
+<p>authority records,</p>
+</li>
+<li>
+<p>and additional records.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>All but the first section contain one or more <strong>resource records</strong> (RRs). The question section contains a data item that is very close in structure to an RR. RRs can be cached; questions are not.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-message-format.png" alt="DNS Message format" width="55%" height="55%">
+</div>
+<div class="title">Figure 3. The DNS message format has a fixed 12-byte header. The entire message is usually carried in a UDP/IPv4 datagram and limited to 512 bytes. DNS UPDATE (DNS with dynamic updates) uses the field names <em>ZOCOUNT</em>, <em>PRCOUNT</em>, <em>UPCOUNT</em>, and <em>ADCOUNT</em>. A special extension format (called EDNS0) allows messages to be larger than 512 bytes, which is required for DNSSEC.</div>
+</div>
+<div class="paragraph">
+<p>In the fixed-length header, the <em>Transaction ID</em> field is set by the client and returned by the server. It lets the client match responses to requests.</p>
+</div>
+<div class="paragraph">
+<p>The second 16-bit word includes a number of flags and other subfields.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Beginning from the left-most bit, <em>QR</em> is a 1-bit field: 0 means the message is a query; 1 means it is a response.</p>
+</li>
+<li>
+<p>The next is the <em>OpCode</em>, a 4-bit field.</p>
+<div class="paragraph">
+<p>The normal value is 0 (a standard query) for requests and responses.</p>
+</div>
+<div class="paragraph">
+<p>Other values are: 4 (notify), and 5 (update).</p>
+</div>
+<div class="paragraph">
+<p>Other values (1–3) are deprecated or never seen in operational use.</p>
+</div>
+</li>
+<li>
+<p>Next is the <em>AA</em> bit field that indicates an "authoritative answer" (as opposed to a cached answer).</p>
+</li>
+<li>
+<p><em>TC</em> is a 1-bit field that means "truncated."</p>
+<div class="paragraph">
+<p>With UDP, this flag being set means that the total size of the reply exceeded 512 bytes, and only the first 512 bytes of the reply were returned.</p>
+</div>
+</li>
+<li>
+<p><em>RD</em> is a bit field that means "recursion desired."</p>
+<div class="paragraph">
+<p>It can be set in a query and is then returned in the response. It tells the server to perform a recursive query.</p>
+</div>
+<div class="paragraph">
+<p>If the bit is not set, and the requested name server does not have an authoritative answer, the requested name server returns a list of other name servers to contact for the answer. At this point, the overall query may be continued by contacting the list of other name servers. This is called an <strong>iterative query</strong>.</p>
+</div>
+</li>
+<li>
+<p><em>RA</em> is a bit field that means "recursion available."</p>
+<div class="paragraph">
+<p>This bit is set in the response if the server supports recursion.</p>
+</div>
+<div class="paragraph">
+<p>Root servers generally do not support recursion, thereby forcing clients to perform iterative queries to complete name resolution.</p>
+</div>
+</li>
+<li>
+<p>The <em>Z</em> bit field must be 0 for now but is reserved for future use.</p>
+</li>
+<li>
+<p>The <em>AD</em> bit field is set to true if the contained information is authenticated, and the <em>CD</em> bit is set to true if security checking is disabled.</p>
+</li>
+<li>
+<p>The <em>Response Code</em> (or <em>RCODE</em>) field is a 4-bit field with the return code whose possible values are given in [DNSPARAM].</p>
+<div class="paragraph">
+<p>The common values include 0 (no error) and 3 (name error or "nonexistent domain", written as <em>NXDOMAIN</em>).</p>
+</div>
+<div class="paragraph">
+<p>A name error is returned only from an authoritative name server and means that the domain name specified in the query does not exist.</p>
+</div>
+</li>
+<li>
+<p>The next four fields are 16 bits in size and specify the number of entries in the question, answer, authority, and additional information sections that complete the DNS message.</p>
+<div class="paragraph">
+<p>For a query, the number of questions is normally 1 and the other three counts are 0. For a reply, the number of answers is at least 1. Questions have a name, type, and class.</p>
+</div>
+<div class="paragraph">
+<p>All of the other sections contain zero or more RRs. RRs contain a name, type, and class information, but also the TTL value that controls how long the data can be cached.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>dig @8.8.8.8 +nocmd +trace +question cs.berkeley.edu A
+<span class="gp">;</span><span class="nb">.</span>				IN	NS
+<span class="go">.			12283	IN	NS	g.root-servers.net.
+.			12283	IN	NS	j.root-servers.net.
+.			12283	IN	NS	e.root-servers.net.
+.			12283	IN	NS	l.root-servers.net.
+.			12283	IN	NS	d.root-servers.net.
+.			12283	IN	NS	a.root-servers.net.
+.			12283	IN	NS	b.root-servers.net.
+.			12283	IN	NS	i.root-servers.net.
+.			12283	IN	NS	m.root-servers.net.
+.			12283	IN	NS	h.root-servers.net.
+.			12283	IN	NS	c.root-servers.net.
+.			12283	IN	NS	k.root-servers.net.
+.			12283	IN	NS	f.root-servers.net.
+.			12283	IN	RRSIG	NS 8 0 518400 20221223170000 20221210160000 18733 . RKkv+/2Kd7pxDEzR/ZHRsgPe+YM/M3BYXrU/WwOaco4UT9Wc3A2CF+Bd rBlNbvi8fS7MXDeQPZfRPrVn1yLVNTNVJJVCDzge5QKVhumVM6zfB60e aI0a0mojthg7cKS9mZa29cvoITNW41MTk4dilaDKl4uvLfjnfvZ59ZBS BgDHvd8e0VC53v7Dz8fnoo+climQvU51Xq6haB/v3/m8RXCm6Yvu2qg5 xLdZaRHrnFqKFur7+7UE7zMqWVA1rmwozEi/mgfK0JczDk9LJ2xyEgRH Cq+wKVAZEVU48Yoe1Vemh2PwTZqBLnXpKHooMQ4tNNAkAYKMnP5Na8oW 2U/Y7A==
+</span><span class="gp">;</span><span class="p">;</span> Received 525 bytes from 8.8.8.8#53<span class="o">(</span>8.8.8.8<span class="o">)</span> <span class="k">in </span>39 ms
+<span class="go">
+</span><span class="gp">;</span>cs.berkeley.edu.		IN	A
+<span class="go">edu.			172800	IN	NS	a.edu-servers.net.
+edu.			172800	IN	NS	h.edu-servers.net.
+edu.			172800	IN	NS	b.edu-servers.net.
+edu.			172800	IN	NS	d.edu-servers.net.
+edu.			172800	IN	NS	c.edu-servers.net.
+edu.			172800	IN	NS	l.edu-servers.net.
+edu.			172800	IN	NS	f.edu-servers.net.
+edu.			172800	IN	NS	e.edu-servers.net.
+edu.			172800	IN	NS	i.edu-servers.net.
+edu.			172800	IN	NS	g.edu-servers.net.
+edu.			172800	IN	NS	k.edu-servers.net.
+edu.			172800	IN	NS	j.edu-servers.net.
+edu.			172800	IN	NS	m.edu-servers.net.
+edu.			86400	IN	DS	28065 8 2 4172496CDE85534E51129040355BD04B1FCFEBAE996DFDDE652006F6 F8B2CE76
+edu.			86400	IN	RRSIG	DS 8 1 86400 20221224170000 20221211160000 18733 . p7OvKwfjcx6Iveh7NZ0huq24niVZINxiqttjuDxDJD3wNwVdmgvxzBrw +VzP+5p6JJ63okmvaqlJYlZJNX85n7vweab/LAPFFtT2kHs77Zc/MY1a k/k/E/mZstyAkoS3JwXoDvStoCdAUU/8eH32DFROPpZsKjoeiejcWOWb 86yBU7QKjPlsu5BJO74qlyDP7yLlEBum5YbcMDGoaV3RPozrTCz7r1+V KItG7ObBnw9Vjchv6gG3Q7wyTw2uXWMfGBgAS6P8VGN/GgqS7Bct9y+v 1cc75EY7YM0pqtzu230m1DFnBUWG1pcU4+fS5kPmUBpyBxpMFO99q48q IJyk2A==
+</span><span class="gp">;</span><span class="p">;</span> Received 1205 bytes from 192.36.148.17#53<span class="o">(</span>i.root-servers.net<span class="o">)</span> <span class="k">in </span>55 ms
+<span class="go">
+</span><span class="gp">;</span>cs.berkeley.edu.		IN	A
+<span class="go">berkeley.edu.		172800	IN	NS	adns1.berkeley.edu.
+berkeley.edu.		172800	IN	NS	adns2.berkeley.edu.
+berkeley.edu.		172800	IN	NS	adns3.berkeley.edu.
+berkeley.edu.		86400	IN	DS	38028 10 2 A37654ABBF41A2F3D7DC8D4B2E77A70E9B1AF6A670101FF8AEF4F36E FB7CA323
+berkeley.edu.		86400	IN	DS	20949 10 2 448D22499ED0D3098E2BC186F5D5F5091055C5BECDF3BD82632855D2 1CD493C4
+berkeley.edu.		86400	IN	RRSIG	DS 8 2 86400 20221216073252 20221209062252 28775 edu. ym6j4W1W9h8oaqJMFu1kZ/eTHWiRh94zTP33PU81PCP2JGjiKxXNC27D oPU96kj6hWv9jYCLKFqtjcMjdFb/KJL3JmJNBl4QTf9RNHfXyxEsd7zm RgVJkgk5XBaCebMzZsJWz6godVrxGtLC8EcRCg+Y3IQeDLmS5T+zUtaZ GR8kYgN9L+mW23jrKTVh2rOD+v1AZu0fbitcfj/3Q25odQ==
+</span><span class="gp">;</span><span class="p">;</span> Received 471 bytes from 192.35.51.30#53<span class="o">(</span>f.edu-servers.net<span class="o">)</span> <span class="k">in </span>79 ms
+<span class="go">
+</span><span class="gp">;</span>cs.berkeley.edu.		IN	A
+<span class="go">cs.berkeley.edu.	86400	IN	A	23.185.0.1
+</span><span class="gp">;</span><span class="p">;</span> Received 88 bytes from 128.32.136.14#53<span class="o">(</span>adns2.berkeley.edu<span class="o">)</span> <span class="k">in </span>223 ms</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnv</span> udp and port 53
+<span class="go">IP (tos 0x0, ttl 64, id 2498, offset 0, flags [none], proto UDP (17), length 68)
+</span><span class="gp">    192.168.91.128.50158 &gt;</span><span class="w"> </span>8.8.8.8.53: 30713+ <span class="o">[</span>1au] NS? <span class="nb">.</span> <span class="o">(</span>40<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2372, offset 0, flags [none], proto UDP (17), length 553)
+</span><span class="gp">    8.8.8.8.53 &gt;</span><span class="w"> </span>192.168.91.128.50158: 30713<span class="nv">$ </span>14/0/1 <span class="nb">.</span> NS a.root-servers.net., <span class="nb">.</span> NS b.root-servers.net., <span class="nb">.</span> NS c.root-servers.net., <span class="nb">.</span> NS d.root-servers.net., <span class="nb">.</span> NS e.root-servers.net., <span class="nb">.</span> NS f.root-servers.net., <span class="nb">.</span> NS g.root-servers.net., <span class="nb">.</span> NS h.root-servers.net., <span class="nb">.</span> NS i.root-servers.net., <span class="nb">.</span> NS j.root-servers.net., <span class="nb">.</span> NS k.root-servers.net., <span class="nb">.</span> NS l.root-servers.net., <span class="nb">.</span> NS m.root-servers.net., <span class="nb">.</span> RRSIG <span class="o">(</span>525<span class="o">)</span>
+<span class="go">
+IP (tos 0x0, ttl 64, id 1382, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.128.43221 &gt;</span><span class="w"> </span>192.168.91.2.53: 64354+ A? a.root-servers.net. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 64, id 1383, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.128.43221 &gt;</span><span class="w"> </span>192.168.91.2.53: 43153+ AAAA? a.root-servers.net. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2373, offset 0, flags [none], proto UDP (17), length 80)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.43221: 64354 1/0/0 a.root-servers.net. A 198.41.0.4 <span class="o">(</span>52<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2374, offset 0, flags [none], proto UDP (17), length 92)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.43221: 43153 1/0/0 a.root-servers.net. AAAA 2001:503:ba3e::2:30 <span class="o">(</span>64<span class="o">)</span>
+<span class="c">...
+</span><span class="go">IP (tos 0x0, ttl 128, id 2397, offset 0, flags [none], proto UDP (17), length 80)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.45991: 10021 1/0/0 m.root-servers.net. A 202.12.27.33 <span class="o">(</span>52<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2398, offset 0, flags [none], proto UDP (17), length 92)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.45991: 22347 1/0/0 m.root-servers.net. AAAA 2001:dc3::35 <span class="o">(</span>64<span class="o">)</span>
+<span class="go">
+IP (tos 0x0, ttl 64, id 49461, offset 0, flags [none], proto UDP (17), length 84)
+</span><span class="gp">    192.168.91.128.37889 &gt;</span><span class="w"> </span>198.97.190.53.53: 53008 <span class="o">[</span>1au] A? cs.berkeley.edu. <span class="o">(</span>56<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2399, offset 0, flags [none], proto UDP (17), length 1202)
+</span><span class="gp">    198.97.190.53.53 &gt;</span><span class="w"> </span>192.168.91.128.37889: 53008- 0/15/27 <span class="o">(</span>1174<span class="o">)</span>
+<span class="go">
+IP (tos 0x0, ttl 64, id 43388, offset 0, flags [DF], proto UDP (17), length 63)
+</span><span class="gp">    192.168.91.128.44873 &gt;</span><span class="w"> </span>192.168.91.2.53: 35146+ A? a.edu-servers.net. <span class="o">(</span>35<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 64, id 43389, offset 0, flags [DF], proto UDP (17), length 63)
+</span><span class="gp">    192.168.91.128.44873 &gt;</span><span class="w"> </span>192.168.91.2.53: 21077+ AAAA? a.edu-servers.net. <span class="o">(</span>35<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2400, offset 0, flags [none], proto UDP (17), length 79)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.44873: 35146 1/0/0 a.edu-servers.net. A 192.5.6.30 <span class="o">(</span>51<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2401, offset 0, flags [none], proto UDP (17), length 91)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.44873: 21077 1/0/0 a.edu-servers.net. AAAA 2001:503:a83e::2:30 <span class="o">(</span>63<span class="o">)</span>
+<span class="c">...
+</span><span class="go">IP (tos 0x0, ttl 128, id 2424, offset 0, flags [none], proto UDP (17), length 91)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.56144: 60038 1/0/0 m.edu-servers.net. AAAA 2001:501:b1f9::30 <span class="o">(</span>63<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2425, offset 0, flags [none], proto UDP (17), length 79)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.56144: 900 1/0/0 m.edu-servers.net. A 192.55.83.30 <span class="o">(</span>51<span class="o">)</span>
+<span class="go">
+IP (tos 0x0, ttl 64, id 37599, offset 0, flags [none], proto UDP (17), length 84)
+</span><span class="gp">    192.168.91.128.59416 &gt;</span><span class="w"> </span>192.31.80.30.53: 47106 <span class="o">[</span>1au] A? cs.berkeley.edu. <span class="o">(</span>56<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2426, offset 0, flags [none], proto UDP (17), length 499)
+</span><span class="gp">    192.31.80.30.53 &gt;</span><span class="w"> </span>192.168.91.128.59416: 47106- 0/6/5 <span class="o">(</span>471<span class="o">)</span>
+<span class="go">
+IP (tos 0x0, ttl 64, id 38284, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.128.40041 &gt;</span><span class="w"> </span>192.168.91.2.53: 55216+ A? adns1.berkeley.edu. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 64, id 38285, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.128.40041 &gt;</span><span class="w"> </span>192.168.91.2.53: 17843+ AAAA? adns1.berkeley.edu. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2427, offset 0, flags [none], proto UDP (17), length 80)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.40041: 55216 1/0/0 adns1.berkeley.edu. A 128.32.136.3 <span class="o">(</span>52<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2428, offset 0, flags [none], proto UDP (17), length 92)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.40041: 17843 1/0/0 adns1.berkeley.edu. AAAA 2607:f140:ffff:fffe::3 <span class="o">(</span>64<span class="o">)</span>
+<span class="c">...
+</span><span class="go">IP (tos 0x0, ttl 128, id 2431, offset 0, flags [none], proto UDP (17), length 80)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.47776: 62215 1/0/0 adns3.berkeley.edu. A 192.107.102.142 <span class="o">(</span>52<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2432, offset 0, flags [none], proto UDP (17), length 92)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.47776: 41239 1/0/0 adns3.berkeley.edu. AAAA 2607:f140:a000:d::abc <span class="o">(</span>64<span class="o">)</span>
+<span class="go">
+IP (tos 0x0, ttl 64, id 47471, offset 0, flags [none], proto UDP (17), length 84)
+</span><span class="gp">    192.168.91.128.45546 &gt;</span><span class="w"> </span>128.32.136.3.53: 8354 <span class="o">[</span>1au] A? cs.berkeley.edu. <span class="o">(</span>56<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 2433, offset 0, flags [none], proto UDP (17), length 116)
+</span><span class="gp">    128.32.136.3.53 &gt;</span><span class="w"> </span>192.168.91.128.45546: 8354<span class="k">*</span>- 1/0/1 cs.berkeley.edu. A 23.185.0.1 <span class="o">(</span>88<span class="o">)</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="udp-or-tcp">4.2. UDP or TCP</h3>
+<div class="paragraph">
+<p>The well-known port number for DNS is 53, for both UDP and TCP. The most common format uses the UDP/IPv4 datagram structure.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-udp-ipv4-message-format.png" alt="DNS UDP/IPv4 Message" width="55%" height="55%">
+</div>
+<div class="title">Figure 4. DNS messages are typically encapsulated in a UDP/IPv4 datagram and are limited to 512 bytes in size unless TCP and/or EDNS0 is used. Each section (except the question section) contains a set of resource records.</div>
+</div>
+<div class="paragraph">
+<p>When a resolver issues a query and the response comes back with the <em>TC</em> bit field set ("truncated"), the size of the true response exceeded 512 bytes, so only the first 512 bytes are returned by the server.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The resolver may issue the request again, using TCP, which now must be a supported configuration [RFC5966].</p>
+</li>
+<li>
+<p>This allows more than 512 bytes to be returned because TCP breaks up large messages into multiple segments.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When a secondary name server for a zone starts up, it normally performs a zone transfer from the primary name server for the zone.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Zone transfers can also be initiated by a timer or as a result of a DNS NOTIFY message.</p>
+</li>
+<li>
+<p>Full zone transfers use TCP as they can be large.</p>
+</li>
+<li>
+<p>Incremental zone transfers, where only the updated entries are transferred, may use UDP at first but switch to TCP if the response is too large, just like a conventional query.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When UDP is used, both the resolver and the server application software must perform their own timeout and retransmission.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A recommendation for how to do this is given in [RFC1536].</p>
+</li>
+<li>
+<p>It suggests starting with a timeout of at least 4s, and that subsequent timeouts result in an exponential increase of the timeout (a bit like TCP&#8217;s algorithms).</p>
+</li>
+<li>
+<p>Linux and UNIX-like systems allow a change to be made to the retransmission timeout parameters by altering the contents of the <em>/etc/resolv.conf</em> file (by setting the <em>timeout</em> and <em>attempts</em> options).</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>dig +short +tcp @8.8.8.8 cs.berkeley.edu A
+<span class="go">23.185.0.1</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnv</span> <span class="se">\(</span>tcp or udp<span class="se">\)</span> and port 53
+<span class="go">
+IP (tos 0x0, ttl 64, id 30721, offset 0, flags [none], proto TCP (6), length 60)
+</span><span class="gp">    192.168.91.128.44587 &gt;</span><span class="w"> </span>8.8.8.8.53: Flags <span class="o">[</span>S], <span class="nb">cksum </span>0xbe79 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1999751284, win 64240, options <span class="o">[</span>mss 1460,sackOK,TS val 3664026097 ecr 0,nop,wscale 7], length 0
+<span class="go">IP (tos 0x0, ttl 128, id 5910, offset 0, flags [none], proto TCP (6), length 44)
+</span><span class="gp">    8.8.8.8.53 &gt;</span><span class="w"> </span>192.168.91.128.44587: Flags <span class="o">[</span>S.], <span class="nb">cksum </span>0x18e7 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1120675634, ack 1999751285, win 64240, options <span class="o">[</span>mss 1460], length 0
+<span class="go">IP (tos 0x0, ttl 64, id 30722, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.44587 &gt;</span><span class="w"> </span>8.8.8.8.53: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x30a4 <span class="o">(</span>correct<span class="o">)</span>, ack 1, win 64240, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 30723, offset 0, flags [none], proto TCP (6), length 98)
+</span><span class="gp">    192.168.91.128.44587 &gt;</span><span class="w"> </span>8.8.8.8.53: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0xfd6a <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1:59, ack 1, win 64240, length 58 32781+ <span class="o">[</span>1au] A? cs.berkeley.edu. <span class="o">(</span>56<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 5911, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    8.8.8.8.53 &gt;</span><span class="w"> </span>192.168.91.128.44587: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x306a <span class="o">(</span>correct<span class="o">)</span>, ack 59, win 64240, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 5912, offset 0, flags [none], proto TCP (6), length 102)
+</span><span class="gp">    8.8.8.8.53 &gt;</span><span class="w"> </span>192.168.91.128.44587: Flags <span class="o">[</span>P.], <span class="nb">cksum </span>0x8005 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>1:63, ack 59, win 64240, length 62 32781 1/0/1 cs.berkeley.edu. A 23.185.0.1 <span class="o">(</span>60<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 64, id 30724, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.44587 &gt;</span><span class="w"> </span>8.8.8.8.53: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x306a <span class="o">(</span>correct<span class="o">)</span>, ack 63, win 64178, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 30725, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.44587 &gt;</span><span class="w"> </span>8.8.8.8.53: Flags <span class="o">[</span>F.], <span class="nb">cksum </span>0x3069 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>59, ack 63, win 64178, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 5913, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    8.8.8.8.53 &gt;</span><span class="w"> </span>192.168.91.128.44587: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x302c <span class="o">(</span>correct<span class="o">)</span>, ack 60, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 128, id 5914, offset 0, flags [none], proto TCP (6), length 40)
+</span><span class="gp">    8.8.8.8.53 &gt;</span><span class="w"> </span>192.168.91.128.44587: Flags <span class="o">[</span>FP.], <span class="nb">cksum </span>0x3023 <span class="o">(</span>correct<span class="o">)</span>, <span class="nb">seq </span>63, ack 60, win 64239, length 0
+<span class="go">IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+</span><span class="gp">    192.168.91.128.44587 &gt;</span><span class="w"> </span>8.8.8.8.53: Flags <span class="o">[</span>.], <span class="nb">cksum </span>0x3068 <span class="o">(</span>correct<span class="o">)</span>, ack 64, win 64178, length 0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="question-query-and-zone-section-format">4.3. Question (Query) and Zone Section Format</h3>
+<div class="paragraph">
+<p>The question or query section of a DNS message lists the question(s) being referenced. The same structure is also used for the zone section in dynamic updates, but with different names.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-query-question-message-format.png" alt="DNS query(question) message" width="35%" height="35%">
+</div>
+<div class="title">Figure 5. The query (or question) section of a DNS message does not contain a <em>TTL</em> because it is not cached.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <em>Query Name</em> is the domain name being looked up, using the encoding for labels.</p>
+</li>
+<li>
+<p>Each question has a <em>Query Type</em> and <em>Query Class</em>.</p>
+<div class="paragraph">
+<p>The class value is 1, 254, or 255, indicating the Internet class, no class, or all classes, respectively, for all cases in which we are interested (other values are not typically used for TCP/IP networks).</p>
+</div>
+<div class="paragraph">
+<p>The <em>Query Type</em> field holds a value indicating the type of query being performed.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The most common query type is <em>A</em> (or <em>AAAA</em> if IPv6 DNS resolution is enabled), which means that an IP address is desired for the query name.</p>
+</li>
+<li>
+<p>It is also possible to create a query of type <em>ANY</em>, which returns all RRs of any type in the same class that match the query name.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="answer-authority-and-additional-information-section-formats">4.4. Answer, Authority, and Additional Information Section Formats</h3>
+<div class="paragraph">
+<p>The final three sections in the DNS message, the answer, authority, and additional information sections, contain sets of RRs.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-resource-record-message-format.png" alt="DNS RR message" width="35%" height="35%">
+</div>
+<div class="title">Figure 6. The format of a DNS resource record. For DNS in the Internet, the <em>Class</em> field always contains the value 1. The <em>TTL</em> field gives the maximum amount of time the RR can be cached (in seconds).</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <em>Name</em> field (sometimes called the "owning name", "owner", or "record owner&#8217;s name") is the domain name to which the following resource data corresponds.</p>
+</li>
+<li>
+<p>The <em>Type</em> field specifies one of the RR type codes.</p>
+</li>
+<li>
+<p>The <em>Class</em> field is 1 for Internet data.</p>
+</li>
+<li>
+<p>The <em>TTL</em> field is the number of seconds for which the RR can be cached.</p>
+</li>
+<li>
+<p>The <em>Resource Data Length</em> (RDLENGTH) field specifies the number of bytes contained in the Resource Data (RDATA) field.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="resource-record-types">4.5. Resource Record Types</h3>
+<div class="paragraph">
+<p>Although DNS is most commonly used to determine the IP address(es) that correspond to a particular name, it can also be used for the opposite purpose and for a number of other things. The wide range of capabilities provided by DNS is largely attributable to its ability to have different types of resource records.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 2. The popular resource record and query types used in DNS protocol messages. Additional records (not shown) are used when DNS security (DNSSEC) is employed.</caption>
+<colgroup>
+<col style="width: 8.3333%;">
+<col style="width: 8.3333%;">
+<col style="width: 8.3333%;">
+<col style="width: 75.0001%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Value</th>
+<th class="tableblock halign-left valign-top">RR Type</th>
+<th class="tableblock halign-left valign-top">Reference</th>
+<th class="tableblock halign-left valign-top">Description and Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Address record for IPv4 (32-bit IPv4 address)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">NS</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name server; provides name of authoritative name server
+for zone</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CNAME</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Canonical name; maps one name to another (to provide a
+form of name aliasing)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">6</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SOA</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Start of authority; provides authoritative information for the
+zone (name servers, e-mail address of contact, serial number,
+zone transfer timers)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">12</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PTR</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Pointer; provides address to (canonical) name mapping;
+used with in-addr.arpa and ip6.arpa domains for IPv4
+and IPv6 reverse queries</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">15</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MX</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mail exchanger; provides name of e-mail handling host for
+a domain</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">16</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TXT</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]
+[RFC1464]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Text; provides a variety of information (e.g., used with SPF
+anti-spam scheme to identify authorized e-mail servers)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">28</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AAAA</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC3596]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Address record for IPv6 (128-bit IPv6 address)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">33</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SRV</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC2782]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Server selection; transport endpoints of a generic service</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">35</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">NAPTR</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC3403]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name authority pointer; supports alternative name spaces</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">41</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OPT</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC2671]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Pseudo-RR; supports larger datagrams, labels, return codes
+in EDNS0</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">251</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IXFR</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1995]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Incremental zone transfer</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">252</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AXFR</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]
+[RFC5936]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Full zone transfer; carried over TCP</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">255</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">(ANY)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">[RFC1035]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Request for all (any) records</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Resource records are used for many purposes but can be divided into three broad categories: data types, query types, and meta types.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Data types</strong> are used to convey information stored in the DNS such as IP addresses and the names of authoritative name servers.</p>
+</li>
+<li>
+<p><strong>Query types</strong> use the same values as data types, with a few additional values (e.g., AXFR, IXFR, and *).</p>
+</li>
+<li>
+<p><strong>Meta types</strong> designate transient data associated with a particular single DNS message.</p>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="authority-soa-records">4.5.1. Authority (SOA) Records</h4>
+<div class="paragraph">
+<p>In DNS, each zone has an authority record, using an RR type called <em>start of authority</em> (SOA). These records provide authoritative links between portions of the DNS name space and the servers that provide the zone information allowing various queries to be performed for addresses and other information.</p>
+</div>
+<div class="paragraph">
+<p>The SOA RR is used to identify the name of the host providing the official permanent database,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the responsible party&#8217;s e-mail address (where "." is used instead of @),</p>
+</li>
+<li>
+<p>zone update parameters,</p>
+</li>
+<li>
+<p>and the default TTL.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The default TTL is applied to RRs in the zone that are not otherwise assigned an explicit per-RR TTL.</p>
+</div>
+<div class="paragraph">
+<p>The zone update parameters include a serial number, refresh time, retry time, and expire time.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The serial number is increased (by at least 1), usually by the network administrator, anytime there is a change to the zone contents.</p>
+<div class="paragraph">
+<p>It is used by secondary servers to determine if they should initiate a zone transfer (when they do not have a copy of the zone contents with largest serial number).</p>
+</div>
+</li>
+<li>
+<p>The refresh time tells secondary servers how long to wait before checking the SOA record from the primary and its version number to determine if a zone transfer is required.</p>
+</li>
+<li>
+<p>The retry and expire times are used in the case of zone transfer failure.</p>
+<div class="paragraph">
+<p>The retry value gives the time (in seconds) a secondary will wait before retrying.</p>
+</div>
+<div class="paragraph">
+<p>The expire time is an upper bound (in seconds) that a secondary server will keep retrying zone transfers before giving up. If it gives up, such a server ceases to respond to queries for the zone.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In general, a zone can contain a mix of IPv4 and IPv6 data and can be accessed using either version of IP.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">C:\&gt;</span>nslookup
+<span class="go">Default Server:  DC01.fosun.com
+Address:  192.168.200.10
+
+</span><span class="gp">&gt;</span><span class="w"> </span><span class="nb">set type</span><span class="o">=</span>soa
+<span class="gp">&gt;</span><span class="w"> </span>codefarm.me
+<span class="go">Server:  DC01.fosun.com
+Address:  192.168.200.10
+
+Non-authoritative answer:
+codefarm.me
+        primary name server = ns01.domaincontrol.com
+        responsible mail addr = dns.jomax.net
+        serial  = 2022120700
+        refresh = 28800 (8 hours)
+        retry   = 7200 (2 hours)
+        expire  = 604800 (7 days)
+        default TTL = 600 (10 mins)
+
+ns01.domaincontrol.com  internet address = 97.74.100.1
+ns01.domaincontrol.com  AAAA IPv6 address = 2603:5:2140::1</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="mail-exchanger-mx-records">4.5.2. Mail Exchanger (MX) Records</h4>
+<div class="paragraph">
+<p>An MX record provides the name of a mail exchanger—a host willing to engage in the Simple Mail Transfer Protocol (SMTP) [RFC5321] to receive incoming e-mail on behalf of users associated with a domain name.</p>
+</div>
+<div class="paragraph">
+<p>MX records include a preference value, so that more than one MX record may be present for a particular domain name, which allows a sending agent to sort the hosts in preference order (smaller is more preferable) in deciding which host to use as an e-mail destination.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>nslookup
+<span class="gp">&gt;</span><span class="w"> </span><span class="nb">set type</span><span class="o">=</span>mx
+<span class="gp">&gt;</span><span class="w"> </span>server ns3.dns.ucla.edu
+<span class="go">Default server: ns3.dns.ucla.edu
+</span><span class="gp">Address: 54.236.209.157#</span>53
+<span class="go">Default server: ns3.dns.ucla.edu
+</span><span class="gp">Address: 2600:1f18:21d4:e000::53#</span>53
+<span class="gp">&gt;</span><span class="w"> </span>cs.ucla.edu
+<span class="go">Server:		ns3.dns.ucla.edu
+</span><span class="gp">Address:	54.236.209.157#</span>53
+<span class="go">
+CS.UCLA.EDU	mail exchanger = 13 Mailman.CS.UCLA.EDU.
+CS.UCLA.EDU	mail exchanger = 3 Pelican.CS.UCLA.EDU.</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="fighting-spam-the-sender-policy-framework-spf-and-text-txt-records">4.5.3. Fighting Spam: The Sender Policy Framework (SPF) and Text (TXT) Records</h4>
+<div class="paragraph">
+<p>For outgoing e-mail, MX records allow the DNS to help determine the names of mail relays and servers for a domain. More recently, the DNS has been leveraged by receiving mail agents to determine which relaying or sending mail servers are authorized to send mail from a particular domain name. This is used to help combat spam (unwanted e-mail) that is sent by a rogue mail agent pretending to be an authorized mail sender.</p>
+</div>
+<div class="paragraph">
+<p>E-mail received by a mail server is rejected, stored, or forwarded to another mail server.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Rejection can happen for a number of reasons, such as a protocol error or lack of available storage space at the receiver.</p>
+</li>
+<li>
+<p>It can also be rejected because the sending mail client does not appear to be the proper one for sending e-mail.</p>
+<div class="paragraph">
+<p>This capability is supported by the <strong>Sender Policy Framework</strong> (SPF) and documented in [RFC4408], an experimental RFC.</p>
+</div>
+<div class="paragraph">
+<p>There is another framework known as <strong>Sender ID</strong> [RFC4406] that incorporates SPF&#8217;s functions. It is also experimental but less widely deployed.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Version 1 of SPF uses DNS TXT or SPF (type 99) resource records.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Records are set up and published in the DNS by a domain&#8217;s owner to indicate which servers are authorized to send mail originating from the domain.</p>
+</li>
+<li>
+<p>The text contains the matching criteria (called <strong>mechanisms</strong>) and other information (called <strong>modifiers</strong>).</p>
+</li>
+<li>
+<p>Preceding each mechanism is a <strong>qualifier</strong> that determines the consequence of a matching mechanism.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Any mechanism missing a qualifier is assumed to have the <code>+</code> qualifier.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>+</code> <strong><em>qualifier</em></strong> indicates that a match results in a Pass indication.</p>
+</li>
+<li>
+<p>Other possible qualifiers include <code>-</code> (Fail), <code>~</code> (Soft Fail), and <code>?</code> (Neutral).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If none of the matching mechanisms produces a Pass result, the final mechanism (<em>all</em>) matches any condition.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The tilde character (<code>~</code>) before the <em>all</em> criterion indicates that a Soft Fail return should be generated if <em>all</em> is the only matching mechanism.</p>
+<div class="paragraph">
+<p>The exact way a soft failure is handled is dependent on the receiving e-mail software.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>dig +tcp +nocmd +nostats txt outlook.com
+<span class="gp">;</span><span class="p">;</span> Got answer:
+<span class="gp">;</span><span class="p">;</span> -&gt;&gt;HEADER<span class="o">&lt;&lt;-</span> <span class="no">opcode</span><span class="sh">: QUERY, status: NOERROR, id: 18595</span>
+<span class="gp">;</span><span class="sh">; flags: qr rd ra; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1</span>
+
+<span class="gp">;</span><span class="p">;</span> OPT PSEUDOSECTION:
+<span class="gp">;</span><span class="w"> </span>EDNS: version: 0, flags:<span class="p">;</span> udp: 4000
+<span class="gp">;</span><span class="p">;</span> QUESTION SECTION:
+<span class="gp">;</span>outlook.com.			IN	TXT
+
+<span class="gp">;</span><span class="p">;</span> ANSWER SECTION:
+<span class="hll"><span class="go">outlook.com.		349	IN	TXT	"v=spf1 include:spf-a.outlook.com include:spf-b.outlook.com ip4:157.55.9.128/25 include:spf.protection.outlook.com include:spf-a.hotmail.com include:_spf-ssg-b.microsoft.com include:_spf-ssg-c.microsoft.com ~all"</span>
+</span><span class="go">outlook.com.		349	IN	TXT	"google-site-verification=0iLWhIMhXEkeWwWfFU4ursTn-_OvoOjaA0Lr7Pg1sEM"</span>
+<span class="go">outlook.com.		349	IN	TXT	"google-site-verification=DC2uC-T8kD33lINhNzfo0bNBrw-vrCXs5BPF5BXY56g"</span>
+
+<span class="gp">x@node-0:~$</span><span class="w"> </span>dig +tcp +nocmd +nostats txt spf-a.outlook.com
+<span class="gp">;</span><span class="p">;</span> Got answer:
+<span class="gp">;</span><span class="p">;</span> -&gt;&gt;HEADER<span class="o">&lt;&lt;-</span> <span class="no">opcode</span><span class="sh">: QUERY, status: NOERROR, id: 1423</span>
+<span class="gp">;</span><span class="sh">; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1</span>
+
+<span class="gp">;</span><span class="p">;</span> OPT PSEUDOSECTION:
+<span class="gp">;</span><span class="w"> </span>EDNS: version: 0, flags:<span class="p">;</span> udp: 4000
+<span class="gp">;</span><span class="p">;</span> QUESTION SECTION:
+<span class="gp">;</span>spf-a.outlook.com.		IN	TXT
+
+<span class="gp">;</span><span class="p">;</span> ANSWER SECTION:
+<span class="hll"><span class="go">spf-a.outlook.com.	380	IN	TXT	"v=spf1 ip4:157.56.232.0/21 ip4:157.56.240.0/20 ip4:207.46.198.0/25 ip4:207.46.4.128/25 ip4:157.56.24.0/25 ip4:157.55.157.128/25 ip4:157.55.61.0/24 ip4:157.55.49.0/25 ip4:65.55.174.0/25 ip4:65.55.126.0/25 ip4:65.55.113.64/26 ip4:65.55.94.0/25 -all"</span>
+</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Reading from left to right in the above example,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the string <code>v=spf1</code> is a <strong><em>modifier</em></strong> indicating that the SPF version is 1.</p>
+</li>
+<li>
+<p>The <code>ip4</code> <strong><em>mechanism</em></strong> specifies that the SMTP sender has an IPv4 address with the prefix.</p>
+</li>
+<li>
+<p>The <code>ip6</code> mechanism specifies any sending host with IPv6 address prefix.</p>
+</li>
+<li>
+<p>Finally, the <code>include</code> mechanism incorporates, by reference, the TXT records with recursive SPF resource records.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="zone-transfers-and-dns-notify">4.6. Zone Transfers and DNS NOTIFY</h3>
+<div class="paragraph">
+<p>A zone transfer is used to copy a set of RRs for a zone from one server to another (generally from the master server to slave servers). The purpose of doing so is to keep multiple servers in sync with respect to a zone’s contents.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Multiple servers provide resiliency to failure, in case a server should go down.</p>
+</li>
+<li>
+<p>Performance can also be improved as multiple servers can be used to share the processing load for incoming queries.</p>
+</li>
+<li>
+<p>Finally, the latency of a DNS query/response can potentially be reduced if servers are placed in locations close to clients (i.e., where the network latency between resolver and server is small).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>As originally specified, zone transfers are initiated after <em>polling</em>, where slaves periodically contact masters to see if a zone transfer is necessary by comparing the zones' version numbers.</p>
+</div>
+<div class="paragraph">
+<p>A later method says if a zone transfer needs to be initiated using an asynchronous update mechanism when the zone contents change, called <strong>DNS NOTIFY</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Once a zone transfer is initiated, either the entire zone is transferred (using DNS <strong>AXFR</strong> messages) [RFC5936], or an <em>incremental zone transfer</em> option may be used (using DNS <strong>IXFR</strong> messages) [RFC1995].</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/dns-zone-transfer.png" alt="DNS zone transfer" width="45%" height="45%">
+</div>
+<div class="title">Figure 7. A DNS zone transfer copies the contents of zones between servers. An optional notification can cause a slave to request a full or incremental zone transfer.</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="sort-lists-round-robin-and-split-dns">5. Sort Lists, Round-Robin, and Split DNS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A DNS server could return all matching data to any client in whatever order the server finds most convenient.</p>
+</div>
+<div class="paragraph">
+<p>However, special configuration options and behaviors are available in most DNS server software to achieve certain operational, privacy, or performance goals.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/name-resolution-and-the-domain-name-system/small-enterprise-topology.png" alt="Small enterprise topology" width="55%" height="55%">
+</div>
+<div class="title">Figure 8. In a small enterprise topology, DNS may be configured to return different addresses depending on the requesting IP address. There is a private network and a public network including a DNS server. In addition, there is a pair of hosts on the DMZ (A and B), one on the internal network &#169; and one on the Internet &#174;. A multihomed host (M) spans the DMZ and internal networks. M therefore has two IP addresses drawn from two different network prefixes.</div>
+</div>
+<div class="paragraph">
+<p>A host wishing to contact M performs a DNS lookup that returns two addresses—one associated with the internal network and one with the DMZ.</p>
+</div>
+<div class="paragraph">
+<p>Naturally, it would be more efficient if A, B, and R reached M via the DMZ and C reached M via the internal network.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This generally happens if the DNS server <strong>orders</strong> its returned address records based on the source IP address of the request.</p>
+</li>
+<li>
+<p>It could also use the destination IP address, especially if M uses multiple IP addresses from different subnets on the same network interface.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To achieve load balancing, the DNS server may be configured to use <strong>DNS round-robin</strong>, which means that the server permutes the order of the returned address records. While this helps to balance load, it is far from perfect.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When records are cached, the desired effect may not occur because of reuse of existing cached address records.</p>
+</li>
+<li>
+<p>In addition, this scheme may balance the number of connections well across servers, but not the load.</p>
+<div class="paragraph">
+<p>Different connections can have radically different processing requirements, so the true processing load is likely to remain unbalanced unless the particular service always has the same processing requirements.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In <strong>split DNS</strong>, the set of resource records returned in response to a query is dependent on the identity of the client and possibly query destination address. With split DNS, we could arrange for</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>any host in the enterprise (i.e., those sharing a set of prefixes) to be provided with the entire DNS database,</p>
+</li>
+<li>
+<p>whereas those outside are given visibility only to A and B, where the main Web service is offered.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="open-dns-servers-and-dyndns">6. Open DNS Servers and DynDNS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Many home users are assigned a single IPv4 address by their ISP, and this address may change over time as the user&#8217;s computer or home gateway connects, disconnects, and reconnects to the Internet.</p>
+</div>
+<div class="paragraph">
+<p>Consequently, it is often difficult for the user to establish a DNS entry that allows for running services that are visible from the Internet.</p>
+</div>
+<div class="paragraph">
+<p>A number of so-called open <strong>Dynamic DNS</strong> (DDNS) servers are available that support a special update protocol called the <em>DNS Update API</em>, whereby a user may update an entry in a provider&#8217;s DNS server given a preregistration or account.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="llmnr-and-mdns">7. LLMNR and mDNS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The ordinary DNS system requires a set of DNS servers to be configured to provide mappings between names and addresses, and possibly other information.</p>
+</div>
+<div class="paragraph">
+<p>Sometimes this is too much overhead when only a few local hosts wish to communicate.</p>
+</div>
+<div class="paragraph">
+<p>In cases where a DNS server is not available (e.g., a quickly formed ad hoc network of clients that connect only to each other), a special local version of DNS called <strong>Link-Local Multicast Name Resolution</strong> (LLMRR) [RFC4795] may be available.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It is a (nonstandard) protocol based on DNS developed by Microsoft and used in local environments to help discover devices on a local area network, such as printers and file servers.</p>
+</li>
+<li>
+<p>It is supported in Windows Vista, Server 2008, and 7.</p>
+</li>
+<li>
+<p>It uses UDP port <em>5355</em> with the IPv4 multicast address <em>224.0.0.252</em> and IPv6 address <em>ff02::1:3</em>.</p>
+</li>
+<li>
+<p>The servers also use TCP on port 5355 from whatever unicast IP address they respond from.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Multicast DNS</strong> (mDNS) [IDMDNS] is another form of local DNS-like capability developed by Apple.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When it is combined with the <em>DNS Service Discovery</em> protocol, Apple calls the resulting framework Bonjour.</p>
+</li>
+<li>
+<p>mDNS uses DNS messages carried over local multicast addresses.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>It uses UDP with port <em>5353</em>.</p>
+</li>
+<li>
+<p>It specifies that the special TLD <em>.local</em> is to be treated with special semantics. The <em>.local</em> TLD is link-local in scope.</p>
+</li>
+<li>
+<p>Any DNS queries for domain names in this TLD are sent to the mDNS IPv4 address <em>224.0.0.251</em> or the IPv6 address <em>ff02::fb</em>.</p>
+</li>
+<li>
+<p>Queries for other domains may optionally be sent to these multicast addresses.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Multicast DNS: From Wikipedia, the free encyclopedia</div>
+<div class="paragraph">
+<p>In <a href="https://en.wikipedia.org/wiki/Computer_network">computer networking</a>, the <strong>multicast DNS (mDNS)</strong> protocol resolves <a href="https://en.wikipedia.org/wiki/Hostname">hostnames</a> to IP addresses within small networks that do not include a local <a href="https://en.wikipedia.org/wiki/Name_server">name server</a>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It is a <a href="https://en.wikipedia.org/wiki/Zero-configuration_networking#Name_service_discovery">zero-configuration</a> service, using essentially the same programming interfaces, packet formats and operating semantics as unicast <a href="https://en.wikipedia.org/wiki/Domain_Name_System">Domain Name Service</a> (DNS).</p>
+</li>
+<li>
+<p>It was designed to work as either a stand-alone protocol or compatibly with standard DNS servers.</p>
+</li>
+<li>
+<p>It uses IP multicast <a href="https://en.wikipedia.org/wiki/User_Datagram_Protocol">User Datagram Protocol</a> (UDP) packets, and is implemented by the Apple <a href="https://en.wikipedia.org/wiki/Bonjour_(software)">Bonjour</a> and open source <a href="https://en.wikipedia.org/wiki/Avahi_(software)">Avahi</a> software packages, included in most Linux distributions.</p>
+</li>
+<li>
+<p>Although the Windows 10 implementation was limited to discovering networked printers, subsequent releases resolved hostnames as well.</p>
+</li>
+<li>
+<p>mDNS can work in conjunction with DNS Service Discovery (DNS-SD), a companion zero-configuration networking technique specified separately in <a href="https://www.rfc-editor.org/rfc/rfc6763.html">RFC 6763</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Multicast DNS was first proposed by Bill Woodcock and Bill Manning in the IETF in 2000, and was eventually published as standards-track IETF <a href="https://www.rfc-editor.org/rfc/rfc6762.html">RFC 6762</a> by Stuart Cheshire and Marc Krochmal thirteen years later.</p>
+</div>
+<div class="paragraph">
+<p>When an mDNS client needs to resolve a hostname,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>it sends an IP multicast query message that asks the host having that name to identify itself.</p>
+</li>
+<li>
+<p>That target machine then multicasts a message that includes its IP address.</p>
+</li>
+<li>
+<p>All machines in that subnet can then use that information to update their mDNS caches.</p>
+</li>
+<li>
+<p>Any host can relinquish its claim to a name by sending a response packet with a time to live (TTL) equal to zero.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>By default, mDNS exclusively resolves hostnames ending with the <a href="https://en.wikipedia.org/wiki/.local">.local</a> top-level domain.</p>
+</div>
+<div class="paragraph">
+<p>An mDNS message is a multicast UDP packet sent using the following addressing:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>IPv4 address <em>224.0.0.251</em> or IPv6 address <em>ff02::fb</em> and UDP port <em>5353</em></p>
+</li>
+<li>
+<p>When using Ethernet frames, the standard IP multicast MAC address <em>01:00:5E:00:00:FB</em> (for IPv4) or <em>33:33:00:00:00:FB</em> (for IPv6)</p>
+</li>
+<li>
+<p>The payload structure is based on the unicast DNS packet format.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>avahi-resolve-host-name node-1.local
+<span class="go">node-1.local	fe80::20c:29ff:fe85:2607</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnvvv</span> port 5353
+<span class="gp">IP6 (flowlabel 0x83068, hlim 255, next-header UDP (17) payload length: 44) fe80::20c:29ff:fe8c:df3f.5353 &gt;</span><span class="w"> </span>ff02::fb.5353: <span class="o">[</span>bad udp <span class="nb">cksum </span>0x0894 -&gt; 0xc569!] 0 <span class="o">[</span>2q] A <span class="o">(</span>QM<span class="o">)</span>? node-1.local. AAAA <span class="o">(</span>QM<span class="o">)</span>? node-1.local. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 255, id 63528, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.134.5353 &gt;</span><span class="w"> </span>224.0.0.251.5353: <span class="o">[</span>bad udp <span class="nb">cksum </span>0xfd67 -&gt; 0xd095!] 0 <span class="o">[</span>2q] A <span class="o">(</span>QM<span class="o">)</span>? node-1.local. AAAA <span class="o">(</span>QM<span class="o">)</span>? node-1.local. <span class="o">(</span>36<span class="o">)</span>
+<span class="gp">IP6 (flowlabel 0xac503, hlim 255, next-header UDP (17) payload length: 60) fe80::20c:29ff:fe85:2607.5353 &gt;</span><span class="w"> </span>ff02::fb.5353: <span class="o">[</span>udp <span class="nb">sum </span>ok] 0<span class="k">*</span>- <span class="o">[</span>0q] 1/0/0 node-1.local. <span class="o">(</span>Cache flush<span class="o">)</span> <span class="o">[</span>2m] AAAA fe80::20c:29ff:fe85:2607 <span class="o">(</span>52<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 255, id 13910, offset 0, flags [DF], proto UDP (17), length 112)
+</span><span class="gp">    192.168.91.137.5353 &gt;</span><span class="w"> </span>224.0.0.251.5353: <span class="o">[</span>udp <span class="nb">sum </span>ok] 0<span class="k">*</span>- <span class="o">[</span>0q] 3/0/0 node-1.local. <span class="o">(</span>Cache flush<span class="o">)</span> <span class="o">[</span>2m] AAAA fe80::20c:29ff:fe85:2607, node-1.local. <span class="o">(</span>Cache flush<span class="o">)</span> <span class="o">[</span>2m] A 192.168.91.135, node-1.local. <span class="o">(</span>Cache flush<span class="o">)</span> <span class="o">[</span>2m] A 192.168.91.137 <span class="o">(</span>84<span class="o">)</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>dig +search +nocmd +nostats <span class="nt">-p</span> 5353 @224.0.0.251 node-1.local A
+<span class="gp">;</span><span class="p">;</span> Got answer:
+<span class="gp">;</span><span class="p">;</span> WARNING: .local is reserved <span class="k">for </span>Multicast DNS
+<span class="gp">;</span><span class="p">;</span> You are currently testing what happens when an mDNS query is leaked to DNS
+<span class="gp">;</span><span class="p">;</span> -&gt;&gt;HEADER<span class="o">&lt;&lt;-</span> <span class="no">opcode</span><span class="sh">: QUERY, status: NOERROR, id: 15791
+</span><span class="gp">;</span><span class="sh">; flags: qr aa; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 0
+</span><span class="go">
+</span><span class="gp">;</span><span class="p">;</span> QUESTION SECTION:
+<span class="gp">;</span>node-1.local.			IN	A
+<span class="go">
+</span><span class="gp">;</span><span class="p">;</span> ANSWER SECTION:
+<span class="go">node-1.local.		10	IN	A	192.168.91.137
+node-1.local.		10	IN	A	192.168.91.135
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>dig +search +nocmd +nostats <span class="nt">-p</span> 5353 @224.0.0.251 node-1.local AAAA
+<span class="gp">;</span><span class="p">;</span> Got answer:
+<span class="gp">;</span><span class="p">;</span> WARNING: .local is reserved <span class="k">for </span>Multicast DNS
+<span class="gp">;</span><span class="p">;</span> You are currently testing what happens when an mDNS query is leaked to DNS
+<span class="gp">;</span><span class="p">;</span> -&gt;&gt;HEADER<span class="o">&lt;&lt;-</span> <span class="no">opcode</span><span class="sh">: QUERY, status: NOERROR, id: 61682
+</span><span class="gp">;</span><span class="sh">; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+</span><span class="go">
+</span><span class="gp">;</span><span class="p">;</span> QUESTION SECTION:
+<span class="gp">;</span>node-1.local.			IN	AAAA
+<span class="go">
+</span><span class="gp">;</span><span class="p">;</span> ANSWER SECTION:
+<span class="go">node-1.local.		10	IN	AAAA	fe80::20c:29ff:fe85:2607</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnv</span> port 53 or port 5353
+<span class="go">tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 1, id 36980, offset 0, flags [none], proto UDP (17), length 81)
+</span><span class="gp">    192.168.91.128.34856 &gt;</span><span class="w"> </span>224.0.0.251.5353: 15791+ <span class="o">[</span>1au] A <span class="o">(</span>QM<span class="o">)</span>? node-1.local. <span class="o">(</span>53<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 255, id 45595, offset 0, flags [DF], proto UDP (17), length 90)
+</span><span class="gp">    192.168.91.137.5353 &gt;</span><span class="w"> </span>192.168.91.128.34856: 15791<span class="k">*</span>- 2/0/0 node-1.local. A 192.168.91.137, node-1.local. A 192.168.91.135 <span class="o">(</span>62<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 1, id 39442, offset 0, flags [none], proto UDP (17), length 81)
+</span><span class="gp">    192.168.91.128.51000 &gt;</span><span class="w"> </span>224.0.0.251.5353: 61682+ <span class="o">[</span>1au] AAAA <span class="o">(</span>QM<span class="o">)</span>? node-1.local. <span class="o">(</span>53<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 255, id 47214, offset 0, flags [DF], proto UDP (17), length 86)
+</span><span class="gp">    192.168.91.137.5353 &gt;</span><span class="w"> </span>192.168.91.128.51000: 61682<span class="k">*</span>- 1/0/0 node-1.local. AAAA fe80::20c:29ff:fe85:2607 <span class="o">(</span>58<span class="o">)</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>systemctl status avahi-daemon.service
+<span class="go">● avahi-daemon.service - Avahi mDNS/DNS-SD Stack
+</span><span class="gp">     Loaded: loaded (/lib/systemd/system/avahi-daemon.service;</span><span class="w"> </span>enabled<span class="p">;</span> vendor preset: enabled<span class="o">)</span>
+<span class="gp">     Active: active (running) since Wed 2022-12-14 11:53:34 CST;</span><span class="w"> </span>5min ago
+<span class="go">TriggeredBy: ● avahi-daemon.socket
+   Main PID: 1864 (avahi-daemon)
+     Status: "avahi-daemon 0.8 starting up."
+      Tasks: 2 (limit: 4633)
+     Memory: 784.0K
+        CPU: 23ms
+     CGroup: /system.slice/avahi-daemon.service
+             ├─1864 avahi-daemon: running [node-0.local]
+             └─1865 avahi-daemon: chroot helper
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>systemctl restart avahi-daemon.service
+<span class="go">
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">cat</span> /etc/resolv.conf
+<span class="go">domain localdomain
+search localdomain
+nameserver 192.168.91.2
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ping <span class="nt">-c</span> 1 node-1
+<span class="go">PING node-1.localdomain (192.168.91.137) 56(84) bytes of data.
+64 bytes from 192.168.91.137 (192.168.91.137): icmp_seq=1 ttl=64 time=0.216 ms
+
+--- node-1.localdomain ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.216/0.216/0.216/0.000 ms</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span><span class="nb">sudo </span>tcpdump <span class="nt">-tnv</span> port 53 or port 5353
+<span class="go">tcpdump: listening on ens32, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+IP (tos 0x0, ttl 64, id 22416, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.128.57800 &gt;</span><span class="w"> </span>192.168.91.2.53: 43159+ A? node-1.localdomain. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 64, id 22417, offset 0, flags [DF], proto UDP (17), length 64)
+</span><span class="gp">    192.168.91.128.57800 &gt;</span><span class="w"> </span>192.168.91.2.53: 16776+ AAAA? node-1.localdomain. <span class="o">(</span>36<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 17525, offset 0, flags [none], proto UDP (17), length 136)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.57800: 16776 NXDomain 0/1/0 <span class="o">(</span>108<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 1, id 50969, offset 0, flags [none], proto UDP (17), length 58)
+</span><span class="gp">    192.168.91.1.5353 &gt;</span><span class="w"> </span>224.0.0.251.5353: 0 A <span class="o">(</span>QM<span class="o">)</span>? node-1.local. <span class="o">(</span>30<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 255, id 5793, offset 0, flags [DF], proto UDP (17), length 84)
+</span><span class="gp">    192.168.91.137.5353 &gt;</span><span class="w"> </span>224.0.0.251.5353: 0<span class="k">*</span>- <span class="o">[</span>0q] 2/0/0 node-1.local. <span class="o">(</span>Cache flush<span class="o">)</span> A 192.168.91.137, node-1.local. <span class="o">(</span>Cache flush<span class="o">)</span> A 192.168.91.135 <span class="o">(</span>56<span class="o">)</span>
+<span class="gp">IP6 (flowlabel 0xfc266, hlim 1, next-header UDP (17) payload length: 38) fe80::50c2:d6ef:87fb:1b7b.5353 &gt;</span><span class="w"> </span>ff02::fb.5353: <span class="o">[</span>udp <span class="nb">sum </span>ok] 0 A <span class="o">(</span>QM<span class="o">)</span>? node-1.local. <span class="o">(</span>30<span class="o">)</span>
+<span class="go">IP (tos 0x0, ttl 128, id 17526, offset 0, flags [none], proto UDP (17), length 80)
+</span><span class="gp">    192.168.91.2.53 &gt;</span><span class="w"> </span>192.168.91.128.57800: 43159<span class="k">*</span>- 1/0/0 node-1.localdomain. A 192.168.91.137 <span class="o">(</span>52<span class="o">)</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist bibliography">
+<ul class="bibliography">
+<li>
+<p><a id="tcp_ip_vol_1"></a>[1] Kevin Fall, W. Stevens <em>TCP/IP Illustrated: The Protocols, Volume 1</em>. 2nd edition, Addison-Wesley Professional, 2011</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2022/12/06/tcp-ip-user-datagram-protocol-udp-and-ip-fragmentation/">&laquo; TCP/IP: User Datagram Protocol (UDP) and IP Fragmentation</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2023/01/09/tcp-ip-introduction-to-tcp/">TCP/IP: Introduction to TCP &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

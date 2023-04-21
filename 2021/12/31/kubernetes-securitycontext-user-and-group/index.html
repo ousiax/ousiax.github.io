@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Kubernetes Securitycontext, User and Group</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/12/31/kubernetes-securitycontext-user-and-group/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Kubernetes Securitycontext, User and Group</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-12-31T03:19:38+08:00" itemprop="datePublished">Dec 31, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#user-instruction-at-dockerfile">1. USER instruction at Dockerfile</a></li>
+<li><a href="#kubernetes-securitycontext">2. Kubernetes Securitycontext</a></li>
+<li><a href="#pod-security-policy">3. Pod Security Policy</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="user-instruction-at-dockerfile">1. USER instruction at Dockerfile</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>USER</code> instruction sets the user name (or UID) and optionally the user group (or GID) to use when running the image and for any <code>RUN</code>, <code>CMD</code> and <code>ENTRYPOINT</code> instructions that follow it in the <code>Dockerfile</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-it</span> debian:11 <span class="nb">id</span>
+<span class="go">uid=0(root) gid=0(root) groups=0(root)</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>Dockerfile
+<span class="go">FROM debian:11
+USER 2000:2000
+
+</span><span class="gp">$</span><span class="w"> </span>docker build <span class="nb">.</span> <span class="nt">-t</span> debian:2022
+<span class="go">[+] Building 0.0s (5/5) FINISHED
+</span><span class="gp"> =&gt;</span><span class="w"> </span><span class="o">[</span>internal] load build definition from Dockerfile                                                                                                               0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">=&gt;</span> transferring dockerfile: 73B                                                                                                                                0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">[</span>internal] load .dockerignore                                                                                                                                  0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">=&gt;</span> transferring context: 2B                                                                                                                                    0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">[</span>internal] load metadata <span class="k">for </span>docker.io/library/debian:11                                                                                                       0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">[</span>1/1] FROM docker.io/library/debian:11                                                                                                                         0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span>exporting to image                                                                                                                                             0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">=&gt;</span> exporting layers                                                                                                                                            0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">=&gt;</span> writing image sha256:564a3419a320ccf2cb11a43bfe7025d5fc67cc72590af8bbff1b12f95c6f0229                                                                       0.0s
+<span class="gp"> =&gt;</span><span class="w"> </span><span class="o">=&gt;</span> naming to docker.io/library/debian:2022                                                                                                                     0.0s
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-it</span> debian:2022 <span class="nb">id</span>
+<span class="go">uid=2022 gid=2022 groups=2022
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">echo </span>philosophia <span class="o">&gt;</span> philosophy
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">chmod </span>400 philosophy
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">ls</span> <span class="nt">-ln</span> philosophy
+<span class="go">-r-------- 1 1000 1000 12 Dec 31 03:53 philosophy
+
+</span><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-it</span> <span class="nt">-v</span> <span class="nv">$PWD</span>:/tmp debian:2022 <span class="nb">ls</span> <span class="nt">-ln</span> /tmp/philosophy
+<span class="go">-r-------- 1 1000 1000 12 Dec 30 19:53 /tmp/philosophy
+
+</span><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-it</span> <span class="nt">-v</span> <span class="nv">$PWD</span>:/tmp debian:2022 <span class="nb">cat</span> /tmp/philosophy
+<span class="go">cat: /tmp/philosophy: Permission denied
+
+</span><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--user</span> 1000:1000 <span class="nt">--rm</span> <span class="nt">-it</span> <span class="nt">-v</span> <span class="nv">$PWD</span>:/tmp debian:2022 <span class="nb">id</span>
+<span class="go">uid=1000 gid=1000 groups=1000
+
+</span><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--user</span> 1000:1000 <span class="nt">--rm</span> <span class="nt">-it</span> <span class="nt">-v</span> <span class="nv">$PWD</span>:/tmp debian:2022 <span class="nb">cat</span> /tmp/philosophy
+<span class="go">philosophia</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="kubernetes-securitycontext">2. Kubernetes Securitycontext</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.securityContext.runAsUser
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">FIELD:    runAsUser &lt;integer&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     The UID to run the entrypoint of the container process. Defaults to user
+     specified in image metadata if unspecified. May also be set in
+     SecurityContext. If set in both SecurityContext and PodSecurityContext, the
+     value specified in SecurityContext takes precedence for that container.
+     Note that this field cannot be set when spec.os.name is windows.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.securityContext.runAsGroup
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">FIELD:    runAsGroup &lt;integer&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     The GID to run the entrypoint of the container process. Uses runtime
+     default if unset. May also be set in SecurityContext. If set in both
+     SecurityContext and PodSecurityContext, the value specified in
+     SecurityContext takes precedence for that container. Note that this field
+     cannot be set when spec.os.name is windows.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.securityContext.fsGroup
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">FIELD:    fsGroup &lt;integer&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     A special supplemental group that applies to all containers in a pod. Some
+     volume types allow the Kubelet to change the ownership of that volume to be
+     owned by the pod:
+
+     1. The owning GID will be the FSGroup 2. The setgid bit is set (new files
+     created in the volume will be owned by FSGroup) 3. The permission bits are
+     OR'd with rw-rw----
+
+     If unset, the Kubelet will not modify the ownership and permissions of any
+     volume. Note that this field cannot be set when spec.os.name is windows.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.securityContext.runAsNonRoot
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">FIELD:    runAsNonRoot &lt;boolean&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     Indicates that the container must run as a non-root user. If true, the
+     Kubelet will validate the image at runtime to ensure that it does not run
+     as UID 0 (root) and fail to start the container if it does. If unset or
+     false, no such validation will be performed. May also be set in
+     SecurityContext. If set in both SecurityContext and PodSecurityContext, the
+     value specified in SecurityContext takes precedence.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.containers.securityContext.runAsUser
+<span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.containers.securityContext.runAsGroup
+<span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.containers.securityContext.runAsNonRoot
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.containers.securityContext.privileged
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">FIELD:    privileged &lt;boolean&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     Run container in privileged mode. Processes in privileged containers are
+     essentially equivalent to root on the host. Defaults to false. Note that
+     this field cannot be set when spec.os.name is windows.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.containers.securityContext.allowPrivilegeEscalation
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">FIELD:    allowPrivilegeEscalation &lt;boolean&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     AllowPrivilegeEscalation controls whether a process can gain more
+     privileges than its parent process. This bool directly controls if the
+     no_new_privs flag will be set on the container process.
+     AllowPrivilegeEscalation is true always when the container is: 1) run as
+     Privileged 2) has CAP_SYS_ADMIN Note that this field cannot be set when
+     spec.os.name is windows.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl explain po.spec.containers.securityContext.capabilities
+<span class="go">KIND:     Pod
+VERSION:  v1
+
+</span><span class="gp">RESOURCE: capabilities &lt;Object&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     The capabilities to add/drop when running containers. Defaults to the
+     default set of capabilities granted by the container runtime. Note that
+     this field cannot be set when spec.os.name is windows.
+
+     Adds and removes POSIX capabilities from running containers.
+
+FIELDS:
+</span><span class="gp">   add	&lt;[]string&gt;</span><span class="w">
+</span><span class="go">     Added capabilities
+
+</span><span class="gp">   drop	&lt;[]string&gt;</span><span class="w">
+</span><span class="go">     Removed capabilities</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-01.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-01
+spec:
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-f</span> sec-01.yaml
+<span class="go">pod/sec-01 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-01 <span class="nt">--</span> <span class="nb">id</span>
+<span class="go">uid=0(root) gid=0(root) groups=0(root)</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-02.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-02
+spec:
+  containers:
+    - image: debian:2022
+      name: debian
+      stdin: true
+      tty: true
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-f</span> sec-02.yaml
+<span class="go">pod/sec-02 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-02 <span class="nt">--</span> <span class="nb">id</span>
+<span class="go">uid=2022 gid=0(root) groups=0(root)</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-03.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-02
+spec:
+  securityContext:
+    runAsUser: 2022
+    runAsGroup: 2022
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-f</span> sec-03.yaml
+<span class="go">pod/sec-03 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-03 <span class="nt">--</span> <span class="nb">id</span>
+<span class="go">uid=2022 gid=2022 groups=2022</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-04.yaml
+<span class="go">apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sec-04
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  local:
+    path: /testdata
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/os
+          operator: In
+          values:
+          - linux
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  volumeMode: Filesystem
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sec-04
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    limits:
+      storage: 5Gi
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage
+  volumeMode: Filesystem
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-04
+spec:
+  securityContext:
+    runAsUser: 2022
+    runAsGroup: 2022
+    fsGroup: 3300
+  volumes:
+    - name: testdata
+      persistentVolumeClaim:
+        claimName: sec-04
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+      workingDir: /testdata
+      volumeMounts:
+        - mountPath: /testdata
+          name: testdata
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-f</span> sec-04.yaml
+<span class="go">persistentvolume/sec-04 created
+persistentvolumeclaim/sec-04 created
+pod/sec-04 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-04 <span class="nt">--</span> <span class="nb">id</span>
+<span class="go">uid=2022 gid=2022 groups=2022,3300
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-04 <span class="nt">--</span> <span class="nb">ls</span> <span class="nt">-ld</span>
+<span class="go">drwxrwsr-x 2 root 3300 4096 Dec 30 21:15 .
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-04 <span class="nt">--</span> <span class="nb">touch </span>testfile
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-04 <span class="nt">--</span> <span class="nb">ls</span> <span class="nt">-l</span>
+<span class="go">total 0
+-rw-r--r-- 1 2022 3300 0 Dec 30 21:15 testfile</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-05.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-05
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-f</span> sec-05.yaml
+<span class="go">pod/sec-05 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl get po sec-05
+<span class="go">NAME     READY   STATUS                       RESTARTS   AGE
+sec-05   0/1     CreateContainerConfigError   0          6s
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl describe po sec-05
+<span class="c">...
+</span><span class="go">Events:
+  Type     Reason          Age               From               Message
+  ----     ------          ----              ----               -------
+  Normal   Scheduled       16s               default-scheduler  Successfully assigned default/sec-05 to far-seer-01
+  Normal   SandboxChanged  15s               kubelet            Pod sandbox changed, it will be killed and re-created.
+  Normal   Pulled          2s (x5 over 16s)  kubelet            Container image "debian:11" already present on machine
+  Warning  Failed          2s (x5 over 16s)  kubelet            Error: container has runAsNonRoot and image will run as root (pod: "sec-05_default(7cc40d5a-d4da-4a95-9ad4-bc787b803eb4)", container: debian)</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-06.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-06
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+      securityContext:
+        runAsUser: 3000
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-f</span> sec-06.yaml
+<span class="go">pod/sec-06 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl get po sec-06
+<span class="go">NAME     READY   STATUS    RESTARTS   AGE
+sec-06   1/1     Running   0          16s</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="pod-security-policy">3. Pod Security Policy</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl explain psp.spec
+<span class="go">KIND:     PodSecurityPolicy
+VERSION:  policy/v1beta1
+
+</span><span class="gp">RESOURCE: spec &lt;Object&gt;</span><span class="w">
+</span><span class="go">
+DESCRIPTION:
+     spec defines the policy enforced.
+
+     PodSecurityPolicySpec defines the policy enforced.
+
+FIELDS:
+</span><span class="gp">   allowPrivilegeEscalation	&lt;boolean&gt;</span><span class="w">
+</span><span class="go">     allowPrivilegeEscalation determines if a pod can request to allow privilege
+     escalation. If unspecified, defaults to true.
+
+</span><span class="gp">   allowedCapabilities	&lt;[]string&gt;</span><span class="w">
+</span><span class="go">     allowedCapabilities is a list of capabilities that can be requested to add
+     to the container. Capabilities in this field may be added at the pod
+     author's discretion. You must not list a capability in both
+     allowedCapabilities and requiredDropCapabilities.
+
+</span><span class="gp">   privileged	&lt;boolean&gt;</span><span class="w">
+</span><span class="go">     privileged determines if a pod can request to be run as privileged.
+
+</span><span class="gp">   requiredDropCapabilities	&lt;[]string&gt;</span><span class="w">
+</span><span class="go">     requiredDropCapabilities are the capabilities that will be dropped from the
+     container. These are required to be dropped and cannot be added.
+
+</span><span class="gp">   seLinux	&lt;Object&gt;</span><span class="w"> </span><span class="nt">-required-</span>
+<span class="go">     seLinux is the strategy that will dictate the allowable labels that may be
+     set.
+</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Pod security policy control is implemented as an optional admission controller, and policies are enforced by enabling the admission controller, but doing so without authorizing any policies will prevent any pods from being created in the cluster.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl describe po <span class="nt">-n</span> kube-system kube-apiserver-node-01 | <span class="nb">grep</span> <span class="nt">--</span> <span class="s1">'--enable-admission-plugins'</span>
+<span class="go">      --enable-admission-plugins=NodeRestriction</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The Kubernetes API server flag <code>enable-admission-plugins</code> takes a comma-delimited list of admission control plugins to invoke prior to modifying objects in the cluster.</p>
+</div>
+<div class="paragraph">
+<p>Open kube-apiserver manifest at <code>/etc/kubernetes/manifests/kube-apiserver.yaml</code> and edit the server flag <code>enable-admission-plugin</code> to append <code>PodSecurityPolicy</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo cat</span> /etc/kubernetes/manifests/kube-apiserver.yaml | <span class="nb">grep</span> <span class="nt">--</span> <span class="s1">'--enable-admission-plugins'</span>
+<span class="go">    - --enable-admission-plugins=NodeRestriction,PodSecurityPolicy
+</span><span class="gp">      #</span>- <span class="nt">--enable-admission-plugins</span><span class="o">=</span>NodeRestriction</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">kubelet[316726]: E0104 12:50:20.738992  316726 kubelet.go:1711] "Failed creating a mirror pod for" err="pods \"kube-apiserver-node-01\" is forbidden: PodSecurityPolicy: unable to admit pod: []" pod="kube-system/kube-apiserver-node-01"</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To let kubelet to create and sync <code>kube-apiserver</code> pod when enabled the pod security policy control, we need to create a system <code>PodSecurityPolicy</code> for group <code>system:authenticated</code> in  namespace <code>kube-system</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>psp-privileged.yaml
+<span class="go">apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: psp-privileged.local.io
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  privileged: true
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+    - '*'
+  volumes:
+    - '*'
+  hostNetwork: true
+  hostPorts:
+    - min: 0
+      max: 65535
+  hostIPC: true
+  hostPID: true
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> psp-privileged.yaml
+<span class="go">Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/psp-privileged.local.io created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create clusterrole psp-privileged.local.io <span class="se">\</span>
+<span class="go">    --resource podsecuritypolicy \
+    --resource-name psp-privileged.local.io \
+    --verb use
+clusterrole.rbac.authorization.k8s.io/psp-privileged.local.io created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create rolebinding psp-privileged.local.io <span class="se">\</span>
+<span class="go">    --clusterrole psp-privileged.local.io \
+    --group system:authenticated \
+    -n kube-system
+rolebinding.rbac.authorization.k8s.io/psp-privileged.local.io created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl describe po <span class="se">\</span>
+<span class="go">    -n kube-system kube-apiserver-node-01 | grep -- '--enable-admission-plugins'
+      --enable-admission-plugins=NodeRestriction,PodSecurityPolicy</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>psp-unprivileged.yaml
+<span class="go">apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: psp-unprivileged.local.io
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+</span><span class="gp">    #</span>allowedCapabilities:
+<span class="gp">    #</span><span class="w">  </span>- <span class="s1">'*'</span>
+<span class="go">  requiredDropCapabilities:
+    - SYS_ADMIN
+  volumes:
+    - configMap
+    - projected
+    - secret
+    - downwardAPI
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: MustRunAsNonRoot
+</span><span class="gp">      #</span>rule: MustRunAs
+<span class="gp">      #</span>ranges:
+<span class="gp">      #</span><span class="w">  </span>- min: 1
+<span class="gp">      #</span><span class="w">    </span>max: 65535
+<span class="go">  runAsGroup:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> psp-unprivileged.yaml
+<span class="go">Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/psp-unprivileged.local.io created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create ns <span class="nb">test</span>
+<span class="go">namespace/test created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="se">\</span>
+<span class="go">    -n test rolebinding edit:sa:default \
+    --clusterrole edit \
+    --serviceaccount test:default
+rolebinding.rbac.authorization.k8s.io/edit:sa:default created
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-07.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-07
+spec:
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nt">--as</span> system:serviceaccount:test:default create <span class="nt">-f</span> sec-07.yaml
+<span class="go">Error from server (Forbidden): error when creating "sec-07.yaml": pods "sec-07" is forbidden: PodSecurityPolicy: unable to admit pod: []
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create clusterrole psp-unprivileged.local.io <span class="se">\</span>
+<span class="go">    --resource podsecuritypolicy \
+    --resource-name psp-unprivileged.local.io
+error: at least one verb must be specified
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create clusterrole psp-unprivileged.local.io <span class="se">\</span>
+<span class="go">    --resource podsecuritypolicy \
+    --resource-name psp-unprivileged.local.io \
+    --verb use
+clusterrole.rbac.authorization.k8s.io/psp-unprivileged.local.io created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create rolebinding <span class="se">\</span>
+<span class="go">    -n test psp-unprivileged.local.io \
+    --clusterrole psp-unprivileged.local.io \
+    --group system:authenticated
+rolebinding.rbac.authorization.k8s.io/psp-unprivileged.local.io created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nt">--as</span> system:serviceaccount:test:default create <span class="se">\</span>
+<span class="go">    -n test \
+    -f sec-07.yaml
+pod/sec-07 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl get pod
+<span class="go">NAME     READY   STATUS                       RESTARTS   AGE
+sec-07   0/1     CreateContainerConfigError   0          5s
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl describe po sec-07
+<span class="c">...
+</span><span class="go">Events:
+  ----     ------     ----              ----               -------
+</span><span class="c">  ...
+</span><span class="go">  Warning  Failed     1s (x3 over 13s)  kubelet            Error: container has runAsNonRoot and image will run as root (pod: "sec-07_test(6aac2153-3869-407f-bad0-9ba5c0f084da)", container: debian)
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-08.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-08
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+    - image: debian:11
+      name: debian
+      stdin: true
+      tty: true
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nt">--as</span> system:serviceaccount:test:default create <span class="se">\</span>
+<span class="go">    -n test \
+    -f sec-08.yaml
+pod/sec-08 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl get po
+<span class="go">NAME     READY   STATUS                       RESTARTS   AGE
+sec-07   0/1     CreateContainerConfigError   0          3m15s
+sec-08   1/1     Running                      0          3s
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> sec-08 <span class="nt">--</span> <span class="nb">id</span>
+<span class="go">uid=1000 gid=1(daemon) groups=1(daemon)</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">ls</span>
+<span class="go">Dockerfile  go.mod  main.go
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>go.mod
+<span class="go">module helloworld
+
+go 1.17
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>main.go
+<span class="go">package main
+
+import (
+	"flag"
+	"fmt"
+	"net/http"
+)
+
+var (
+	port int
+)
+
+func main() {
+	flag.IntVar(&amp;port, "port", 8080, "listening port.")
+	flag.Parse()
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello World.\n"))
+	})
+
+	addr := fmt.Sprintf(":%d", port)
+	fmt.Printf("Starting at %s", addr)
+	http.ListenAndServe(addr, nil)
+}
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>Dockerfile
+<span class="go">FROM golang:1.17-bullseye
+WORKDIR /build
+COPY go.* ./
+RUN go mod download
+
+COPY main.go main.go
+RUN go build -o helloworld
+
+FROM debian:bullseye-slim
+COPY --from=0 /build/helloworld /helloworld
+ENTRYPOINT ["/helloworld"]
+
+</span><span class="gp">$</span><span class="w"> </span>docker build <span class="nb">.</span> <span class="nt">-t</span> helloworld:v0.1
+<span class="go">[+] Building 2.5s (14/14) FINISHED
+</span><span class="c">...
+</span><span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">cat </span>sec-09.yaml
+<span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-09
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+    - image: helloworld:v0.1
+      name: helloworld
+      args:
+        - --port=80
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create <span class="nt">-n</span> <span class="nb">test</span> <span class="nt">-f</span> sec-09.yaml
+<span class="go">pod/sec-09 created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl get po sec-09
+<span class="go">NAME     READY   STATUS    RESTARTS   AGE
+sec-09   1/1     Running   0          6s
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl port-forward pod/sec-09 5000:80 2&gt;&amp;1 <span class="o">&gt;</span> /dev/null &amp;
+<span class="go">[1] 426388
+
+</span><span class="gp">$</span><span class="w"> </span>curl localhost:5000
+<span class="go">Hello World.
+</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/12/29/what-is-mysql/">&laquo; What is MySQL?</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2022/01/07/kubernetes-loging-fluent-bit/">Kubernetes Logging with Fluent Bit &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

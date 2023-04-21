@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>6 - Kubernetes Monitoring</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2020/02/10/kubernetes-crash-course-6/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">6 - Kubernetes Monitoring</h1>
+    
+    
+    <p class="post-meta"><time datetime="2020-02-10T11:11:26+08:00" itemprop="datePublished">Feb 10, 2020</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#prometheus-architecture" id="markdown-toc-prometheus-architecture">Prometheus Architecture</a></li>
+  <li><a href="#data-model-tsdb" id="markdown-toc-data-model-tsdb">Data Model (TSDB)</a></li>
+  <li><a href="#metric-names-and-labels" id="markdown-toc-metric-names-and-labels">Metric Names and Labels</a></li>
+  <li><a href="#notation-time-series" id="markdown-toc-notation-time-series">Notation: Time Series</a></li>
+  <li><a href="#querying-prometheus-promql" id="markdown-toc-querying-prometheus-promql">Querying Prometheus: PromQL</a></li>
+  <li><a href="#configuration" id="markdown-toc-configuration">Configuration</a></li>
+  <li><a href="#prometheusyml" id="markdown-toc-prometheusyml">prometheus.yml</a></li>
+  <li><a href="#exporters-and-integrations" id="markdown-toc-exporters-and-integrations">Exporters and Integrations</a></li>
+  <li><a href="#kubernetes-monitoring-architecture" id="markdown-toc-kubernetes-monitoring-architecture">Kubernetes Monitoring Architecture</a></li>
+  <li><a href="#visualization" id="markdown-toc-visualization">Visualization</a></li>
+  <li><a href="#the-use-and-red-methods" id="markdown-toc-the-use-and-red-methods">The USE and RED Methods</a></li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+</ul>
+
+<hr />
+
+<h3 id="prometheus-architecture">Prometheus Architecture</h3>
+
+<p><img src="https://prometheus.io/assets/architecture.png" alt="Prometheus Architecture" /></p>
+
+<h3 id="data-model-tsdb">Data Model (TSDB)</h3>
+
+<ul>
+  <li>A time series is a series of data points indexed (or listed or graphed) in time order. Most commonly, a time series is a sequence taken at successive equally spaced points in time. Thus it is a sequence of discrete-time data.</li>
+  <li>Prometheus fundamentally stores all data as time series: streams of timestamped values belonging to the same metric and the same set of labeled dimensions.</li>
+  <li>Every time series is uniquely identified by its <strong>metric</strong> name and optional key-value pairs called <strong>labels</strong>.</li>
+</ul>
+
+<h3 id="metric-names-and-labels">Metric Names and Labels</h3>
+
+<ul>
+  <li>The metric name specifies the general feature of a system that is measured (e.g. http_requests_total - the total number of HTTP requests received).</li>
+  <li>Labels enable Prometheus’s dimensional data model: any given combination of labels for the same metric name identifies a particular dimensional instantiation of that metric (for example: all HTTP requests that used the method POST to the /api/tracks handler).</li>
+  <li>The query language allows filtering and aggregation based on these dimensions.</li>
+  <li>Changing any label value, including adding or removing a label, will create a new time series.</li>
+</ul>
+
+<h3 id="notation-time-series">Notation: Time Series</h3>
+
+<ul>
+  <li>
+    <p>Given a metric name and a set of labels, time series are frequently identified using this notation:</p>
+
+    <p><code class="language-plaintext highlighter-rouge">&lt;metric name&gt;{&lt;label name&gt;=&lt;label value&gt;, ...}</code></p>
+  </li>
+  <li>
+    <p>For example, a time series with the metric name api_http_requests_total and the labels method=”POST” and handler=”/messages” could be written like this:</p>
+
+    <p><code class="language-plaintext highlighter-rouge">api_http_requests_total{method="POST", handler="/messages"}</code></p>
+  </li>
+</ul>
+
+<h3 id="querying-prometheus-promql">Querying Prometheus: PromQL</h3>
+
+<ul>
+  <li>Prometheus provides a functional query language called <strong>PromQL</strong> (Prometheus Query Language) that lets the user select and aggregate time series data in real time.</li>
+  <li>The result of an expression can either be shown as a graph, viewed as tabular data in Prometheus’s expression browser, or consumed by external systems via the HTTP API.</li>
+</ul>
+
+<h3 id="configuration">Configuration</h3>
+
+<ul>
+  <li>Prometheus is configured via command-line flags and a configuration file. While the command-line flags configure immutable system parameters (such as storage locations, amount of data to keep on disk and in memory, etc.),</li>
+  <li>the configuration file defines everything related to scraping jobs and their instances, as well as which rule files to load.</li>
+  <li><a href="https://prometheus.io/docs/prometheus/latest/configuration/configuration/">https://prometheus.io/docs/prometheus/latest/configuration/configuration/</a></li>
+</ul>
+
+<h3 id="prometheusyml">prometheus.yml</h3>
+
+<div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">global</span><span class="pi">:</span>
+  <span class="na">scrape_interval</span><span class="pi">:</span>     <span class="s">15s</span> <span class="c1"># Set the scrape interval to every 15 seconds. Default is every 1 minute.</span>
+
+<span class="na">scrape_configs</span><span class="pi">:</span>
+  <span class="c1"># The job name is added as a label `job=&lt;job_name&gt;` to any timeseries scraped from this config.</span>
+  <span class="pi">-</span> <span class="na">job_name</span><span class="pi">:</span> <span class="s1">'</span><span class="s">prometheus'</span>
+    <span class="c1"># metrics_path defaults to '/metrics'</span>
+    <span class="c1"># scheme defaults to 'http'.</span>
+    <span class="na">static_configs</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">targets</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">localhost:9090'</span><span class="pi">]</span>
+</code></pre></div></div>
+
+<h3 id="exporters-and-integrations">Exporters and Integrations</h3>
+
+<ul>
+  <li>There are a number of libraries and servers which help in exporting existing metrics from third-party systems as Prometheus metrics.</li>
+  <li>
+    <p>This is useful for cases where it is not feasible to instrument a given system with Prometheus metrics directly (for example, HAProxy or Linux system stats).</p>
+  </li>
+  <li><a href="https://prometheus.io/docs/instrumenting/exporters/">https://prometheus.io/docs/instrumenting/exporters/</a></li>
+  <li>
+    <p><a href="https://github.com/prometheus/node_exporter">https://github.com/prometheus/node_exporter</a></p>
+  </li>
+  <li><a href="https://github.com/prometheus-net/prometheus-net">https://github.com/prometheus-net/prometheus-net</a></li>
+</ul>
+
+<h3 id="kubernetes-monitoring-architecture">Kubernetes Monitoring Architecture</h3>
+
+<ul>
+  <li>
+    <p>System metrics (core metrics &amp; non-metrics)</p>
+
+    <p>System metrics are generic metrics that are generally available from every entity that is monitored (e.g. usage of CPU and memory by container and node).</p>
+  </li>
+  <li>
+    <p>Service metrics</p>
+
+    <p>Service metrics are explicitly defined in application code and exported (e.g. number of 500s served by the API server).</p>
+  </li>
+  <li>
+    <p>Core (system) metrics</p>
+
+    <p>which are metrics that Kubernetes understands and uses for operation of its internal components and core utilities – for example, metrics used for scheduling (including the inputs to the algorithms for resource estimation, initial resources/vertical autoscaling, cluster autoscaling, and horizontal pod autoscaling excluding custom metrics), the kube dashboard, and “kubectl top.”</p>
+  </li>
+  <li>
+    <p><a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/monitoring_architecture.md">https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/monitoring_architecture.md</a></p>
+  </li>
+</ul>
+
+<h3 id="visualization">Visualization</h3>
+
+<ul>
+  <li>Expression browser</li>
+  <li><strong>Grafana</strong></li>
+</ul>
+
+<h3 id="the-use-and-red-methods">The USE and RED Methods</h3>
+
+<ul>
+  <li>
+    <p><strong>USE</strong>: Utilization, saturation, and errors</p>
+  </li>
+  <li>
+    <p><strong>RED</strong>: Requests, Errors, and Duration</p>
+  </li>
+  <li>
+    <p>https://blog.freshtracks.io/a-deep-dive-into-kubernetes-metrics-b190cc97f0f6</p>
+  </li>
+  <li>
+    <p>http://www.brendangregg.com/usemethod.html</p>
+  </li>
+</ul>
+
+<h3 id="references">References</h3>
+
+<ul>
+  <li><a href="https://en.wikipedia.org/wiki/Time_series">https://en.wikipedia.org/wiki/Time_series</a></li>
+  <li><a href="https://prometheus.io/docs/concepts/data_model/">https://prometheus.io/docs/concepts/data_model/</a></li>
+  <li><a href="https://prometheus.io/docs/prometheus/latest/querying/basics/">https://prometheus.io/docs/prometheus/latest/querying/basics/</a></li>
+  <li><a href="https://prometheus.io/docs/prometheus/latest/querying/operators/">https://prometheus.io/docs/prometheus/latest/querying/operators/</a></li>
+  <li><a href="https://prometheus.io/docs/prometheus/latest/querying/functions/">https://prometheus.io/docs/prometheus/latest/querying/functions/</a></li>
+  <li><a href="https://prometheus.io/docs/prometheus/latest/configuration/configuration/">https://prometheus.io/docs/prometheus/latest/configuration/configuration/</a></li>
+  <li><a href="https://prometheus.io/docs/instrumenting/exporters/">https://prometheus.io/docs/instrumenting/exporters/</a></li>
+  <li><a href="https://github.com/prometheus/node_exporter">https://github.com/prometheus/node_exporter</a></li>
+  <li><a href="https://github.com/prometheus-net/prometheus-net">https://github.com/prometheus-net/prometheus-net</a></li>
+  <li>[https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/monitoring_architecture.md](monitoring_architecture.md)</li>
+  <li><a href="https://github.com/kubernetes/kube-state-metrics">https://github.com/kubernetes/kube-state-metrics</a></li>
+  <li><a href="https://github.com/kubernetes-sigs/metrics-server/">https://github.com/kubernetes-sigs/metrics-server/</a></li>
+  <li><a href="https://grafana.com/docs/grafana/latest/">https://grafana.com/docs/grafana/latest/</a></li>
+  <li><a href="https://grafana.com/docs/grafana/latest/guides/glossary/">https://grafana.com/docs/grafana/latest/guides/glossary/</a></li>
+  <li><a href="https://blog.freshtracks.io/a-deep-dive-into-kubernetes-metrics-b190cc97f0f6">https://blog.freshtracks.io/a-deep-dive-into-kubernetes-metrics-b190cc97f0f6</a></li>
+  <li><a href="http://www.brendangregg.com/usemethod.html">http://www.brendangregg.com/usemethod.html</a></li>
+</ul>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2020/02/10/kubernetes-crash-course-5/">&laquo; 5 - Kubernetes StatefulSet</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2020/04/07/golang-learning-notes/">Golang Learning Notes &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

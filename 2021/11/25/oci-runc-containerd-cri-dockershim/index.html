@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>RUNC CONTAINERD CRI DOCKERSHIM</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/11/25/oci-runc-containerd-cri-dockershim/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">RUNC CONTAINERD CRI DOCKERSHIM</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-11-25T11:03:28+08:00" itemprop="datePublished">Nov 25, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#open-container-initiative">1. Open Container Initiative</a></li>
+<li><a href="#runc">2. runC</a></li>
+<li><a href="#containerd">3. containerd</a>
+<ul class="sectlevel2">
+<li><a href="#containerd-config">3.1. containerd config</a></li>
+<li><a href="#containerd-plugins">3.2. containerd plugins</a></li>
+<li><a href="#containerdcri">3.3. containerd/cri</a></li>
+<li><a href="#containerdnamespaces">3.4. containerd/namespaces</a></li>
+<li><a href="#contianerdhttp_proxy">3.5. contianerd/http_proxy</a></li>
+</ul>
+</li>
+<li><a href="#crictl">4. crictl</a></li>
+<li><a href="#docker-and-dockershim">5. docker and dockershim</a></li>
+<li><a href="#references">6. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="open-container-initiative">1. Open Container Initiative</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <a href="https://opencontainers.org/"><strong>Open Container Initiative</strong></a> (OCI) is an open governance structure for the express purpose of creating open industry standards around <strong>container formats</strong> and <strong>runtimes</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Docker is donating its container format and runtime, <a href="https://github.com/opencontainers/runc"><strong>runC</strong></a>, to the OCI to serve as the cornerstone of this new effort.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="runc">2. runC</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><em>unix principles: several simple components are better than a single, complicated one</em>.</p>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/opencontainers/runc"><strong>runC</strong></a> is a lightweight, portable container runtime for creating and running containers according to the <a href="https://github.com/opencontainers/runtime-spec">OCI container runtime specification</a>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>runC only supports Linux.</p>
+</li>
+<li>
+<p>runc is a CLI tool for spawning and running containers on Linux according to the OCI specification.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/Microsoft/hcsshim/tree/master/cmd/runhcs"><strong>runhcs</strong></a> is a fork of runc. Like runc, runhcs is a command line client for running applications packaged on Windows according to the OCI format and is a compliant implementation of the OCI specification.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>runc <span class="nb">help</span>
+<span class="go">NAME:
+   runc - Open Container Initiative runtime
+
+runc is a command line client for running applications packaged according to
+the Open Container Initiative (OCI) format and is a compliant implementation of the
+Open Container Initiative specification.
+
+runc integrates well with existing process supervisors to provide a production
+container runtime environment for applications. It can be used with your
+existing process monitoring tools and the container will be spawned as a
+direct child of the process supervisor.
+
+Containers are configured using bundles. A bundle for a container is a directory
+that includes a specification file named "config.json" and a root filesystem.
+The root filesystem contains the contents of the container.
+
+To start a new instance of a container:
+
+</span><span class="gp">    #</span><span class="w"> </span>runc run <span class="o">[</span> <span class="nt">-b</span> bundle <span class="o">]</span> &lt;container-id&gt;
+<span class="go">
+</span><span class="gp">Where "&lt;container-id&gt;</span><span class="s2">" is your name for the instance of the container that you
+</span><span class="go">are starting. The name you provide for the container instance must be unique on
+your host. Providing the bundle directory using "-b" is optional. The default
+value for "bundle" is the current directory.
+
+USAGE:
+   runc [global options] command [command options] [arguments...]
+
+VERSION:
+   1.0.2
+commit: v1.0.2-0-g52b36a2
+spec: 1.0.2-dev
+go: go1.16.8
+libseccomp: 2.5.1
+
+COMMANDS:
+   checkpoint  checkpoint a running container
+   create      create a container
+   delete      delete any resources held by the container often used with detached container
+   events      display container events such as OOM notifications, cpu, memory, and IO usage statistics
+   exec        execute new process inside the container
+   init        initialize the namespaces and launch the process (do not call it outside of runc)
+   kill        kill sends the specified signal (default: SIGTERM) to the container's init process
+   list        lists containers started by runc with the given root
+   pause       pause suspends all processes inside the container
+   ps          ps displays the processes running inside a container
+   restore     restore a container from a previous checkpoint
+   resume      resumes all processes that have been previously paused
+   run         create and run a container
+   spec        create a new specification file
+   start       executes the user defined process in a created container
+   state       output the state of a container
+   update      update container resource constraints
+   help, h     Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --debug             enable debug output for logging
+   --log value         set the log file path where internal debug information is written
+   --log-format value  set the format used by logs ('text' (default), or 'json') (default: "text")
+   --root value        root directory for storage of container state (this should be located in tmpfs) (default: "/run/user/1000/runc")
+   --criu value        path to the criu binary used for checkpoint and restore (default: "criu")
+   --systemd-cgroup    enable systemd cgroup support, expects cgroupsPath to be of form "slice:prefix:name" for e.g. "system.slice:runc:434234"
+   --rootless value    ignore cgroup permission errors ('true', 'false', or 'auto') (default: "auto")
+   --help, -h          show help
+   --version, -v       print the version</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>dockerd <span class="nt">--help</span> | <span class="nb">grep </span>root
+<span class="go">      --data-root string                        Root directory of persistent Docker state (default "/var/lib/docker")</span>
+<span class="hll"><span class="go">      --exec-root string                        Root directory for execution state files (default "/var/run/docker")</span>
+</span><span class="gp">      --rootless                                Enable rootless mode;</span><span class="w"> </span>typically used with RootlessKit
+
+<span class="hll"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>runc <span class="nt">--root</span> /var/run/docker/runtime-runc/moby list
+</span><span class="go">ID                                                                 PID         STATUS      BUNDLE                                                                                                                CREATED                          OWNER</span>
+<span class="go">011d6fd316e09fc8a5ff3b226d35b9394cd93c57604c91aa52573559368a822c   940971      running     /run/containerd/io.containerd.runtime.v2.task/moby/011d6fd316e09fc8a5ff3b226d35b9394cd93c57604c91aa52573559368a822c   2021-11-25T04:10:25.216394136Z   root</span>
+<span class="c">...</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>runc <span class="nt">--root</span> /var/run/containerd/runc/k8s.io list
+<span class="go">ID                                                                 PID         STATUS      BUNDLE                                                                                                                  CREATED                          OWNER
+14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704   1191        running     /run/containerd/io.containerd.runtime.v2.task/k8s.io/14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704   2021-12-08T12:55:21.616268255Z   root
+</span><span class="c">...
+</span><span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>runc <span class="nt">--root</span> /var/run/containerd/runc/k8s.io state 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704
+<span class="go">{
+  "ociVersion": "1.0.2-dev",
+  "id": "14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704",
+  "pid": 1191,
+  "status": "running",
+  "bundle": "/run/containerd/io.containerd.runtime.v2.task/k8s.io/14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704",
+  "rootfs": "/run/containerd/io.containerd.runtime.v2.task/k8s.io/14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704/rootfs",
+  "created": "2021-12-08T12:55:21.616268255Z",
+  "annotations": {
+    "io.kubernetes.cri.container-name": "kube-flannel",
+    "io.kubernetes.cri.container-type": "container",
+    "io.kubernetes.cri.image-name": "quay.io/coreos/flannel:v0.15.0",
+    "io.kubernetes.cri.sandbox-id": "f0c7bf11fac17f29a8df40f1d937ec35df81e202e42ea8a604e37806aebbb662",
+    "io.kubernetes.cri.sandbox-name": "kube-flannel-ds-6xpbj",
+    "io.kubernetes.cri.sandbox-namespace": "kube-system"
+  },
+  "owner": ""
+}
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>runc <span class="nt">--root</span> /var/run/containerd/runc/k8s.io ps 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704
+<span class="go">UID         PID   PPID  C STIME TTY          TIME CMD
+root       1191    806  0 Dec08 ?        00:00:25 /opt/bin/flanneld --ip-masq --kube-subnet-mgr</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="containerd">3. containerd</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://containerd.io/"><strong>containerd</strong></a> is available as a daemon for Linux and Windows. It manages the complete container lifecycle of its host system, from image transfer and storage to container execution and supervision to low-level storage to network attachments and beyond.</p>
+</div>
+<div class="paragraph">
+<p><span class="image"><img src="/assets/container/contianerd/architecture.png" alt="architecture" width="45%" height="45%"></span>
+<span class="image"><img src="https://docs.microsoft.com/en-us/virtualization/windowscontainers/deploy-containers/media/containerd-platform.png" alt="containerd platform" width="45%" height="45%"></span></p>
+</div>
+<div class="paragraph">
+<p><strong>containerd</strong> is designed to be embedded into a larger system, rather than being used directly by developers or end-users.</p>
+</div>
+<div class="paragraph">
+<p>There are many different ways to use containerd:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If you are a developer working on containerd you can use the <strong>ctr</strong> tool to quickly test features and functionality without writing extra code</p>
+</li>
+<li>
+<p>If you want to integrate containerd into your project, you can use a simple client package.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>ctr <span class="nb">help</span>
+<span class="go">NAME:
+   ctr -
+        __
+  _____/ /______
+ / ___/ __/ ___/
+/ /__/ /_/ /
+\___/\__/_/
+
+containerd CLI
+
+
+USAGE:
+   ctr [global options] command [command options] [arguments...]
+
+VERSION:
+   1.4.11
+
+DESCRIPTION:
+
+ctr is an unsupported debug and administrative client for interacting
+with the containerd daemon. Because it is unsupported, the commands,
+options, and operations are not guaranteed to be backward compatible or
+stable from release to release of the containerd project.
+
+COMMANDS:
+   plugins, plugin            provides information about containerd plugins
+   version                    print the client and server versions
+   containers, c, container   manage containers
+   content                    manage content
+   events, event              display containerd events
+   images, image, i           manage images
+   leases                     manage leases
+   namespaces, namespace, ns  manage namespaces
+   pprof                      provide golang pprof outputs for containerd
+   run                        run a container
+   snapshots, snapshot        manage snapshots
+   tasks, t, task             manage tasks
+   install                    install a new package
+   oci                        OCI tools
+   shim                       interact with a shim directly
+   help, h                    Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --debug                      enable debug output in logs
+</span><span class="gp">   --address value, -a value    address for containerd's GRPC server (default: "/run/containerd/containerd.sock") [$</span>CONTAINERD_ADDRESS]
+<span class="go">   --timeout value              total timeout for ctr commands (default: 0s)
+   --connect-timeout value      timeout for connecting to containerd (default: 0s)
+</span><span class="gp">   --namespace value, -n value  namespace to use with commands (default: "default") [$</span>CONTAINERD_NAMESPACE]
+<span class="go">   --help, -h                   show help
+   --version, -v                print the version</span></code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="containerd-config">3.1. containerd config</h3>
+<div class="paragraph">
+<p><strong>containerd</strong> is meant to be a simple daemon to run on any system. It provides a minimal <a href="https://github.com/containerd/containerd/blob/main/docs/ops.md">config</a> with knobs to configure the daemon and what <a href="https://github.com/containerd/containerd/blob/main/docs/PLUGINS.md"><strong>plugins</strong></a> are used when necessary.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>containerd <span class="nb">help</span>
+<span class="go">NAME:</span>
+<span class="go">   containerd -</span>
+<span class="go">                    __        _                     __</span>
+<span class="go">  _________  ____  / /_____ _(_)___  ___  _________/ /</span>
+<span class="go"> / ___/ __ \/ __ \/ __/ __ `/ / __ \/ _ \/ ___/ __  /</span>
+<span class="go">/ /__/ /_/ / / / / /_/ /_/ / / / / /  __/ /  / /_/ /</span>
+<span class="go">\___/\____/_/ /_/\__/\__,_/_/_/ /_/\___/_/   \__,_/</span>
+
+<span class="go">high performance container runtime</span>
+
+
+<span class="go">USAGE:</span>
+<span class="go">   containerd [global options] command [command options] [arguments...]</span>
+
+<span class="go">VERSION:</span>
+<span class="go">   1.4.11</span>
+
+<span class="go">DESCRIPTION:</span>
+
+<span class="go">containerd is a high performance container runtime whose daemon can be started</span>
+<span class="go">by using this command. If none of the *config*, *publish*, or *help* commands</span>
+<span class="go">are specified, the default action of the **containerd** command is to start the</span>
+<span class="go">containerd daemon in the foreground.</span>
+
+
+<span class="go">A default configuration is used if no TOML configuration is specified or located</span>
+<span class="go">at the default file location. The *containerd config* command can be used to</span>
+<span class="go">generate the default configuration for containerd. The output of that command</span>
+<span class="go">can be used and modified as necessary as a custom configuration.</span>
+
+<span class="go">COMMANDS:</span>
+<span class="go">   config    information on the containerd config</span>
+<span class="go">   publish   binary to publish events to containerd</span>
+<span class="go">   oci-hook  provides a base for OCI runtime hooks to allow arguments to be injected.</span>
+<span class="go">   help, h   Shows a list of commands or help for one command</span>
+
+<span class="go">GLOBAL OPTIONS:</span>
+<span class="go">   --config value, -c value     path to the configuration file (default: "/etc/containerd/config.toml")</span>
+<span class="go">   --log-level value, -l value  set the logging level [trace, debug, info, warn, error, fatal, panic]</span>
+<span class="go">   --address value, -a value    address for containerd's GRPC server</span>
+<span class="hll"><span class="go">   --root value                 containerd root directory</span>
+</span><span class="hll"><span class="go">   --state value                containerd state directory</span>
+</span><span class="go">   --help, -h                   show help</span>
+<span class="go">   --version, -v                print the version</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>While a few daemon level options can be set from CLI flags, the majority of containerd&#8217;s configuration is kept in the configuration file. The default path for the config file is located at <code>/etc/containerd/config.toml</code>. You can change this path via the <code>--config,-c</code> flags when booting the daemon.</p>
+</div>
+<div class="paragraph">
+<p>In the containerd config file you will find settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>persistent data</strong></p>
+<div class="paragraph">
+<p><code>root</code> will be used to store any type of persistent data for containerd. Snapshots, content, metadata for containers and image, as well as any plugin data will be kept in this location.</p>
+</div>
+<div class="paragraph">
+<p>The root is also <code>namespaced for plugins</code> that containerd loads. Each plugin will have its own directory where it stores data. containerd itself does not actually have any persistent data that it needs to store, its functionality comes from the plugins that are loaded.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">/var/lib/containerd/
+├── io.containerd.content.v1.content
+│   └── ingest
+├── io.containerd.metadata.v1.bolt
+│   └── meta.db
+├── io.containerd.runtime.v1.linux
+├── io.containerd.runtime.v2.task
+├── io.containerd.snapshotter.v1.btrfs
+├── io.containerd.snapshotter.v1.native
+│   └── snapshots
+├── io.containerd.snapshotter.v1.overlayfs
+│   └── snapshots
+└── tmpmounts</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>runtime state</strong></p>
+<div class="paragraph">
+<p><code>state</code> will be used to store any type of ephemeral data. Sockets, pids, runtime state, mount points, and other plugin data that must not persist between reboots are stored in this location.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">run/containerd/
+├── containerd.sock
+├── containerd.sock.ttrpc
+├── io.containerd.runtime.v1.linux
+└── io.containerd.runtime.v2.task</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Both the <code>root</code> and <code>state</code> directories are namespaced for plugins.</p>
+</div>
+<div class="paragraph">
+<p>By the way, you can also type the command: <code>containerd config default</code> to print the output of the default config. The follow sample is used by Docker CE as default.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="toml"><span class="hll"><span class="py">disabled_plugins</span> <span class="p">=</span> <span class="nn">["cri"]</span>
+</span>
+<span class="c">#root = "/var/lib/containerd"</span>
+<span class="c">#state = "/run/containerd"</span>
+<span class="c">#subreaper = true</span>
+<span class="c">#oom_score = 0</span>
+
+<span class="c">#[grpc]</span>
+<span class="c">#  address = "/run/containerd/containerd.sock"</span>
+<span class="c">#  uid = 0</span>
+<span class="c">#  gid = 0</span>
+
+<span class="c">#[debug]</span>
+<span class="c">#  address = "/run/containerd/debug.sock"</span>
+<span class="c">#  uid = 0</span>
+<span class="c">#  gid = 0</span>
+<span class="c">#  level = "info"</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="containerd-plugins">3.2. containerd plugins</h3>
+<div class="paragraph">
+<p>At the end of the day, containerd&#8217;s core is very small. The real functionality comes from <a href="https://github.com/containerd/containerd/blob/main/docs/PLUGINS.md">plugins</a>. Everything from snapshotters, runtimes, and content are all plugins that are registered at runtime. Because these various plugins are so different we need a way to provide type safe configuration to the plugins. The only way we can do this is via the config file and not CLI flags.</p>
+</div>
+<div class="sect3">
+<h4 id="built-in-plugins">3.2.1. Built-in Plugins</h4>
+<div class="paragraph">
+<p>containerd uses plugins internally to ensure that internal implementations are decoupled, stable, and treated equally with external plugins. To see all the plugins containerd has, use <code>ctr plugins ls</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr plugin <span class="nb">ls</span>
+<span class="go">TYPE                            ID                       PLATFORMS      STATUS
+io.containerd.content.v1        content                  -              ok
+io.containerd.snapshotter.v1    aufs                     linux/amd64    error
+io.containerd.snapshotter.v1    btrfs                    linux/amd64    error
+io.containerd.snapshotter.v1    devmapper                linux/amd64    error
+io.containerd.snapshotter.v1    native                   linux/amd64    ok
+io.containerd.snapshotter.v1    overlayfs                linux/amd64    ok
+io.containerd.snapshotter.v1    zfs                      linux/amd64    error
+io.containerd.metadata.v1       bolt                     -              ok
+io.containerd.differ.v1         walking                  linux/amd64    ok
+io.containerd.gc.v1             scheduler                -              ok
+</span><span class="c">...</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>From the output all the plugins can be seen as well those which did not successfully load. In this case <code>aufs</code> and <code>zfs</code> are expected not to load since they are not support on the machine. The logs will show why it failed, but you can also get more details using the <code>-d</code> option.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr plugin <span class="nb">ls</span> <span class="nt">-d</span> <span class="nb">id</span><span class="o">==</span>aufs <span class="nb">id</span><span class="o">==</span>zfs
+<span class="go">Type:          io.containerd.snapshotter.v1
+ID:            aufs
+Platforms:     linux/amd64
+Exports:
+               root      /var/lib/containerd/io.containerd.snapshotter.v1.aufs
+Error:
+               Code:        Unknown
+               Message:     aufs is not supported (modprobe aufs failed: exit status 1 "modprobe: FATAL: Module aufs not found in directory /lib/modules/5.10.0-9-amd64\n"): skip plugin
+
+Type:          io.containerd.snapshotter.v1
+ID:            zfs
+Platforms:     linux/amd64
+Exports:
+               root      /var/lib/containerd/io.containerd.snapshotter.v1.zfs
+Error:
+               Code:        Unknown
+               Message:     path /var/lib/containerd/io.containerd.snapshotter.v1.zfs must be a zfs filesystem to be used with the zfs snapshotter: skip plugin</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="configuration">3.2.2. Configuration</h4>
+<div class="paragraph">
+<p>Plugins are configured using the <code>[plugins]</code> section of containerd&#8217;s config. Every plugin can have its own section using the pattern <code>[plugins.&lt;plugin id&gt;]</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="toml"><span class="nn">[plugins]</span>
+  <span class="nn">[plugins."io.containerd.grpc.v1.cri"]</span>
+<span class="hll">    <span class="py">sandbox_image</span> <span class="p">=</span> <span class="s">"k8s.gcr.io/pause:3.5"</span>
+</span>    <span class="c"># &lt;other paramters&gt;</span>
+    <span class="nn">[plugins."io.containerd.grpc.v1.cri".cni]</span>
+<span class="hll">      <span class="py">bin_dir</span> <span class="p">=</span> <span class="s">"/opt/cni/bin"</span>
+</span><span class="hll">      <span class="py">conf_dir</span> <span class="p">=</span> <span class="s">"/etc/cni/net.d"</span>
+</span>      <span class="c"># &lt;other paramters&gt;</span>
+    <span class="nn">[plugins."io.containerd.grpc.v1.cri".containerd]</span>
+        <span class="c"># &lt;other paramters&gt;</span>
+        <span class="nn">[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]</span>
+          <span class="c"># &lt;other paramters&gt;</span>
+          <span class="nn">[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]</span>
+            <span class="c"># &lt;other paramters&gt;</span>
+<span class="hll">            <span class="py">SystemdCgroup</span> <span class="p">=</span> <span class="kc">true</span>
+</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="containerdcri">3.3. containerd/cri</h3>
+<div class="paragraph">
+<p><a href="https://github.com/containerd/containerd/tree/main/pkg/cri"><strong>cri</strong></a> is a containerd built-in plugin implementation of <a href="https://github.com/kubernetes/cri-api">Kubernetes container runtime interface (CRI)</a>.</p>
+</div>
+<div class="paragraph">
+<p>While OCI specs defines a single container, CRI (container runtime interface) describes containers as workload(s) in a shared sandbox environment called a pod. Pods can contain one or more container workloads.</p>
+</div>
+<div class="paragraph">
+<p>With it, you could run Kubernetes using containerd as the container runtime.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/kubernetes/containerd/cri.png" alt="cri" width="55%" height="55%">
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="containerdnamespaces">3.4. containerd/namespaces</h3>
+<div class="paragraph">
+<p>containerd offers a fully <a href="https://github.com/containerd/containerd/blob/main/docs/namespaces.md">namespaced API</a> so multiple consumers can all use a single containerd instance without conflicting with one another. Namespaces allow <strong>multi-tenancy</strong> within a single daemon.</p>
+</div>
+<div class="paragraph">
+<p>Consumers are able to have containers with the same names but with settings and/or configurations that vary drastically. For example, system or infrastructure level containers can be hidden in one namespace while user level containers are kept in another. Underlying image content is still shared via content addresses but image names and metadata are separate per namespace.</p>
+</div>
+<div class="paragraph">
+<p>Namespaces allow various features, most notably, the ability for one client to create, edit, and delete resources without affecting another client. A resource can be anything from an: image, container, task, or snapshot.</p>
+</div>
+<div class="paragraph">
+<p>When a client queries for a resource, they only see the resources that are part of their namespace.</p>
+</div>
+<div class="listingblock">
+<div class="title"><code>ctr -n alice image</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> alice image pull docker.io/library/nginx:latest
+<span class="go">docker.io/library/nginx:latest:                                                   resolved       |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">index-sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">manifest-sha256:2f14a471f2c2819a3faf88b72f56a0372ff5af4cb42ec45aab00c03ca5c9989f: done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:266f639b35ad602ee76c3b4d4cf88285a50adf8f561d8d96d331db732fe16982:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">config-sha256:ea335eea17ab984571cd4a3bcf90a0413773b559c75ef4cda07d0ce952b00291:   done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:eff15d958d664f0874d16aee393cc44387031ee0a68ef8542d0056c747f378e8:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:1e5351450a593c3a3d7a5104f93c8b80d8dc00c827158cb3a5bf985916ea3f75:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:2df63e6ce2be0b3cefd3e659558e92b8085f032db96828343ec9cf0b7d4409fe:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:9171c7ae368c6ca24dae913fce356801f624f656360c78ca956a92c3f0fe0ec7:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:020f975acd28936c7ff43827238aed4771d14235dc983389ec149811f7e0b7cf:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="hll"><span class="go">elapsed: 55.1s                                                                    total:  53.2 M (988.4 KiB/s)</span>
+</span><span class="go">unpacking linux/amd64 sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e...</span>
+<span class="go">done</span>
+
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> alice image <span class="nb">ls</span>
+<span class="go">REF                            TYPE                                                      DIGEST                                                                  SIZE     PLATFORMS                                                                                               LABELS</span>
+<span class="go">docker.io/library/nginx:latest application/vnd.docker.distribution.manifest.list.v2+json sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e 54.1 MiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/s390x -</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><code>ctr -n bob image</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob image <span class="nb">ls</span>
+<span class="go">REF TYPE DIGEST SIZE PLATFORMS LABELS</span>
+
+<span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob image pull docker.io/library/nginx:latest
+<span class="go">docker.io/library/nginx:latest:                                                   resolved       |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">index-sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">manifest-sha256:2f14a471f2c2819a3faf88b72f56a0372ff5af4cb42ec45aab00c03ca5c9989f: done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:266f639b35ad602ee76c3b4d4cf88285a50adf8f561d8d96d331db732fe16982:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">config-sha256:ea335eea17ab984571cd4a3bcf90a0413773b559c75ef4cda07d0ce952b00291:   done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:eff15d958d664f0874d16aee393cc44387031ee0a68ef8542d0056c747f378e8:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:1e5351450a593c3a3d7a5104f93c8b80d8dc00c827158cb3a5bf985916ea3f75:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:2df63e6ce2be0b3cefd3e659558e92b8085f032db96828343ec9cf0b7d4409fe:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:9171c7ae368c6ca24dae913fce356801f624f656360c78ca956a92c3f0fe0ec7:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="go">layer-sha256:020f975acd28936c7ff43827238aed4771d14235dc983389ec149811f7e0b7cf:    done           |++++++++++++++++++++++++++++++++++++++|</span>
+<span class="hll"><span class="go">elapsed: 2.5 s                                                                    total:   0.0 B (0.0 B/s)</span>
+</span><span class="go">unpacking linux/amd64 sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e...</span>
+<span class="go">done</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">list namepscaes</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr ns <span class="nb">ls</span>
+<span class="go">NAME   LABELS
+alice
+bob
+k8s.io
+moby</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As we see, there are namespaces <code>alice</code> and <code>bob</code>, but what are <code>moby</code> and <code>k8s.io</code> ?</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>moby</code> is default namespace for <a href="https://docs.docker.com/engine/reference/commandline/dockerd/">dockerd</a> and <code>k8s.io</code> is default namespace for <a href="https://kubernetes.io/docs/concepts/overview/components/#kubelet">kubelet</a>, i.e. Kubernetes.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>dockerd <span class="nt">--help</span> | <span class="nb">grep </span>containerd-namespace
+<span class="go">      --containerd-namespace string             Containerd namespace to use (default "moby")
+
+</span><span class="gp">$</span><span class="w"> </span>kubelet <span class="nt">--help</span> | <span class="nb">grep </span>containerd-namespace
+<span class="go">      --containerd-namespace string                              containerd namespace (default "k8s.io") (DEPRECATED: This is a cadvisor flag that was mistakenly registered with the Kubelet. Due to legacy concerns, it will follow the standard CLI deprecation timeline before being removed.)</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="title"><code>ctr -n alice run</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> alice run <span class="nt">--null-io</span> <span class="nt">-d</span> docker.io/library/nginx:latest nginx-a
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> alice container <span class="nb">ls</span>
+<span class="go">CONTAINER    IMAGE                             RUNTIME
+nginx-a      docker.io/library/nginx:latest    io.containerd.runc.v2
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> alice t <span class="nb">ls</span>
+<span class="go">TASK       PID       STATUS
+nginx-a    967104    RUNNING</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><code>ctr -n bob run</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob container <span class="nb">ls</span>
+<span class="go">CONTAINER    IMAGE    RUNTIME
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob task <span class="nb">ls</span>
+<span class="go">TASK    PID    STATUS
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob run <span class="nt">--null-io</span> <span class="nt">-d</span> docker.io/library/nginx:latest nginx-b
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob t <span class="nb">ls</span>
+<span class="go">TASK       PID       STATUS
+nginx-b    967330    RUNNING</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"><code>nsenter</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> alice t <span class="nb">ls</span>
+<span class="go">TASK       PID       STATUS
+nginx-a    967104    RUNNING
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> bob t <span class="nb">ls</span>
+<span class="go">TASK       PID       STATUS
+nginx-b    967330    RUNNING
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>nsenter <span class="nt">-t</span> 967104 <span class="nt">-a</span> lsns
+<span class="go">        NS TYPE   NPROCS PID USER COMMAND
+</span><span class="gp">4026531834 time        4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026531835 cgroup      4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026531837 user        4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532553 mnt         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532554 uts         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532555 ipc         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532556 pid         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532558 net         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>nsenter <span class="nt">-t</span> 967330 <span class="nt">-a</span> lsns
+<span class="go">        NS TYPE   NPROCS PID USER COMMAND
+</span><span class="gp">4026531834 time        4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026531835 cgroup      4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026531837 user        4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532632 mnt         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532633 uts         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532634 ipc         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532635 pid         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="gp">4026532637 net         4   1 root nginx: master process nginx -g daemon off;</span><span class="w">
+</span><span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>nsenter <span class="nt">-t</span> 967330 <span class="nt">-a</span> curl <span class="nt">-iI</span> 127.0.0.1
+<span class="go">HTTP/1.1 200 OK
+Server: nginx/1.21.4
+Date: Thu, 25 Nov 2021 07:52:48 GMT
+Content-Type: text/html
+Content-Length: 615
+Last-Modified: Tue, 02 Nov 2021 14:49:22 GMT
+Connection: keep-alive
+ETag: "61814ff2-267"
+Accept-Ranges: bytes
+</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="contianerdhttp_proxy">3.5. contianerd/http_proxy</h3>
+<div class="paragraph">
+<p>The <strong>contianerd</strong> daemon uses the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, and <code>NO_PROXY</code> environmental variables in its start-up environment to configure HTTP or HTTPS proxy behavior.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a systemd drop-in directory for the containerd service:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo mkdir</span> <span class="nt">-p</span> /etc/systemd/system/containerd.service.d</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create a file called <code>http-proxy.conf</code> at the above directory that adds the <code>HTTP_PROXY</code> environment variable:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="systemd"><span class="k">[Service]</span>
+<span class="nt">Environment</span><span class="p">=</span>"HTTP_PROXY=http://proxy.example.com:80/"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or, if you are behind an HTTPS proxy server, adds the <code>HTTPS_PROXY</code> environment variable:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="systemd"><span class="k">[Service]</span>
+<span class="nt">Environment</span><span class="p">=</span>"HTTP_PROXY=http://proxy.example.com:80/"
+<span class="nt">Environment</span><span class="p">=</span>"HTTPS_PROXY=https://proxy.example.com:443/"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you have internal Docker registries that you need to contact without proxying you can specify them via the <code>NO_PROXY</code> environment variable:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="systemd"><span class="k">[Service]</span>
+<span class="nt">Environment</span><span class="p">=</span>"HTTP_PROXY=http://proxy.example.com:80/"
+<span class="nt">Environment</span><span class="p">=</span>"HTTPS_PROXY=https://proxy.example.com:443/"
+<span class="nt">Environment</span><span class="p">=</span>"NO_PROXY=localhost,127.0.0.1,docker-registry.somecorporation.com"</code></pre>
+</div>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The <code>NO_PROXY</code> environment variable specifies URLs that should be excluded from proxying (on servers that should be contacted directly). This should be a comma-separated list of hostnames, domain names, or a mixture of both. Asterisks can be used as wildcards, but other clients may not support that. Domain names may be indicated by a leading dot. For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">NO_PROXY="*.aventail.com,home.com,.seanet.com"</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>says to contact all machines in the ‘aventail.com’ and ‘seanet.com’ domains directly, as well as the machine named ‘home.com’. If <code>NO_PROXY</code> isn’t defined, <code>no_PROXY</code> and <code>no_proxy</code> are also tried, in that order.</p>
+</div>
+<div class="paragraph">
+<p>ref: <a href="https://www.gnu.org/software/emacs/manual/html_node/url/Proxies.html" class="bare">https://www.gnu.org/software/emacs/manual/html_node/url/Proxies.html</a></p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+You can also use the <code>systemctl edit containerd</code> to edit <code>override.conf</code> at <code>/etc/systemd/system/containrd.service.d</code> for the containerd service.
+</td>
+</tr>
+</table>
+</div>
+</li>
+<li>
+<p>Flush changes:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nv">$ </span><span class="nb">sudo </span>systemctl daemon-reload</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Restart containerd:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>systemctl restart containerd</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Verify that the configuration has been loaded:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>systemctl show <span class="nt">--property</span><span class="o">=</span>Environment containerd <span class="nt">--full</span> <span class="nt">--no-pager</span>
+<span class="go">Environment=HTTP_PROXY=http://127.0.0.1:8118 HTTPS_PROXY=http://127.0.0.1:8118 NO_PROXY=localhost,127.0.0.1,docker.io,docker.com,docker-cn.com,aliyuncs.com,mcr.microsoft.com,mcrea0.blob.core.windows.net,.azurecr.io,.elastic.co,.cloudfront.net,quay.io,.amazonaws.com,.amazonaws.com.cn,mscr.io</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="crictl">4. crictl</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/"><strong>crictl</strong></a> is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node. crictl and its source are hosted in the <a href="https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md">cri-tools</a> repository.</p>
+</div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl image <span class="nb">ls</span>
+<span class="go">WARN[0000] image connect using default endpoints: [unix:///var/run/dockershim.sock unix:///run/containerd/containerd.sock unix:///run/crio/crio.sock unix:///var/run/cri-dockerd.sock]. As the default settings are now deprecated, you should set the endpoint instead.
+ERRO[0000] unable to determine image API version: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix /var/run/dockershim.sock: connect: connection refused"
+IMAGE               TAG                 IMAGE ID            SIZE</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To solve the above problem, please specify the <code>runtime-endpoint</code> option:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl <span class="nt">--runtime-endpoint</span><span class="o">=</span>unix:///run/containerd/containerd.sock image <span class="nb">ls</span>
+<span class="go">IMAGE               TAG                 IMAGE ID            SIZE</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or</p>
+</div>
+<div class="paragraph">
+<p>set the the <code>runtime-endpoint</code> in configuration file <code>/etc/crictl.yaml</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl config <span class="nt">--set</span> runtime-endpoint<span class="o">=</span>unix:///run/containerd/containerd.sock
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl image <span class="nb">ls</span>
+<span class="go">IMAGE               TAG                 IMAGE ID            SIZE</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>see also: <a href="https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/#general-usage" class="bare">https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/#general-usage</a></p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="title"><code>crictl image list = ctr -n=k8s.io image list</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr <span class="nt">-n</span> k8s.io i <span class="nb">ls</span>
+<span class="go">REF                                                                                               TYPE                                                      DIGEST                                                                  SIZE      PLATFORMS                                                                                                                          LABELS
+docker.io/library/busybox:latest                                                                  application/vnd.docker.distribution.manifest.list.v2+json sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 758.9 KiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/riscv64,linux/s390x io.cri-containerd.image=managed
+docker.io/library/busybox@sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 application/vnd.docker.distribution.manifest.list.v2+json sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 758.9 KiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/riscv64,linux/s390x io.cri-containerd.image=managed
+k8s.gcr.io/pause:3.2                                                                              application/vnd.docker.distribution.manifest.v2+json      sha256:2a7b365f500c323286ac47e9e32af9bd50ee65de7fe2a27355eb5987c8df9ad8 669.7 KiB linux/amd64                                                                                                                        io.cri-containerd.image=managed
+sha256:7138284460ffa3bb6ee087344f5b051468b3f8697e2d1427bac1a20c8d168b14                           application/vnd.docker.distribution.manifest.list.v2+json sha256:e7157b6d7ebbe2cce5eaa8cfe8aa4fa82d173999b9f90a9ec42e57323546c353 758.9 KiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/riscv64,linux/s390x io.cri-containerd.image=managed
+sha256:80d28bedfe5dec59da9ebf8e6260224ac9008ab5c11dbbe16ee3ba3e4439ac2c                           application/vnd.docker.distribution.manifest.v2+json      sha256:61e45779fc594fcc1062bb9ed2cf5745b19c7ba70f0c93eceae04ffb5e402269 669.7 KiB linux/amd64                                                                                                                        io.cri-containerd.image=managed
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl image <span class="nb">ls</span>
+<span class="go">IMAGE                       TAG                 IMAGE ID            SIZE
+docker.io/library/busybox   latest              7138284460ffa       1.46MB
+k8s.gcr.io/pause            3.2                 80d28bedfe5de       686kB</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">container-config.json</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"busybox"</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"image"</span><span class="p">:{</span><span class="w">
+    </span><span class="nl">"image"</span><span class="p">:</span><span class="w"> </span><span class="s2">"busybox"</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"command"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="s2">"top"</span><span class="w">
+  </span><span class="p">],</span><span class="w">
+  </span><span class="nl">"log_path"</span><span class="p">:</span><span class="s2">"busybox.0.log"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"linux"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">pod-config.json</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"nginx-sandbox"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"namespace"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"attempt"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"hdishd83djaidwnduwk28bcsb"</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"log_directory"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/tmp"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"linux"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">create a pod sandbox and run a container</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl run container-config.json pod-config.json
+<span class="go">b08ad7b8517d0e37853f3a7211fbc7ba283a7b34cff5bd0ae108e9d956034a24
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl pods
+<span class="go">POD ID              CREATED             STATE               NAME                NAMESPACE           ATTEMPT             RUNTIME
+91ff0a7d5e81a       15 seconds ago      Ready               nginx-sandbox       default             1                   (default)
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl ps
+<span class="go">CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
+b08ad7b8517d0       busybox             15 seconds ago      Running             busybox             0                   91ff0a7d5e81a
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl stopp 91ff0a7d5e81a
+<span class="go">Stopped sandbox 91ff0a7d5e81a
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl rmp 91ff0a7d5e81a
+<span class="go">Removed sandbox 91ff0a7d5e81a</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="docker-and-dockershim">5. docker and dockershim</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>dockershim</strong> is a Docker CRI implementation for <a href="https://kubernetes.io/docs/concepts/overview/components/#kubelet">kubelet</a> to interact with <a href="https://docs.docker.com/engine/reference/commandline/dockerd/">dockerd</a> to manage containers.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/6b4290afef76cad8a084292cd1b5e468e31c9bb3/c26ce/images/blog/2018-05-24-kubernetes-containerd-integration-goes-ga/cri-containerd.png" alt="cri containerd" width="75%" height="75%">
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="title"><em>dockershim deprecation was announced as a part of the <a href="https://kubernetes.io/blog/2020/12/02/dockershim-faq/">Kubernetes v1.20 release</a>.</em></div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>Docker support in the kubelet is now deprecated and will be removed in a future release. The kubelet uses a module called "dockershim" which implements CRI support for Docker and it has seen maintenance issues in the Kubernetes community.</p>
+</div>
+</blockquote>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Developers can still use the Docker platform to build, share, and run containers on Kubernetes!</p>
+</div>
+<div class="paragraph">
+<p>If you’re using Docker, you’re already using containerd.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>dockerd <span class="nt">--help</span> | <span class="nb">grep </span>containerd
+<span class="go">      --containerd string                       containerd grpc address
+      --containerd-namespace string             Containerd namespace to use (default "moby")
+      --containerd-plugins-namespace string     Containerd namespace to use for plugins (default "plugins.moby")
+      --cri-containerd                          start containerd with cri</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The images Docker builds are compliant with OCI (Open Container Initiative), are fully supported on containerd, and will continue to run great on Kubernetes.</p>
+</div>
+<div class="paragraph">
+<p>Docker&#8217;s runtime is built upon containerd while providing a great developer experience around it. For production environments that benefit from a minimal container runtime, such as Kubernetes, and may have no need for Docker&#8217;s great developer experience, it&#8217;s reasonable to directly use lightweight runtimes like <strong>containerd</strong>.</p>
+</div>
+<div class="paragraph">
+<p>If you&#8217;re using Docker, you&#8217;ll find that the <code>cri</code> plugin was disabled at <code>/etc/containerd/config.toml</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">grep </span>cri /etc/containerd/config.toml
+<span class="go">disabled_plugins = ["cri"]
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr plugin <span class="nb">ls</span> | <span class="nb">grep </span>cri</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To migrate runtime from Docker to <a href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd">containerd</a>, please enable the <code>cri</code> plugin, and specify the cri parameters <code>--container-runtime=remote</code> and  <code>--container-runtime-endpoint=/run/containerd/containerd.sock</code> for kubelet.</p>
+</div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
+<div class="title">Using the <code>systemd</code> cgroup driver for <code>containerd</code></div>
+<div class="paragraph">
+<p>To use the <code>systemd</code> cgroup driver in <code>/etc/containerd/config.toml</code> with <code>runc</code>, set</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="toml"><span class="nn">[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]</span>
+  <span class="c"># ...</span>
+  <span class="nn">[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]</span>
+    <span class="py">SystemdCgroup</span> <span class="p">=</span> <span class="kc">true</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you apply this change make sure to restart containerd again:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>systemctl restart containerd</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When using <code>kubeadm</code>, manually configure the <a href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/">cgroup driver for kubelet</a>.</p>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">references:</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/" class="bare">https://kubernetes.io/docs/setup/production-environment/container-runtimes/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/" class="bare">https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="title">Using the <code>pause</code> image with <code>kubeadm</code> for <code>cri</code> plugin</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="toml"><span class="nn">[plugins]</span>
+  <span class="c"># ...</span>
+  <span class="nn">[plugins."io.containerd.grpc.v1.cri"]</span>
+    <span class="c"># ...</span>
+    <span class="py">sandbox_image</span> <span class="p">=</span> <span class="s">"k8s.gcr.io/pause:3.5"</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">Use <code>kubeadm</code> to init a single node cluster with <code>containerd</code></div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>ctr plugin <span class="nb">ls</span> | <span class="nb">grep </span>cri
+<span class="go">io.containerd.grpc.v1           cri                      linux/amd64    ok
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>kubeadm init <span class="nt">--cri-socket</span> /run/containerd/containerd.sock <span class="nt">--ignore-preflight-errors</span> NumCPU <span class="nt">--kubernetes-version</span> v1.22.3
+<span class="go">[init] Using Kubernetes version: v1.22.3
+[preflight] Running pre-flight checks
+
+</span><span class="gp">&lt;other outputs&gt;</span><span class="w">
+</span><span class="go">
+Your Kubernetes control-plane has initialized successfully!
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>kubectl get node <span class="nt">-owide</span> <span class="nt">--kubeconfig</span> /etc/kubernetes/admin.conf
+<span class="go">NAME     STATUS   ROLES                  AGE     VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION    CONTAINER-RUNTIME
+</span><span class="gp">node-1   Ready    control-plane,master   6m55s   v1.22.4   192.168.91.137   &lt;none&gt;</span><span class="w">        </span>Debian GNU/Linux 10 <span class="o">(</span>buster<span class="o">)</span>   4.19.0-17-amd64   containerd://1.4.8
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>kubectl get no node-1 <span class="nt">-ogo-template</span><span class="o">=</span><span class="s1">'{{.status.nodeInfo.containerRuntimeVersion}}'</span> <span class="nt">--kubeconfig</span> /etc/kubernetes/admin.conf
+<span class="go">containerd://1.4.8
+
+</span><span class="gp">$</span><span class="w"> </span>systemctl status kubelet.service <span class="nt">--no-page</span> <span class="nt">--full</span>
+<span class="go">● kubelet.service - kubelet: The Kubernetes Node Agent
+</span><span class="gp">   Loaded: loaded (/lib/systemd/system/kubelet.service;</span><span class="w"> </span>disabled<span class="p">;</span> vendor preset: enabled<span class="o">)</span>
+<span class="go">  Drop-In: /etc/systemd/system/kubelet.service.d
+           └─10-kubeadm.conf
+</span><span class="gp">   Active: active (running) since Thu 2021-11-25 17:29:02 CST;</span><span class="w"> </span>21min ago
+<span class="go">     Docs: https://kubernetes.io/docs/home/
+ Main PID: 38090 (kubelet)
+    Tasks: 13 (limit: 2330)
+   Memory: 54.7M
+   CGroup: /system.slice/kubelet.service
+           └─38090 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --pod-infra-container-image=k8s.gcr.io/pause:3.5</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">6. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.docker.com/blog/runc/" class="bare">https://www.docker.com/blog/runc/</a></p>
+</li>
+<li>
+<p><a href="https://docs.microsoft.com/en-us/virtualization/windowscontainers/deploy-containers/containerd" class="bare">https://docs.microsoft.com/en-us/virtualization/windowscontainers/deploy-containers/containerd</a></p>
+</li>
+<li>
+<p><a href="https://www.docker.com/blog/what-is-containerd-runtime/" class="bare">https://www.docker.com/blog/what-is-containerd-runtime/</a></p>
+</li>
+<li>
+<p><a href="https://stackoverflow.com/questions/57009928/runc-and-ctr-commands-do-not-show-docker-images-and-containers" class="bare">https://stackoverflow.com/questions/57009928/runc-and-ctr-commands-do-not-show-docker-images-and-containers</a></p>
+</li>
+<li>
+<p><a href="https://stackoverflow.com/questions/61738905/how-to-list-docker-containers-using-runc" class="bare">https://stackoverflow.com/questions/61738905/how-to-list-docker-containers-using-runc</a></p>
+</li>
+<li>
+<p><a href="https://github.com/containerd/containerd/blob/main/docs/ops.md" class="bare">https://github.com/containerd/containerd/blob/main/docs/ops.md</a></p>
+</li>
+<li>
+<p><a href="https://github.com/containerd/containerd/blob/main/docs/PLUGINS.md" class="bare">https://github.com/containerd/containerd/blob/main/docs/PLUGINS.md</a></p>
+</li>
+<li>
+<p><a href="https://github.com/containerd/cri/blob/release/1.4/docs/config.md" class="bare">https://github.com/containerd/cri/blob/release/1.4/docs/config.md</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/blog/2018/05/24/kubernetes-containerd-integration-goes-ga/" class="bare">https://kubernetes.io/blog/2018/05/24/kubernetes-containerd-integration-goes-ga/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/" class="bare">https://kubernetes.io/docs/setup/production-environment/container-runtimes/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/" class="bare">https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/11/23/linux-cgroups-containers/">&laquo; Linux CGroups and Containers</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/11/26/linux-overlayfs-and-container/">Linux OverlayFS and Container &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

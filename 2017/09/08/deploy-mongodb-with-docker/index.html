@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Deploy MongoDB with Docker</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/09/08/deploy-mongodb-with-docker/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Deploy MongoDB with Docker</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-09-08T15:37:56+08:00" itemprop="datePublished">Sep 8, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#0-prerequisites" id="markdown-toc-0-prerequisites">0. Prerequisites</a></li>
+  <li><a href="#1-start-a-mongodb-instance" id="markdown-toc-1-start-a-mongodb-instance">1. Start a MongoDB Instance.</a></li>
+  <li><a href="#2-start-a-mongodb-instance-with-access-control" id="markdown-toc-2-start-a-mongodb-instance-with-access-control">2. Start a MongoDB Instance with Access Control.</a></li>
+  <li><a href="#3-deploy-a-replica-set" id="markdown-toc-3-deploy-a-replica-set">3. Deploy a Replica Set</a></li>
+  <li><a href="#4-deploy-a-replica-set-with-access-control" id="markdown-toc-4-deploy-a-replica-set-with-access-control">4. Deploy a Replica Set with Access Control.</a></li>
+  <li><a href="#references" id="markdown-toc-references">References:</a></li>
+</ul>
+
+<hr />
+
+<h3 id="0-prerequisites">0. Prerequisites</h3>
+
+<p>Make sure you have already installed both <a href="https://docs.docker.com/engine/installation/">Docker Engine</a> and <a href="https://docs.docker.com/compose/install/">Docker Compose</a>. You don’t need to install MongoDB, as it’s provided by Docker image.</p>
+
+<h3 id="1-start-a-mongodb-instance">1. Start a MongoDB Instance.</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker run <span class="nt">-d</span> <span class="nt">-p</span> 27017:27017 <span class="nt">--name</span> db mongo:3
+</code></pre></div></div>
+
+<h3 id="2-start-a-mongodb-instance-with-access-control">2. Start a MongoDB Instance with Access Control.</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker run <span class="nt">-d</span> <span class="nt">-p</span> 27017:27017 <span class="nt">--name</span> db mongo:3 <span class="nt">--auth</span>
+</code></pre></div></div>
+
+<p><em>Connect a mongo shell to one of the config server mongod instances over the <a href="https://docs.mongodb.com/manual/core/security-users/#localhost-exception">localhost interface</a> and create the user administrator.</em></p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker <span class="nb">exec</span> <span class="nt">-it</span> db mongo admin <span class="nt">--quiet</span>
+<span class="o">&gt;</span> db.createUser<span class="o">({</span>
+... user:<span class="s2">"admin"</span>,
+... <span class="nb">pwd</span>:<span class="s2">"admin"</span>,
+... roles: <span class="o">[</span>
+... <span class="o">{</span>role: <span class="s2">"userAdmin"</span>, db:<span class="s2">"admin"</span><span class="o">}</span>
+... <span class="o">]</span>
+... <span class="o">})</span>
+Successfully added user: <span class="o">{</span>
+        <span class="s2">"user"</span> : <span class="s2">"admin"</span>,
+        <span class="s2">"roles"</span> : <span class="o">[</span>
+                <span class="o">{</span>
+                        <span class="s2">"role"</span> : <span class="s2">"userAdmin"</span>,
+                        <span class="s2">"db"</span> : <span class="s2">"admin"</span>
+                <span class="o">}</span>
+        <span class="o">]</span>
+<span class="o">}</span>
+<span class="o">&gt;</span> db.auth<span class="o">(</span><span class="s2">"admin"</span>,<span class="s2">"admin"</span><span class="o">)</span>
+1
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&gt; db.createUser({
+... user: "user1",
+... pwd: "user1",
+... roles: [
+... {
+... role: "readWriteAnyDatabase",
+... db: "admin"
+... }
+... ]
+... })
+Successfully added user: {
+        "user" : "user1",
+        "roles" : [
+                {
+                        "role" : "readWriteAnyDatabase",
+                        "db" : "admin"
+                }
+        ]
+}
+&gt; use test
+switched to db test
+&gt; db.test.insertOne({ x: 1 })
+2017-09-08T08:50:53.276+0000 E QUERY    [thread1] TypeError: err.hasWriteErrors ...
+DBCollection.prototype.insertOne@src/mongo/shell/crud_api.js:244:13
+@(shell):1:1
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&gt; db.auth("user1","user1")
+Error: Authentication failed.
+0
+&gt; use admin
+switched to db admin
+&gt; db.auth("user1","user1")
+1
+&gt; use test
+switched to db test
+&gt; db.test.insertOne({ x: 1 })
+{
+        "acknowledged" : true,
+        "insertedId" : ObjectId("59b25a108bcdfe4e19c35a13")
+}
+&gt;
+</code></pre></div></div>
+
+<h3 id="3-deploy-a-replica-set">3. Deploy a Replica Set</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">mkdir </span>mogors
+<span class="nv">$ </span><span class="nb">cd </span>mogors/
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ cat &lt;&lt;EOF &gt; docker-compose.yml
+&gt; ---
+&gt; version: "3.2"
+&gt; services:
+&gt;     db-0:
+&gt;         container_name: db-0
+&gt;         image: mongo:3
+&gt;         # Start each member of the replica set with the appropriate options .
+&gt;         command:
+&gt;             - mongod
+&gt;             - "--replSet"
+&gt;             - "rs0"
+&gt;     db-1:
+&gt;         container_name: db-1
+&gt;         image: mongo:3
+&gt;         command:
+&gt;             - mongod
+&gt;             - "--replSet"
+&gt;             - "rs0"
+&gt;     db-2:
+&gt;         container_name: db-2
+&gt;         image: mongo:3
+&gt;         command:
+&gt;             - mongod
+&gt;             - "--replSet"
+&gt;             - "rs0"
+&gt; EOF
+</code></pre></div></div>
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker-compose up <span class="nt">-d</span>
+Creating network <span class="s2">"mongors_default"</span> with the default driver
+Creating db-2 ...
+Creating db-0 ...
+Creating db-1 ...
+Creating db-2
+Creating db-1
+Creating db-0 ... <span class="k">done</span>
+<span class="nv">$ </span>docker ps <span class="nt">-a</span>
+CONTAINER ID        IMAGE               STATUS              PORTS               NAMES
+0f6a34b826b2        mongo:3             Up 45 seconds       27017/tcp           db-1
+c4c04bfc53f3        mongo:3             Up 46 seconds       27017/tcp           db-0
+9d8bc021082c        mongo:3             Up 46 seconds       27017/tcp           db-2
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker <span class="nb">exec</span> <span class="nt">-it</span> db-0 mongo <span class="nt">--quiet</span>
+<span class="o">&gt;</span> rs.initiate<span class="o">(</span> <span class="o">{</span>
+...    _id : <span class="s2">"rs0"</span>,
+...    members: <span class="o">[</span> <span class="o">{</span> _id : 0, host : <span class="s2">"db-0"</span> <span class="o">}</span> <span class="o">]</span>
+... <span class="o">})</span>
+<span class="o">{</span> <span class="s2">"ok"</span> : 1 <span class="o">}</span>
+rs0:PRIMARY&gt; rs.add<span class="o">(</span><span class="s2">"db-1"</span><span class="o">)</span>
+<span class="o">{</span> <span class="s2">"ok"</span> : 1 <span class="o">}</span>
+rs0:PRIMARY&gt; rs.add<span class="o">(</span><span class="s2">"db-2"</span><span class="o">)</span>
+<span class="o">{</span> <span class="s2">"ok"</span> : 1 <span class="o">}</span>
+rs0:PRIMARY&gt; db.runCommand<span class="o">(</span><span class="s2">"isMaster"</span><span class="o">)</span>
+<span class="o">{</span>
+        <span class="s2">"hosts"</span> : <span class="o">[</span>
+                <span class="s2">"db-0:27017"</span>,
+                <span class="s2">"db-1:27017"</span>,
+                <span class="s2">"db-2:27017"</span>
+        <span class="o">]</span>,
+        <span class="s2">"setName"</span> : <span class="s2">"rs0"</span>,
+        <span class="s2">"setVersion"</span> : 3,
+        <span class="s2">"ismaster"</span> : <span class="nb">true</span>,
+        <span class="s2">"secondary"</span> : <span class="nb">false</span>,
+        <span class="s2">"primary"</span> : <span class="s2">"db-0:27017"</span>,
+        <span class="s2">"me"</span> : <span class="s2">"db-0:27017"</span>,
+        <span class="s2">"electionId"</span> : ObjectId<span class="o">(</span><span class="s2">"7fffffff0000000000000001"</span><span class="o">)</span>,
+        <span class="s2">"lastWrite"</span> : <span class="o">{</span>
+                <span class="s2">"opTime"</span> : <span class="o">{</span>
+                        <span class="s2">"ts"</span> : Timestamp<span class="o">(</span>1504859331, 1<span class="o">)</span>,
+                        <span class="s2">"t"</span> : NumberLong<span class="o">(</span>1<span class="o">)</span>
+                <span class="o">}</span>,
+                <span class="s2">"lastWriteDate"</span> : ISODate<span class="o">(</span><span class="s2">"2017-09-08T08:28:51Z"</span><span class="o">)</span>
+        <span class="o">}</span>,
+        <span class="s2">"maxBsonObjectSize"</span> : 16777216,
+        <span class="s2">"maxMessageSizeBytes"</span> : 48000000,
+        <span class="s2">"maxWriteBatchSize"</span> : 1000,
+        <span class="s2">"localTime"</span> : ISODate<span class="o">(</span><span class="s2">"2017-09-08T08:28:56.329Z"</span><span class="o">)</span>,
+        <span class="s2">"maxWireVersion"</span> : 5,
+        <span class="s2">"minWireVersion"</span> : 0,
+        <span class="s2">"readOnly"</span> : <span class="nb">false</span>,
+        <span class="s2">"ok"</span> : 1
+<span class="o">}</span>
+rs0:PRIMARY&gt;
+</code></pre></div></div>
+
+<h3 id="4-deploy-a-replica-set-with-access-control">4. Deploy a Replica Set with Access Control.</h3>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">mkdir </span>mogors
+<span class="nv">$ </span><span class="nb">cd </span>mogors/
+</code></pre></div></div>
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="c"># Create a keyfile.</span>
+<span class="nv">$ </span>openssl rand <span class="nt">-base64</span> 756 <span class="o">&gt;</span> keyfile
+<span class="nv">$ </span><span class="nb">cat </span>keyfile
+AFO3EYmmmQQLF68tUd3aQsFI/C53XtOpUGt8R5ecS1F9uWRFg4dN6jlCjiBbYqHC
+w3lqUhlRBe00YhDM97z31oYkQBSyID20pIMeQ3e40FY6zBE1w+4lWYekuPJAUtzS
+ZspGfFExltwL0700Dwu7b1mnMbqfmfrpSVxTKHaY7Hcw60mvbBPPCp6IWkDVZ9NX
+NKveHX3Wuq28/PSMw8sVPUbP5eqPux05PCyp5VBp6/fhg8Np8vIlWAy9fMsAgkmE
+kBeGcRNst6t0iXbqNi9VrW6szJN5yyq0x1+0XB1QJZCjnLczoXMTPQeDCTrijbpI
+N4zr7L2EV6n8FsgSJ7vwzRMj0ZRFjuK/wwBblPCuisv5JlcClZ6I0WEtV1yg5HQu
+AFv3v7FPmfodQ6Sz81c6sNEKuwg3kzCY7wkeA163RZrujHViYFka6zOcv/kDdQ5h
+rL6EBXE3v6bnd24/nzys9Zx6CrqPPUqSVfugmIW78r9imXswUqdr/VZVbhGsKcjH
+Uza306prvuWmh0o1hpFGReGbHIdWhEtP/ldXKBbPy+27tgNeSiSP1GjVG2rkaIlb
+bsnahiNj2EaAa1ov9pYiyO51m+ouEg+H9LPBcLhLXipI3wbST8BqMZweLSNfeLFi
+Kpel5Q3rNtmRrjCbVIiiAXmxECU+PcwL+a4XhISnktdq6Du43d4INSJ/cn8JVLFS
+VbR5nTnc4cMmEE3n/0BrScZinGZT1gbtwbE5izA5E17/7n/HLGUXhfhMGWrwdL9f
+CsDt8ZEg7AUCPhFhsbcwfHkROXmYYubcd41NqLEYyktDzqsu3CaXFvH3QyD5AqmN
+ylh6UGgjqgWIC7y553qNE9v7Go/9zKTUj8Df/wcQVl6ALOdZgPmchNTX8PtENdKT
+aPUu/dcctYZUxz1DKwkaH3aUblSBGtSHa94knUA+R3DWPTcGNt3n46AL45Ty5amX
+c5yYTpaKB6jgXwIMjO96OA9XlZKxOVgqdASsN6O0wCzfAg55
+<span class="nv">$ </span><span class="nb">chmod </span>400 keyfile
+<span class="nv">$ </span><span class="nb">sudo chown </span>999 keyfile
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">cat </span>docker-compose.yml
+<span class="nt">---</span>
+version: <span class="s2">"3.2"</span>
+services:
+    db-0:
+        container_name: db-0
+        image: mongo:3
+        <span class="c"># Start each member of the replica set with the appropriate options .</span>
+        <span class="nb">command</span>:
+            - mongod
+            - <span class="s2">"--replSet"</span>
+            - <span class="s2">"rs0"</span>
+            - <span class="s2">"--auth"</span>
+            - <span class="s2">"--keyFile"</span>
+            - <span class="s2">"/opt/mongors/keyfile"</span>
+        volumes:
+            - <span class="nb">type</span>: <span class="nb">bind
+              source</span>: ./keyfile
+              target: /opt/mongors/keyfile
+              read_only: <span class="nb">true
+    </span>db-1:
+        container_name: db-1
+        image: mongo:3
+        <span class="nb">command</span>:
+            - mongod
+            - <span class="s2">"--replSet"</span>
+            - <span class="s2">"rs0"</span>
+            - <span class="s2">"--auth"</span>
+            - <span class="s2">"--keyFile"</span>
+            - <span class="s2">"/opt/mongors/keyfile"</span>
+        volumes:
+            - <span class="nb">type</span>: <span class="nb">bind
+              source</span>: ./keyfile
+              target: /opt/mongors/keyfile
+    db-2:
+        container_name: db-2
+        image: mongo:3
+        <span class="nb">command</span>:
+            - mongod
+            - <span class="s2">"--replSet"</span>
+            - <span class="s2">"rs0"</span>
+            - <span class="s2">"--auth"</span>
+            - <span class="s2">"--keyFile"</span>
+            - <span class="s2">"/opt/mongors/keyfile"</span>
+        volumes:
+            - <span class="nb">type</span>: <span class="nb">bind
+              source</span>: ./keyfile
+              target: /opt/mongors/keyfile
+</code></pre></div></div>
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker-compose up <span class="nt">-d</span>
+Creating network <span class="s2">"mongors_default"</span> with the default driver
+Creating db-1 ...
+Creating db-0 ...
+Creating db-1
+Creating db-0
+Creating db-2 ...
+Creating db-2 ... <span class="k">done</span>
+<span class="nv">$ </span>docker ps <span class="nt">-a</span>
+CONTAINER ID        IMAGE               STATUS              PORTS               NAMES
+02143821d0d7        mongo:3             Up 3 seconds        27017/tcp           db-2
+338aef4ef282        mongo:3             Up 3 seconds        27017/tcp           db-0
+ff459a50af25        mongo:3             Up 3 seconds        27017/tcp           db-1
+</code></pre></div></div>
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker <span class="nb">exec</span> <span class="nt">-it</span> db-0 mongo <span class="nt">--quiet</span>
+<span class="o">&gt;</span> rs.initiate<span class="o">(</span> <span class="o">{</span>
+...    _id : <span class="s2">"rs0"</span>,
+...    members: <span class="o">[</span> <span class="o">{</span> _id : 0, host : <span class="s2">"db-0"</span> <span class="o">}</span> <span class="o">]</span>
+... <span class="o">})</span>
+<span class="o">{</span> <span class="s2">"ok"</span> : 1 <span class="o">}</span>
+rs0:SECONDARY&gt; use admin
+switched to db admin
+rs0:PRIMARY&gt; db.createUser<span class="o">({</span>
+... user:<span class="s2">"admin"</span>,
+... <span class="nb">pwd</span>:<span class="s2">"admin"</span>,
+... roles: <span class="o">[</span>
+... <span class="o">{</span>role: <span class="s2">"userAdmin"</span>, db:<span class="s2">"admin"</span><span class="o">}</span>,
+... <span class="o">{</span>role: <span class="s2">"clusterAdmin"</span>, db: <span class="s2">"admin"</span><span class="o">}</span>
+... <span class="o">]</span>
+... <span class="o">})</span>
+Successfully added user: <span class="o">{</span>
+        <span class="s2">"user"</span> : <span class="s2">"admin"</span>,
+        <span class="s2">"roles"</span> : <span class="o">[</span>
+                <span class="o">{</span>
+                        <span class="s2">"role"</span> : <span class="s2">"userAdmin"</span>,
+                        <span class="s2">"db"</span> : <span class="s2">"admin"</span>
+                <span class="o">}</span>,
+                <span class="o">{</span>
+                        <span class="s2">"role"</span> : <span class="s2">"clusterAdmin"</span>,
+                        <span class="s2">"db"</span> : <span class="s2">"admin"</span>
+                <span class="o">}</span>
+        <span class="o">]</span>
+<span class="o">}</span>
+rs0:PRIMARY&gt; rs.add<span class="o">(</span><span class="s1">'db-1'</span><span class="o">)</span>
+2017-09-08T09:44:33.194+0000 E QUERY    <span class="o">[</span>thread1] Error: count failed: <span class="o">{</span>
+        <span class="s2">"ok"</span> : 0,
+        <span class="s2">"errmsg"</span> : <span class="s2">"not authorized on local to execute command ...
+        "</span>code<span class="s2">" : 13,
+        "</span>codeName<span class="s2">" : "</span>Unauthorized<span class="s2">"
+} :
+_getErrorWithCode@src/mongo/shell/utils.js:25:13
+DBQuery.prototype.count@src/mongo/shell/query.js:383:11
+DBCollection.prototype.count@src/mongo/shell/collection.js:1700:12
+rs.add@src/mongo/shell/utils.js:1227:1
+@(shell):1:1
+</span></code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>rs0:PRIMARY&gt; db.auth('admin','admin')
+1
+rs0:PRIMARY&gt; rs.add('db-1')
+{ "ok" : 1 }
+rs0:PRIMARY&gt; rs.add('db-2')
+{ "ok" : 1 }
+rs0:PRIMARY&gt; db.runCommand("isMaster")
+{
+        "hosts" : [
+                "db-0:27017",
+                "db-1:27017",
+                "db-2:27017"
+        ],
+        "setName" : "rs0",
+        "setVersion" : 3,
+        "ismaster" : true,
+        "secondary" : false,
+        "primary" : "db-0:27017",
+        "me" : "db-0:27017",
+        "electionId" : ObjectId("7fffffff0000000000000001"),
+        "lastWrite" : {
+                "opTime" : {
+                        "ts" : Timestamp(1504863894, 1),
+                        "t" : NumberLong(1)
+                },
+                "lastWriteDate" : ISODate("2017-09-08T09:44:54Z")
+        },
+        "maxBsonObjectSize" : 16777216,
+        "maxMessageSizeBytes" : 48000000,
+        "maxWriteBatchSize" : 1000,
+        "localTime" : ISODate("2017-09-08T09:45:04.775Z"),
+        "maxWireVersion" : 5,
+        "minWireVersion" : 0,
+        "readOnly" : false,
+        "ok" : 1
+}
+rs0:PRIMARY&gt;
+</code></pre></div></div>
+
+<h3 id="references">References:</h3>
+
+<ol>
+  <li><a href="https://docs.docker.com/samples/library/mongo/#authentication-and-authorization">mongo | Docker Documentation</a></li>
+  <li><a href="https://docs.mongodb.com/tutorials/enable-authentication/">Enable Auth — MongoDB Tutorials</a></li>
+  <li><a href="https://docs.mongodb.com/tutorials/manage-users-and-roles/">Manage Users and Roles — MongoDB Tutorials</a></li>
+  <li><a href="https://docs.mongodb.com/manual/reference/built-in-roles/">Built-In Roles — MongoDB Manual 3.4</a></li>
+  <li><a href="https://docs.mongodb.com/manual/tutorial/deploy-replica-set/">Deploy a Replica Set — MongoDB Manual 3.4</a></li>
+  <li><a href="https://docs.mongodb.com/manual/tutorial/enforce-keyfile-access-control-in-existing-replica-set/">Enforce Keyfile Access Control in a Replica Set — MongoDB Manual 3.4</a></li>
+  <li><a href="https://docs.docker.com/compose/compose-file/">Compose file version 3 reference | Docker Documentation</a></li>
+  <li><a href="https://medium.com/@gargar454/deploy-a-mongodb-cluster-in-steps-9-using-docker-49205e231319">Deploy a MongoDB Cluster in 9 steps Using Docker</a></li>
+  <li><a href="https://stackoverflow.com/questions/14789622/mongodb-keyfile-too-open-permissions">Mongodb KeyFile too open permissions - Stack Overflow</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/07/20/get-docker-ce-for-centos/">&laquo; Get Docker CE for CentOS</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/09/09/get-docker-ce-for-debian/">Get Docker CE for Debian &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>七周七并发-笔记</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2019/06/12/seven-concurrency-models-in-seven-weeks/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">七周七并发-笔记</h1>
+    
+    
+    <p class="post-meta"><time datetime="2019-06-12T10:56:08+08:00" itemprop="datePublished">Jun 12, 2019</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <pre><code class="language-none">并发与并行
+  "Concurrency is about dealing with lots of things at once. Parallelism is about doing lots of things at once." — Rob Pike 
+  并发是同一时间应对多件事情的能力, 并行是同一时间做多件事情的能力.
+
+  并发程序的执行通常是不确定的，它会随着事件时序的改变给出不同的结果。
+
+  并发并不仅仅是利用多核能力，同时有及时响应、高效、容错、简单的优势。
+
+并行架构
+  位级(bit)并行
+    处理器数据位宽: 8位, 16位, 32位, 64位
+  指令级(instruction)并行
+    CPU 并行: 流水线, 乱序执行, 猜测执行
+  数据级(data)并行
+    单指令多数据架构(SIMD)
+    GPU(图形处理器)
+  任务级(task)并行
+    多处理器/多核/超线程
+    共享内存模型(SMP)
+    分布式内存模型(NUMA)
+
+线程与锁模型
+  线程 / 共享内存模型 / 互斥
+  内存可见性 / 顺序一致性 / happen-before
+  读-改-写(read-modify-write)模式
+  线程同步: 互斥锁(mutex), 信号量(semaphore)
+    哲学家进餐问题 / 死锁
+      全局固定顺序获取多把锁
+      条件变量
+    外星方法 / 保护性复制(defensive copy) / 对副本进行操作
+    交替锁(hand-over-hand locking) / 链表插入操作
+    原子变量 / 无锁(lock-free) / 非阻塞(non-blocking)
+  线程与锁模型没有为并行提供直接的支持，仅支持共享内存模型，并不支持分布式内存模型
+  原子操作
+    原子操作是指从另外一个线程的角度看上去，该操作的状态只能是“已发生”或者“未发生”，而不会是发生了一半
+
+函数式编程
+  函数式编程(functional programming)与命令式编程(imperative programming)
+    命令式编程的代码由一系列改变全局状态的语句构成
+    函数式编程则是将计算过程抽象成表达式求值
+    函数式编程并不是基于可变状态的数据，因此多余不可变数据，多线程不使用锁就可以安全地访问
+  函数式并发
+    引用透明性
+      在纯粹的函数语言中，函数都具有引用透明性——在任何调用函数的地方，都可以用函数运行的结果来体会函数的调用，
+        而不会对程序产生副作用，如(+ (+ 1 2) (+ 2 3)) 等价于 (+ 3 (+ 2 3)) 等价于(+ (+ 1 2) 5)
+    数据流式编程(dataflow programming)
+      future 模型 / promise 模型
+      Future 模型
+        future 函数可以接受一段代码，并在一个单独的线程中执行这段代码，并返回一个 feature 对象
+        对future对象进行解引用将阻塞当前线程，直到其代表的值变得可用，即完成异步求值
+      Promise 模型
+        promise 对象也是异步求值，但不会立即执行
+  Clojure: 分离标识与状态
+    原子变量
+    持久数据结构: 指数据结构被修改时总是保留之前的副本（共享结构）
+    标识(identity)和状态(State)
+    可变数据类型：原子变量(atomic),代理(agent)和引用(ref)
+    软件事物内存STM(Software Transaction Memeory): 原子性(A)/一致性(C)/隔离性(I)
+Actor 模型
+  Erlang / 尾递归消除(优化)
+  消息 / 队列式信箱 / 元组
+  进程 / 父进程 / 管理进程 / Actor
+  终止 / 错误检测 / 容错 / 错误处理(Kernal)
+  分布式 / OTP / 重启策略 / 节点
+  进程：独立，并发执行的实体
+    进程间通过发送消息进行通信
+    进程与信箱是紧耦合的
+
+  Alan Kayak： 创建一个规模宏大的且可生长的系统的关键在于模块之间应该如何交流，
+    而不是在于其内部的属性和行为应如何一致。
+CSP 模型
+  CSP 通信顺序进程(Communicating Sequential Process)
+  Golang / Clojure/core.async
+  channel / go
+  同步(synchroning) / 缓冲(buffering) / 阻塞(blocking) / 弃用(dropping) / 移除(sliding)
+  阻塞 / 线程池 / 事件驱动 / 状态机 / 控制反转
+
+  actor 模型侧重于容错和分布式 / csp 模型侧重于效率和代码表达的流畅性
+
+数据并行 GPU
+  GPGPU: General-purpose computing on the CPU
+  OpenCL / OpenGL
+  流水线 / 多 ALU
+  数值计算
+
+Lambda 架构
+  批处理层(batch layer) / MapReduce
+  加速层(speed layer) / Streaming
+  Spark / Storm
+</code></pre>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2019/05/22/kubernetes-recovery-master-failure/">&laquo; Kubernetes Recovery from Master Failure with Kubeadm</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2019/08/07/http-proxy-settings-docker-git-apt-yum/">HTTP Proxy Settings for Docker, git, apt, yum &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

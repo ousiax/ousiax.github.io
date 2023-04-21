@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>HTTP Caching and Conditional Requests</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/09/17/http-caching/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">HTTP Caching and Conditional Requests</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-09-17T23:49:02+08:00" itemprop="datePublished">Nov 10, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#different-kinds-of-caches">1. Different kinds of caches</a>
+<ul class="sectlevel2">
+<li><a href="#private-browser-caches">1.1. Private browser caches</a></li>
+<li><a href="#shared-proxy-caches">1.2. Shared proxy caches</a></li>
+</ul>
+</li>
+<li><a href="#targets-of-caching-operations">2. Targets of caching operations</a></li>
+<li><a href="#controlling-caching">3. Controlling caching</a>
+<ul class="sectlevel2">
+<li><a href="#the-cache-control-header">3.1. The Cache-Control header</a></li>
+<li><a href="#the-pragma-header">3.2. The Pragma header</a></li>
+</ul>
+</li>
+<li><a href="#freshness">4. Freshness</a>
+<ul class="sectlevel2">
+<li><a href="#heuristic-freshness-checking">4.1. Heuristic freshness checking</a></li>
+<li><a href="#revved-resources">4.2. Revved resources</a></li>
+<li><a href="#cache-validation">4.3. Cache validation</a></li>
+</ul>
+</li>
+<li><a href="#varying-responses">5. Varying responses</a></li>
+<li><a href="#http-caching-control-headers">6. HTTP caching control headers</a>
+<ul class="sectlevel2">
+<li><a href="#cache-control">6.1. Cache-Control</a></li>
+<li><a href="#expires">6.2. Expires</a></li>
+<li><a href="#age">6.3. Age</a></li>
+<li><a href="#date">6.4. Date</a></li>
+<li><a href="#vary">6.5. Vary</a></li>
+<li><a href="#pragma">6.6. Pragma</a></li>
+</ul>
+</li>
+<li><a href="#http-conditional-requests-http1-1">7. HTTP conditional requests (HTTP/1.1)</a>
+<ul class="sectlevel2">
+<li><a href="#last-modified">7.1. Last-Modified</a></li>
+<li><a href="#etag">7.2. ETag</a></li>
+<li><a href="#if-match">7.3. If-Match</a></li>
+<li><a href="#if-none-match">7.4. If-None-Match</a></li>
+<li><a href="#if-modified-since">7.5. If-Modified-Since</a></li>
+<li><a href="#if-unmodified-since">7.6. If-Unmodified-Since</a></li>
+</ul>
+</li>
+<li><a href="#references">8. References</a></li>
+</ul>
+</div>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>The performance of web sites and applications can be significantly improved by reusing previously fetched resources. Web caches reduce latency and network traffic and thus lessen the time needed to display a representation of a resource. By making use of HTTP caching, Web sites become more responsive.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="different-kinds-of-caches">1. Different kinds of caches</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Caching is a technique that stores a copy of a given resource and serves it back when requested. When a web cache has a requested resource in its store, it intercepts the request and returns its copy instead of re-downloading from the originating server. This achieves several goals: it eases the load of the server that doesn’t need to serve all clients itself, and it improves performance by being closer to the client, i.e., it takes less time to transmit the resource back. For a web site, it is a major component in achieving high performance. On the other side, it has to be configured properly as not all resources stay identical forever: it is important to cache a resource only until it changes, not longer.</p>
+</div>
+<div class="paragraph">
+<p>There are several kinds of caches: these can be grouped into two main categories: <strong>private or shared caches</strong>. A <em>shared cache</em> is a cache that stores responses for reuse by more than one user. A <em>private cache</em> is dedicated to a single user. This page will mostly talk about <em>browser and proxy caches</em>, but there are also <em>gateway caches</em>, <em>CDN</em>, <em>reverse proxy caches</em> and <em>load balancers</em> that are deployed on web servers for better reliability, performance and scaling of web sites and web applications.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/http-caching/type-of-cache.png" alt="Type of Cache" width="55%" height="55%">
+</div>
+</div>
+<div class="sect2">
+<h3 id="private-browser-caches">1.1. Private browser caches</h3>
+<div class="paragraph">
+<p>A <strong>private cache</strong> is dedicated to a single user. You might have seen "caching" in your browser&#8217;s settings already. A browser cache holds all documents downloaded via HTTP by the user. This cache is used to make visited documents available for back/forward navigation, saving, viewing-as-source, etc. without requiring an additional trip to the server. It likewise improves offline browsing of cached content.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="shared-proxy-caches">1.2. Shared proxy caches</h3>
+<div class="paragraph">
+<p>A <strong>shared cache</strong> is a cache that stores responses to be reused by more than one user. For example, an ISP or your company might have set up a <em>web proxy</em> as part of its local network infrastructure to serve many users so that popular resources are reused a number of times, reducing network traffic and latency.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="targets-of-caching-operations">2. Targets of caching operations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>HTTP caching is optional but usually desirable. HTTP caches are typically limited to caching responses to <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a>; they may decline other methods. The primary cache key consists of the request method and target URI (often only the URI is used — this is because only GET requests are caching targets).</p>
+</div>
+<div class="paragraph">
+<p>Common forms of caching entries are:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Successful results of a retrieval request: a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200">200</a> (OK) response to a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a> request containing a resource like HTML documents, images or files.</p>
+</li>
+<li>
+<p>Permanent redirects: a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301">301</a> (Moved Permanently) response.</p>
+</li>
+<li>
+<p>Error responses: a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404">404</a> (Not Found) result page.</p>
+</li>
+<li>
+<p>Incomplete results: a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/206">206</a> (Partial Content) response.</p>
+</li>
+<li>
+<p>Responses other than <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a> if something suitable for use as a cache key is defined.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A cache entry might also consist of multiple stored responses differentiated by a secondary key, if the request is target of content negotiation (<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary">Vary</a>).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="controlling-caching">3. Controlling caching</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="the-cache-control-header">3.1. The Cache-Control header</h3>
+<div class="paragraph">
+<p>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control">Cache-Control</a> HTTP/1.1 general-header field is used to specify directives for caching mechanisms in both requests and responses. Use this header to define your caching policies with the variety of directives it provides.</p>
+</div>
+<div class="paragraph">
+<p><strong>No caching</strong></p>
+</div>
+<div class="paragraph">
+<p>The cache should not store anything about the client request or server response. A request is sent to the server and a full response is downloaded each and every time.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: no-store</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Cache but revalidate</strong></p>
+</div>
+<div class="paragraph">
+<p>A cache will send the request to the origin server for validation before releasing a cached copy.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: no-cache</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Private and public caches</strong></p>
+</div>
+<div class="paragraph">
+<p>The "public" directive indicates that the response may be cached by any cache. This can be useful if pages with HTTP authentication, or response status codes that aren&#8217;t normally cacheable, should now be cached.</p>
+</div>
+<div class="paragraph">
+<p>On the other hand, "private" indicates that the response is intended for a single user only and must not be stored by a shared cache. A private browser cache may store the response in this case.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: private
+Cache-Control: public</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Expiration</strong></p>
+</div>
+<div class="paragraph">
+<p>The most important directive here is <code>max-age=&lt;seconds&gt;</code>, which is the maximum amount of time in which a resource will be considered fresh. This directive is relative to the time of the request, and overrides the <code>Expires</code> header (if set). For the files in the application that will not change, you can normally use aggressive caching. This includes static files such as images, CSS files, and JavaScript files, for example.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: max-age=31536000</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Validation</strong></p>
+</div>
+<div class="paragraph">
+<p>When using the "must-revalidate" directive, the cache must verify the status of the stale resources before using it and expired ones should not be used.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: must-revalidate</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-pragma-header">3.2. The Pragma header</h3>
+<div class="paragraph">
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Pragma">Pragma</a> is an HTTP/1.0 header. <code>Pragma: no-cache</code> is like <code>Cache-Control: no-cache</code> in that it forces caches to submit the request to the origin server for validation, before releasing a cached copy. However, <code>Pragma</code> is not specified for HTTP responses and is therefore not a reliable replacement for the general HTTP/1.1 <code>Cache-Control</code> header.</p>
+</div>
+<div class="paragraph">
+<p><code>Pragma</code> should only be used for backwards compatibility with HTTP/1.0 caches where the <code>Cache-Control</code> HTTP/1.1 header is not yet present.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="freshness">4. Freshness</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Once a resource is stored in a cache, it could theoretically be served by the cache forever. Caches have finite storage so items are periodically removed from storage. This process is called <em>cache eviction</em>. On the other side, some resources may change on the server so the cache should be updated. As HTTP is a client-server protocol, servers can&#8217;t contact caches and clients when a resource changes; they have to communicate an expiration time for the resource. Before this expiration time, the resource is fresh; after the expiration time, the resource is stale. Eviction algorithms often privilege fresh resources over stale resources. Note that a stale resource is not evicted or ignored; when the cache receives a request for a stale resource, it forwards this request with a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match">If-None-Match</a> to check if it is in fact still fresh. If so, the server returns a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304">304</a> (Not Modified) header without sending the body of the requested resource, saving some bandwidth.</p>
+</div>
+<div class="paragraph">
+<p>Here is an example of this process with a shared cache proxy:</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/http-caching/HTTPStaleness.png" alt="HTTP Staleness" width="55%" height="55%">
+</div>
+</div>
+<div class="paragraph">
+<p>The freshness lifetime is calculated based on several headers. If a &#8220;Cache-Control: max-age=N&#8221; header is specified, then the freshness lifetime is equal to <code>N</code>. If this header is not present, which is very often the case, it is checked if an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expires">Expires</a> header is present. If an Expires header exists, then its value minus the value of the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Date">Date</a> header determines the freshness lifetime.</p>
+</div>
+<div class="sect2">
+<h3 id="heuristic-freshness-checking">4.1. Heuristic freshness checking</h3>
+<div class="paragraph">
+<p>If an origin server does not explicitly specify freshness (e.g. using <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control">Cache-Control</a> or <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expires">Expires</a> header) then a heuristic approach may be used.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2021 22:22:22 GMT</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this case look for a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified">Last-Modified</a> header. If this header is present, then the cache&#8217;s freshness lifetime is equal to the value of the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Date">Date</a> header minus the value of the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified">Last-modified</a> header divided by <code>10</code>. The expiration time is computed as follows:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">expirationTime = responseTime + freshnessLifetime - currentAge</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>where <code>responseTime</code> is the time at which the response was received according to the browser. For more information see <a href="https://datatracker.ietf.org/doc/html/rfc7234#section-4.2.2">RFC 7234: Hypertext Transfer Protocol (HTTP/1.1): 4.2.2.  Calculating Heuristic Freshness</a>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="revved-resources">4.2. Revved resources</h3>
+<div class="paragraph">
+<p>The more we use cached resources, the better the responsiveness and the performance of a Web site will be. To optimize this, good practices recommend to set expiration times as far in the future as possible. This is possible on resources that are regularly updated, or often, but is problematic for resources that are rarely and infrequently updated. They are the resources that would benefit the most from caching resources, yet this makes them very difficult to update. This is typical of the technical resources included and linked from each Web pages: JavaScript and CSS files change infrequently, but when they change you want them to be updated quickly.</p>
+</div>
+<div class="paragraph">
+<p>Web developers invented a technique that Steve Souders called <a href="https://www.stevesouders.com/blog/2008/08/23/revving-filenames-dont-use-querystring/">revving</a>. Infrequently updated files are named in a specific way: in their URL, usually in the filename, a <em>revision (or version) number</em> is added. That way each new revision of this resource is considered as a resource on its own that <em>never changes</em> and that can have an expiration time very far in the future, usually one year or even more. In order to have the new versions, all the links to them must be changed, that is the drawback of this method: additional complexity that is usually taken care of by the tool chain used by Web developers. When the infrequently variable resources change they induce an additional change to often variable resources. When these are read, the new versions of the others are also read.</p>
+</div>
+<div class="paragraph">
+<p>This technique has an additional benefit: updating two cached resources at the same time will not lead to the situation where the out-dated version of one resource is used in combination with the new version of the other one. This is very important when web sites have CSS stylesheets or JS scripts that have mutual dependencies, i.e., they depend on each other because they refer to the same HTML elements.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/http-caching/HTTPRevved.png" alt="HTTPRevved" width="55%" height="55%">
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="cache-validation">4.3. Cache validation</h3>
+<div class="paragraph">
+<p>When a cached document&#8217;s expiration time has been reached, it is either validated or fetched again. Validation can only occur if the server provided either a <em>strong validator</em> or a <em>weak validator</em>.</p>
+</div>
+<div class="paragraph">
+<p>Revalidation is triggered when the user presses the reload button. It is also triggered under normal browsing if the cached response includes the &#8220;Cache-Control: must-revalidate&#8221; header.</p>
+</div>
+<div class="paragraph">
+<p><strong>ETags</strong></p>
+</div>
+<div class="paragraph">
+<p>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag">ETag</a> response header is an opaque-to-the-user-agent value that can be used as a <strong>strong validator</strong>. That means that a HTTP user-agent, such as the browser, does not know what this string represents and can&#8217;t predict what its value would be. If the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag">ETag</a> header was part of the response for a resource, the client can issue an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match">If-None-Match</a> in the header of future requests  in order to validate the cached resource.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+ETag: "33a64df5"
+Cache-Control: max-age=3600</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">GET /index.html HTTP/1.1
+Host: example.com
+Accept: text/html
+If-None-Match: "33a64df5"</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Last-Modified</strong></p>
+</div>
+<div class="paragraph">
+<p>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified">Last-Modified</a> response header can be used as a <strong>weak validator</strong>. It is considered weak because it only has 1-second resolution. If the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified">Last-Modified</a> header is present in a response, then the client can issue an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since">If-Modified-Since</a> request header to validate the cached document.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1024
+Date: Tue, 22 Feb 2022 22:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+Cache-Control: max-age=3600</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When a validation request is made, the server can either ignore the validation request and respond with a normal <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200">200</a> OK, or it can return <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304">304</a> Not Modified (with an empty body) to instruct the browser to use its cached copy. The latter response can also include headers that update the expiration time of the cached document.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">GET /index.html HTTP/1.1
+Host: example.com
+Accept: text/html
+If-Modified-Since: Tue, 22 Feb 2022 22:00:00 GMT</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">HTTP/1.1 304 Not Modified
+Content-Type: text/html
+Date: Tue, 22 Feb 2022 23:22:22 GMT
+Last-Modified: Tue, 22 Feb 2022 22:00:00 GMT
+Cache-Control: max-age=3600</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="varying-responses">5. Varying responses</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary">Vary</a> HTTP response header determines how to match future request headers to decide whether a cached response can be used, or if a fresh one must be requested from the origin server.</p>
+</div>
+<div class="paragraph">
+<p>When a cache receives a request that has a Vary header field, it must not use a cached response by default unless all header fields specified in the Vary header match in both the original (cached) request and the new request.</p>
+</div>
+<div class="paragraph">
+<p>This feature is commonly used to allow a resource to be cached in uncompressed and (various) compressed forms, and served appropriately to user agents based on the encodings that they support. For example, a server can set Vary: <code>Accept-Encoding</code> to ensure that a separate version of a resource is cached for all requests that specify support for a particular set of encodings, e.g. <code>Accept-Encoding: gzip,deflate,sdch</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Vary: Accept-Encoding</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="http-caching-control-headers">6. HTTP caching control headers</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="cache-control">6.1. Cache-Control</h3>
+<div class="paragraph">
+<p>The Cache-Control HTTP header holds <em>directives</em> (instructions) for caching in both requests and responses. A given directive in a request does not mean the same directive should be in the response.</p>
+</div>
+<div class="sect3">
+<h4 id="syntax">6.1.1. Syntax</h4>
+<div class="paragraph">
+<p>Caching directives have the following rules to be valid:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Case-insensitive, but lowercase is recommended.</p>
+</li>
+<li>
+<p>Multiple directives are comma-separated.</p>
+</li>
+<li>
+<p>Some directives have an optional argument, which can be either a token or a quoted-string. (See spec for definitions)</p>
+</li>
+</ul>
+</div>
+<div class="sect4">
+<h5 id="cache-request-directives">Cache request directives</h5>
+<div class="paragraph">
+<p>Standard <code>Cache-Control</code> directives that can be used by the client in an HTTP request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: max-age=&lt;seconds&gt;
+Cache-Control: max-stale[=&lt;seconds&gt;]
+Cache-Control: min-fresh=&lt;seconds&gt;
+Cache-Control: no-cache
+Cache-Control: no-store
+Cache-Control: no-transform
+Cache-Control: only-if-cached</code></pre>
+</div>
+</div>
+</div>
+<div class="sect4">
+<h5 id="cache-response-directives">Cache response directives</h5>
+<div class="paragraph">
+<p>Standard <code>Cache-Control</code> directives that can be used by the server in an HTTP response.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: must-revalidate
+Cache-Control: no-cache
+Cache-Control: no-store
+Cache-Control: no-transform
+Cache-Control: public
+Cache-Control: private
+Cache-Control: proxy-revalidate
+Cache-Control: max-age=&lt;seconds&gt;
+Cache-Control: s-maxage=&lt;seconds&gt;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect4">
+<h5 id="extension-cache-control-directives">Extension Cache-Control directives</h5>
+<div class="paragraph">
+<p>Extension <code>Cache-Control</code> directives are not part of the core HTTP caching standards document. Check the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control#browser_compatibility">compatibility table</a> for their support; user-agents that don&#8217;t recognize them should ignore them.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: immutable
+Cache-Control: stale-while-revalidate=&lt;seconds&gt;
+Cache-Control: stale-if-error=&lt;seconds&gt;</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="directives">6.1.2. Directives</h4>
+<div class="sect4">
+<h5 id="cacheability">Cacheability</h5>
+<div class="paragraph">
+<p>Directives that define whether a response/request can be cached, where it may be cached, and whether it must be validated with the origin server before caching.</p>
+</div>
+<div class="paragraph">
+<p><strong>public</strong></p>
+</div>
+<div class="paragraph">
+<p>The response may be stored by <strong>any</strong> cache, even if the response is normally non-cacheable.</p>
+</div>
+<div class="paragraph">
+<p><strong>private</strong></p>
+</div>
+<div class="paragraph">
+<p>The response may be stored only by a browser&#8217;s cache, even if the response is normally non-cacheable. If you mean to not store the response in any cache, use no-store instead. This directive is not effective in preventing caches from storing your response.</p>
+</div>
+<div class="paragraph">
+<p><strong>no-cache</strong></p>
+</div>
+<div class="paragraph">
+<p>The response <strong>may be stored</strong> by any cache, even if the response is normally non-cacheable. However, the stored response MUST always go through validation with the origin server first before using it, therefore, you cannot use no-cache in-conjunction with immutable. <strong>If you mean to not store the response in any cache, use <code>no-store</code> instead.</strong> <em>This directive is not effective in preventing caches from storing your response.</em></p>
+</div>
+<div class="paragraph">
+<p><strong>no-store</strong></p>
+</div>
+<div class="paragraph">
+<p>The response <strong>may not be stored</strong> in any cache. <em>Note that this will not prevent a valid pre-existing cached response being returned.</em> Clients can set <code>max-age=0</code> to also clear existing cache responses, as this forces the cache to revalidate with the server (no other directives have an effect when used with <code>no-store</code>).</p>
+</div>
+</div>
+<div class="sect4">
+<h5 id="expiration">Expiration</h5>
+<div class="paragraph">
+<p><strong>max-age=&lt;seconds&gt;</strong></p>
+</div>
+<div class="paragraph">
+<p>The maximum amount of time a resource is considered fresh. Unlike <code>Expires</code>, this directive is <em>relative to the time of the request</em>.</p>
+</div>
+<div class="paragraph">
+<p><strong>s-maxage=&lt;seconds&gt;</strong></p>
+</div>
+<div class="paragraph">
+<p>Overrides <code>max-age</code> or the <code>Expires</code> header, but only for <em>shared caches</em> (e.g., proxies). Ignored by private caches.</p>
+</div>
+<div class="paragraph">
+<p><strong>max-stale[=&lt;seconds&gt;]</strong></p>
+</div>
+<div class="paragraph">
+<p>Indicates the client will accept a stale response. An optional value in seconds indicates the upper limit of staleness the client will accept.</p>
+</div>
+<div class="paragraph">
+<p><strong>min-fresh=&lt;seconds&gt;</strong></p>
+</div>
+<div class="paragraph">
+<p>Indicates the client wants a response that will still be fresh for at least the specified number of seconds.</p>
+</div>
+<div class="paragraph">
+<p><strong><em>stale-while-revalidate=&lt;seconds&gt;</em></strong></p>
+</div>
+<div class="paragraph">
+<p>Indicates the client will accept a stale response, while asynchronously checking in the background for a fresh one. The seconds value indicates how long the client will accept a stale response. Note that the time does not start at the time of the request itself, but, for example, after <code>max-age</code> has elapsed.</p>
+</div>
+<div class="paragraph">
+<p><strong><em>stale-if-error=&lt;seconds&gt;</em></strong></p>
+</div>
+<div class="paragraph">
+<p>Indicates the client will accept a stale response if the check for a fresh one fails. The seconds value indicates how long the client will accept the stale response after the initial expiration.</p>
+</div>
+</div>
+<div class="sect4">
+<h5 id="revalidation-and-reloading">Revalidation and reloading</h5>
+<div class="paragraph">
+<p><strong>must-revalidate</strong></p>
+</div>
+<div class="paragraph">
+<p>Indicates that once a resource becomes stale, caches must not use their stale copy without successful validation on the origin server.</p>
+</div>
+<div class="paragraph">
+<p><strong>proxy-revalidate</strong></p>
+</div>
+<div class="paragraph">
+<p>Like <code>must-revalidate</code>, but only for <em>shared caches</em> (e.g., proxies). Ignored by private caches.</p>
+</div>
+<div class="paragraph">
+<p><strong><em>immutable</em></strong></p>
+</div>
+<div class="paragraph">
+<p>Indicates that the response body will not change over time. The resource, if unexpired, is unchanged on the server and therefore the client should not send a conditional revalidation for it (e.g. <code>If-None-Match</code> or <code>If-Modified-Since</code>) to check for updates, even when the user explicitly refreshes the page. Clients that aren&#8217;t aware of this extension must ignore them as per the HTTP specification.</p>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="examples">6.1.3. Examples</h4>
+<div class="sect4">
+<h5 id="preventing-caching">Preventing caching</h5>
+<div class="paragraph">
+<p>A good way to disable caching of a resource, is to send the following response header:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: no-store</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Note: The no-store directive will prevent a new resource being cached, but it will not prevent the cache from responding with a non-stale resource that was cached as the result of an earlier request. Setting <code>max-age=0</code> as well forces the cache to revalidate (clears the cache).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: no-store, max-age=0</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>On the opposite, this is a bad way to achieve this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: private,no-cache,no-store,max-age=0,must-revalidate,pre-check=0,post-check=0</code></pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect4">
+<h5 id="caching-static-assets">Caching static assets</h5>
+<div class="paragraph">
+<p>For the files in the application that will not change, you can usually add aggressive caching by sending the response header below. This includes static files that are served by the application such as images, CSS files and JavaScript files, for example. In addition, see also the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expires">Expires</a> header.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: public, max-age=604800, immutable</code></pre>
+</div>
+</div>
+</div>
+<div class="sect4">
+<h5 id="requiring-revalidation">Requiring revalidation</h5>
+<div class="paragraph">
+<p><code>no-cache</code> and <code>max-age=0</code>, <code>must-revalidate</code> have the same meaning. Clients can cache a resource but must revalidate each time before using it. This means HTTP request occurs each time though, it can skip downloading HTTP body if the content is valid.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: no-cache</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: max-age=0, must-revalidate</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Note: The following header may serve a stale resource, if server is down or loses connectivity.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Cache-Control: max-age=0</code></pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="expires">6.2. Expires</h3>
+<div class="paragraph">
+<p>The <code>Expires</code> header contains the <code>date/time</code> after which the response is considered stale.</p>
+</div>
+<div class="paragraph">
+<p>Invalid dates, like the value 0, represent a date in the past and mean that the resource is already expired.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+If there is a <code>Cache-Control</code> header with the <code>max-age</code> or <code>s-maxage</code> directive in the response, the <code>Expires</code> header is ignored.
+</td>
+</tr>
+</table>
+</div>
+<div class="sect3">
+<h4 id="syntax-2">6.2.1. Syntax</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Expires: &lt;http-date&gt;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="directives-2">6.2.2. Directives</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">&lt;http-date&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An HTTP-date timestamp.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="examples-2">6.2.3. Examples</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Expires: Wed, 21 Oct 2015 07:28:00 GMT</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="age">6.3. Age</h3>
+<div class="paragraph">
+<p>The <code>Age</code> header contains the time in seconds the object has been in a proxy cache.</p>
+</div>
+<div class="paragraph">
+<p>The <code>Age</code> header is usually close to zero. If it is <code>Age: 0</code>, it was probably just fetched from the origin server; otherwise It is usually calculated as a difference between the proxy&#8217;s current date and the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Date">Date</a> general header included in the HTTP response.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="date">6.4. Date</h3>
+<div class="paragraph">
+<p>The <code>Date</code> general HTTP header contains the date and time at which the message was originated.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Date: Wed, 21 Oct 2015 07:28:00 GMT</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="js"><span class="k">new</span> <span class="nb">Date</span><span class="p">().</span><span class="nx">toUTCString</span><span class="p">()</span>
+<span class="c1">// "Mon, 09 Mar 2020 08:13:24 GMT"</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="vary">6.5. Vary</h3>
+<div class="paragraph">
+<p>The <code>Vary</code> HTTP response header determines how to match future request headers to decide whether a cached response can be used rather than requesting a fresh one from the origin server. It is used by the server to indicate which headers it used when selecting a representation of a resource in a <em>content negotiation</em> algorithm.</p>
+</div>
+<div class="paragraph">
+<p>The <code>Vary</code> header should be set on a <code>304</code> Not Modified response exactly like it would have been set on an equivalent <code>200</code> OK response.</p>
+</div>
+<div class="sect3">
+<h4 id="syntax-3">6.5.1. Syntax</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Vary: *
+Vary: &lt;header-name&gt;, &lt;header-name&gt;, ...</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="directives-3">6.5.2. Directives</h4>
+<div class="paragraph">
+<p><strong>*</strong></p>
+</div>
+<div class="paragraph">
+<p>Each request for a URL is supposed to be treated as a unique and uncacheable request. A better way to indicate this is to use <code>Cache-Control: no-store</code>, which is clearer to read and also signals that the object shouldn&#8217;t be stored ever.</p>
+</div>
+<div class="paragraph">
+<p><strong>&lt;header-name&gt;</strong></p>
+</div>
+<div class="paragraph">
+<p>A comma-separated list of header names to take into account when deciding whether or not a cached response can be used.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="examples-3">6.5.3. Examples</h4>
+<div class="sect4">
+<h5 id="dynamic-serving">Dynamic serving</h5>
+<div class="paragraph">
+<p>When using the <code>Vary: User-Agent</code> header, caching servers should consider the user agent when deciding whether to serve the page from cache. For example, if you are serving different content to mobile users, it can help you to avoid that a cache may mistakenly serve a desktop version of your site to your mobile users. It can help Google and other search engines to discover the mobile version of a page, and might also tell them that no <a href="https://en.wikipedia.org/wiki/Cloaking">Cloaking</a> is intended.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Vary: User-Agent</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="pragma">6.6. Pragma</h3>
+<div class="paragraph">
+<p>The <code>Pragma</code> HTTP/1.0 general header is an implementation-specific header that may have various effects along the request-response chain. It is used for <em>backwards compatibility with HTTP/1.0 caches</em> where the <code>Cache-Control</code> HTTP/1.1 header is not yet present.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<code>Pragma</code> is not specified for HTTP responses and is therefore not a reliable replacement for the general HTTP/1.1 <code>Cache-Control</code> header, although it does behave the same as <code>Cache-Control: no-cache</code>, if the <code>Cache-Control</code> header field is omitted in a request. <strong>Use <code>Pragma</code> only for backwards compatibility with HTTP/1.0 clients.</strong>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="http-conditional-requests-http1-1">7. HTTP conditional requests (HTTP/1.1)</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="last-modified">7.1. Last-Modified</h3>
+<div class="paragraph">
+<p>The <code>Last-Modified</code> response HTTP header contains the date and time at which the origin server believes the resource was last modified. It is used as a validator to determine if a resource received or stored is the same. <strong>Less accurate than an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag">ETag</a> header, it is a fallback mechanism.</strong> Conditional requests containing <code>If-Modified-Since</code> or <code>If-Unmodified-Since</code> headers make use of this field.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/
+<span class="hll"><span class="go">HTTP/2 200</span>
+</span><span class="go">server: GitHub.com</span>
+<span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+<span class="hll"><span class="go">last-modified: Wed, 22 Sep 2021 06:10:18 GMT</span>
+</span><span class="go">access-control-allow-origin: *</span>
+<span class="go">etag: "614ac8ca-1c64"</span>
+<span class="go">expires: Wed, 22 Sep 2021 06:23:12 GMT</span>
+<span class="go">cache-control: max-age=600</span>
+<span class="go">x-proxy-cache: MISS</span>
+<span class="go">x-github-request-id: BBC8:13FF:75A61:CAF87:614AC978</span>
+<span class="go">accept-ranges: bytes</span>
+<span class="go">date: Wed, 22 Sep 2021 06:15:58 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">age: 166</span>
+<span class="go">x-served-by: cache-hkg17930-HKG</span>
+<span class="go">x-cache: HIT</span>
+<span class="go">x-cache-hits: 1</span>
+<span class="go">x-timer: S1632291359.923473,VS0,VE1</span>
+<span class="go">vary: Accept-Encoding</span>
+<span class="go">x-fastly-request-id: 342a98d6c40c636779bf85f616d08e9b18b312c6</span>
+<span class="go">content-length: 7268</span>
+
+<span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/ <span class="se">\</span>
+<span class="hll"><span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span><span class="s1">'If-Modified-Since: Wed, 22 Sep 2021 06:10:18 GMT'</span>
+</span><span class="hll"><span class="go">HTTP/2 304</span>
+</span><span class="go">date: Wed, 22 Sep 2021 06:16:21 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">cache-control: max-age=600</span>
+<span class="go">etag: "614ac8ca-1c64"</span>
+<span class="go">expires: Wed, 22 Sep 2021 06:23:12 GMT</span>
+<span class="go">age: 188</span>
+<span class="go">x-served-by: cache-hkg17930-HKG</span>
+<span class="go">x-cache: HIT</span>
+<span class="go">x-cache-hits: 2</span>
+<span class="go">x-timer: S1632291381.213552,VS0,VE0</span>
+<span class="go">vary: Accept-Encoding</span>
+<span class="go">x-fastly-request-id: 6604678c8e31a6c9ba1330f38f79998a469ad75b</span>
+
+<span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/ <span class="se">\</span>
+<span class="hll"><span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span><span class="s1">'If-Unmodified-Since: Wed, 22 Sep 2021 06:10:18 GMT'</span>
+</span><span class="hll"><span class="go">HTTP/2 200</span>
+</span><span class="go">server: GitHub.com</span>
+<span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+<span class="hll"><span class="go">last-modified: Wed, 22 Sep 2021 06:10:18 GMT</span>
+</span><span class="go">access-control-allow-origin: *</span>
+<span class="go">etag: "614ac8ca-1c64"</span>
+<span class="go">expires: Wed, 22 Sep 2021 06:23:12 GMT</span>
+<span class="go">cache-control: max-age=600</span>
+<span class="go">x-proxy-cache: MISS</span>
+<span class="go">x-github-request-id: BBC8:13FF:75A61:CAF87:614AC978</span>
+<span class="go">accept-ranges: bytes</span>
+<span class="go">date: Wed, 22 Sep 2021 06:16:48 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">age: 216</span>
+<span class="go">x-served-by: cache-hkg17928-HKG</span>
+<span class="go">x-cache: HIT</span>
+<span class="go">x-cache-hits: 3</span>
+<span class="go">x-timer: S1632291409.582379,VS0,VE0</span>
+<span class="go">vary: Accept-Encoding</span>
+<span class="go">x-fastly-request-id: e4ab3af31cbfa36dc9d8d15e66d14b0eccf44059</span>
+<span class="go">content-length: 7268</span>
+
+<span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/ <span class="se">\</span>
+<span class="hll"><span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span><span class="s1">'If-Unmodified-Since: Wed, 20 Sep 2021 06:10:18 GMT'</span>
+</span><span class="hll"><span class="go">HTTP/2 412</span>
+</span><span class="go">server: Varnish</span>
+<span class="go">retry-after: 0</span>
+<span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+<span class="go">accept-ranges: bytes</span>
+<span class="go">date: Wed, 22 Sep 2021 06:16:56 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">x-served-by: cache-hkg17926-HKG</span>
+<span class="go">x-cache: MISS</span>
+<span class="go">x-cache-hits: 0</span>
+<span class="go">x-timer: S1632291416.406798,VS0,VE0</span>
+<span class="go">x-fastly-request-id: ba3bbf134d35ff9f4242e2cc6f5892bc9243732f</span>
+<span class="go">content-length: 452</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="etag">7.2. ETag</h3>
+<div class="paragraph">
+<p>The <code>ETag</code> HTTP response header is an identifier for a specific version of a resource. It lets <em>caches</em> be more efficient and save bandwidth, as a web server does not need to resend a full response if the content has not changed. Additionally, etags help prevent simultaneous updates of a resource from <em>overwriting</em> each other ("mid-air collisions").</p>
+</div>
+<div class="paragraph">
+<p>If the resource at a given URL changes, a new <code>Etag</code> value <em>must</em> be generated. A comparison of them can determine whether two representations of a resource are the same. Etags are therefore similar to fingerprints, and might also be used for tracking purposes by some servers. They might also be set to persist indefinitely by a tracking server.</p>
+</div>
+<div class="sect3">
+<h4 id="syntax-4">7.2.1. Syntax</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">ETag: W/"&lt;etag_value&gt;"
+ETag: "&lt;etag_value&gt;"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="directives-4">7.2.2. Directives</h4>
+<div class="paragraph">
+<p><strong>W/ Optional</strong></p>
+</div>
+<div class="paragraph">
+<p>'W/' (case-sensitive) indicates that a <em>weak validator</em> is used. Weak etags are easy to generate, but are far less useful for comparisons. Strong validators are ideal for comparisons but can be very difficult to generate efficiently. <em>Weak ETag values of two representations of the same resources might be semantically equivalent, but not byte-for-byte identical.</em> <strong>This means weak etags prevent caching when byte range requests are used, but strong etags mean range requests can still be cached.</strong></p>
+</div>
+<div class="paragraph">
+<p><strong>"&lt;etag_value&gt;"</strong></p>
+</div>
+<div class="paragraph">
+<p>Entity tag uniquely representing the requested resource. They are a string of ASCII characters placed between double quotes, like "675af34563dc-tr34". The method by which <code>ETag</code> values are generated is not specified. <em>Often, a hash of the content, a hash of the last modification timestamp, or just a revision number is used.</em> For example, MDN uses a hexadecimal hash of the wiki article content.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="examples-4">7.2.3. Examples</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
+ETag: W/"0815"</code></pre>
+</div>
+</div>
+<div class="sect4">
+<h5 id="avoiding-mid-air-collisions">Avoiding mid-air collisions</h5>
+<div class="paragraph">
+<p>With the help of the <code>ETag</code> and the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Match">If-Match</a> headers, you can detect mid-air edit collisions.</p>
+</div>
+<div class="paragraph">
+<p>For example, when editing a wiki, the current wiki content may be hashed and put into an <code>Etag</code> header in the response:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When saving changes to a wiki page (posting data), the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST">POST</a> request will contain the <code>If-Match</code> header containing the <code>ETag</code> values to check freshness against.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">If-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the hashes don&#8217;t match, it means that the document has been edited in-between and a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/412">412</a> Precondition Failed error is thrown.</p>
+</div>
+</div>
+<div class="sect4">
+<h5 id="caching-of-unchanged-resources">Caching of unchanged resources</h5>
+<div class="paragraph">
+<p>Another typical use of the <code>ETag</code> header is to cache resources that are unchanged. If a user visits a given URL again (that has an <code>ETag</code> set), and it is stale (too old to be considered usable), the client will send the value of its <code>ETag</code> along in an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match">If-None-Match</a> header field:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">If-None-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The server compares the client&#8217;s <code>ETag</code> (sent with <code>If-None-Match</code>) with the <code>ETag</code> for its current version of the resource, and if both values match (that is, the resource has not changed), the server sends back a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/304">304</a> Not Modified status, without a body, which tells the client that the cached version of the response is still good to use (fresh).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/
+<span class="hll"><span class="go">HTTP/2 200</span>
+</span><span class="go">server: GitHub.com</span>
+<span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+<span class="go">last-modified: Mon, 20 Sep 2021 14:00:00 GMT</span>
+<span class="go">access-control-allow-origin: *</span>
+<span class="hll"><span class="go">etag: "614893e0-1c64"</span>
+</span><span class="go">expires: Wed, 22 Sep 2021 05:07:57 GMT</span>
+<span class="go">cache-control: max-age=600</span>
+<span class="go">x-proxy-cache: MISS</span>
+<span class="go">x-github-request-id: DE68:7B7F:D07D7:17DBD4:614AB7D5</span>
+<span class="go">accept-ranges: bytes</span>
+<span class="go">date: Wed, 22 Sep 2021 05:08:12 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">age: 3</span>
+<span class="go">x-served-by: cache-hkg17926-HKG</span>
+<span class="go">x-cache: HIT</span>
+<span class="go">x-cache-hits: 3</span>
+<span class="go">x-timer: S1632287292.223946,VS0,VE0</span>
+<span class="go">vary: Accept-Encoding</span>
+<span class="go">x-fastly-request-id: 127919c74eb061331922c451e3c21500a47355f8</span>
+<span class="go">content-length: 7268</span>
+
+<span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/ <span class="se">\</span>
+<span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span> <span class="s1">'Cache-Control: no-cache, max-age=0'</span> <span class="se">\</span>
+<span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span> <span class="s1">'If-None-Match: "614893e0-1c64"'</span>
+<span class="hll"><span class="go">HTTP/2 304</span>
+</span><span class="go">date: Wed, 22 Sep 2021 05:08:26 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">cache-control: max-age=600</span>
+<span class="hll"><span class="go">etag: "614893e0-1c64"</span>
+</span><span class="go">expires: Wed, 22 Sep 2021 05:07:57 GMT</span>
+<span class="go">age: 17</span>
+<span class="go">x-served-by: cache-hkg17921-HKG</span>
+<span class="go">x-cache: HIT</span>
+<span class="go">x-cache-hits: 1</span>
+<span class="go">x-timer: S1632287307.670572,VS0,VE1</span>
+<span class="go">vary: Accept-Encoding</span>
+<span class="go">x-fastly-request-id: 580f53afd3df9b3f06c362965321914c72eb4e60</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="if-match">7.3. If-Match</h3>
+<div class="paragraph">
+<p>The <code>If-Match</code> HTTP request header makes the request conditional. For <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD">HEAD</a> methods, the server will send back the requested resource only if it matches one of the listed ETags. For <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PUT">PUT</a> and other <em>non-safe</em> methods, it will only upload the resource in this case.</p>
+</div>
+<div class="paragraph">
+<p>The comparison with the stored <code>ETag</code> uses the <strong><em>strong comparison algorithm</em></strong>, meaning two files are considered identical byte to byte only. If a listed <code>ETag</code> has the <code>W/</code> prefix indicating a weak entity tag, it will never match under this comparison algorithm.</p>
+</div>
+<div class="paragraph">
+<p>There are two common use cases:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For <code>GET</code> and <code>HEAD</code> methods, used in combination with a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range">Range</a> header, it can guarantee that the new ranges requested comes from the same resource than the previous one. If it doesn&#8217;t match, then a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/416">416</a> (Range Not Satisfiable) response is returned.</p>
+</li>
+<li>
+<p>For other methods, and in particular for <code>PUT</code>, <code>If-Match</code> can be used to prevent the <a href="https://www.w3.org/1999/04/Editing/#3.1">lost update problem</a>. It can check if the modification of a resource that the user wants to upload will not override another change that has been done since the original resource was fetched. If the request cannot be fulfilled, the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/412">412</a> (Precondition Failed) response is returned.</p>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="syntax-5">7.3.1. Syntax</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">If-Match: &lt;etag_value&gt;
+If-Match: &lt;etag_value&gt;, &lt;etag_value&gt;, …</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="directives-5">7.3.2. Directives</h4>
+<div class="paragraph">
+<p><strong>&lt;etag_value&gt;</strong></p>
+</div>
+<div class="paragraph">
+<p>Entity tags uniquely representing the requested resources. They are a string of ASCII characters placed between double quotes (like "675af34563dc-tr34"). They may be prefixed by <code>W/</code> to indicate that they are "weak", i.e. that they represent the resource semantically, but not byte-for-byte. <strong>However, in an <code>If-Match</code> header, weak entity tags will never match.</strong></p>
+</div>
+<div class="paragraph">
+<p><strong>*</strong></p>
+</div>
+<div class="paragraph">
+<p>The asterisk is a special value representing any resource.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/ <span class="se">\</span>
+<span class="hll"><span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span><span class="s1">'If-Match: "614ac8ca-1c64"'</span>
+</span><span class="hll"><span class="go">HTTP/2 200</span>
+</span><span class="go">server: GitHub.com</span>
+<span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+<span class="go">last-modified: Wed, 22 Sep 2021 06:10:18 GMT</span>
+<span class="go">access-control-allow-origin: *</span>
+<span class="hll"><span class="go">etag: "614ac8ca-1c64"</span>
+</span><span class="go">expires: Wed, 22 Sep 2021 06:23:12 GMT</span>
+<span class="go">cache-control: max-age=600</span>
+<span class="go">x-proxy-cache: MISS</span>
+<span class="go">x-github-request-id: BBC8:13FF:75A61:CAF87:614AC978</span>
+<span class="go">accept-ranges: bytes</span>
+<span class="go">date: Wed, 22 Sep 2021 06:28:38 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">age: 105</span>
+<span class="go">x-served-by: cache-hkg17924-HKG</span>
+<span class="go">x-cache: HIT</span>
+<span class="go">x-cache-hits: 1</span>
+<span class="go">x-timer: S1632292118.311608,VS0,VE1</span>
+<span class="go">vary: Accept-Encoding</span>
+<span class="go">x-fastly-request-id: 6d9bb0336b206c24729f619a0d52ac3932df452e</span>
+<span class="go">content-length: 7268</span>
+
+<span class="gp">$</span><span class="w"> </span>curl <span class="nt">-iI</span> https://blog.codefarm.me/ <span class="se">\</span>
+<span class="hll"><span class="gp">&gt;</span><span class="w"> </span><span class="nt">-H</span><span class="s1">'If-Match: "614ac8ca-123"'</span>
+</span><span class="hll"><span class="go">HTTP/2 412</span>
+</span><span class="go">server: Varnish</span>
+<span class="go">retry-after: 0</span>
+<span class="gp">content-type: text/html;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+<span class="go">accept-ranges: bytes</span>
+<span class="go">date: Wed, 22 Sep 2021 06:30:10 GMT</span>
+<span class="go">via: 1.1 varnish</span>
+<span class="go">x-served-by: cache-hkg17923-HKG</span>
+<span class="go">x-cache: MISS</span>
+<span class="go">x-cache-hits: 0</span>
+<span class="go">x-timer: S1632292210.132090,VS0,VE1</span>
+<span class="go">x-fastly-request-id: b15ce88b2dae2c305777ffa75dca42c68bc3b6f1</span>
+<span class="go">content-length: 452</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="if-none-match">7.4. If-None-Match</h3>
+<div class="paragraph">
+<p>The <code>If-None-Match</code> HTTP request header makes the request conditional. For <code>GET</code> and <code>HEAD</code> methods, the server will send back the requested resource, with a <code>200</code> status, only if it doesn&#8217;t have an <code>ETag</code> matching the given ones. For other methods, the request will be processed only if the eventually existing resource&#8217;s <code>ETag</code> doesn&#8217;t match any of the values listed.</p>
+</div>
+<div class="paragraph">
+<p>When the condition fails for <code>GET</code> and <code>HEAD</code> methods, then the server must return HTTP status code <code>304</code> (Not Modified). For methods that apply server-side changes, the status code <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/412">412</a> (Precondition Failed) is used. Note that the server generating a <code>304</code> response MUST generate any of the following header fields that would have been sent in a <code>200</code> (OK) response to the same request: <code>Cache-Control</code>, <code>Content-Location</code>, <code>Date</code>, <code>ETag</code>, <code>Expires</code>, and <code>Vary</code>.</p>
+</div>
+<div class="paragraph">
+<p>The comparison with the stored <code>ETag</code> uses the <strong><em>weak comparison algorithm</em></strong>, meaning two files are considered identical if the content is equivalent — they don&#8217;t have to be identical byte for byte. For example, two pages that differ by the date of generation in the footer would still be considered as identical.</p>
+</div>
+<div class="paragraph">
+<p>When used in combination with <code>If-Modified-Since</code>, <code>If-None-Match</code> has <em>precedence</em> (if the server supports it).</p>
+</div>
+<div class="paragraph">
+<p>There are two common use cases:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For <code>GET</code> and <code>HEAD</code> methods, to update a <em>cached</em> entity that has an associated <code>ETag</code>.</p>
+</li>
+<li>
+<p>For other methods, and in particular for <code>PUT</code>, <code>If-None-Match</code> used with the <code>*</code> value can be used to save a file not known to exist, guaranteeing that another upload didn&#8217;t happen before, losing the data of the previous put; this problem is a variation of the <em>lost update problem</em>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="if-modified-since">7.5. If-Modified-Since</h3>
+<div class="paragraph">
+<p>The <code>If-Modified-Since</code> request HTTP header makes the request conditional: the server will send back the requested resource, with a <code>200</code> status, only if it has been last modified after the given date. If the resource has not been modified since, the response will be a <code>304</code> without any body; the <code>Last-Modified</code> response header of a previous request will contain the date of last modification. <strong>Unlike <code>If-Unmodified-Since</code>, <code>If-Modified-Since</code> can only be used with a <code>GET</code> or <code>HEAD</code>.</strong></p>
+</div>
+<div class="paragraph">
+<p>When used in combination with <code>If-None-Match</code>, it is ignored, unless the server doesn&#8217;t support <code>If-None-Match</code>.</p>
+</div>
+<div class="paragraph">
+<p><strong>The most common use case is to update a <em>cached</em> entity that has <em>no</em> associated <code>ETag</code>.</strong></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="if-unmodified-since">7.6. If-Unmodified-Since</h3>
+<div class="paragraph">
+<p>The <code>If-Unmodified-Since</code> request HTTP header makes the request conditional: the server will send back the requested resource, or accept it in the case of a <code>POST</code> or another <em>non-safe</em> method, only if it has not been last modified after the given date. If the resource has been modified after the given date, the response will be a <code>412</code> (Precondition Failed) error.</p>
+</div>
+<div class="paragraph">
+<p>There are two common use cases:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In conjunction with <em>non-safe methods</em>, like <code>POST</code>, it can be used to implement an <strong><em>optimistic concurrency control</em></strong>, like done by some wikis: editions are rejected if the stored document has been modified since the original has been retrieved.</p>
+</li>
+<li>
+<p>In conjunction with a range request with a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Range">If-Range</a> header, it can be used to ensure that the new fragment requested comes from an unmodified document.</p>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="if-range">7.6.1. If-Range</h4>
+<div class="paragraph">
+<p>The <code>If-Range</code> HTTP request header makes a range request conditional: if the condition is fulfilled, the range request will be issued and the server sends back a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/206">206</a> Partial Content answer with the appropriate body. If the condition is not fulfilled, the full resource is sent back, with a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200">200</a> OK status.</p>
+</div>
+<div class="paragraph">
+<p>This header can be used either with a <code>Last-Modified</code> validator, or with an <code>ETag</code>, but not with both.</p>
+</div>
+<div class="paragraph">
+<p>The most common use case is to resume a download, to guarantee that the stored resource has not been modified since the last fragment has been received.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="examples-5">7.6.2. Examples</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">If-Match: "bfc13a64729c4290ef5b2c2730249c88ca92d82d"
+
+If-Match: "67ab43", "54ed21", "7892dd"
+
+If-Match: *</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">8. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching</a>, HTTP caching - HTTP | MDN</p>
+</li>
+<li>
+<p><a href="https://datatracker.ietf.org/doc/html/rfc7234" class="bare">https://datatracker.ietf.org/doc/html/rfc7234</a>, Hypertext Transfer Protocol (HTTP/1.1): Caching</p>
+</li>
+<li>
+<p><a href="https://datatracker.ietf.org/doc/html/rfc7232" class="bare">https://datatracker.ietf.org/doc/html/rfc7232</a>, Hypertext Transfer Protocol (HTTP/1.1): Conditional Requests</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/09/16/proxy-server-forwarded-http-extensions/">&laquo; Proxy Server and Forwarded HTTP Extensions</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/09/18/vpc-and-cloud-computing/">VPC and Cloud Computing &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Partition, format and mount driver on Linux</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2018/04/09/partition-format-mount-disk-driver-linux/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Partition, format and mount driver on Linux</h1>
+    
+    
+    <p class="post-meta"><time datetime="2018-04-09T14:22:13+08:00" itemprop="datePublished">Apr 9, 2018</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <ul id="markdown-toc">
+  <li><a href="#disk-partitioning" id="markdown-toc-disk-partitioning">Disk partitioning</a>    <ul>
+      <li><a href="#primary-extended-and-logical-partitions" id="markdown-toc-primary-extended-and-logical-partitions">Primary, Extended, and Logical Partitions</a></li>
+      <li><a href="#partition-a-new-disk" id="markdown-toc-partition-a-new-disk">Partition a new disk</a></li>
+    </ul>
+  </li>
+  <li><a href="#disk-formatting" id="markdown-toc-disk-formatting">Disk formatting</a>    <ul>
+      <li><a href="#creating-an-ext2-or-ext3-or-ext4-or-xfs-filesystem" id="markdown-toc-creating-an-ext2-or-ext3-or-ext4-or-xfs-filesystem">Creating an ext2, or ext3, or ext4, or xfs filesystem</a>        <ul>
+          <li><a href="#converting-ext2-to-ext3" id="markdown-toc-converting-ext2-to-ext3">Converting ext2 to ext3</a></li>
+          <li><a href="#converting-ext3-to-ext4" id="markdown-toc-converting-ext3-to-ext4">Converting ext3 to ext4</a></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li><a href="#mount" id="markdown-toc-mount">Mount</a>    <ul>
+      <li><a href="#checking-your-available-partitions" id="markdown-toc-checking-your-available-partitions">Checking Your Available Partitions</a></li>
+      <li><a href="#mounting-with-udisks" id="markdown-toc-mounting-with-udisks">Mounting With Udisks</a></li>
+      <li><a href="#unmounting-with-udisks" id="markdown-toc-unmounting-with-udisks">Unmounting With Udisks</a></li>
+      <li><a href="#mounting-the-old-school-way" id="markdown-toc-mounting-the-old-school-way">Mounting the Old-School Way</a></li>
+      <li><a href="#unmounting-the-old-school-way" id="markdown-toc-unmounting-the-old-school-way">Unmounting the Old-School Way</a></li>
+      <li><a href="#update-etcfstab-file-to-automount-partitions-at-startup" id="markdown-toc-update-etcfstab-file-to-automount-partitions-at-startup">Update /etc/fstab file to automount partitions at startup</a></li>
+    </ul>
+  </li>
+  <li><a href="#an-example-to-partion-a-new-disk" id="markdown-toc-an-example-to-partion-a-new-disk">An example to partion a new disk</a></li>
+  <li><a href="#references" id="markdown-toc-references">References</a></li>
+</ul>
+
+<hr />
+
+<h2 id="disk-partitioning">Disk partitioning</h2>
+
+<p><strong>Disk partioning</strong> or <strong>disk slicing</strong> is the creation of one or more regions on a hard disk or other secondary storage, so that an operating system can manage information in each region separately. Partioning is typically the fist step of preparing a newly manufactured disk, before any files or directories have been created. The disk stores the information about the partions’ location and sizes in an area known as the <strong>partion table</strong> that the operating system reads before any other part of the disk. Each partion then apears in the operating system as a distinct “logical” disk that use part of the actual disk. System administrators use a program called a partion editor to create, resize, delete, and manipulate the partitions. When a hard driver is installed in a computer, it must be partioned before you can format and use it. Partioning a driver is when you divide the total storage of a driver into different pieces. These pieces are call partions. Once a partion is created, it can then be formatted so that it can be used on a computer.</p>
+
+<h3 id="primary-extended-and-logical-partitions">Primary, Extended, and Logical Partitions</h3>
+
+<p>When partitioning, you’ll need to be aware of the difference between primary, extended, and logical partitions. A disk with a traditional partition table can only have up to four partitions. Extended and logical partitions are a way to get around this limitation.</p>
+
+<p>Each disk can have up to four primary partitions or three primary partitions and an extended partition. If you need four partitions or less, you can just create them as primary partitions.</p>
+
+<p>However, let’s say you want six partitions on a single drive. You’d have to create three primary partitions as well as an extended partition. The extended partition effectively functions as a container that allows you to create a larger amount of logical partitions. So, if you needed six partitions, you’d create three primary partitions, an extended partition, and then three logical partitions inside the extended partition. You could also just create a single primary partition, an extended partition, and five logical partitions — you just can’t have more than four primary partitions at a time.</p>
+
+<h3 id="partition-a-new-disk">Partition a new disk</h3>
+
+<p>Use this command <code class="language-plaintext highlighter-rouge">lsblk</code> to list available disks:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsblk
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+├─sda1   8:1    0 19.1G  0 part /
+├─sda2   8:2    0    1K  0 part
+└─sda5   8:5    0  880M  0 part <span class="o">[</span>SWAP]
+sdb      8:16   0   20G  0 disk
+└─sdb1   8:17   0   20G  0 part /data
+sdc      8:32   0   20G  0 disk
+</code></pre></div></div>
+
+<p>Also you can use command <code class="language-plaintext highlighter-rouge">fdisk</code> or <code class="language-plaintext highlighter-rouge">lsscsi</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>fdisk -l|grep 'Disk /dev'
+Disk /dev/sdb: 20 GiB, 21474836480 bytes, 41943040 sectors
+Disk /dev/sda: 20 GiB, 21474836480 bytes, 41943040 sectors
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsscsi
+<span class="o">[</span>0:0:0:0]    disk    VMware,  VMware Virtual S 1.0   /dev/sda
+<span class="o">[</span>0:0:1:0]    disk    VMware,  VMware Virtual S 1.0   /dev/sdb
+<span class="o">[</span>0:0:2:0]    disk    VMware,  VMware Virtual S 1.0   /dev/sdc
+</code></pre></div></div>
+
+<p>Use the command <code class="language-plaintext highlighter-rouge">fdisk /dev/[sda,sdb, ..., hda, hdb, ...]</code> to partition the new disk:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>fdisk /dev/sdc
+</code></pre></div></div>
+
+<p>The basic fdisk commands you need are:</p>
+
+<ul>
+  <li><strong>m</strong> – print help</li>
+  <li><strong>p</strong> – print the partition table</li>
+  <li><strong>n</strong> – create a new partition</li>
+  <li><strong>d</strong> – delete a partition</li>
+  <li><strong>q</strong> – quit without saving changes</li>
+  <li><strong>w</strong> – write the new partition table and exit</li>
+</ul>
+
+<p>EIDE devices are identifier as <em>hda</em>, <em>hdb</em>, <em>hdc</em>, and <em>hdd</em> in the <em>/dev</em> directory. Partitions on these disk can range from 1 to 16 and are also in the <em>/dev</em> directory. For example, <em>/dev/hda4</em> refers to partion 4 on hard disk a (fist EIDE hard disk).</p>
+
+<p>SCSI devices are listed as devices <em>sda</em>, <em>sdb</em>, <em>sdc</em>, <em>sdd</em>, <em>sde</em>, <em>sdf</em>, and <em>sdg</em> in the <em>/dev</em> directory. Similarly, partions on these disks can range from 1 to 16 and also in the <em>/dev</em> directory. For example, <em>/dev/sda3</em> refers to partions 3 on SCSI disk a (fisrt SCSI hard disk).</p>
+
+<h2 id="disk-formatting">Disk formatting</h2>
+
+<p><strong>Disk formatting</strong> is the process of preparing a data storage device such as a hard disk driver, solid-state driver, floppy disk or USB flash driver for initial use. In some cases, the formatting operation may also create one or more new file systems. The first part ot formatting process that performs basic medium preparation is often referred to as “low-level formatting”. Partioning is the common term for the second part of the process, making the data storage visible to an operating system. The third part of the process, usually termed “high-level formatting” most often refers to the process of generating a new file system. In some operating systems all or parts of these three processes can be combined or repeated at different levels and the term “format” is understood to mean an operation in which a new disk medium is fully prepared to store files.</p>
+
+<h3 id="creating-an-ext2-or-ext3-or-ext4-or-xfs-filesystem">Creating an ext2, or ext3, or ext4, or xfs filesystem</h3>
+
+<p>Once you’ve partioned your hard disk using <code class="language-plaintext highlighter-rouge">fdisk</code> command, use <code class="language-plaintext highlighter-rouge">make2fs</code> to create <em>ext2</em>, <em>ext3</em>, <em>ext4</em> or <em>xfs</em> file system.</p>
+
+<ul>
+  <li>
+    <p>Create an ext2 file system:</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mke2fs /dev/sdc1
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Create an ext3 file system:</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mkfs.ext3 /dev/sda1
+</code></pre></div>    </div>
+
+    <p>(or)</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mke2fs <span class="nt">-j</span> /dev/sda1
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Create an ext4 file system:</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mkfs.ext4 /dev/sda1
+</code></pre></div>    </div>
+
+    <p>(or)</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mke2fs <span class="nt">-t</span> ext4 /dev/sda1
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Create an xfs file system:</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mkfs.xfs /dev/sda1
+</code></pre></div>    </div>
+
+    <p>(or)</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  mke2fs <span class="nt">-t</span> xfs /dev/sda1
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<h4 id="converting-ext2-to-ext3">Converting ext2 to ext3</h4>
+
+<p>For example, if you are upgrading <em>/dev/sda2</em> that is mounted as <em>/home</em>, from ext2 to ext3, do the following.</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>umount /dev/sda2
+
+tune2fs <span class="nt">-j</span> /dev/sda2
+
+mount /dev/sda2 /home
+</code></pre></div></div>
+
+<p>Note: You really don’t need to umount and mount it, as ext2 to ext3 conversion can happen on a live file system. But, I feel better doing the conversion offline.</p>
+
+<h4 id="converting-ext3-to-ext4">Converting ext3 to ext4</h4>
+
+<p>If you are upgrading <em>/dev/sda2</em> that is mounted as <em>/home</em>, from ext3 to ext4, do the following.</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>umount /dev/sda2
+
+tune2fs <span class="nt">-O</span> extents,uninit_bg,dir_index /dev/sda2
+
+e2fsck <span class="nt">-pf</span> /dev/sda2
+
+mount /dev/sda2 /home
+</code></pre></div></div>
+
+<p>Again, try all of the above commands only on a test system, where you can afford to lose all your data.</p>
+
+<h2 id="mount">Mount</h2>
+
+<p><strong>Mounting</strong> is a process by which the operating system makes files and diretories on a storage device (such as hard driver, CD-ROM, or network share) available for user to access via the computer’s file system.</p>
+
+<p>In general, the process of mounting comprises operating system acquiring access to the storage medium, reading, processing file system structure and metadata on it; before registering them to the virtual file system (VFS) component.</p>
+
+<p>The exact location in VFS that the newly-mouted medium got registered is called <strong>mount point</strong> (a mount point is a physical location in the partion used as a root filesystem); when the mounting process is completed, the user can access files and directories on the medium from there.</p>
+
+<p>An opposite process of mounting is called <strong>unmounting</strong>, in which the operating system cuts off all user access to files and directories on the mount point, writes the remaining queue of user data to the storage device, refreshes file system metadata, then relinquishes access to the device; making the storage safe for removal.</p>
+
+<p>Normally, when the computer is shutting down, every mounted storage will undergo un unmouting process to ensure that all queued data got written, and to preserve integrity of file system structure on the media.</p>
+
+<h3 id="checking-your-available-partitions">Checking Your Available Partitions</h3>
+
+<p>To see your devices and their separate filesystems, simply use this command:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsblk
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+├─sda1   8:1    0 19.1G  0 part /
+├─sda2   8:2    0    1K  0 part
+└─sda5   8:5    0  880M  0 part <span class="o">[</span>SWAP]
+sdb      8:16   0   20G  0 disk
+└─sdb1   8:17   0   20G  0 part /data
+sdc      8:32   0   20G  0 disk
+├─sdc1   8:33   0    1G  0 part /tmp/b
+├─sdc2   8:34   0    1G  0 part
+├─sdc3   8:35   0  500M  0 part
+├─sdc4   8:36   0    1K  0 part
+├─sdc5   8:37   0  500M  0 part /tmp/a
+└─sdc6   8:38   0   10G  0 part
+</code></pre></div></div>
+
+<h3 id="mounting-with-udisks">Mounting With Udisks</h3>
+
+<p>Udisks is an important piece of software used in many Linux distributions. It is responsible for managing storage devices such as USB flash storage, and hard disk drives. With it comes a command line tool called udisksctl. Under this tool, all of your partitioning commands follow this pattern:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>udisksctl <span class="o">[</span><span class="nb">command</span><span class="o">]</span>
+</code></pre></div></div>
+
+<p>Simple isn’t it? To mount your desired partition, use this command, substituting the last bit with the right partition:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>udisksctl mount <span class="nt">-b</span> /dev/sd[b1, b2, etc.]
+</code></pre></div></div>
+
+<h3 id="unmounting-with-udisks">Unmounting With Udisks</h3>
+
+<p>Once you’re done with your USB, or any other miscellaneous device, you need to safely remove it from your Linux box to prevent data loss. This is done by unmounting the foreign file-system, decoupling it from your own.</p>
+
+<p>Doing this is as simple as substituting <em>mount</em> with <em>unmount</em>:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>udisksctl unmount <span class="nt">-b</span> /dev/sd[b1, b2, etc.]
+</code></pre></div></div>
+
+<h3 id="mounting-the-old-school-way">Mounting the Old-School Way</h3>
+
+<p>To mount a partition:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>mount /dev/sd[b1, b2, etc.] /mnt
+</code></pre></div></div>
+
+<h3 id="unmounting-the-old-school-way">Unmounting the Old-School Way</h3>
+
+<p>Strangely enough, the command to unmount a partition is not unmount, but umount. Keep that in mind. Unlike mounting, you don’t need to specify the location of your mount point — just the device will do:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>umount /dev/sd[b1, b2, etc.]
+</code></pre></div></div>
+
+<h3 id="update-etcfstab-file-to-automount-partitions-at-startup">Update /etc/fstab file to automount partitions at startup</h3>
+
+<p>Use <code class="language-plaintext highlighter-rouge">blkid</code> or <code class="language-plaintext highlighter-rouge">lsblk -f</code> to print the universally unique identifier for a device; this may be used with UUID= as a more robust way to name devices that works even if disks are added and removed.</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>blkid
+/dev/sda1: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"b19522be-98e3-4754-af48-14396eae021f"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext4"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"2ed9e1c9-01"</span>
+/dev/sdb1: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"a25ec7d0-0651-4ec8-b888-eeec8d6c2488"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext3"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"c153418e-01"</span>
+/dev/sda5: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"9ae8f2eb-f27d-4335-a7ee-cda1a2d3e2e0"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"swap"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"2ed9e1c9-05"</span>
+/dev/sdc1: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"226e0aaa-66d3-4504-bc84-5f6981670e53"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext2"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"913e673b-01"</span>
+/dev/sdc5: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"20b8bb5f-e637-4425-adc1-d586de0c03a3"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext4"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"913e673b-05"</span>
+/dev/sdc2: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"fc4b7d77-542b-43af-b51c-8633224a4f4c"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext4"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"913e673b-02"</span>
+/dev/sdc3: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"14de4bde-708c-479b-9e24-dbccb3954f14"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext4"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"913e673b-03"</span>
+/dev/sdc6: <span class="nv">UUID</span><span class="o">=</span><span class="s2">"293e6f88-ad5b-4f90-b7d2-088b02aab0f8"</span> <span class="nv">TYPE</span><span class="o">=</span><span class="s2">"ext4"</span> <span class="nv">PARTUUID</span><span class="o">=</span><span class="s2">"913e673b-06"</span>
+</code></pre></div></div>
+
+<p>Use <code class="language-plaintext highlighter-rouge">df -hT -text4</code> to show all available ext4 filesystems:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">df</span> <span class="nt">-hT</span> <span class="nt">-text4</span>
+Filesystem     Type  Size  Used Avail Use% Mounted on
+/dev/sda1      ext4   19G   13G  5.5G  70% /
+</code></pre></div></div>
+
+<p>Append a new entry into <em>/etc/fstab</em>:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tail</span> <span class="nt">-n</span> 1 /etc/fstab
+<span class="nv">UUID</span><span class="o">=</span>226e0aaa-66d3-4504-bc84-5f6981670e53       /tmp/a  ext4    defaults        0       3
+</code></pre></div></div>
+
+<p>Use <code class="language-plaintext highlighter-rouge">mount -a</code> to mount all filesystems mentioned in fstab:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>mount <span class="nt">-a</span>
+
+<span class="nb">df</span> <span class="nt">-hT</span> <span class="nt">-text4</span>
+Filesystem     Type  Size  Used Avail Use% Mounted on
+/dev/sda1      ext4   19G   13G  5.5G  70% /
+/dev/sdc1      ext4 1008M  1.3M  956M   1% /tmp/a
+</code></pre></div></div>
+
+<h2 id="an-example-to-partion-a-new-disk">An example to partion a new disk</h2>
+
+<p>The follow example create three primary partions and one extended partion with two logical partions:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>fdisk /dev/sdc
+
+Welcome to fdisk <span class="o">(</span>util-linux 2.29.2<span class="o">)</span><span class="nb">.</span>
+Changes will remain <span class="k">in </span>memory only, <span class="k">until </span>you decide to write them.
+Be careful before using the write command.
+
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+I/O size <span class="o">(</span>minimum/optimal<span class="o">)</span>: 512 bytes / 512 bytes
+Disklabel <span class="nb">type</span>: dos
+Disk identifier: 0x913e673b
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: n
+Partition <span class="nb">type
+   </span>p   primary <span class="o">(</span>0 primary, 0 extended, 4 free<span class="o">)</span>
+   e   extended <span class="o">(</span>container <span class="k">for </span>logical partitions<span class="o">)</span>
+Select <span class="o">(</span>default p<span class="o">)</span>: p
+Partition number <span class="o">(</span>1-4, default 1<span class="o">)</span>: 1
+First sector <span class="o">(</span>2048-41943039, default 2048<span class="o">)</span>:
+Last sector, +sectors or +size<span class="o">{</span>K,M,G,T,P<span class="o">}</span> <span class="o">(</span>2048-41943039, default 41943039<span class="o">)</span>: +1G
+
+Created a new partition 1 of <span class="nb">type</span> <span class="s1">'Linux'</span> and of size 1 GiB.
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+I/O size <span class="o">(</span>minimum/optimal<span class="o">)</span>: 512 bytes / 512 bytes
+Disklabel <span class="nb">type</span>: dos
+Disk identifier: 0x913e673b
+
+Device     Boot Start     End Sectors Size Id Type
+/dev/sdc1        2048 2099199 2097152   1G 83 Linux
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: n
+Partition <span class="nb">type
+   </span>p   primary <span class="o">(</span>1 primary, 0 extended, 3 free<span class="o">)</span>
+   e   extended <span class="o">(</span>container <span class="k">for </span>logical partitions<span class="o">)</span>
+Select <span class="o">(</span>default p<span class="o">)</span>:
+
+Using default response p.
+Partition number <span class="o">(</span>2-4, default 2<span class="o">)</span>:
+First sector <span class="o">(</span>2099200-41943039, default 2099200<span class="o">)</span>:
+Last sector, +sectors or +size<span class="o">{</span>K,M,G,T,P<span class="o">}</span> <span class="o">(</span>2099200-41943039, default 41943039<span class="o">)</span>: +1G
+
+Created a new partition 2 of <span class="nb">type</span> <span class="s1">'Linux'</span> and of size 1 GiB.
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: n
+Partition <span class="nb">type
+   </span>p   primary <span class="o">(</span>2 primary, 0 extended, 2 free<span class="o">)</span>
+   e   extended <span class="o">(</span>container <span class="k">for </span>logical partitions<span class="o">)</span>
+Select <span class="o">(</span>default p<span class="o">)</span>:
+
+Using default response p.
+Partition number <span class="o">(</span>3,4, default 3<span class="o">)</span>:
+First sector <span class="o">(</span>4196352-41943039, default 4196352<span class="o">)</span>:
+Last sector, +sectors or +size<span class="o">{</span>K,M,G,T,P<span class="o">}</span> <span class="o">(</span>4196352-41943039, default 41943039<span class="o">)</span>: +500M
+
+Created a new partition 3 of <span class="nb">type</span> <span class="s1">'Linux'</span> and of size 500 MiB.
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+I/O size <span class="o">(</span>minimum/optimal<span class="o">)</span>: 512 bytes / 512 bytes
+Disklabel <span class="nb">type</span>: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start     End Sectors  Size Id Type
+/dev/sdc1          2048 2099199 2097152    1G 83 Linux
+/dev/sdc2       2099200 4196351 2097152    1G 83 Linux
+/dev/sdc3       4196352 5220351 1024000  500M 83 Linux
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: n
+Partition <span class="nb">type
+   </span>p   primary <span class="o">(</span>3 primary, 0 extended, 1 free<span class="o">)</span>
+   e   extended <span class="o">(</span>container <span class="k">for </span>logical partitions<span class="o">)</span>
+Select <span class="o">(</span>default e<span class="o">)</span>: e
+
+Selected partition 4
+First sector <span class="o">(</span>5220352-41943039, default 5220352<span class="o">)</span>:
+Last sector, +sectors or +size<span class="o">{</span>K,M,G,T,P<span class="o">}</span> <span class="o">(</span>5220352-41943039, default 41943039<span class="o">)</span>:
+
+Created a new partition 4 of <span class="nb">type</span> <span class="s1">'Extended'</span> and of size 17.5 GiB.
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+I/O size <span class="o">(</span>minimum/optimal<span class="o">)</span>: 512 bytes / 512 bytes
+Disklabel <span class="nb">type</span>: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sdc1          2048  2099199  2097152    1G 83 Linux
+/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
+/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
+/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: n
+All primary partitions are <span class="k">in </span>use.
+Adding logical partition 5
+First sector <span class="o">(</span>5222400-41943039, default 5222400<span class="o">)</span>:
+Last sector, +sectors or +size<span class="o">{</span>K,M,G,T,P<span class="o">}</span> <span class="o">(</span>5222400-41943039, default 41943039<span class="o">)</span>: +500M
+
+Created a new partition 5 of <span class="nb">type</span> <span class="s1">'Linux'</span> and of size 500 MiB.
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+I/O size <span class="o">(</span>minimum/optimal<span class="o">)</span>: 512 bytes / 512 bytes
+Disklabel <span class="nb">type</span>: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sdc1          2048  2099199  2097152    1G 83 Linux
+/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
+/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
+/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
+/dev/sdc5       5222400  6246399  1024000  500M 83 Linux
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: n
+All primary partitions are <span class="k">in </span>use.
+Adding logical partition 6
+First sector <span class="o">(</span>6248448-41943039, default 6248448<span class="o">)</span>:
+Last sector, +sectors or +size<span class="o">{</span>K,M,G,T,P<span class="o">}</span> <span class="o">(</span>6248448-41943039, default 41943039<span class="o">)</span>: +10G
+
+Created a new partition 6 of <span class="nb">type</span> <span class="s1">'Linux'</span> and of size 10 GiB.
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: p
+Disk /dev/sdc: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+I/O size <span class="o">(</span>minimum/optimal<span class="o">)</span>: 512 bytes / 512 bytes
+Disklabel <span class="nb">type</span>: dos
+Disk identifier: 0x913e673b
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sdc1          2048  2099199  2097152    1G 83 Linux
+/dev/sdc2       2099200  4196351  2097152    1G 83 Linux
+/dev/sdc3       4196352  5220351  1024000  500M 83 Linux
+/dev/sdc4       5220352 41943039 36722688 17.5G  5 Extended
+/dev/sdc5       5222400  6246399  1024000  500M 83 Linux
+/dev/sdc6       6248448 27219967 20971520   10G 83 Linux
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: F
+Unpartitioned space /dev/sdc: 7 GiB, 7537164288 bytes, 14721024 sectors
+Units: sectors of 1 <span class="k">*</span> 512 <span class="o">=</span> 512 bytes
+Sector size <span class="o">(</span>logical/physical<span class="o">)</span>: 512 bytes / 512 bytes
+
+   Start      End  Sectors Size
+27222016 41943039 14721024   7G
+
+Command <span class="o">(</span>m <span class="k">for </span><span class="nb">help</span><span class="o">)</span>: w
+The partition table has been altered.
+Calling ioctl<span class="o">()</span> to re-read partition table.
+Syncing disks.
+
+<span class="nv">$ </span>lsblk
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+├─sda1   8:1    0 19.1G  0 part /
+├─sda2   8:2    0    1K  0 part
+└─sda5   8:5    0  880M  0 part <span class="o">[</span>SWAP]
+sdb      8:16   0   20G  0 disk
+└─sdb1   8:17   0   20G  0 part /data
+sdc      8:32   0   20G  0 disk
+├─sdc1   8:33   0    1G  0 part
+├─sdc2   8:34   0    1G  0 part
+├─sdc3   8:35   0  500M  0 part
+├─sdc4   8:36   0    1K  0 part
+├─sdc5   8:37   0  500M  0 part
+└─sdc6   8:38   0   10G  0 part
+</code></pre></div></div>
+
+<h2 id="references">References</h2>
+
+<ol>
+  <li>Disk partitioning, <a href="https://en.wikipedia.org/wiki/Disk_partitioning">https://en.wikipedia.org/wiki/Disk_partitioning</a></li>
+  <li>Beginner Geek: Hard Disk Partitions Explained, <a href="https://www.howtogeek.com/184659/beginner-geek-hard-disk-partitions-explained/">https://www.howtogeek.com/184659/beginner-geek-hard-disk-partitions-explained/</a></li>
+  <li>Partition the new disk, <a href="https://www.tldp.org/HOWTO/Hard-Disk-Upgrade/partition.html">https://www.tldp.org/HOWTO/Hard-Disk-Upgrade/partition.html</a></li>
+  <li>Disk formatting, <a href="https://en.wikipedia.org/wiki/Disk_formatting">https://en.wikipedia.org/wiki/Disk_formatting</a></li>
+  <li>Mounting Hard Disks and Partitions Using the Linux Command Line, <a href="https://www.makeuseof.com/tag/mounting-hard-disks-partitions-using-linux-command-line/">https://www.makeuseof.com/tag/mounting-hard-disks-partitions-using-linux-command-line/</a></li>
+  <li>File system, <a href="https://en.wikipedia.org/wiki/File_system">https://en.wikipedia.org/wiki/File_system</a></li>
+  <li>Linux File Systems: Ext2 vs Ext3 vs Ext4, <a href="https://www.thegeekstuff.com/2011/05/ext2-ext3-ext4/">https://www.thegeekstuff.com/2011/05/ext2-ext3-ext4/</a></li>
+  <li>What is meant by mounting a drive?, <a href="https://kb.iu.edu/d/anqk">https://kb.iu.edu/d/anqk</a></li>
+  <li>Linux Hard Disk Format Command - nixCraft, <a href="https://www.cyberciti.biz/faq/linux-disk-format/">https://www.cyberciti.biz/faq/linux-disk-format/</a></li>
+  <li>Editing fstab to automount partitions at startup, <a href="https://community.linuxmint.com/tutorial/view/1513">https://community.linuxmint.com/tutorial/view/1513</a></li>
+  <li>fstab - Debian Wiki, <a href="https://wiki.debian.org/fstab">https://wiki.debian.org/fstab</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2018/04/07/intro-to-net-core/">&laquo; Intro to .NET (Core)</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2018/04/16/gopherchina-2018/">GopherChina 2018 &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>What is CORS and Same-Site</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/09/01/what-is-same-site-and-cors/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">What is CORS and Same-Site</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-09-01T11:11:00+08:00" itemprop="datePublished">Sep 1, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#same-origin-policy">Same-Origin Policy</a></li>
+<li><a href="#cross-origin-resource-sharing-cors">Cross-Origin Resource Sharing (CORS)</a>
+<ul class="sectlevel2">
+<li><a href="#simple-requests">Simple requests</a></li>
+<li><a href="#preflighted-requests">Preflighted requests</a></li>
+<li><a href="#requests-with-credentials">Requests with credentials</a></li>
+<li><a href="#the-http-response-headers">The HTTP response headers</a></li>
+<li><a href="#the-http-request-headers">The HTTP request headers</a></li>
+</ul>
+</li>
+<li><a href="#domain-name-system-dns">Domain Name System (DNS)</a>
+<ul class="sectlevel2">
+<li><a href="#public-suffix-list-etld">Public Suffix List (eTLD)</a></li>
+</ul>
+</li>
+<li><a href="#same-site">Same-Site</a>
+<ul class="sectlevel2">
+<li><a href="#same-site-and-cross-site-requests">Same-Site and Cross-Site Requests</a></li>
+<li><a href="#same-site-cookies">Same-Site cookies</a></li>
+<li><a href="#third-party-cookies">Third-party cookies</a></li>
+</ul>
+</li>
+<li><a href="#cross-site-request-forgery-csrf">Cross-Site Request Forgery (CSRF)</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="same-origin-policy">Same-Origin Policy</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <strong>same-origin policy</strong> is a critical security mechanism that restricts how a document or script loaded by one <a href="https://developer.mozilla.org/en-US/docs/Glossary/Origin">origin</a> can interact with a resource from another origin.</p>
+</div>
+<div class="paragraph">
+<p>It helps isolate potentially malicious documents, reducing possible attack vectors. For example, it prevents a malicious website on the Internet from running JS in a browser to read data from a third-party webmail service (which the user is signed into) or a company intranet (which is protected from direct access by the attacker by not having a public IP address) and relaying that data to the attacker.</p>
+</div>
+<div class="paragraph">
+<p>Two URLs have the same origin if the <a href="https://developer.mozilla.org/en-US/docs/Glossary/Protocol">protocol</a>, <a href="https://developer.mozilla.org/en-US/docs/Glossary/Port">port</a> (if specified), and <a href="https://developer.mozilla.org/en-US/docs/Glossary/Host">host</a> are the same for both. You may see this referenced as the "scheme/host/port tuple", or just "tuple". (A "tuple" is a set of items that together comprise a whole — a generic form for double/triple/quadruple/quintuple/etc.)</p>
+</div>
+<div class="paragraph">
+<p>The following table gives examples of origin comparisons with the URL <code><mark><a href="http://store.company.com" class="bare">http://store.company.com</a></mark>/dir/page.html</code>:</p>
+</div>
+<table class="tableblock frame-ends grid-all stretch">
+<colgroup>
+<col style="width: 57.1428%;">
+<col style="width: 14.2857%;">
+<col style="width: 28.5715%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">URL</th>
+<th class="tableblock halign-left valign-top">Outcome</th>
+<th class="tableblock halign-left valign-top">Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">http://store.company.com/dir2/other.html</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Same origin</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Only the path differs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">http://store.company.com/dir/inner/another.html</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Same origin</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Only the path differs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><mark>https</mark>://store.company.com/page.html</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Failure</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Different protocol</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">http://store.company.com:<mark>81</mark>/dir/page.html</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Failure</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Different port (http:// is port 80 by default)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">http://<mark>news.company.com</mark>/dir/page.html</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Failure</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Different host</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect1">
+<h2 id="cross-origin-resource-sharing-cors">Cross-Origin Resource Sharing (CORS)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Cross-Origin Resource Sharing (<a href="https://developer.mozilla.org/en-US/docs/Glossary/CORS">CORS</a>) is an HTTP-header based mechanism that allows a server to indicate any <a href="https://developer.mozilla.org/en-US/docs/Glossary/Origin">origin</a>s (<strong>domain</strong>, <strong>scheme</strong>, or <strong>port</strong>) other than its own from which a browser should permit loading of resources. CORS also relies on a mechanism by which browsers make a "preflight" request to the server hosting the cross-origin resource, in order to check that the server will permit the actual request. In that preflight, the browser sends headers that indicate the HTTP method and headers that will be used in the actual request.</p>
+</div>
+<div class="paragraph">
+<p>An example of a cross-origin request: the front-end JavaScript code served from <code><a href="https://domain-a.com" class="bare">https://domain-a.com</a></code> uses <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest">XMLHttpRequest</a> to make a request for <code><a href="https://domain-b.com/data.json" class="bare">https://domain-b.com/data.json</a></code>.</p>
+</div>
+<div class="paragraph">
+<p>For security reasons, browsers restrict cross-origin HTTP requests initiated from scripts. For example, <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest">XMLHttpRequest</a> and the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API">Fetch API</a> follow the <a href="https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy">same-origin policy</a>. This means that a web application using those APIs can only request resources from the same origin the application was loaded from unless the response from other origins includes the right CORS headers.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/cors_principle.png" alt="CORS Principle" width="65%" height="65%">
+</div>
+</div>
+<div class="paragraph">
+<p>The CORS mechanism supports secure cross-origin requests and data transfers between <strong>browsers</strong> and <strong>servers</strong>. Modern browsers use CORS in APIs such as <code>XMLHttpRequest</code> or <code>Fetch</code> to mitigate the risks of cross-origin HTTP requests.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">POST /j/collect?v=1&amp;_v=j93&amp;aip=1&amp;a=533158175&amp;t=pageview&amp;_s=1&amp;dl=https%3A%2F%2Fdeveloper.mozilla.org%2Fen-US%2Fdocs%2FWeb%2FHTTP%2FCORS&amp;dr=https%3A%2F%2Fwww.google.com%2F&amp;ul=en-us&amp;de=UTF-8&amp;dt=Cross-Origin%20Resource%20Sharing%20(CORS)%20-%20HTTP%20%7C%20MDN&amp;sd=24-bit&amp;sr=1280x720&amp;vp=1263x216&amp;je=0&amp;_u=QACAAAABAAAAAC~&amp;jid=953497891&amp;gjid=135605942&amp;cid=1941250994.1619409894&amp;tid=UA-36116321-5&amp;_gid=137293116.1630465579&amp;_r=1&amp;_slc=1&amp;z=1073481453 HTTP/2
+Host: www.google-analytics.com
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0
+Accept: */*
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate, br
+Content-Type: text/plain <i class="conum" data-value="1"></i><b>(1)</b>
+Content-Length: 0
+Origin: https://developer.mozilla.org <i class="conum" data-value="2"></i><b>(2)</b>
+Connection: keep-alive
+Referer: https://developer.mozilla.org/
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: cross-site
+Pragma: no-cache
+Cache-Control: no-cache
+TE: trailers
+
+HTTP/2 200 OK
+access-control-allow-origin: https://developer.mozilla.org <i class="conum" data-value="2"></i><b>(2)</b>
+date: Thu, 02 Sep 2021 03:17:35 GMT
+pragma: no-cache
+expires: Fri, 01 Jan 1990 00:00:00 GMT
+cache-control: no-cache, no-store, must-revalidate
+last-modified: Sun, 17 May 1998 03:00:00 GMT
+access-control-allow-credentials: true <i class="conum" data-value="3"></i><b>(3)</b>
+x-content-type-options: nosniff
+content-type: text/plain
+cross-origin-resource-policy: cross-origin
+server: Golfe2
+content-length: 4
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000,h3-T051=":443"; ma=2592000,h3-Q050=":443"; ma=2592000,h3-Q046=":443"; ma=2592000,h3-Q043=":443"; ma=2592000,quic=":443"; ma=2592000; v="46,43"
+X-Firefox-Spdy: h2</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <a href="https://fetch.spec.whatwg.org/#http-cors-protocol">Cross-Origin Resource Sharing standard</a> works by adding new <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers">HTTP headers</a> that let servers describe which origins are permitted to read that information from a web browser. Additionally, for HTTP request methods that can cause side-effects on server data (in particular, HTTP methods other than <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a>, or <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST">POST</a> with certain <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types">MIME types</a>), the specification mandates that browsers "<strong>preflight</strong>" the request, soliciting supported methods from the server with the HTTP <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS">OPTIONS</a> request method, and then, upon "approval" from the server, sending the actual request. Servers can also inform clients whether "credentials" (such as <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies">Cookies</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication">HTTP Authentication</a>) should be sent with requests.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>CORS failures result in errors, but for security reasons, specifics about the error are not available to JavaScript. All the code knows is that an error occurred. The only way to determine what specifically went wrong is to look at the browser&#8217;s console for details.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="simple-requests">Simple requests</h3>
+<div class="paragraph">
+<p>Some requests don&#8217;t trigger a <a href="https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request">CORS preflight</a>. Those are called simple requests, though the <a href="https://fetch.spec.whatwg.org/">Fetch</a> spec (which defines CORS) doesn&#8217;t use that term. A simple request is one that meets all the following conditions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>One of the allowed methods:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD">HEAD</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST">POST</a></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Apart from the headers automatically set by the user agent (for example, <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection">Connection</a>, <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/User-Agent">User-Agent</a>, or the other headers defined in the <a href="https://fetch.spec.whatwg.org/">Fetch</a> spec as a <a href="https://fetch.spec.whatwg.org/#forbidden-header-name">forbidden header name</a>), the only headers which are allowed to be manually set are those which the <a href="https://fetch.spec.whatwg.org/">Fetch</a> spec defines as a <a href="https://fetch.spec.whatwg.org/#cors-safelisted-request-header">CORS-safelisted request-header</a>, which are:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept">Accept</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Language">Accept-Language</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Language">Content-Language</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type">Content-Type</a> (but note the additional requirements below)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>The only allowed values for the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type">Content-Type</a> header are:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>application/x-www-form-urlencoded</p>
+</li>
+<li>
+<p>multipart/form-data</p>
+</li>
+<li>
+<p>text/plain</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>If the request is made using an <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest">XMLHttpRequest</a> object, no event listeners are registered on the object returned by the <code>XMLHttpRequest.upload</code> property used in the request; that is, given an <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest">XMLHttpRequest</a> instance <code>xhr</code>, no code has called <code>xhr.upload.addEventListener()</code> to add an event listener to monitor the upload.</p>
+</li>
+<li>
+<p>No <a href="https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream">ReadableStream</a> object is used in the request.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For example, suppose web content at <code><a href="https://foo.example" class="bare">https://foo.example</a></code> wishes to invoke content on domain <code><a href="https://bar.other" class="bare">https://bar.other</a></code>. Code of this sort might be used in JavaScript deployed on foo.example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="js"><span class="kd">const</span> <span class="nx">xhr</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="kd">const</span> <span class="nx">url</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://bar.other/resources/public-data/</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="dl">'</span><span class="s1">GET</span><span class="dl">'</span><span class="p">,</span> <span class="nx">url</span><span class="p">);</span>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">onreadystatechange</span> <span class="o">=</span> <span class="nx">someHandler</span><span class="p">;</span>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">send</span><span class="p">();</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This performs a simple exchange between the client and the server, using CORS headers to handle the privileges:</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/simple-req-updated.png" alt="Sime Requests" width="75%" height="75%">
+</div>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s look at what the browser will send to the server in this case, and let&#8217;s see how the server responds:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">GET /resources/public-data/ HTTP/1.1
+Host: bar.other
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:71.0) Gecko/20100101 Firefox/71.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Connection: keep-alive
+Origin: https://foo.example <i class="conum" data-value="1"></i><b>(1)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>The request header of note is <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin">Origin</a>, which shows that the invocation is coming from <code><a href="https://foo.example" class="bare">https://foo.example</a></code>.</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">HTTP/1.1 200 OK
+Date: Mon, 01 Dec 2008 00:23:53 GMT
+Server: Apache/2
+Access-Control-Allow-Origin: * <i class="conum" data-value="1"></i><b>(1)</b>
+Keep-Alive: timeout=2, max=100
+Connection: Keep-Alive
+Transfer-Encoding: chunked
+Content-Type: application/xml
+
+[…XML Data…]</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>In response, the server sends back an <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin">Access-Control-Allow-Origin</a> header with <code>Access-Control-Allow-Origin: <strong></code>, which means that the resource can be accessed by *any</strong> origin.</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Origin: *</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This pattern of the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin">Origin</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin">Access-Control-Allow-Origin</a> headers is the simplest use of the access control protocol. If the resource owners at <code><a href="https://bar.other" class="bare">https://bar.other</a></code> wished to restrict access to the resource to requests only from <code><a href="https://foo.example" class="bare">https://foo.example</a></code>, (i.e no domain other than <code><a href="https://foo.example" class="bare">https://foo.example</a></code> can access the resource in a cross-site manner) they would send:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Origin: https://foo.example</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Note: When responding to a <a href="#requests_with_credentials">credentialed requests</a> request, the server <strong>must</strong> specify an origin in the value of the <code>Access-Control-Allow-Origin</code> header, instead of specifying the &#8220;*&#8221; wildcard.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="preflighted-requests">Preflighted requests</h3>
+<div class="paragraph">
+<p>Unlike <a href="#simple-requests">simple requests</a>, for "preflighted" requests the browser first sends an HTTP request using the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS">OPTIONS</a> method to the resource on the other origin, in order to determine if the actual request is safe to send. Cross-site requests are preflighted like this since they may have implications to user data.</p>
+</div>
+<div class="paragraph">
+<p>The following is an example of a request that will be preflighted:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="js"><span class="kd">const</span> <span class="nx">xhr</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="dl">'</span><span class="s1">POST</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">https://bar.other/resources/post-here/</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="dl">'</span><span class="s1">X-PINGOTHER</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">pingpong</span><span class="dl">'</span><span class="p">);</span> <i class="conum" data-value="1"></i><b>(1)</b>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">application/xml</span><span class="dl">'</span><span class="p">);</span> <i class="conum" data-value="2"></i><b>(2)</b>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">onreadystatechange</span> <span class="o">=</span> <span class="nx">handler</span><span class="p">;</span>
+<span class="nx">xhr</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="dl">'</span><span class="s1">&lt;person&gt;&lt;name&gt;Arun&lt;/name&gt;&lt;/person&gt;</span><span class="dl">'</span><span class="p">);</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The example above creates an XML body to send with the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST">POST</a> request.</p>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>Also, a non-standard HTTP <code>X-PINGOTHER</code> request header is set. Such headers are not part of HTTP/1.1, but are generally useful to web applications.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>Since the request uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type">Content-Type</a> of <code>application/xml</code>, and since a custom header is set, this request is preflighted.</td>
+</tr>
+</table>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/preflight_correct.png" alt="Preflight Correct" width="75%" height="75%">
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Note: As described below, the actual <code>POST</code> request does not include the <code>Access-Control-Request-*</code> headers; they are needed only for the <code>OPTIONS</code> request.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s look at the full exchange between client and server. The first exchange is the preflight <em>request/response</em>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text"><table class="linenotable"><tbody><tr><td class="linenos gl"><pre class="lineno"> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+</pre></td><td class="code"><pre>OPTIONS /doc HTTP/1.1
+Host: bar.other
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:71.0) Gecko/20100101 Firefox/71.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Connection: keep-alive
+Origin: https://foo.example
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: X-PINGOTHER, Content-Type
+
+HTTP/1.1 204 No Content
+Date: Mon, 01 Dec 2008 01:15:39 GMT
+Server: Apache/2
+Access-Control-Allow-Origin: https://foo.example
+Access-Control-Allow-Methods: POST, GET, OPTIONS
+Access-Control-Allow-Headers: X-PINGOTHER, Content-Type
+Access-Control-Max-Age: 86400
+Vary: Accept-Encoding, Origin
+Keep-Alive: timeout=2, max=100
+Connection: Keep-Alive
+</pre></td></tr></tbody></table></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Lines 1 - 10 above represent the preflight request with the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS">OPTIONS</a> method. The browser determines that it needs to send this based on the request parameters that the JavaScript code snippet above was using, so that the server can respond whether it is acceptable to send the request with the actual request parameters. OPTIONS is an HTTP/1.1 method that is used to determine further information from servers, and is a <a href="https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP">safe</a> method, meaning that it can&#8217;t be used to change the resource. Note that along with the OPTIONS request, two other request headers are sent (lines 9 and 10 respectively):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Request-Method: POST <i class="conum" data-value="1"></i><b>(1)</b>
+Access-Control-Request-Headers: X-PINGOTHER, Content-Type <i class="conum" data-value="2"></i><b>(2)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Request-Method">Access-Control-Request-Method</a> header notifies the server as part of a preflight request that when the actual request is sent, it will be sent with a <code>POST</code> request method.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Request-Headers">Access-Control-Request-Headers</a> header notifies the server that when the actual request is sent, it will be sent with a <code>X-PINGOTHER</code> and <code>Content-Type</code> custom headers. The server now has an opportunity to determine whether it wishes to accept a request under these circumstances.</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Lines 13 - 22 above are the response that the server sends back, which indicate that the request method (<code>POST</code>) and request headers (<code>X-PINGOTHER</code>) are acceptable. In particular, let&#8217;s look at lines 16-19:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Origin: https://foo.example <i class="conum" data-value="1"></i><b>(1)</b>
+Access-Control-Allow-Methods: POST, GET, OPTIONS <i class="conum" data-value="2"></i><b>(2)</b>
+Access-Control-Allow-Headers: X-PINGOTHER, Content-Type <i class="conum" data-value="3"></i><b>(3)</b>
+Access-Control-Max-Age: 86400 <i class="conum" data-value="4"></i><b>(4)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>The server responds with <code>Access-Control-Allow-Origin: <a href="https://foo.example" class="bare">https://foo.example</a></code>, restricting access to just the requesting origin domain.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>It also responds with <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods">Access-Control-Allow-Methods</a>, which says that <code>POST</code> and <code>GET</code> are viable methods to query the resource in question (this header is similar to the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Allow">Allow</a> response header, but used strictly within the context of access control).</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="3"></i><b>3</b></td>
+<td>The server also sends {http-headers-access-control-allow-headers}[Access-Control-Allow-Headers] with a value of &#8220;X-PINGOTHER, Content-Type&#8221;, confirming that these are permitted headers to be used with the actual request. Like <code>Access-Control-Allow-Methods</code>, <code>Access-Control-Allow-Headers</code> is a comma-separated list of acceptable headers.</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="4"></i><b>4</b></td>
+<td>Finally, <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age">Access-Control-Max-Age</a> gives the value in seconds for how long the response to the preflight request can be cached for without sending another preflight request. In this case, 86400 seconds is 24 hours. Note that each browser has a maximum internal value that takes precedence when the <code>Access-Control-Max-Age</code> is greater.</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Once the preflight request is complete, the real request is sent:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">POST /doc HTTP/1.1
+Host: bar.other
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:71.0) Gecko/20100101 Firefox/71.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Connection: keep-alive
+X-PINGOTHER: pingpong
+Content-Type: text/xml; charset=UTF-8
+Referer: https://foo.example/examples/preflightInvocation.html
+Content-Length: 55
+Origin: https://foo.example
+Pragma: no-cache
+Cache-Control: no-cache
+
+&lt;person&gt;&lt;name&gt;Arun&lt;/name&gt;&lt;/person&gt;
+
+HTTP/1.1 200 OK
+Date: Mon, 01 Dec 2008 01:15:40 GMT
+Server: Apache/2
+Access-Control-Allow-Origin: https://foo.example
+Vary: Accept-Encoding, Origin
+Content-Encoding: gzip
+Content-Length: 235
+Keep-Alive: timeout=2, max=99
+Connection: Keep-Alive
+Content-Type: text/plain
+
+[Some XML payload]</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="requests-with-credentials">Requests with credentials</h3>
+<div class="paragraph">
+<p>The most interesting capability exposed by both <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest">XMLHttpRequest</a> or <a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API">Fetch</a> and CORS is the ability to make "credentialed" requests that are aware of <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies">HTTP cookies</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication">HTTP Authentication</a> information. By default, in cross-site <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest">XMLHttpRequest</a> or <a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API">Fetch</a> invocations, browsers will not send credentials. A specific flag has to be set on the <code>XMLHttpRequest</code> object or the <code>Request</code> constructor when it is invoked.</p>
+</div>
+<div class="paragraph">
+<p>In this example, content originally loaded from <code><a href="https://foo.example" class="bare">https://foo.example</a></code> makes a simple <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET">GET</a> request to a resource on <code><a href="https://bar.other" class="bare">https://bar.other</a></code> which sets Cookies. Content on <code>foo.example</code> might contain JavaScript like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="js"><table class="linenotable"><tbody><tr><td class="linenos gl"><pre class="lineno"> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+</pre></td><td class="code"><pre><span class="kd">const</span> <span class="nx">invocation</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="kd">const</span> <span class="nx">url</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://bar.other/resources/credentialed-content/</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">function</span> <span class="nx">callOtherDomain</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nx">invocation</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">invocation</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="dl">'</span><span class="s1">GET</span><span class="dl">'</span><span class="p">,</span> <span class="nx">url</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+    <span class="nx">invocation</span><span class="p">.</span><span class="nx">withCredentials</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span> <i class="conum" data-value="1"></i><b>(1)</b>
+    <span class="nx">invocation</span><span class="p">.</span><span class="nx">onreadystatechange</span> <span class="o">=</span> <span class="nx">handler</span><span class="p">;</span>
+    <span class="nx">invocation</span><span class="p">.</span><span class="nx">send</span><span class="p">();</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></td></tr></tbody></table></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>Line 7 shows the flag on <code>XMLHttpRequest</code> that has to be set in order to make the invocation with Cookies, namely the <code>withCredentials</code> boolean value. By default, the invocation is made without Cookies. Since this is a simple <code>GET</code> request, it is not preflighted, but the browser will reject any response that does not have the <code>Access-Control-Allow-Credentials: true</code> header, and not make the response available to the invoking web content.</td>
+</tr>
+</table>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/cred-req-updated.png" alt="Credentialed Requests" width="75%" height="75%">
+</div>
+</div>
+<div class="paragraph">
+<p>Here is a sample exchange between client and server:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="xml"><table class="linenotable"><tbody><tr><td class="linenos gl"><pre class="lineno"> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+</pre></td><td class="code"><pre>GET /resources/credentialed-content/ HTTP/1.1
+Host: bar.other
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:71.0) Gecko/20100101 Firefox/71.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Connection: keep-alive
+Referer: https://foo.example/examples/credential.html
+Origin: https://foo.example
+Cookie: pageAccess=2 <i class="conum" data-value="1"></i><b>(1)</b>
+
+
+HTTP/1.1 200 OK
+Date: Mon, 01 Dec 2008 01:34:52 GMT
+Server: Apache/2
+Access-Control-Allow-Origin: https://foo.example
+Access-Control-Allow-Credentials: true
+Cache-Control: no-cache
+Pragma: no-cache
+Set-Cookie: pageAccess=3; expires=Wed, 31-Dec-2008 01:34:53 GMT
+Vary: Accept-Encoding, Origin
+Content-Encoding: gzip
+Content-Length: 106
+Keep-Alive: timeout=2, max=100
+Connection: Keep-Alive
+Content-Type: text/plain
+
+[text/plain payload]
+</pre></td></tr></tbody></table></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>Although line 10 contains the Cookie destined for the content on <code><a href="https://bar.other" class="bare">https://bar.other</a></code>, if bar.other did not respond with an <code>Access-Control-Allow-Credentials: true</code> (line 17) the response would be ignored and not made available to web content.</td>
+</tr>
+</table>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+CORS-preflight requests must never include credentials. The response to a preflight request must specify <code>Access-Control-Allow-Credentials: true</code> to indicate that the actual request can be made with credentials.
+</td>
+</tr>
+</table>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Credentialed requests and wildcards</div>
+<div class="paragraph">
+<p>When responding to a credentialed request:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The server <strong>must not</strong> specify the &#8220;*&#8221; wildcard for the <code>Access-Control-Allow-Origin</code> response-header value, but must instead specify an explicit origin; for example: <code>Access-Control-Allow-Origin: <a href="https://example.com" class="bare">https://example.com</a></code></p>
+</li>
+<li>
+<p>The server <strong>must not</strong> specify the &#8220;*&#8221; wildcard for the <code>Access-Control-Allow-Headers</code> response-header value, but must instead specify an explicit list of header names; for example, <code>Access-Control-Allow-Headers: X-PINGOTHER, Content-Type</code></p>
+</li>
+<li>
+<p>The server must not specify the &#8220;*&#8221; wildcard for the <code>Access-Control-Allow-Methods</code> response-header value, but must instead specify an explicit list of method names; for example, <code>Access-Control-Allow-Methods: POST, GET</code></p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>If a request includes a credential (most commonly a Cookie header) and the response includes an <code>Access-Control-Allow-Origin: *</code> header (that is, with the wildcard), the browser will block access to the response, and report a CORS error in the devtools console.</p>
+</div>
+<div class="paragraph">
+<p>But if a request includes a credential (like the <code>Cookie</code> header) and the response includes an actual origin rather than the wildcard (like, for example, <code>Access-Control-Allow-Origin: <a href="https://example.com" class="bare">https://example.com</a></code>), then the browser will allow access to the response from the specified origin.</p>
+</div>
+<div class="paragraph">
+<p>Also note that any <code>Set-Cookie</code> response header in a response would not set a cookie if the <code>Access-Control-Allow-Origin</code> value in that response is the &#8220;*&#8221; wildcard rather an actual origin.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Third-party cookies</div>
+<div class="paragraph">
+<p>Note that cookies set in CORS responses are subject to normal third-party cookie policies. In the example above, the page is loaded from <code>foo.example</code>, but the cookie on line 20 is sent by <code>bar.other</code>, and would thus not be saved if the user has configured their browser to reject all third-party cookies.</p>
+</div>
+<div class="paragraph">
+<p>Cookie in the request (line 10) may also be suppressed in normal third-party cookie policies. The enforced cookie policy may therefore nullify the capability described in this chapter, effectively prevents you from making credentialed requests whatsoever.</p>
+</div>
+<div class="paragraph">
+<p>Cookie policy around the <a href="#same-site">SameSite</a> attribute would apply.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-http-response-headers">The HTTP response headers</h3>
+<div class="sect3">
+<h4 id="access-control-allow-origin">Access-Control-Allow-Origin</h4>
+<div class="paragraph">
+<p>A returned resource may have one <code>Access-Control-Allow-Origin</code> header, with the following syntax:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Origin: &lt;origin&gt; | *</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>Access-Control-Allow-Origin</code> specifies either a single origin, which tells browsers to allow that origin to access the resource; or else — for requests <strong>without</strong> credentials — the &#8220;*&#8221; wildcard, to tell browsers to allow any origin to access the resource.</p>
+</div>
+<div class="paragraph">
+<p>For example, to allow code from the origin <code><a href="https://mozilla.org" class="bare">https://mozilla.org</a></code> to access the resource, you can specify:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Origin: https://mozilla.org
+Vary: Origin</code></pre>
+</div>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">CORS and caching</div>
+<div class="paragraph">
+<p>If the server sends a response with an <code>Access-Control-Allow-Origin</code> value that is an explicit origin (rather than the &#8220;*&#8221; wildcard), then the response should also include a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary">Vary</a> response header with the value <code>Origin</code> — to indicate to browsers that server responses can differ based on the value of the <code>Origin</code> request header.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-expose-headers">Access-Control-Expose-Headers</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Expose-Headers</code> header adds the specified headers to the allowlist that JavaScript (such as <code>getResponseHeader()</code>) in browsers is allowed to access.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Expose-Headers: &lt;header-name&gt;[, &lt;header-name&gt;]*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For example, the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Expose-Headers: X-My-Custom-Header, X-Another-Custom-Header</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>…would allow the <code>X-My-Custom-Header</code> and <code>X-Another-Custom-Header</code> headers to be exposed to the browser.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-max-age">Access-Control-Max-Age</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Max-Age</code> header indicates how long the results of a preflight request can be cached. For an example of a preflight request, see the above examples.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Max-Age: &lt;delta-seconds&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The delta-seconds parameter indicates the number of seconds the results can be cached.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-allow-credentials">Access-Control-Allow-Credentials</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Allow-Credentials</code> header indicates whether or not the response to the request can be exposed when the credentials flag is <code>true</code>. When used as part of a response to a preflight request, this indicates whether or not the actual request can be made using credentials. Note that simple <code>GET</code> requests are not preflighted, and so if a request is made for a resource with credentials, if this header is not returned with the resource, the response is ignored by the browser and not returned to web content.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Credentials: true</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-allow-methods">Access-Control-Allow-Methods</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Allow-Methods</code> header specifies the method or methods allowed when accessing the resource. This is used in response to a preflight request. The conditions under which a request is preflighted are discussed above.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Methods: &lt;method&gt;[, &lt;method&gt;]*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An example of a preflight request is given above, including an example which sends this header to the browser.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-allow-headers">Access-Control-Allow-Headers</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Allow-Headers</code> header is used in response to a preflight request to indicate which HTTP headers can be used when making the actual request. This header is the server side response to the browser&#8217;s <code>Access-Control-Request-Headers</code> header.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Allow-Headers: &lt;header-name&gt;[, &lt;header-name&gt;]*</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-http-request-headers">The HTTP request headers</h3>
+<div class="sect3">
+<h4 id="origin">Origin</h4>
+<div class="paragraph">
+<p>The <code>Origin</code> header indicates the origin of the cross-site access request or preflight request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Origin: &lt;origin&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The origin is a URL indicating the server from which the request initiated. It does not include any path information, but only the server name.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Note: The origin value can be null.</p>
+</div>
+<div class="paragraph">
+<p>Note that in any access control request, the <code>Origin</code> header is <strong>always</strong> sent.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-request-method">Access-Control-Request-Method</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Request-Method</code> is used when issuing a preflight request to let the server know what HTTP method will be used when the actual request is made.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Request-Method: &lt;method&gt;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="access-control-request-headers">Access-Control-Request-Headers</h4>
+<div class="paragraph">
+<p>The <code>Access-Control-Request-Headers</code> header is used when issuing a preflight request to let the server know what HTTP headers will be used when the actual request is made (such as with <code>setRequestHeader()</code>). This browser side header will be answered by the complementary server side header of <code>Access-Control-Allow-Headers</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">Access-Control-Request-Headers: &lt;field-name&gt;[, &lt;field-name&gt;]*</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="domain-name-system-dns">Domain Name System (DNS)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A <strong>domain name</strong> is an identification string that defines a realm of administrative autonomy, authority or control within the Internet. Domain names are used in various networking contexts and for application-specific naming and addressing purposes. In general, a domain name identifies a network domain, or it represents an Internet Protocol (IP) resource, such as a personal computer used to access the Internet, a server computer hosting a website, or the web site itself or any other service communicated via the Internet.</p>
+</div>
+<div class="paragraph">
+<p>Domain names are formed by the rules and procedures of the <a href="https://en.wikipedia.org/wiki/Domain_Name_System">Domain Name System</a> (<strong>DNS</strong>). Any name registered in the DNS is a domain name. Domain names are organized in subordinate levels (subdomains) of the DNS root domain, which is nameless. The first-level set of domain names are the <a href="https://en.wikipedia.org/wiki/Top-level_domain">top-level domains</a> (<strong>TLD</strong>s), including the <a href="https://en.wikipedia.org/wiki/Generic_top-level_domain">generic top-level domains</a> (<strong>gTLD</strong>s), such as the prominent domains <code>com</code>, <code>info</code>, <code>net</code>, <code>edu</code>, and <code>org</code>, and the country code top-level domains (<strong>ccTLD</strong>s). Below these top-level domains in the DNS hierarchy are the <strong>second-level</strong> and <strong>third-level</strong> domain names that are typically open for reservation by end-users who wish to connect local area networks to the Internet, create other publicly accessible Internet resources or run web sites.</p>
+</div>
+<div class="paragraph">
+<p>A <a href="https://en.wikipedia.org/wiki/Fully_qualified_domain_name">fully qualified domain name</a> (<strong>FQDN</strong>) is a domain name that is completely specified with all labels in the hierarchy of the DNS, having no parts omitted. Traditionally a FQDN ends in a <strong>dot</strong> (.) to denote the top of the DNS tree. Labels in the Domain Name System are case-insensitive, and may therefore be written in any desired capitalization method, but most commonly domain names are written in lowercase in technical contexts. In contrast to a domain name that is fully specified, a domain name that does not include the full path of labels up to the DNS root is often called a <em>partially qualified domain name</em>.</p>
+</div>
+<div class="sect2">
+<h3 id="public-suffix-list-etld">Public Suffix List (eTLD)</h3>
+<div class="paragraph">
+<p>The <strong>Public Suffix List (PSL)</strong> is a catalog of certain Internet domain names. Entries on the list are also referred to as effective top-level domains (<strong>eTLD</strong>).</p>
+</div>
+<div class="paragraph">
+<p>Previously, browsers used an algorithm which basically only denied setting wide-ranging cookies for top-level domains (<strong>TLD</strong>) with no dots (e.g. <code>com</code> or <code>org</code>). However, this did not work for top-level domains where only third-level registrations are allowed (e.g. <code>co.uk</code>). In these cases, websites could set a cookie for <code>co.uk</code> which will be passed onto every website registered under <span class="line-through">co</span><code>.uk</code>.</p>
+</div>
+<div class="paragraph">
+<p>Clearly, this was a security risk as it allowed websites other than the one setting the cookie to read it, and therefore potentially extract sensitive information.</p>
+</div>
+<div class="paragraph">
+<p>Since there is no algorithmic method of finding the highest level at which a domain may be registered for a particular top-level domain (the policies differ with each registry), the only method is to create a list of all top-level domains and the level at which domains can be registered. This is the aim of the effective TLD list.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="same-site">Same-Site</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The site of a piece of web content is determined by the <strong>registrable domain</strong> of the host within the origin. This is computed by consulting a <strong>Public Suffix List</strong> to find the portion of the host which is counted as the public suffix (e.g. <code>com</code>, <code>org</code> or <code>co.uk</code>).</p>
+</div>
+<div class="paragraph">
+<p>The concept of a site is used in <code>SameSite</code> cookies, as well as a web application&#8217;s <code>Cross-Origin Resource Policy</code>.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 1. Examples of the same site</caption>
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">https://developer.<mark>mozilla.org</mark>/en-US/docs/
+https://support.<mark>mozilla.org</mark>/en-US/</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">same site because the registrable domain of mozilla.org is the same</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">http://<mark>example.com</mark>:8080
+https://<mark>example.com</mark></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">same site because scheme and port are not relevant</p></td>
+</tr>
+</tbody>
+</table>
+<table class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 2. Examples of different site</caption>
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">https://developer.<mark>mozilla.org</mark>/en-US/docs/
+https://<mark>example.com</mark></p></td>
+<td class="tableblock halign-left valign-top" rowspan="2"><p class="tableblock">not same site because the registrable domain of the two URLs differs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">https://<mark>example.co.uk</mark>
+https://<mark>example.uk</mark></p></td>
+</tr>
+</tbody>
+</table>
+<div class="sect2">
+<h3 id="same-site-and-cross-site-requests">Same-Site and Cross-Site Requests</h3>
+<div class="paragraph">
+<p>A request is "same-site" if its target&#8217;s URI&#8217;s origin&#8217;s <strong>registrable domain</strong> is an exact match for the request&#8217;s initiator&#8217;s "site for cookies", and "cross-site" otherwise.  To be more precise, for a given request ("request"), the following algorithm returns "same-site" or "cross-site":</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>If "request"'s client is "null", return "same-site".</p>
+</li>
+<li>
+<p>Let "site" be "request"'s client&#8217;s "site for cookies".</p>
+</li>
+<li>
+<p>Let "target" be the registrable domain of "request"'s current url.</p>
+</li>
+<li>
+<p>If "site" is an exact match for "target", return "same-site".</p>
+</li>
+<li>
+<p>Return "cross-site".</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="same-site-cookies">Same-Site cookies</h3>
+<div class="paragraph">
+<p>The <code>SameSite</code> attribute of the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie">Set-Cookie</a> HTTP response header allows you to declare if your cookie should be restricted to a <a href="#third-party-cookies">first-party</a> or same-site context.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Note: Standards related to the Cookie <code>SameSite</code> attribute recently changed such that:</p>
+</div>
+<div class="paragraph">
+<p>The cookie-sending behavior if <code>SameSite</code> is not specified is <code>SameSite=Lax</code>. Previously the default was that cookies were sent for all requests.</p>
+</div>
+<div class="paragraph">
+<p>Cookies with <code>SameSite=None</code> must now also specify the <code>Secure</code> attribute (they require a secure context/HTTPS).</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="sect3">
+<h4 id="values">Values</h4>
+<div class="paragraph">
+<p>The SameSite attribute accepts three values:</p>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Lax</div>
+<div class="paragraph">
+<p>Cookies are not sent on <em>normal cross-site subrequests</em> (for example to load images or frames into a third party site), but are sent when a user is navigating to the origin site (i.e., when following a link).</p>
+</div>
+<div class="paragraph">
+<p>This is the default cookie value if <code>SameSite</code> has not been explicitly specified in recent browser versions (Defaults to <code>Lax</code>).</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Note: <code>Lax</code> replaced <code>None</code> as the default value in order to ensure that users have reasonably robust defense against some classes of cross-site request forgery (<strong>CSRF</strong>) attacks.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Strict</div>
+<div class="paragraph">
+<p>Cookies will only be sent in a first-party context and not be sent along with requests initiated by third party websites.</p>
+</div>
+</div>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">None</div>
+<div class="paragraph">
+<p>Cookies will be sent in all contexts, i.e. in responses to both first-party and cross-origin requests. <strong>If <code>SameSite=None</code> is set, the cookie <code>Secure</code> attribute must also be set (or the cookie will be blocked)</strong>.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="third-party-cookies">Third-party cookies</h3>
+<div class="paragraph">
+<p>A cookie is associated with a domain. If this domain is the same as the domain of the page you are on, the cookie is called a <strong>first-party cookie</strong>. If the domain is different, it is a <strong>third-party cookie</strong>. While the server hosting a web page sets first-party cookies, the page may contain images or other components stored on servers in other domains (for example, ad banners), which may set third-party cookies. These are mainly used for <strong>advertising and tracking</strong> across the web.</p>
+</div>
+<div class="paragraph">
+<p>A third-party server can build up a profile of a user&#8217;s browsing history and habits based on cookies sent to it by the same browser when accessing multiple sites. Firefox, by default, blocks third-party cookies that are known to contain trackers. Third-party cookies (or just tracking cookies) may also be blocked by other browser settings or extensions. Cookie blocking can cause some third-party components (such as social media widgets) to not function as intended.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="cross-site-request-forgery-csrf">Cross-Site Request Forgery (CSRF)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>CSRF</strong> (sometimes also called <strong>XSRF</strong>) is a related class of attack. The attacker causes the user&#8217;s browser to perform a request to the website&#8217;s backend without the user&#8217;s consent or knowledge. An attacker can use an XSS payload to launch a CSRF attack.</p>
+</div>
+<div class="paragraph">
+<p>Wikipedia mentions a good example for CSRF. In this situation, someone includes an image that isn’t really an image (for example in an unfiltered chat or forum), instead it really is a request to your bank’s server to withdraw money:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="js"><span class="o">&lt;</span><span class="nx">img</span> <span class="nx">src</span><span class="o">=</span><span class="dl">"</span><span class="s2">https://bank.example.com/withdraw?account=bob&amp;amount=1000000&amp;for=mallory</span><span class="dl">"</span><span class="o">&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now, if you are logged into your bank account and your cookies are still valid (and there is no other validation), you will transfer money as soon as you load the HTML that contains this image. For endpoints that require a <code>POST</code> request, it&#8217;s possible to programmatically trigger a <code>&lt;form&gt;</code> submit (perhaps in an invisible <code>&lt;iframe&gt;</code>) when the page is loaded:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="html"><span class="nt">&lt;form</span> <span class="na">action=</span><span class="s">"https://bank.example.com/withdraw"</span> <span class="na">method=</span><span class="s">"POST"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;input</span> <span class="na">type=</span><span class="s">"hidden"</span> <span class="na">name=</span><span class="s">"account"</span> <span class="na">value=</span><span class="s">"bob"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;input</span> <span class="na">type=</span><span class="s">"hidden"</span> <span class="na">name=</span><span class="s">"amount"</span> <span class="na">value=</span><span class="s">"1000000"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;input</span> <span class="na">type=</span><span class="s">"hidden"</span> <span class="na">name=</span><span class="s">"for"</span> <span class="na">value=</span><span class="s">"mallory"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;/form&gt;</span>
+<span class="nt">&lt;script&gt;</span><span class="nb">window</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">DOMContentLoaded</span><span class="dl">'</span><span class="p">,</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="dl">'</span><span class="s1">form</span><span class="dl">'</span><span class="p">).</span><span class="nx">submit</span><span class="p">();</span> <span class="p">}</span><span class="nt">&lt;/script&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>There are a few techniques that should be used to prevent this from happening:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>GET</code> endpoints should be <strong>idempotent—actions</strong> that enact a change and do not retrieve data should require sending a <code>POST</code> (or other HTTP method) request. <code>POST</code> endpoints should not interchangeably accept <code>GET</code> requests with parameters in the query string.</p>
+</li>
+<li>
+<p>A <strong>CSRF token</strong> should be included in <code>&lt;form&gt;</code> elements via a <em>hidden input field</em>. This token should be unique per user and stored (for example, in a cookie) such that the server can look up the expected value when the request is sent. For all non-GET requests that have the potential to perform an action, this input field should be compared against the expected value. If there is a mismatch, the request should be aborted.</p>
+</li>
+<li>
+<p>This method of protection relies on an attacker being unable to predict the user&#8217;s assigned CSRF token. The token should be regenerated on sign-in.</p>
+</li>
+<li>
+<p>Cookies that are used for sensitive actions (such as session cookies) should have a short lifetime with the <code>SameSite</code> attribute set to <code>Strict</code> or <code>Lax</code>. In supporting browsers, this will have the effect of ensuring that the session cookie is not sent along with cross-site requests and so the request is effectively unauthenticated to the application server.</p>
+</li>
+<li>
+<p>Both <strong>CSRF tokens</strong> and <strong>SameSite</strong> cookies should be deployed. This ensures all browsers are protected and provides protection where SameSite cookies cannot help (such as attacks originating from a separate subdomain).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy" class="bare">https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/Security/Types_of_attacks" class="bare">https://developer.mozilla.org/en-US/docs/Web/Security/Types_of_attacks</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite" class="bare">https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite</a></p>
+</li>
+<li>
+<p><a href="https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-03" class="bare">https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-03</a></p>
+</li>
+<li>
+<p><a href="https://datatracker.ietf.org/doc/html/draft-west-first-party-cookies-07" class="bare">https://datatracker.ietf.org/doc/html/draft-west-first-party-cookies-07</a></p>
+</li>
+<li>
+<p><a href="https://wiki.mozilla.org/Public_Suffix_List" class="bare">https://wiki.mozilla.org/Public_Suffix_List</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Public_Suffix_List" class="bare">https://en.wikipedia.org/wiki/Public_Suffix_List</a></p>
+</li>
+<li>
+<p><a href="https://publicsuffix.org/list/public_suffix_list.dat" class="bare">https://publicsuffix.org/list/public_suffix_list.dat</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Domain_name" class="bare">https://en.wikipedia.org/wiki/Domain_name</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Top-level_domain" class="bare">https://en.wikipedia.org/wiki/Top-level_domain</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Fully_qualified_domain_name" class="bare">https://en.wikipedia.org/wiki/Fully_qualified_domain_name</a></p>
+</li>
+<li>
+<p><a href="https://developer.mozilla.org/en-US/docs/Glossary/Site" class="bare">https://developer.mozilla.org/en-US/docs/Glossary/Site</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/08/18/powerbi-report-server-with-cas/">&laquo; PowerBI Report Server Extensions with CAS</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/09/15/domain-name-resolver/">Domain Name Resolver &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

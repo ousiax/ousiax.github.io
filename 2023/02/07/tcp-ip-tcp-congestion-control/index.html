@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>TCP/IP: TCP Congestion Control</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2023/02/07/tcp-ip-tcp-congestion-control/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">TCP/IP: TCP Congestion Control</h1>
+    
+    
+    <p class="post-meta"><time datetime="2023-02-07T15:13:37+08:00" itemprop="datePublished">Feb 7, 2023</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a router is forced to discard data because it cannot handle the arriving traffic rate, is called <strong>congestion</strong>. A router is said to be <em>congested</em> when it is in this state, and even a single connection can drive one or more routers into congestion.</p>
+</div>
+<div class="paragraph">
+<p>Left unaddressed, congestion can cause the performance of a network to be reduced so badly that it becomes unusable. In the very worst cases, it is said to be in a state of <em>congestion collapse</em>.</p>
+</div>
+<div class="paragraph">
+<p>To either avoid or at least react effectively to mitigate this situation, each TCP implements <strong>congestion control procedures</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Congestion control is a set of behaviors determined by algorithms that each TCP implements in an attempt to prevent the network from being overwhelmed by too large an aggregate offered traffic load.</p>
+</div>
+<div class="paragraph">
+<p>The basic approach is to have TCP slow down when it has reason to believe the network is about to be congested (or is already so congested that routers are discarding packets).</p>
+</div>
+<div class="paragraph">
+<p>The challenge is to determine exactly when and how TCP should slow down, and when it can speed up again.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>In today&#8217;s wired networks, packet loss is caused primarily by congestion in routers or switches.</p>
+</div>
+<div class="paragraph">
+<p>With wireless networks, transmission and reception errors become a significant cause of packet loss.</p>
+</div>
+<div class="paragraph">
+<p>Determining whether loss is due to congestion or transmission errors has been an active research topic since the mid-1990s when wireless networks started to attain widespread use.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>A value used to hold the estimate of the network&#8217;s available capacity is called the <strong><em>congestion window</em></strong>, written more compactly as simply <em>cwnd</em>.</p>
+</div>
+<div class="paragraph">
+<p>A sender&#8217;s actual (usable) window <em>W</em> is then written as the minimum of the receiver&#8217;s advertised window <em>awnd</em> and the congestion window:</p>
+</div>
+<div class="listingblock text-center">
+<div class="content">
+<pre><em>W</em> = min(<em>cwnd</em>, <em>awnd</em>)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With this relationship, the TCP sender is not permitted to have more than <em>W</em> unacknowledged packets or bytes outstanding in the network.</p>
+</div>
+<div class="paragraph">
+<p>The total amount of data a sender has introduced into the network for which it has not yet received an acknowledgment is sometimes called the <em>flight size</em>, which is always less than or equal to <em>W</em>.</p>
+</div>
+<div class="paragraph">
+<p>In general, <em>W</em> can be maintained in either packet or byte units.</p>
+</div>
+<div class="paragraph">
+<p>This all seems logical but is far from the whole story.</p>
+</div>
+<div class="paragraph">
+<p>Because both the state of the network and the state of the receiver change with time, the values of both <em>awnd</em> and <em>cwnd</em> change over time.</p>
+</div>
+<div class="paragraph">
+<p>In addition, because of the lack of explicit signals, the correct value of <em>cwnd</em> is generally not directly available to the sending TCP. Thus, all of the values <em>W</em>, <em>cwnd</em>, and <em>awnd</em> must be empirically determined and dynamically updated.</p>
+</div>
+<div class="paragraph">
+<p>In addition, as we said before, we do not want <em>W</em> to be too big or too small—we want it to be set to about the <em>bandwidth-delay product</em> (BDP) of the network path, also called the <em>optimal</em> window size. This is the amount of data that can be stored in the network in transit to the receiver.</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>Bandwidth-delay product from Wikipedia, the free encyclopedia. <a href="#BDP">[BDP]</a></p>
+</div>
+<div class="paragraph">
+<p>In data communications, the <strong>bandwidth-delay product</strong> is the product of a data link&#8217;s capacity (in bits per second) and its round-trip delay time (in seconds). The result, an amount of data measured in bits (or bytes), is equivalent to the maximum amount of data on the network circuit at any given time, i.e., data that has been transmitted but not yet acknowledged. A network with a large bandwidth-delay product is commonly known as a <strong>long fat network</strong> (shortened to <strong>LFN</strong>, pronounced "elephan(t)" <a href="#RFC1072">[RFC1072]</a>).</p>
+</div>
+<div class="paragraph">
+<p>A high bandwidth-delay product is an important problem case in the design of protocols such as <strong>Transmission Control Protocol</strong> (TCP) in respect of TCP tuning, because the protocol can only achieve optimum throughput if a sender sends a sufficiently large quantity of data before being required to stop and wait until a confirming message is received from the receiver, acknowledging successful receipt of that data. If the quantity of data sent is insufficient compared with the bandwidth-delay product, then the link is not being kept busy and the protocol is operating below peak efficiency for the link. Protocols that hope to succeed in this respect need carefully designed self-monitoring, self-tuning algorithms. The TCP window scale option may be used to solve this problem caused by insufficient window size, which is limited to 65,535 bytes without scaling.</p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>On the Internet, determining the BDP for a connection can be challenging, given that routes, delay, and the level of statistical multiplexing (i.e., sharing of capacity) change as a function of time.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Although handling congestion at the TCP sender is our primary area of interest, work has been done on handling the cases where congestion occurs on the reverse path, because of ACKs.</p>
+</div>
+<div class="paragraph">
+<p>In [RFC5690] a method is introduced to inform a TCP receiver of the ACK ratio it should use (i.e., how many packets it should receive before sending an ACK).</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>Definitions in TCP Congestion Control <a href="#RFC5681">[RFC5681]</a>:</p>
+</div>
+<div class="ulist square">
+<ul class="square">
+<li>
+<p>SEGMENT: A segment is ANY TCP/IP data or acknowledgment packet (or both).</p>
+</li>
+<li>
+<p>SENDER MAXIMUM SEGMENT SIZE (SMSS): The SMSS is the size of the largest segment that the sender can transmit.</p>
+<div class="paragraph">
+<p>This value can be based on the maximum transmission unit of the network, the path MTU discovery [RFC1191, RFC4821] algorithm, RMSS (see next item), or other factors.  The size does not include the TCP/IP headers and options.</p>
+</div>
+</li>
+<li>
+<p>RECEIVER MAXIMUM SEGMENT SIZE (RMSS): The RMSS is the size of the largest segment the receiver is willing to accept.</p>
+<div class="paragraph">
+<p>This is the value specified in the MSS option sent by the receiver during connection startup.  Or, if the MSS option is not used, it is 536 bytes [RFC1122].  The size does not include the TCP/IP headers and options.</p>
+</div>
+</li>
+<li>
+<p>FULL-SIZED SEGMENT: A segment that contains the maximum number of data bytes permitted (i.e., a segment containing SMSS bytes of data).</p>
+</li>
+<li>
+<p>RECEIVER WINDOW (rwnd): The most recently advertised receiver window.</p>
+</li>
+<li>
+<p>CONGESTION WINDOW (cwnd): A TCP state variable that limits the amount of data a TCP can send.</p>
+<div class="paragraph">
+<p>At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd.</p>
+</div>
+</li>
+<li>
+<p>INITIAL WINDOW (IW): The initial window is the size of the sender&#8217;s congestion window after the three-way handshake is completed.</p>
+</li>
+<li>
+<p>LOSS WINDOW (LW): The loss window is the size of the congestion window after a TCP sender detects loss using its retransmission timer.</p>
+</li>
+<li>
+<p>RESTART WINDOW (RW): The restart window is the size of the congestion window after a TCP restarts transmission after an idle period (if the slow start algorithm is used; see section 4.1 for more discussion).</p>
+</li>
+<li>
+<p>FLIGHT SIZE: The amount of data that has been sent but not yet cumulatively acknowledged.</p>
+</li>
+<li>
+<p>DUPLICATE ACKNOWLEDGMENT: An acknowledgment is considered a "duplicate" in the following algorithms when</p>
+<div class="paragraph">
+<p>(a) the receiver of the ACK has outstanding data,</p>
+</div>
+<div class="paragraph">
+<p>(b) the incoming acknowledgment carries no data,</p>
+</div>
+<div class="paragraph">
+<p>(c) the SYN and FIN bits are both off,</p>
+</div>
+<div class="paragraph">
+<p>(d) the acknowledgment number is equal to the greatest acknowledgment received on the given connection (TCP.UNA from [RFC793]) and</p>
+</div>
+<div class="paragraph">
+<p>(e) the advertised window in the incoming acknowledgment equals the advertised window in the last incoming acknowledgment.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, a TCP that utilizes selective acknowledgments (SACKs) [RFC2018, RFC2883] can leverage the SACK information to determine when an incoming ACK is a "duplicate" (e.g., if the ACK contains previously unknown SACK information).</p>
+</div>
+</li>
+</ul>
+</div>
+</blockquote>
+</div>
+</div>
+<div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#the-classic-algorithms">1. The Classic Algorithms</a>
+<ul class="sectlevel2">
+<li><a href="#slow-start">1.1. Slow Start</a></li>
+<li><a href="#congestion-avoidance">1.2. Congestion Avoidance</a></li>
+<li><a href="#selecting-between-slow-start-and-congestion-avoidance">1.3. Selecting between Slow Start and Congestion Avoidance</a></li>
+<li><a href="#tahoe-reno-and-fast-recovery">1.4. Tahoe, Reno, and Fast Recovery</a></li>
+<li><a href="#standard-tcp">1.5. Standard TCP</a></li>
+</ul>
+</li>
+<li><a href="#evolution-of-the-standard-algorithms">2. Evolution of the Standard Algorithms</a>
+<ul class="sectlevel2">
+<li><a href="#newreno">2.1. NewReno</a></li>
+<li><a href="#tcp-congestion-control-with-sack">2.2. TCP Congestion Control with SACK</a></li>
+<li><a href="#forward-acknowledgment-fack-and-rate-halving">2.3. Forward Acknowledgment (FACK) and Rate Halving</a></li>
+</ul>
+</li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-classic-algorithms">1. The Classic Algorithms</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a new TCP connection first starts out, it usually has no idea what the initial value for <em>cwnd</em> should be, as it has no idea how much network capacity is available for it to send its data.</p>
+</div>
+<div class="paragraph">
+<p>TCP learns the value for <em>awnd</em> with one packet exchange to the receiver, but without any explicit signaling, the only obvious way it has to learn a good value for <em>cwnd</em> is to try sending data at faster and faster rates until it experiences a packet drop (or other congestion indicator).</p>
+</div>
+<div class="paragraph">
+<p>This could be accomplished by either sending immediately at the maximum rate it can (subject to the value of <em>awnd</em>), or it could start more slowly.</p>
+</div>
+<div class="paragraph">
+<p>Because of the detrimental effects on the performance of other TCP connections sharing the same network path that could be experienced when starting at full rate, a TCP generally uses one algorithm to avoid starting so fast when it starts up to get to steady state. It uses a different one once it is in steady state.</p>
+</div>
+<div class="paragraph">
+<p>The operation of TCP congestion control at a sender is driven or clocked by the receipt of ACKs.</p>
+</div>
+<div class="paragraph">
+<p>If a TCP is operating at steady state (with an appropriate value of <em>cwnd</em>), receipt of an ACK indicates that one or more packets have been removed from the network, and consequently that an opportunity to send more has arisen.</p>
+</div>
+<div class="paragraph">
+<p>Following this line of reasoning, the TCP congestion behavior in steady state attempts to achieve a <em>conservation of packets</em> in the network.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-congestion-control/conservation-of-packets.png" alt="Conservation of Packets" width="55%" height="55%">
+</div>
+<div class="title">Figure 1. TCP congestion control operates on a principle of conservation of packets. Packets (P<sub>b</sub>) are stretched out in time as they are sent from sender to receiver over links with constrained capacity. As they are received at the receiver spaced apart (P<sub>r</sub>), ACKs are generated (A<sub>r</sub>), which return to the sender. ACKs traveling from receiver to sender become spaced out (A<sub>b</sub>) in relation to the inter-packet spacing of the packets. When ACKs reach the sender (A<sub>s</sub>), their arrivals provide a signal or <em>ACK clock</em>, used to tell the sender it is time to send more. In steady state, the overall system is said to be <em>self-clocked</em>.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The top funnel holds (larger) data packets traveling along the path from the sender to the receiver.</p>
+</li>
+<li>
+<p>The comparatively narrow width of the funnel depicts how packets are <em>stretched out</em> in time as they travel through a relatively slow link.</p>
+</li>
+<li>
+<p>The ends of the funnels (at sender and receiver) show the queues where packets are held before or after they travel along the path.</p>
+</li>
+<li>
+<p>The bottom funnel holds the ACKs sent by the receiver back to the sender that correspond to the data packets in the top funnel.</p>
+</li>
+<li>
+<p>When operating efficiently at steady state, there are no bunches of packets in the top or bottom funnels.</p>
+</li>
+<li>
+<p>In addition, there is no significant extra space between packets in the top funnel.</p>
+</li>
+<li>
+<p>Note that an arrival of an ACK at the sender <em>liberates</em> another data packet to be sent into the top funnel, and that this happens at just the right time (i.e., when the network is able to accept another packet).</p>
+</li>
+<li>
+<p>This relationship is sometimes called <em>self-clocking</em>, because the arrival of an ACK, called the <em>ACK clock</em>, triggers the system to take the action of sending another packet.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="slow-start">1.1. Slow Start</h3>
+<div class="paragraph">
+<p>The slow start algorithm is executed when a new TCP connection is created or when a loss has been detected due to a retransmission timeout (RTO). It may also be invoked after a sending TCP has gone idle for some time.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The purpose of slow start is to help TCP find a value for <em>cwnd</em> before probing for more available bandwidth using congestion avoidance and to establish the ACK clock.</p>
+</li>
+<li>
+<p>Typically, a TCP begins a new connection in slow start, eventually drops a packet, and then settles into steady-state operation using the congestion avoidance algorithm.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To quote from <a href="#RFC5681">[RFC5681]</a>:</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>Beginning transmission into a network with unknown conditions requires TCP to slowly probe the network to determine the available capacity, in order to avoid congesting the network with an inappropriately large burst of data. The slow start algorithm is used for this purpose at the beginning of a transfer, or after repairing loss detected by the retransmission timer.</p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>TCP begins in slow start by sending a certain number of segments (after the SYN exchange), called the <em>initial window</em> (IW).</p>
+</div>
+<div class="paragraph">
+<p>The value of <em>IW</em> was originally one <em>SMSS</em>, although with <a href="#RFC5681">[RFC5681]</a> it is allowed to be larger.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Note that in most cases <em>SMSS</em> is equal to the smaller of the receiver&#8217;s MSS and the path MTU (less header sizes).
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Assuming no packets are lost and each packet causes an ACK to be sent in response, an ACK is returned for the first segment, allowing the sending TCP to send another segment.</p>
+</div>
+<div class="paragraph">
+<p>However, slow start operates by incrementing <em>cwnd</em> by min(<em>N</em>, SMSS) for each good ACK received, where <em>N</em> is the number of previously unacknowledged bytes ACKed by the received <em>good ACK</em>.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+A <em>good ACK</em> is one that returns a higher ACK number than has been seen so far.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Thus, after one segment is ACKed, the <em>cwnd</em> value is ordinarily increased to 2, and two segments are sent. If each of those causes new good ACKs to be returned, 2 increases to 4, 4 to 8, and so on.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In general, assuming no loss and an ACK for every packet, the value of <em>W</em> after <em>k</em> round-trip exchanges is W = 2<sup>k</sup>.</p>
+</li>
+<li>
+<p>Rewriting, we can say that <em>k</em> = log<sub>2</sub><em>W</em> RTTs are required to reach an operating window of <em>W</em>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This growth seems quite fast (increasing as an exponential function) but is still slower than what TCP would do if it were allowed to send immediately a window of packets equal in size to the receiver&#8217;s advertised window. Recall that <em>W</em> is still never allowed to exceed <em>awnd</em>.</p>
+</div>
+<div class="paragraph">
+<p>Eventually, cwnd (and thus <em>W</em>) could become so large that the corresponding window of packets sent overwhelms the network (recall that TCP&#8217;s throughput rate is proportional to <em>W/RTT</em>).</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When this happens, <em>cwnd</em> is reduced substantially (to half of its former value).</p>
+</li>
+<li>
+<p>In addition, this is the point at which TCP switches from operating in slow start to operating in congestion avoidance.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The switch point is determined by the relationship between <em>cwnd</em> and a value called the <strong><em>slow start threshold</em></strong> (or <em>ssthresh</em>).</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-congestion-control/classic-slow-start.png" alt="Operation of the classic slow start algorithm" width="55%" height="55%">
+</div>
+<div class="title">Figure 2. Operation of the classic slow start algorithm. In the simple case where ACKs are not delayed, every arriving good ACK allows the sender to inject two new packets (left). This leads to an exponential growth in the size of the sender’s window as a function of time (right, upper line). When ACKs are delayed, such as when an ACK is produced for every other packet, the growth is still exponential but slower (right, lower line).</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="congestion-avoidance">1.2. Congestion Avoidance</h3>
+<div class="paragraph">
+<p>To find additional capacity that may become available, but to not do so too aggressively, TCP implements the congestion avoidance algorithm.</p>
+</div>
+<div class="paragraph">
+<p>Once <em>ssthresh</em> is established and <em>cwnd</em> is at least at this level, a TCP runs the congestion avoidance algorithm, which seeks additional capacity by increasing <em>cwnd</em> by approximately one segment for each window&#8217;s worth of data that is moved from sender to receiver successfully.</p>
+</div>
+<div class="paragraph">
+<p>This provides a much slower growth rate than slow start: approximately linear in terms of time, as opposed to slow start&#8217;s exponential growth.</p>
+</div>
+<div class="paragraph">
+<p>More precisely, <em>cwnd</em> is usually updated as follows for each received nonduplicate ACK:</p>
+</div>
+<div class="listingblock text-center">
+<div class="content">
+<pre><em>cwnd<sub>t+1</sub></em> = <em>cwnd<sub>t</sub></em> + SMSS * SMSS/<em>cwnd<sub>t</sub></em></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Looking at this relationship briefly, assume <em>cwnd<sub>0</sub></em> = <em>k</em>*<em>SMSS</em> bytes were sent into the network in <em>k</em> segments. After the first ACK arrives, <em>cwnd</em> is updated to be larger by a factor of (1/<em>k</em>):</p>
+</div>
+<div class="listingblock text-center">
+<div class="content">
+<pre><em>cwnd<sub>1</sub></em> = <em>cwnd<sub>0</sub></em> + SMSS * SMSS/<em>cwnd<sub>0</sub></em>
+
+= <em>k</em>*SMSS + SMSS * (SMSS/(k*SMSS))
+
+= <em>k</em>*SMSS + (1/<em>k</em>) * SMSS
+
+= (<em>k</em> + (1/<em>k</em>))*SMSS
+
+= cwnd<sub>0</sub> + (1/<em>k</em>)*SMSS</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Because the value of <em>cwnd</em> grows slightly with each new ACK arrival, and this value is in the denominator of the expression in the first equation above, the overall growth rate of <em>cwnd</em> is slightly sublinear.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/tcp-congestion-control/congestion-avoidance.png" alt="Operation of the congestion avoidance algorithm" width="55%" height="55%">
+</div>
+<div class="title">Figure 3. Operation of the congestion avoidance algorithm. In the simple case where ACKs are not delayed, every arriving good ACK allows the sender to inject approximately <em>1/W</em> fraction of a new packet. This leads to approximately linear growth in the size of the sender&#8217;s window as a function of time (right, upper line). When ACKs are delayed, such as when an ACK is produced for every other packet, the growth is still approximately linear but somewhat slower (right, lower line).</div>
+</div>
+<div class="paragraph">
+<p>The assumption of the algorithm is that packet loss caused by bit errors is very small (much less than 1%), and therefore the loss of a packet signals congestion somewhere in the network between the source and destination.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If this assumption is false, which it sometimes is for wireless networks, TCP slows down even when no congestion is present.</p>
+</li>
+<li>
+<p>In addition, many RTTs may be required for the value of <em>cwnd</em> to grow large, which is required for efficient use of networks with high capacity.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="selecting-between-slow-start-and-congestion-avoidance">1.3. Selecting between Slow Start and Congestion Avoidance</h3>
+<div class="paragraph">
+<p>In normal operations, a TCP connection is always running either the slow start or the congestion avoidance procedure, but never the two simultaneously.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When <em>cwnd &lt; ssthresh</em>, slow start is used, and when <em>cwnd &gt; ssthresh</em>, congestion avoidance is used.</p>
+</li>
+<li>
+<p>When they are equal, either can be used.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The initial value of <em>ssthresh</em> may be set arbitrarily high (e.g., to <em>awnd</em> or higher), which causes TCP to always start with slow start. When a retransmission occurs, caused by either a retransmission timeout or the execution of fast retransmit, <em>ssthresh</em> is updated as follows:</p>
+</div>
+<div class="listingblock text-center">
+<div class="content">
+<pre><em>ssthresh</em> = max(<em>flight size</em>/2, 2*<em>SMSS</em>)</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="tahoe-reno-and-fast-recovery">1.4. Tahoe, Reno, and Fast Recovery</h3>
+<div class="paragraph">
+<p>The slow start and congestion avoidance constitute the first congestion control algorithms which were introduced in the late 1980s with the 4.2 release of UC Berkeley&#8217;s version of UNIX, called the <em>Berkeley Software Distribution</em>, or <em>BSD UNIX</em>.</p>
+</div>
+<div class="paragraph">
+<p>The 4.2 release of BSD (called <em>Tahoe</em>) included a version of TCP that started connections in slow start, and if a packet was lost, detected by either a timeout or the fast retransmit procedure, the slow start algorithm was reinitiated.</p>
+</div>
+<div class="paragraph">
+<p>Tahoe was implemented by simply reducing <em>cwnd</em> to its starting value (1 SMSS at that time) upon any loss, forcing the connection to slow start until <em>cwnd</em> grew to the value <em>ssthresh</em>.</p>
+</div>
+<div class="paragraph">
+<p>One problem with this approach is that for large BDP paths, this can cause the connection to significantly underutilize the available bandwidth while the sending TCP goes through slow start to get back to the point at which it was operating before the packet loss.</p>
+</div>
+<div class="paragraph">
+<p>To address this problem, the reinitiation of slow start on any packet loss was reconsidered.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Ultimately, if packet loss is detected by duplicate ACKs (invoking fast retransmit), <em>cwnd</em> is instead reset to the last value of <em>ssthresh</em> instead of only 1 SMSS.</p>
+</li>
+<li>
+<p>Slow start is still initiated on a timeout, which is generally the case for most TCP variants.</p>
+</li>
+<li>
+<p>This approach allows the TCP to slow down to half of its previous rate without reverting to slow start.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In exploring the issue of large BDP paths further and thinking back to the conservation of packets principle mentioned before, it has been observed that any ACKs that are received, even while recovering after a loss, still represent opportunities to inject new packets into the network.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This became the basis of the <strong>fast recovery</strong> procedure, which was released in conjunction with the popular 4.3 BSD <strong>Reno</strong> version of BSD UNIX.</p>
+</li>
+<li>
+<p>Fast recovery allows <em>cwnd</em> to (temporarily) grow by 1 SMSS for each ACK received while recovering.</p>
+</li>
+<li>
+<p>The congestion window is therefore <em>inflated</em> for a period of time, allowing an additional new packet to be sent for each ACK received, until a good ACK is seen.</p>
+</li>
+<li>
+<p>Any nonduplicate (<em>good</em>) ACK causes TCP to exit recovery and reduces the congestion back to its pre-inflated value.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>TCP Reno became very popular and ultimately the basis for what might reasonably be called "standard TCP".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="standard-tcp">1.5. Standard TCP</h3>
+<div class="paragraph">
+<p>To summarize the combined algorithm from <a href="#RFC5681">[RFC5681]</a>, TCP begins a connection in slow start (<em>cwnd</em> = <em>IW</em>) with a large value of <em>ssthresh</em>, generally at least the value of <em>awnd</em>.</p>
+</div>
+<div class="paragraph">
+<p>Upon receiving a good ACK (one that acknowledges new data), TCP updates the value of <em>cwnd</em> as follows:</p>
+</div>
+<div class="listingblock text-center">
+<div class="content">
+<pre><em>cwnd</em> += <em>SMSS</em>         (if <em>cwnd</em> &lt; <em>ssthresh</em>)        Slow start
+<em>cwnd</em> += <em>SMSS</em>*<em>SMSS</em>/<em>cwnd</em>         (if <em>cwnd</em> &gt; <em>ssthresh</em>)        Congestion avoidance</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When fast retransmit is invoked because of receipt of a third duplicate ACK (or other signal, if conventional fast retransmit initiation is not used), the following actions are performed:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><em>ssthresh</em> is updated to no more than the value given in equation <em>ssthresh</em> = max(<em>flight size</em>/2, 2*<em>SMSS</em>).</p>
+</li>
+<li>
+<p>The fast retransmit algorithm is performed, and <em>cwnd</em> is set to (<em>ssthresh</em> + 3*<em>SMSS</em>).</p>
+</li>
+<li>
+<p><em>cwnd</em> is temporarily increased by <em>SMSS</em> for each duplicate ACK received.</p>
+</li>
+<li>
+<p>When a good ACK is received, <em>cwnd</em> is reset back to <em>ssthresh</em>.</p>
+</li>
+</ol>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The actions in steps 2 and 3 constitute <em>fast recovery</em>.</p>
+</li>
+<li>
+<p>Step 2 first adjusts <em>cwnd</em>, which usually causes it to be reduced to half of its former value, and then temporarily inflates it to take into account the fact that the receipt of each duplicate ACK indicates that some packet has left the network (and thus should permit another to be inserted).</p>
+<div class="paragraph">
+<p>This step is also where <em>multiplicative decrease</em> occurs, as <em>cwnd</em> is ordinarily multiplied by some value (0.5 here) to form its new value.</p>
+</div>
+</li>
+<li>
+<p>Step 3 continues the inflation process, allowing the sender to send additional packets (assuming <em>awnd</em> is not exceeded).</p>
+</li>
+<li>
+<p>In step 4, the TCP is assumed to have recovered, so the temporary inflation is removed (and so this step is sometimes called <em>deflation</em>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Slow start is always used in two cases: when a new connection is started, and when a retransmission timeout occurs.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It can also be invoked when a sender has been idle for a relatively long time or there is some other reason to suspect that <em>cwnd</em> may not accurately reflect the current network congestion state.</p>
+<div class="paragraph">
+<p>In this case, the initial value of <em>cwnd</em> is set to the <em>restart window</em> (<em>RW</em>).</p>
+</div>
+<div class="paragraph">
+<p>In <a href="#RFC5681">[RFC5681]</a>, the recommended value of <em>RW</em> = min(<em>IW</em>, <em>cwnd</em>).</p>
+</div>
+</li>
+<li>
+<p>Other than this case, when slow start is invoked, <em>cwnd</em> is set to <em>IW</em>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="evolution-of-the-standard-algorithms">2. Evolution of the Standard Algorithms</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The classic and standard TCP algorithms made a tremendous contribution to the operation of TCP, essentially addressing the major problem of Internet congestion collapse.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The problem of Internet congestion collapse was a serious concern during the
+years 1986–1988. In October 1986 the NSFNET backbone, an important component
+of the early Internet, had been observed to operate with an effective capacity
+some 1000 times less than it should have (called the "NSFNET meltdown").
+The primary reason for the problem was aggressive retransmissions during times
+of loss without any controls. This behavior drove the network into a persistently
+congested state where packet loss was massive (causing more retransmissions)
+and throughput was low. Adoption of the classic congestion control algorithms
+effectively eliminated this problem.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="newreno">2.1. NewReno</h3>
+<div class="paragraph">
+<p>One problem with fast recovery is that when multiple packets are dropped in a window of data, once one packet is recovered (i.e., successfully delivered and ACKed), a good ACK can be received at the sender that causes the temporary window inflation in fast recovery to be erased before all the packets that were lost have been retransmitted.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+ACKs that trigger this behavior are called <em>partial ACKs</em> (ACKs that cover previously unacknowledged data, but not all the data outstanding when loss was detected).
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>A Reno TCP reacting to a partial ACK by reducing its inflated congestion window can go idle until a retransmission timer fires.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>To understand why this happens, recall that (non-SACK) TCP depends on the signal of three (or <em>dupthresh</em>) duplicate ACKs to trigger its fast retransmit procedure.</p>
+</li>
+<li>
+<p>If there are not enough packets in the network, it is not possible to trigger this procedure on packet loss, ultimately leading to the expiration of the retransmission timer and invocation of the slow start procedure, which drastically impacts TCP throughput performance.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To address this problem with Reno, a modification called <strong><em>NewReno</em></strong> <a href="#RFC3782">[RFC3782]</a> has been developed.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This procedure modifies fast recovery by keeping track of the highest sequence number from the last transmitted window of data (the <em>recovery point</em>).</p>
+</li>
+<li>
+<p>Only when an ACK with an ACK number at least as large as the recovery point is received is the inflation of fast recovery removed.</p>
+</li>
+<li>
+<p>This allows a TCP to continue sending one segment for each ACK it receives while recovering and reduces the occurrence of retransmission timeouts, especially when multiple packets are dropped in a single window of data.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>NewReno is a popular variant of modern TCPs—it does not suffer from the problems of the original fast recovery and is significantly less complicated to implement than SACKs.</p>
+</div>
+<div class="paragraph">
+<p>With SACKs, however, a TCP can perform better than NewReno when multiple packets are lost in a window of data, but doing this requires careful attention to the congestion control procedures.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="tcp-congestion-control-with-sack">2.2. TCP Congestion Control with SACK</h3>
+<div class="paragraph">
+<p>With SACK TCP, the sender can be informed of multiple missing segments and would theoretically be able to send them all immediately because they would all be in the valid window.</p>
+</div>
+<div class="paragraph">
+<p>However, this might involve sending too much data into the network at once, thereby compromising the congestion control.</p>
+</div>
+<div class="paragraph">
+<p>The following issue arises with SACK TCP: using only <em>cwnd</em> as a bound on the sender&#8217;s sliding window to indicate how many (and which) packets to send during recovery periods is not sufficient.</p>
+</div>
+<div class="paragraph">
+<p>Instead, the selection of <em>which</em> packets to send needs to be decoupled from the choice of <em>when</em> to send them.</p>
+</div>
+<div class="paragraph">
+<p>One way to implement this decoupling is to have a TCP keep track of how much data it has injected into the network separately from the maintenance of the window.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In <a href="#RFC3517">[RFC3517]</a> this is called the <em>pipe</em> variable, an estimate of the flight size.</p>
+<div class="paragraph">
+<p>Importantly, the <em>pipe</em> variable counts bytes (or packets, depending on the implementation) of transmissions and retransmissions, provided they are not known to be lost.</p>
+</div>
+</li>
+<li>
+<p>Assuming a large value of <em>awnd</em>, a SACK TCP is permitted to send a segment anytime the following relationship holds true: <em>cwnd</em> - <em>pipe</em> ≥ <em>SMSS</em>.</p>
+<div class="paragraph">
+<p>In other words, <em>cwnd</em> is still used to place a limit on the amount of data that can be outstanding in the network, but the amount of data estimated to be in the network is accounted for separately from the window itself.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="forward-acknowledgment-fack-and-rate-halving">2.3. Forward Acknowledgment (FACK) and Rate Halving</h3>
+
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist bibliography">
+<ul class="bibliography">
+<li>
+<p><a id="ASA00"></a>[ASA00] A. Aggarwal, S. Savage, and T. Anderson, "Understanding the Performance of TCP Pacing", <em>Proc. INFOCOM</em>, Mar. 2004.</p>
+</li>
+<li>
+<p><a id="TCPIPV1"></a>[TCPIPV1] Kevin Fall, W. Stevens <em>TCP/IP Illustrated: The Protocols, Volume 1</em>. 2nd edition, Addison-Wesley Professional, 2011</p>
+</li>
+<li>
+<p><a id="RFC1072"></a>[RFC1072] V. Jacobson, R. Braden, <em>TCP Extensions for Long-Delay Paths</em>, Internet RFC 1072, Oct. 1988, See <a href="https://www.rfc-editor.org/rfc/rfc1072" class="bare">https://www.rfc-editor.org/rfc/rfc1072</a></p>
+</li>
+<li>
+<p><a id="RFC5681"></a>[RFC5681] M. Allman, V. Paxson, E. Blanton, <em>TCP Congestion Control</em>, Internet RFC 5681, Sept. 2009, See <a href="https://www.rfc-editor.org/rfc/rfc5681" class="bare">https://www.rfc-editor.org/rfc/rfc5681</a></p>
+</li>
+<li>
+<p><a id="RFC3782"></a>[RFC3782] S. Floyd, T. Henderson, and A. Gurtov, <em>The NewReno Modification to TCP&#8217;s Fast Recovery Algorithm</em>, Internet RFC 3782, Apr. 2004, See <a href="https://www.rfc-editor.org/rfc/rfc3782" class="bare">https://www.rfc-editor.org/rfc/rfc3782</a></p>
+</li>
+<li>
+<p><a id="RFC3517"></a>[RFC3517]] E. Blanton, M. Allman, K. Fall, and L. Wang, <em>A Conservative Selective Acknowledgment (SACK)-Based Loss Recovery Algorithm for TCP</em>, Internet RFC 3517, Apr. 2003, See <a href="https://www.rfc-editor.org/rfc/rfc3517" class="bare">https://www.rfc-editor.org/rfc/rfc3517</a></p>
+</li>
+<li>
+<p><a id="BDP"></a>[BDP] <a href="https://en.wikipedia.org/wiki/Bandwidth-delay_product" class="bare">https://en.wikipedia.org/wiki/Bandwidth-delay_product</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2023/01/31/tcp-ip-tcp-data-flow-and-window-management/">&laquo; TCP/IP: TCP Data Flow and Window Management</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2023/03/06/dhcp-options-in-vmware/">DHCP Options in VMware &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

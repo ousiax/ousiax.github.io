@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Kubernetes Logging with Fluent Bit</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2022/01/07/kubernetes-loging-fluent-bit/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Kubernetes Logging with Fluent Bit</h1>
+    
+    
+    <p class="post-meta"><time datetime="2022-01-07T10:20:54+08:00" itemprop="datePublished">Jan 7, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#kubernetes-logging-architecture">1. Kubernetes Logging Architecture</a>
+<ul class="sectlevel2">
+<li><a href="#logging-at-the-node-level">1.1. Logging at the Node Level</a>
+<ul class="sectlevel3">
+<li><a href="#system-component-logs">1.1.1. System component logs</a></li>
+</ul>
+</li>
+<li><a href="#cluster-level-logging-architectures">1.2. Cluster-level logging architectures</a></li>
+<li><a href="#cri-log-management-for-container-stdoutstderr-streams">1.3. CRI: Log Management for Container Stdout/Stderr Streams</a></li>
+</ul>
+</li>
+<li><a href="#what-is-fluent-bit">2. What is Fluent Bit?</a>
+<ul class="sectlevel2">
+<li><a href="#fluentd-fluent-bit">2.1. Fluentd &amp; Fluent Bit</a></li>
+<li><a href="#key-concepts">2.2. Key Concepts</a></li>
+<li><a href="#data-pipeline">2.3. Data Pipeline</a></li>
+<li><a href="#configuring-fluent-bit">2.4. Configuring Fluent Bit</a></li>
+<li><a href="#parsers">2.5. Parsers</a></li>
+<li><a href="#parser-filter">2.6. Parser Filter</a></li>
+<li><a href="#docker">2.7. Docker</a></li>
+<li><a href="#kubernetes">2.8. Kubernetes</a></li>
+</ul>
+</li>
+<li><a href="#references">3. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="kubernetes-logging-architecture">1. Kubernetes Logging Architecture</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Application logs can help you understand what is happening inside your application. The logs are particularly useful for debugging problems and monitoring cluster activity. Most modern applications have some kind of logging mechanism. Likewise, container engines are designed to support logging. The easiest and most adopted logging method for containerized applications is writing to <strong>standard output</strong> and <strong>standard error</strong> streams.</p>
+</div>
+<div class="paragraph">
+<p>However, the native functionality provided by a container engine or runtime is usually not enough for a complete logging solution. For example, you may want access your application&#8217;s logs if a container crashes; a pod gets evicted; or a node dies. In a cluster, logs should have a separate storage and lifecycle independent of nodes, pods, or containers. This concept is called <strong>cluster-level logging</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Cluster-level logging architectures require a separate backend to store, analyze, and query logs. Kubernetes does not provide a native storage solution for log data. Instead, there are many logging solutions that integrate with Kubernetes.</p>
+</div>
+<div class="sect2">
+<h3 id="logging-at-the-node-level">1.1. Logging at the Node Level</h3>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/59b1aae2adcfe4f06270b99a2789012ed64bec1f/4d0ad/images/docs/user-guide/logging/logging-node-level.png" alt="logging node level" width="55%" height="55%">
+</div>
+</div>
+<div class="paragraph">
+<p>A <strong>container engine</strong> handles and redirects any output generated to a containerized application&#8217;s <code>stdout</code> and <code>stderr</code> streams. For example, the Docker container engine redirects those two streams to a <a href="https://docs.docker.com/engine/admin/logging/overview">logging driver</a>, which is configured in Kubernetes to write to a file in JSON format.</p>
+</div>
+<div class="paragraph">
+<p>By default, if a container restarts, the kubelet keeps one terminated container with its logs. If a pod is evicted from the node, all corresponding containers are also evicted, along with their logs.</p>
+</div>
+<div class="paragraph">
+<p>An important consideration in node-level logging is implementing <strong>log rotation</strong>, so that logs don&#8217;t consume all available storage on the node. Kubernetes is not responsible for rotating logs, but rather a deployment tool should set up a solution to address that.</p>
+</div>
+<div class="paragraph">
+<p>When using a <strong>CRI container runtime</strong>, the kubelet is responsible for rotating the logs and managing the logging directory structure. The kubelet sends this information to the CRI container runtime and the runtime writes the container logs to the given location. The two kubelet parameters <code>containerLogMaxSize</code> and <code>containerLogMaxFiles</code> in kubelet config file can be used to configure the maximum size for each log file and the maximum number of files allowed for each container respectively.</p>
+</div>
+<div class="paragraph">
+<p>When you run <code>kubectl logs</code>, the kubelet on the node handles the request and reads directly from the log file. The kubelet returns the content of the log file.</p>
+</div>
+<div class="sect3">
+<h4 id="system-component-logs">1.1.1. System component logs</h4>
+<div class="paragraph">
+<p>There are two types of system components: those that run in a container and those that do not run in a container. For example:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The Kubernetes scheduler and kube-proxy run in a container.</p>
+</li>
+<li>
+<p>The kubelet and container runtime do not run in containers.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>On machines with systemd, the kubelet and container runtime write to <strong>journald</strong>. If systemd is not present, the kubelet and container runtime write to <code>.log</code> files in the <code>/var/log</code> directory. System components inside containers always write to the <code>/var/log</code> directory, bypassing the default logging mechanism.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="cluster-level-logging-architectures">1.2. Cluster-level logging architectures</h3>
+<div class="paragraph">
+<p>While Kubernetes does not provide a native solution for cluster-level logging, there are several common approaches you can consider. Here are some options:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Use a node-level logging agent that runs on every node.</p>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/2585cf9757d316b9030cf36d6a4e6b8ea7eedf5a/1509f/images/docs/user-guide/logging/logging-with-node-agent.png" alt="logging with node agent" width="50%" height="50%">
+</div>
+</div>
+</li>
+<li>
+<p>Include a dedicated sidecar container for logging in an application pod.</p>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/5bde4953b3b232c97a744496aa92e3bbfadda9ce/39767/images/docs/user-guide/logging/logging-with-streaming-sidecar.png" alt="logging with streaming sidecar" width="50%" height="50%">
+</div>
+</div>
+</li>
+<li>
+<p>Push logs directly to a backend from within an application.</p>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/d55c404912a21223392e7d1a5a1741bda283f3df/c0397/images/docs/user-guide/logging/logging-with-sidecar-agent.png" alt="logging with sidecar agent" width="50%" height="50%">
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="cri-log-management-for-container-stdoutstderr-streams">1.3. CRI: Log Management for Container Stdout/Stderr Streams</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Logging in kubernetes with docker</p>
+<div class="paragraph">
+<p>Docker supports various logging drivers (e.g., syslog, journal, and json-file), and allows users to configure the driver by passing flags to the docker daemon at startup.</p>
+</div>
+<div class="paragraph">
+<p>Kubernetes defaults to the "json-file" logging driver, in which docker writes the stdout/stderr streams to a file in the json format as shown below.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="nl">"log"</span><span class="p">:</span><span class="w"> </span><span class="s2">"The actual log line"</span><span class="p">,</span><span class="w"> </span><span class="nl">"stream"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stderr"</span><span class="p">,</span><span class="w"> </span><span class="nl">"time"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2016-10-05T00:00:30.082640485Z"</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In a production cluster, logs are usually collected, aggregated, and shipped to a remote store where advanced analysis/search/archiving functions are supported. In kubernetes, the default cluster-addons includes a per-node log collection daemon, <strong>fluentd</strong>. To facilitate the log collection, kubelet creates symbolic links to all the docker containers logs under <code>/var/log/containers</code> with pod and container metadata embedded in the filename.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">/var/log/containers/&lt;pod_name&gt;_&lt;pod_namespace&gt;_&lt;container_name&gt;-&lt;container_id&gt;.log</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The fluentd daemon watches the <code>/var/log/containers/</code> directory and extract the metadata associated with the log from the path.</p>
+</div>
+<div class="paragraph">
+<p>Use <code>crictl</code> to determine the log path of containers:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl version
+<span class="go">Version:  0.1.0
+RuntimeName:  docker
+RuntimeVersion:  20.10.11
+RuntimeApiVersion:  1.41.0
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl ps <span class="nt">--state</span> Running | <span class="nb">head</span> <span class="nt">-n</span> 2
+<span class="go">CONTAINER           IMAGE               CREATED             STATE               NAME                      ATTEMPT             POD ID
+5aa9ed1035b18       a4ca41631cc7a       About an hour ago   Running             coredns                   0                   9ea61ef06c670
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl inspectp <span class="nt">-o</span> go-template <span class="nt">--template</span> <span class="s1">'{{.status.metadata.name}}_{{.status.metadata.namespace}}'</span> 9ea61ef06c670
+<span class="go">coredns-64897985d-6ps6n_kube-system
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl inspect <span class="nt">-o</span> go-template <span class="nt">--template</span> <span class="s1">'{{.status.metadata.name}}-{{.status.id}}'</span> 5aa9ed1035b18
+<span class="go">coredns-5aa9ed1035b1870f1c1551f4fcc4b195ca33ce0726109f3493a81508f315a087
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo readlink</span> /var/log/containers/coredns-64897985d-6ps6n_kube-system_coredns-5aa9ed1035b1870f1c1551f4fcc4b195ca33ce0726109f3493a81508f315a087.log
+<span class="go">/var/log/pods/kube-system_coredns-64897985d-6ps6n_fb974956-1f41-41f1-ba30-2658262cdbd2/coredns/0.log
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl inspect <span class="nt">-o</span> go-template <span class="nt">--template</span> <span class="s1">'{{.status.logPath}}'</span> 5aa9ed1035b18
+<span class="go">/var/log/pods/kube-system_coredns-64897985d-6ps6n_fb974956-1f41-41f1-ba30-2658262cdbd2/coredns/0.log
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>docker info <span class="nt">-f</span> <span class="s1">'{{.LoggingDriver}}'</span>
+<span class="go">json-file
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo tail</span> <span class="nt">-n</span> 1 /var/log/pods/kube-system_coredns-64897985d-6ps6n_fb974956-1f41-41f1-ba30-2658262cdbd2/coredns/0.log
+<span class="go">{"log":"linux/amd64, go1.17.1, 13a9191\n","stream":"stdout","time":"2022-01-07T05:37:18.356105709Z"}</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Logging in kubernetes with CRI-compliant Runtimes</p>
+<div class="paragraph">
+<p>Kubelet will be configured with a root directory (e.g., <code>/var/log/pods</code> or <code>/var/lib/kubelet/logs/</code>) to store all container logs. Below is an example of a path to the log of a container in a pod.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">/var/log/pods/&lt;podUID&gt;</span>/&lt;containerName&gt;_&lt;instance#&gt;.log</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In CRI, this is implemented by setting the pod-level log directory when creating the pod sandbox, and passing the relative container log path when creating a container.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">PodSandboxConfig.LogDirectory: /var/log/pods/&lt;podUID&gt;</span>/
+<span class="gp">ContainerConfig.LogPath: &lt;containerName&gt;</span>_&lt;instance#&gt;.log</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The runtime should decorate each log entry with a RFC 3339Nano <strong>timestamp</strong> prefix, the <strong>stream</strong> type (i.e., "stdout" or "stderr"), the <strong>tags</strong> of the log entry, the log <strong>content</strong> that ends with a newline.</p>
+</div>
+<div class="paragraph">
+<p>The <code>tags</code> fields can support multiple tags, delimited by :. Currently, only one tag is defined in CRI to support multi-line log entries: partial or full. Partial (P) is used when a log entry is split into multiple lines by the runtime, and the entry has not ended yet. Full (F) indicates that the log entry is completed&#8201;&#8212;&#8201;it is either a single-line entry, or this is the last line of the multiple-line entry.</p>
+</div>
+<div class="paragraph">
+<p>For example,</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">2016-10-06T00:17:09.669794202Z stdout F The content of the log entry 1
+2016-10-06T00:17:09.669794202Z stdout P First line of log entry 2
+2016-10-06T00:17:09.669794202Z stdout P Second line of the log entry 2
+2016-10-06T00:17:10.113242941Z stderr F Last line of the log entry 2</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use <code>crictl</code> to determine the log path of containers:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl version
+<span class="go">Version:  0.1.0
+RuntimeName:  containerd
+RuntimeVersion:  v1.5.8
+RuntimeApiVersion:  v1alpha2
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl ps <span class="nt">--state</span> Running | <span class="nb">head</span> <span class="nt">-n</span> 2
+<span class="go">CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
+a140d889bac72       ae1a7201ec954       3 hours ago         Running             controller          0                   97db7329bd6f2
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl inspectp <span class="nt">-o</span> go-template <span class="nt">--template</span> <span class="s1">'{{.info.config.log_directory}}'</span> 97db7329bd6f2
+<span class="go">/var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl inspect <span class="nt">-o</span> go-template <span class="nt">--template</span> <span class="s1">'{{.info.config.log_path}}'</span> a140d889bac72
+<span class="go">controller/0.log
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo </span>crictl inspect <span class="nt">-o</span> go-template <span class="nt">--template</span> <span class="s1">'{{.status.logPath}}'</span> a140d889bac72
+<span class="go">/var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9/controller/0.log
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo realpath</span> /var/log/containers/ingress-nginx-controller-7dc8994d6f-w84bm_ingress-nginx_controller-a140d889bac72aeb8a94f706baca61d2a9f1a2490b4b8b546d7609108f9c0b92.log
+<span class="go">/var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9/controller/0.log
+
+</span><span class="gp">$</span><span class="w"> </span><span class="nb">sudo tail</span> <span class="nt">-n</span> 1 /var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9/controller/0.log
+<span class="go">2022-01-07T14:00:57.629313444+08:00 stderr F I0107 06:00:57.629072       6 event.go:282] Event(v1.ObjectReference{Kind:"Ingress", Namespace:"devtools", Name:"echo.onelinkplus.com", UID:"1d67a4a8-5465-4c10-b103-289ffc2cd1a7", APIVersion:"networking.k8s.io/v1", ResourceVersion:"6772918", FieldPath:""}): type: 'Normal' reason: 'Sync' Scheduled for sync</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-is-fluent-bit">2. What is Fluent Bit?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="http://fluentbit.io/"><strong>Fluent Bit</strong></a> is a Fast and Lightweight Logs and Metrics Processor and Forwarder for Linux, OSX, Windows and BSD family operating systems. It has been made with a strong focus on performance to allow the collection of events from different sources without complexity.</p>
+</div>
+<div class="paragraph">
+<p><a href="http://fluentbit.io/">Fluent Bit</a> is a <a href="https://cncf.io/"><strong>CNCF</strong></a> sub-project under the umbrella of <a href="http://fluentd.org/">Fluentd</a>, it&#8217;s licensed under the terms of the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2.0</a>. The project was originally created by <a href="https://www.treasuredata.com/">Treasure Data</a> and is currently a vendor neutral and community driven project.</p>
+</div>
+<div class="sect2">
+<h3 id="fluentd-fluent-bit">2.1. Fluentd &amp; Fluent Bit</h3>
+<div class="paragraph">
+<p>Logging and data processing in general can be complex, and at scale a bit more, that&#8217;s why it was born.</p>
+</div>
+<div class="paragraph">
+<p><strong>Fluentd</strong> has become more than a simple tool, it has grown into a fullscale ecosystem that contains SDKs for different languages and sub-projects like <strong>Fluent Bit</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Both projects share a lot of similarities, Fluent Bit is fully designed and built on top of the best ideas of Fluentd architecture and general design. Choosing which one to use depends on the end-user needs.</p>
+</div>
+<div class="paragraph">
+<p>The following table describes a comparison in different areas of the projects:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 33.3333%;">
+<col style="width: 50.0001%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top"></th>
+<th class="tableblock halign-left valign-top">Fluentd</th>
+<th class="tableblock halign-left valign-top">Fluent Bit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Scope</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Containers / Servers</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Embedded Linux / Containers / Servers</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Language</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">C &amp; Ruby</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">C</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Memory</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">~40MB</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">~650KB</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Performance</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">High Performance</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">High Performance</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Dependencies</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Built as a Ruby Gem, it requires a certain number of gems.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Zero dependencies, unless some special plugin requires them.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Plugins</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">More than 1000 plugins available</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Around 70 plugins available</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">License</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2.0</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2.0</a></p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Both Fluentd and Fluent Bit can work as Aggregators or Forwarders, they both can complement each other or use them as standalone solutions.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="key-concepts">2.2. Key Concepts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Event or Record</strong></p>
+<div class="paragraph">
+<p>Every incoming piece of data that belongs to a log or a metric that is retrieved by Fluent Bit is considered an <strong>Event</strong> or a <strong>Record</strong>.</p>
+</div>
+<div class="paragraph">
+<p>As an example consider the following content of a Syslog file:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="log">Jan 18 12:52:16 flb systemd[2222]: Starting GNOME Terminal Server
+Jan 18 12:52:16 flb dbus-daemon[2243]: [session uid=1000 pid=2243] Successfully activated service 'org.gnome.Terminal'
+Jan 18 12:52:16 flb systemd[2222]: Started GNOME Terminal Server.
+Jan 18 12:52:16 flb gsd-media-keys[2640]: # watch_fast: "/org/gnome/terminal/legacy/" (establishing: 0, active: 0)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It contains four lines and all of them represents four independent Events.</p>
+</div>
+<div class="paragraph">
+<p>Internally, an Event always has two components (in an array form):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="log">[TIMESTAMP, MESSAGE]</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Filtering</strong></p>
+<div class="paragraph">
+<p>In some cases it is required to perform modifications on the Events content, the process to alter, enrich or drop Events is called <strong>Filtering</strong>.</p>
+</div>
+<div class="paragraph">
+<p>There are many use cases when Filtering is required like:</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>Append specific information to the Event like an IP address or metadata.</p>
+</li>
+<li>
+<p>Select a specific piece of the Event content.</p>
+</li>
+<li>
+<p>Drop Events that matches certain pattern.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Tag</strong></p>
+<div class="paragraph">
+<p>Every Event that gets into Fluent Bit gets assigned a <strong>Tag</strong>. This tag is an internal string that is used in a later stage by the Router to decide which Filter or Output phase it must go through.</p>
+</div>
+<div class="paragraph">
+<p>Most of the tags are assigned manually in the configuration. If a tag is not specified, Fluent Bit will assign the name of the Input plugin instance from where that Event was generated from.</p>
+</div>
+</li>
+<li>
+<p><strong>Timestamp</strong></p>
+<div class="paragraph">
+<p>The <strong>Timestamp</strong> represents the time when an Event was created. Every Event contains a Timestamp associated. The Timestamp is a numeric fractional integer in the format:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="log">SECONDS.NANOSECONDS</code></pre>
+</div>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>SECONDS</p>
+<div class="paragraph">
+<p>It is the number of seconds that have elapsed since the Unix epoch.</p>
+</div>
+</li>
+<li>
+<p>NANOSECONDS</p>
+<div class="paragraph">
+<p>Fractional second or one thousand-millionth of a second.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Match</strong></p>
+<div class="paragraph">
+<p>Fluent Bit allows to deliver your collected and processed Events to one or multiple destinations, this is done through a routing phase. A <strong>Match</strong> represent a simple rule to select Events where its Tags matches a defined rule.</p>
+</div>
+</li>
+<li>
+<p><strong>Structured Messages</strong></p>
+<div class="paragraph">
+<p>Source events can have or not have a structure. A structure defines a set of <strong>keys</strong> and <strong>values</strong> inside the Event message. As an example consider the following two messages:</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>No structured message</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="log">"Project Fluent Bit created on 1398289291"</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Structured Message</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="nl">"project"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Fluent Bit"</span><span class="p">,</span><span class="w"> </span><span class="nl">"created"</span><span class="p">:</span><span class="w"> </span><span class="mi">1398289291</span><span class="p">}</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="paragraph">
+<p>At a low level both are just an array of bytes, but the Structured message defines keys and values, having a structure helps to implement faster operations on data modifications.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="data-pipeline">2.3. Data Pipeline</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Input</strong></p>
+<div class="paragraph">
+<p>Fluent Bit provides different <a href="https://docs.fluentbit.io/manual/pipeline/inputs"><strong>Input Plugins</strong></a> to gather information from different sources, some of them just collect data from log files while others can gather metrics information from the operating system. There are many plugins for different needs.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/fluent-bit/input.png" alt="input" width="70%" height="70%">
+</div>
+</div>
+<div class="paragraph">
+<p>When an input plugin is loaded, an internal instance is created. Every instance has its own and independent configuration. Configuration keys are often called <strong>properties</strong>.</p>
+</div>
+</li>
+<li>
+<p><strong>Parser</strong></p>
+<div class="paragraph">
+<p>Dealing with raw strings or unstructured messages is a constant pain; having a structure is highly desired. Ideally we want to set a structure to the incoming data by the Input Plugins as soon as they are collected:</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/fluent-bit/parser.png" alt="parser" width="70%" height="70%">
+</div>
+</div>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/pipeline/parsers">Parser</a> allows you to convert from unstructured to structured data. As a demonstrative example consider the following Apache (HTTP Server) log entry:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="log">192.168.2.20 - - [28/Jul/2006:10:27:10 -0300] "GET /cgi-bin/try/ HTTP/1.0" 200 3395</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The above log line is a raw string without format, ideally we would like to give it a structure that can be processed later easily. If the proper configuration is used, the log entry could be converted to:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"host"</span><span class="p">:</span><span class="w">    </span><span class="s2">"192.168.2.20"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"user"</span><span class="p">:</span><span class="w">    </span><span class="s2">"-"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"method"</span><span class="p">:</span><span class="w">  </span><span class="s2">"GET"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"path"</span><span class="p">:</span><span class="w">    </span><span class="s2">"/cgi-bin/try/"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"code"</span><span class="p">:</span><span class="w">    </span><span class="s2">"200"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"size"</span><span class="p">:</span><span class="w">    </span><span class="s2">"3395"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"referer"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"agent"</span><span class="p">:</span><span class="w">   </span><span class="s2">""</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Filter</strong></p>
+<div class="paragraph">
+<p>In production environments we want to have full control of the data we are collecting, <a href="https://docs.fluentbit.io/manual/pipeline/filters">filtering</a> is an important feature that allows us to <strong>alter</strong> the data before delivering it to some destination.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/fluent-bit/filter.png" alt="filter" width="70%" height="70%">
+</div>
+</div>
+<div class="paragraph">
+<p>Filtering is implemented through plugins, so each filter available could be used to match, exclude or enrich your logs with some specific metadata.</p>
+</div>
+</li>
+<li>
+<p><strong>Buffer</strong></p>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/administration/buffering-and-storage">buffer</a> phase in the pipeline aims to provide a unified and persistent mechanism to store your data, either using the primary in-memory model or using the filesystem based mode.</p>
+</div>
+<div class="paragraph">
+<p>The buffer phase already contains the data in an <strong>immutable state</strong>, meaning, no other filter can be applied.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/fluent-bit/buffer.png" alt="buffer" width="70%" height="70%">
+</div>
+</div>
+<div class="paragraph">
+<p>Fluent Bit offers a buffering mechanism in the file system that acts as a <strong>backup</strong> system to avoid data loss in case of system failures.</p>
+</div>
+</li>
+<li>
+<p><strong>Router</strong></p>
+<div class="paragraph">
+<p>Routing is a core feature that allows to <strong>route</strong> your data through Filters and finally to one or multiple destinations. The router relies on the concept of Tags and Matching rules.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/fluent-bit/router.png" alt="router" width="70%" height="70%">
+</div>
+</div>
+<div class="paragraph">
+<p>When the data is generated by the input plugins, it comes with a <strong>Tag</strong> (most of the time the Tag is configured manually), the Tag is a human-readable indicator that helps to identify the data source.</p>
+</div>
+<div class="paragraph">
+<p>In order to define <strong>where</strong> the data should be routed, a <strong>Match</strong> rule must be specified in the output configuration.</p>
+</div>
+<div class="paragraph">
+<p>Consider the following configuration example that aims to deliver CPU metrics to an Elasticsearch database and Memory metrics to the standard output interface:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf">[<span class="n">INPUT</span>]
+    <span class="n">name</span> <span class="n">cpu</span>
+    <span class="n">tag</span>  <span class="n">my_cpu</span>
+
+[<span class="n">INPUT</span>]
+    <span class="n">name</span> <span class="n">mem</span>
+    <span class="n">tag</span>  <span class="n">my_mem</span>
+
+[<span class="n">OUTPUT</span>]
+    <span class="n">name</span>   <span class="n">es</span>
+    <span class="n">match</span>  <span class="n">my_cpu</span>
+
+[<span class="n">OUTPUT</span>]
+    <span class="n">name</span>   <span class="n">stdout</span>
+    <span class="n">match</span>  <span class="n">my_mem</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Routing works automatically reading the Input Tags and the Output Match rules. If some data has a Tag that doesn&#8217;t match upon routing time, the data is deleted.</p>
+</div>
+<div class="paragraph">
+<p>Routing is flexible enough to support <strong>wildcard</strong> in the Match pattern. The below example defines a common destination for both sources of data:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf">[<span class="n">INPUT</span>]
+    <span class="n">name</span> <span class="n">cpu</span>
+    <span class="n">tag</span>  <span class="n">my_cpu</span>
+
+[<span class="n">INPUT</span>]
+    <span class="n">name</span> <span class="n">mem</span>
+    <span class="n">tag</span>  <span class="n">my_mem</span>
+
+[<span class="n">OUTPUT</span>]
+    <span class="n">name</span>   <span class="n">stdout</span>
+    <span class="n">match</span>  <span class="n">my_</span>*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The match rule is set to <code>my_*</code> which means it will match any Tag that starts with <code>my_</code>.</p>
+</div>
+</li>
+<li>
+<p><strong>Output</strong></p>
+<div class="paragraph">
+<p>The output interface allows us to define destinations for the data. Common destinations are remote services, local file system or standard interface with others. <a href="https://docs.fluentbit.io/manual/pipeline/outputs">Outputs</a> are implemented as plugins and there are many available.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/fluent-bit/output.png" alt="output" width="70%" height="70%">
+</div>
+</div>
+<div class="paragraph">
+<p>When an output plugin is loaded, an internal instance is created. Every instance has its own independent configuration. Configuration keys are often called properties.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="configuring-fluent-bit">2.4. Configuring Fluent Bit</h3>
+<div class="paragraph">
+<p>Fluent Bit might optionally use a configuration file to define how the service will behave.</p>
+</div>
+<div class="paragraph">
+<p>A simple example of a configuration file is as follows:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[SERVICE]
+    # This is a commented line
+    daemon    off
+    log_level debug</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The configuration schema is defined by three concepts:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Sections</strong></p>
+<div class="paragraph">
+<p>A <strong>section</strong> is defined by a name or title inside brackets. Looking at the example above, a Service section has been set using <code>[SERVICE]</code> definition. Section rules:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>All section content must be indented (4 spaces ideally).</p>
+</li>
+<li>
+<p>Multiple sections can exist on the same file.</p>
+</li>
+<li>
+<p>A section is expected to have comments and entries, it cannot be empty.</p>
+</li>
+<li>
+<p>Any commented line under a section, must be indented too.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Entries</strong>: Key/Value</p>
+<div class="paragraph">
+<p>A section may contain <strong>Entries</strong>, an entry is defined by a line of text that contains a <strong>Key</strong> and a <strong>Value</strong>, using the above example, the <code>[SERVICE]</code> section contains two entries, one is the key <code>Daemon</code> with value <code>off</code> and the other is the key <code>Log_Level</code> with the value <code>debug</code>. Entries rules:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An entry is defined by a key and a value.</p>
+</li>
+<li>
+<p>A key must be indented.</p>
+</li>
+<li>
+<p>A key must contain a value which ends in the breakline.</p>
+</li>
+<li>
+<p>Multiple keys with the same name can exist.</p>
+<div class="paragraph">
+<p>Also commented lines are set prefixing the # character, those lines are not processed but they must be indented too.</p>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Indented</strong> Configuration Mode</p>
+<div class="paragraph">
+<p>Fluent Bit configuration files are based in a strict <strong>Indented Mode</strong>, that means that each configuration file must follow the same pattern of alignment from left to right when writing text. By default an indentation level of four spaces from left to right is suggested.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>One of the ways to configure Fluent Bit is using a main configuration file. The main configuration file supports four types of sections: <strong>Service</strong>, <strong>Input</strong>, <strong>Filter</strong>, <strong>Output</strong>. In addition, it&#8217;s also possible to split the main configuration file in multiple files using the feature to include external files: Include File.</p>
+</div>
+<div class="paragraph">
+<p>The following configuration file example demonstrates how to collect CPU metrics and flush the results every five seconds to the standard output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[SERVICE]
+    flush     5
+    daemon    off
+    log_level debug
+
+[INPUT]
+    name  cpu
+    tag   my_cpu
+
+[OUTPUT]
+    name  stdout
+    match my*cpu</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To avoid complicated long configuration files is better to split specific parts in different files and call them (include) from one main file.</p>
+</div>
+<div class="paragraph">
+<p>Starting from Fluent Bit 0.12 the new configuration command @INCLUDE has been added and can be used in the following way:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">@INCLUDE somefile.conf</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The configuration reader will try to open the path somefile.conf, if not found, it will assume it&#8217;s a relative path based on the path of the base configuration file.</p>
+</div>
+<div class="paragraph">
+<p>The <strong>@INCLUDE</strong> command only works at top-left level of the configuration line, it cannot be used inside sections.</p>
+</div>
+<div class="paragraph">
+<p>Wildcard character (<code>*</code>) is supported to include multiple files, e.g:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">@INCLUDE input_*.conf</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Fluent Bit supports the usage of <strong>environment variables</strong> in any value associated to a key when using a configuration file.</p>
+</div>
+<div class="paragraph">
+<p>The variables are case sensitive and can be used in the following format:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">${MY_VARIABLE}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When Fluent Bit starts, the configuration reader will detect any request for <code>${MY_VARIABLE}</code> and will try to resolve its value.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="parsers">2.5. Parsers</h3>
+<div class="paragraph">
+<p>Parsers are an important component of Fluent Bit, with them you can take any unstructured log entry and give them a structure that makes easier it processing and further filtering.</p>
+</div>
+<div class="paragraph">
+<p>The parser engine is fully configurable and can process log entries based in two types of format:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/parsers/json">JSON Maps</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression">Regular Expressions</a> (named capture)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>By default, Fluent Bit provides a set of pre-configured parsers that can be used for different use cases such as logs from:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Apache</p>
+</li>
+<li>
+<p>Nginx</p>
+</li>
+<li>
+<p>Docker</p>
+</li>
+<li>
+<p>Syslog rfc5424</p>
+</li>
+<li>
+<p>Syslog rfc3164</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Parsers are defined in one or multiple configuration files that are loaded at start time, either from the command line or through the main Fluent Bit configuration file.</p>
+</div>
+<div class="paragraph">
+<p>Note: If you are using Regular Expressions note that Fluent Bit uses Ruby based regular expressions and we encourage to use <a href="http://www.rubular.com/"><strong>Rubular</strong></a> web site as an online editor to test them.</p>
+</div>
+<div class="paragraph">
+<p>Multiple parsers can be defined and each section has it own <strong>properties</strong>. The following table describes the available options for each parser definition:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 83.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Set an unique name for the parser in question.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Format</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Specify the format of the parser, the available options here are: <code>json</code>, <code>regex</code>, <code>ltsv</code> or <code>logfmt</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Regex</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">If format is <code>regex</code>, this option must be set specifying the Ruby Regular Expression that will be used to parse and compose the structured message.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time_Key</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">If the log entry provides a field with a timestamp, this option specify the name of that field.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time_Format</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Specify the format of the time field so it can be recognized and analyzed properly. Fluent-bit uses <code>strptime(3)</code>  to parse time so you can ferer to <a href="https://linux.die.net/man/3/strptime">strptime documentation</a> for available modifiers.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time_Offset</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Specify a fixed UTC time offset (e.g. -0600, +0200, etc.) for local dates.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Types</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Specify the data type of parsed field. The syntax is types <code>&lt;field_name_1&gt;:&lt;type_name_1&gt; &lt;field_name_2&gt;:&lt;type_name_2&gt; &#8230;&#8203;</code>. The supported types are <code>string</code>(default), <code>integer</code>, <code>bool</code>, <code>float</code>, <code>hex</code>. The option is supported by <code>ltsv</code>, <code>logfmt</code> and <code>regex</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Decode_Field</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Decode a field value, the only decoder available is <code>json</code>. The syntax is: <code>Decode_Field json &lt;field_name&gt;</code>.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>All parsers must be defined in a <strong>parsers.conf</strong> file, not in the Fluent Bit global configuration file. The parsers file expose all parsers available that can be used by the Input plugins that are aware of this feature.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>JSON</strong> Parser</p>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/pipeline/parsers/json"><strong>JSON</strong></a> parser is the simplest option: if the original log source is a JSON map string, it will take it structure and convert it directly to the internal binary representation.</p>
+</div>
+<div class="paragraph">
+<p>A simple configuration that can be found in the default parsers configuration file, is the entry to parse Docker log files (when the tail input plugin is used):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[PARSER]
+    name        docker
+    format      json
+    time_key    time
+    time_format %Y-%m-%dT%H:%M:%S %z</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following log entry is a valid content for the parser defined above:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="nl">"key1"</span><span class="p">:</span><span class="w"> </span><span class="mi">12345</span><span class="p">,</span><span class="w"> </span><span class="nl">"key2"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc"</span><span class="p">,</span><span class="w"> </span><span class="nl">"time"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2006-07-28T13:22:04Z"</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>After processing, it internal representation will be:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[1154103724, {"key1"=&gt;12345, "key2"=&gt;"abc"}]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The time has been converted to Unix timestamp (UTC) and the map reduced to each component of the original message.</p>
+</div>
+</li>
+<li>
+<p><strong>Regex</strong> Parser</p>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression"><strong>regex</strong></a> parser allows to define a custom Ruby Regular Expression that will use a named capture feature to define which content belongs to which key name.</p>
+</div>
+<div class="paragraph">
+<p>The following parser configuration example aims to provide rules that can be applied to a Nginx <a href="https://nginx.org/en/docs/http/ngx_http_log_module.html">combined</a> access log entry:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[PARSER]
+    name   nginx
+    format regex
+    # log_format combined '$remote_addr - $remote_user [$time_local] ' '"$request" $status $body_bytes_sent ''"$http_referer" "$http_user_agent"';
+    regex ^(?&lt;remote_addr&gt;[^ ]+) - (?&lt;remote_user&gt;[^ ]+) \[(?&lt;time&gt;[^\]]+)\] "(?&lt;method&gt;\w+) (?&lt;path&gt;[^ ]+) (?&lt;proto&gt;[^"]+)" (?&lt;status&gt;\d+) (?&lt;body_byte_sent&gt;\d+) "(?&lt;referer&gt;[^"]+)" "(?&lt;user_agent&gt;[^"]+)"$
+    time_key time
+    time_format %d/%b/%Y:%H:%M:%S %z
+    types status:integer body_byte_sent:integer</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As an example, takes the following Nginx access log entry:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">192.168.91.1 - - [12/Jan/2022:08:24:28 +0000] "GET / HTTP/1.1" 200 615 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The above content do not provide a defined structure for Fluent Bit, but enabling the proper parser we can help to make a structured representation of it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[
+  1641975868.000000000,
+  {
+    "remote_addr"=&gt;"192.168.91.1",
+    "remote_user"=&gt;"-",
+    "method"=&gt;"GET",
+    "path"=&gt;"/",
+    "proto"=&gt;"HTTP/1.1",
+    "status"=&gt;200,
+    "body_byte_sent"=&gt;615,
+    "referer"=&gt;"-",
+    "user_agent"=&gt;"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
+  }
+]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A common pitfall is that you cannot use characters other than alphabets, numbers and underscore in group names. For example, a group name like <code>(?&lt;user-name&gt;.*)</code> will cause an error due to containing an invalid character (<code>-</code>).</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="parser-filter">2.6. Parser Filter</h3>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/pipeline/filters/parser"><strong>Parser Filter</strong></a> plugin allows for parsing fields in event records.</p>
+</div>
+<div class="paragraph">
+<p>The plugin supports the following configuration parameters:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 9.0909%;">
+<col style="width: 81.8181%;">
+<col style="width: 9.091%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Description</th>
+<th class="tableblock halign-left valign-top">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Key_Name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Specify field name in record to parse.</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Parser</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Specify the parser name to interpret the field. Multiple Parser entries are allowed (one per line).</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Preserve_Key</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Keep original <code>Key_Name</code> field in the parsed result. If false, the field will be removed.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">False</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reserve_Data</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Keep all other original fields in the parsed result. If false, all other original fields will be removed.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">False</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Unescape_Key</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">If the key is an escaped string (e.g: stringify JSON), unescape the string before applying the parser.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">False</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>This is an example of parsing a record <code>{"data":"100 0.5 true This is example"}</code>.</p>
+</div>
+<div class="paragraph">
+<p>The plugin needs a parser file which defines how to parse each field.</p>
+</div>
+<div class="listingblock">
+<div class="title">etc/parsers.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[PARSER]
+    name dummy_test
+    format regex
+    regex ^(?&lt;INT&gt;[^ ]+) (?&lt;FLOAT&gt;[^ ]+) (?&lt;BOOL&gt;[^ ]+) (?&lt;STRING&gt;.+)$</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The path of the parser file should be written in configuration file under the <code>[SERVICE]</code> section.</p>
+</div>
+<div class="listingblock">
+<div class="title">etc/fluent-bit.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[SERVICE]
+    parsers_file parsers.conf
+
+[INPUT]
+    name dummy
+    tag  dummy.data
+    dummy {"data":"100 0.5 true This is example"}
+    samples 3
+
+[FILTER]
+    name parser
+    match dummy.*
+    key_name data
+    parser dummy_test
+
+[OUTPUT]
+    name stdout
+    match *</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The raw output <strong>before</strong> parser filtering is:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">docker run --rm  \
+    fluent/fluent-bit:1.8 \
+    /fluent-bit/bin/fluent-bit -q \
+    -i dummy \
+    -p 'tag=dummy.data' \
+    -p 'samples=3' \
+    -p 'dummy={"data":"100 0.5 true This is example"}' \
+    -o stdout
+
+</span><span class="gp">[0] dummy.data: [1641963560.833349997, {"data"=&gt;</span><span class="s2">"100 0.5 true This is example"</span><span class="o">}]</span>
+<span class="gp">[1] dummy.data: [1641963561.834293264, {"data"=&gt;</span><span class="s2">"100 0.5 true This is example"</span><span class="o">}]</span>
+<span class="gp">[2] dummy.data: [1641963562.834409396, {"data"=&gt;</span><span class="s2">"100 0.5 true This is example"</span><span class="o">}]</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The output after parser filtering is:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="se">\</span>
+<span class="hll"><span class="gp">    -v $</span>PWD/etc:/etc/fluent-bit <span class="se">\</span>
+</span><span class="go">    fluent/fluent-bit:1.8 \</span>
+<span class="go">    /fluent-bit/bin/fluent-bit -q \</span>
+<span class="hll"><span class="go">    -c /etc/fluent-bit/fluent-bit.conf</span>
+</span>
+<span class="gp">[0] dummy.data: [1641970270.834847487, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span><span class="o">}]</span>
+<span class="gp">[1] dummy.data: [1641970271.833919275, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span><span class="o">}]</span>
+<span class="gp">[2] dummy.data: [1641970272.834001854, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span><span class="o">}]</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>By default, the parser plugin only keeps the parsed fields in its output.</p>
+</div>
+<div class="paragraph">
+<p>If you enable <code>Reserve_Data</code>, all other fields are preserved:</p>
+</div>
+<div class="listingblock">
+<div class="title">etc2/parsers.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[PARSER]
+    name dummy_test
+    format regex
+    regex ^(?&lt;INT&gt;[^ ]+) (?&lt;FLOAT&gt;[^ ]+) (?&lt;BOOL&gt;[^ ]+) (?&lt;STRING&gt;.+)$</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">etc2/fluent-bit.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[SERVICE]
+    parsers_file parsers.conf
+
+[INPUT]
+    name dummy
+    tag  dummy.data
+    dummy {"data":"100 0.5 true This is example", "key1":"value1", "key2":"value2"}
+    samples 3
+
+[FILTER]
+    name parser
+    match dummy.*
+    key_name data
+    parser dummy_test
+<span class="hll">    reserve_data on
+</span>
+[OUTPUT]
+    name stdout
+    match *</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will produce the output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="se">\</span>
+<span class="hll"><span class="gp">    -v $</span>PWD/etc2:/etc/fluent-bit <span class="se">\</span>
+</span><span class="go">    fluent/fluent-bit:1.8 \</span>
+<span class="go">    /fluent-bit/bin/fluent-bit -q \</span>
+<span class="go">    -c /etc/fluent-bit/fluent-bit.conf</span>
+
+<span class="gp">[0] dummy.data: [1641971163.834882081, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span>, <span class="s2">"key1"</span><span class="o">=&gt;</span><span class="s2">"value1"</span>, <span class="s2">"key2"</span><span class="o">=&gt;</span><span class="s2">"value2"</span><span class="o">}]</span>
+<span class="gp">[1] dummy.data: [1641971164.834110226, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span>, <span class="s2">"key1"</span><span class="o">=&gt;</span><span class="s2">"value1"</span>, <span class="s2">"key2"</span><span class="o">=&gt;</span><span class="s2">"value2"</span><span class="o">}]</span>
+<span class="gp">[2] dummy.data: [1641971165.833051479, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span>, <span class="s2">"key1"</span><span class="o">=&gt;</span><span class="s2">"value1"</span>, <span class="s2">"key2"</span><span class="o">=&gt;</span><span class="s2">"value2"</span><span class="o">}]</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you enable <code>Reserved_Data</code> and <code>Preserve_Key</code>, the original key field will be preserved as well:</p>
+</div>
+<div class="listingblock">
+<div class="title">etc3/parsers.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[PARSER]
+    name dummy_test
+    format regex
+    regex ^(?&lt;INT&gt;[^ ]+) (?&lt;FLOAT&gt;[^ ]+) (?&lt;BOOL&gt;[^ ]+) (?&lt;STRING&gt;.+)$</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">etc3/fluent-bit.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[SERVICE]
+    parsers_file parsers.conf
+
+[INPUT]
+    name dummy
+    tag  dummy.data
+    dummy {"data":"100 0.5 true This is example", "key1":"value1", "key2":"value2"}
+    samples 3
+
+[FILTER]
+    name parser
+    match dummy.*
+    key_name data
+    parser dummy_test
+<span class="hll">    reserve_data on
+</span><span class="hll">    preserve_key on
+</span>
+[OUTPUT]
+    name stdout
+    match *</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will produce the output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="se">\</span>
+<span class="hll"><span class="gp">    -v $</span>PWD/etc3:/etc/fluent-bit <span class="se">\</span>
+</span><span class="go">    fluent/fluent-bit:1.8 \</span>
+<span class="go">    /fluent-bit/bin/fluent-bit -q  \</span>
+<span class="go">    -c /etc/fluent-bit/fluent-bit.conf</span>
+
+<span class="gp">[0] dummy.data: [1641971438.833271871, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span>, <span class="s2">"data"</span><span class="o">=&gt;</span><span class="s2">"100 0.5 true This is example"</span>, <span class="s2">"key1"</span><span class="o">=&gt;</span><span class="s2">"value1"</span>, <span class="s2">"key2"</span><span class="o">=&gt;</span><span class="s2">"value2"</span><span class="o">}]</span>
+<span class="gp">[1] dummy.data: [1641971439.834690742, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span>, <span class="s2">"data"</span><span class="o">=&gt;</span><span class="s2">"100 0.5 true This is example"</span>, <span class="s2">"key1"</span><span class="o">=&gt;</span><span class="s2">"value1"</span>, <span class="s2">"key2"</span><span class="o">=&gt;</span><span class="s2">"value2"</span><span class="o">}]</span>
+<span class="gp">[2] dummy.data: [1641971440.834035007, {"INT"=&gt;</span><span class="s2">"100"</span>, <span class="s2">"FLOAT"</span><span class="o">=&gt;</span><span class="s2">"0.5"</span>, <span class="s2">"BOOL"</span><span class="o">=&gt;</span><span class="s2">"true"</span>, <span class="s2">"STRING"</span><span class="o">=&gt;</span><span class="s2">"This is example"</span>, <span class="s2">"data"</span><span class="o">=&gt;</span><span class="s2">"100 0.5 true This is example"</span>, <span class="s2">"key1"</span><span class="o">=&gt;</span><span class="s2">"value1"</span>, <span class="s2">"key2"</span><span class="o">=&gt;</span><span class="s2">"value2"</span><span class="o">}]</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="docker">2.7. Docker</h3>
+<div class="paragraph">
+<p>Fluent Bit container images are available on Docker Hub ready for production usage. Current available images can be deployed in multiple architectures.</p>
+</div>
+<div class="paragraph">
+<p>The following (useless) test which makes Fluent Bit measure CPU usage by the container:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">-ti</span> fluent/fluent-bit:1.8 /fluent-bit/bin/fluent-bit <span class="nt">-i</span> cpu <span class="nt">-o</span> stdout <span class="nt">-f</span> 1</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>That command will let Fluent Bit measure CPU usage every second and flush the results to the standard output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">Fluent Bit v1.8.11
+* Copyright (C) 2019-2021 The Fluent Bit Authors
+* Copyright (C) 2015-2018 Treasure Data
+* Fluent Bit is a CNCF sub-project under the umbrella of Fluentd
+* https://fluentbit.io
+
+[2022/01/07 05:02:04] [ info] [engine] started (pid=1)
+[2022/01/07 05:02:04] [ info] [storage] version=1.1.5, initializing...
+[2022/01/07 05:02:04] [ info] [storage] in-memory
+[2022/01/07 05:02:04] [ info] [storage] normal synchronization mode, checksum disabled, max_chunks_up=128
+[2022/01/07 05:02:04] [ info] [cmetrics] version=0.2.2
+[2022/01/07 05:02:04] [ info] [sp] stream processor started
+</span><span class="gp">[0] cpu.0: [1641531724.834023688, {"cpu_p"=&gt;</span>1.750000, <span class="s2">"user_p"</span><span class="o">=&gt;</span>0.500000, <span class="s2">"system_p"</span><span class="o">=&gt;</span>1.250000, <span class="s2">"cpu0.p_cpu"</span><span class="o">=&gt;</span>2.000000, <span class="s2">"cpu0.p_user"</span><span class="o">=&gt;</span>1.000000, <span class="s2">"cpu0.p_system"</span><span class="o">=&gt;</span>1.000000, <span class="s2">"cpu1.p_cpu"</span><span class="o">=&gt;</span>1.000000, <span class="s2">"cpu1.p_user"</span><span class="o">=&gt;</span>0.000000, <span class="s2">"cpu1.p_system"</span><span class="o">=&gt;</span>1.000000, <span class="s2">"cpu2.p_cpu"</span><span class="o">=&gt;</span>0.000000, <span class="s2">"cpu2.p_user"</span><span class="o">=&gt;</span>0.000000, <span class="s2">"cpu2.p_system"</span><span class="o">=&gt;</span>0.000000, <span class="s2">"cpu3.p_cpu"</span><span class="o">=&gt;</span>4.000000, <span class="s2">"cpu3.p_user"</span><span class="o">=&gt;</span>1.000000, <span class="s2">"cpu3.p_system"</span><span class="o">=&gt;</span>3.000000<span class="o">}]</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="kubernetes">2.8. Kubernetes</h3>
+<div class="paragraph">
+<p>Fluent Bit is a lightweight and extensible <strong>Log Processor</strong> that comes with full support for Kubernetes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Process Kubernetes containers logs from the file system or Systemd/Journald.</p>
+</li>
+<li>
+<p>Enrich logs with Kubernetes Metadata.</p>
+</li>
+<li>
+<p>Centralize your logs in third party storage services like Elasticsearch, InfluxDB, HTTP, etc.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Kubernetes manages a cluster of nodes, so our log agent tool will need to run on every node to collect logs from every POD, hence Fluent Bit is deployed as a DaemonSet (a POD that runs on every node of the cluster).</p>
+</div>
+<div class="paragraph">
+<p>When Fluent Bit runs, it will read, parse and filter the logs of every POD and will enrich each entry with the following information (metadata):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Pod Name</p>
+</li>
+<li>
+<p>Pod ID</p>
+</li>
+<li>
+<p>Container Name</p>
+</li>
+<li>
+<p>Container ID</p>
+</li>
+<li>
+<p>Labels</p>
+</li>
+<li>
+<p>Annotations</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To obtain this information, a built-in filter plugin called <a href="https://docs.fluentbit.io/manual/pipeline/filters/kubernetes"><strong>kubernetes</strong></a> talks to the Kubernetes API Server to retrieve relevant information such as the pod_id, labels and annotations, other fields such as pod_name, container_id and container_name are retrieved locally from the log file names. All of this is handled automatically, no intervention is required from a configuration aspect.</p>
+</div>
+<div class="paragraph">
+<p>Kubernetes Filter depends on either <a href="https://docs.fluentbit.io/manual/pipeline/inputs/tail">Tail</a> and <a href="https://docs.fluentbit.io/manual/pipeline/inputs/systemd">Systemd</a> input plugins to process and enrich records with Kubernetes metadata. Here we will explain the workflow of Tail and how it configuration is correlated with Kubernetes filter. Consider the following configuration example (just for demo purposes, not production):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[INPUT]
+    name    tail
+    tag     kube.*
+    path    /var/log/containers/*.log
+    parser  docker
+
+[FILTER]
+    name             kubernetes
+    match            kube.*
+    kube_url         https://kubernetes.default.svc:443
+    kube_ca_file     /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kube_token_file  /var/run/secrets/kubernetes.io/serviceaccount/token
+    kube_tag_prefix  kube.var.log.containers.
+    merge_log        on
+    merge_log_key    log_processed</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Systemd</p>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/pipeline/inputs/systemd"><strong>systemd</strong></a> input plugin allows to collect log messages from the <strong>Journald</strong> daemon on Linux environments.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[INPUT]
+    name            systemd
+    tag             host.*
+    systemd_filter  _SYSTEMD_UNIT=docker.service</code></pre>
+</div>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+SYSTEMD-JOURNALD.SERVICE(8) JOURNALD.CONF(5)
+</td>
+</tr>
+</table>
+</div>
+</li>
+<li>
+<p>Tail</p>
+<div class="paragraph">
+<p>The <a href="https://docs.fluentbit.io/manual/pipeline/inputs/tail"><strong>tail</strong></a> input plugin allows to monitor one or several text files. It has a similar behavior like <code>tail -f</code> shell command.</p>
+</div>
+<div class="paragraph">
+<p>The plugin reads every matched file in the <strong>Path</strong> pattern and for every new line found, it generates a new record. Optionally a database file can be used so the plugin can have a history of tracked files and a state of offsets, this is very useful to resume a state if the service is restarted.</p>
+</div>
+<div class="paragraph">
+<p>If you are running Fluent Bit to process logs coming from containers like Docker or CRI, you can use the new <a href="https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/multiline-parsing">built-in modes</a> for such purposes. This will help to reassembly <strong>multiline messages</strong> originally split by Docker or CRI:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[INPUT]
+    name              tail
+    path              /var/log/containers/*.log
+    # exclude_path      /var/log/containers/*_logging_*.log,/var/log/containers/*_default*.log
+    multiline.parser  docker, cri</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The two options separated by a comma means multi-format: try <code>docker</code> and <code>cri</code> multiline formats.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">3. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/cluster-administration/logging/" class="bare">https://kubernetes.io/docs/concepts/cluster-administration/logging/</a></p>
+</li>
+<li>
+<p><a href="https://docs.docker.com/config/containers/logging/json-file/" class="bare">https://docs.docker.com/config/containers/logging/json-file/</a></p>
+</li>
+<li>
+<p><a href="https://github.com/kubernetes/kubernetes/issues/53022" class="bare">https://github.com/kubernetes/kubernetes/issues/53022</a></p>
+</li>
+<li>
+<p><a href="https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-cri-logging.md" class="bare">https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-cri-logging.md</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/" class="bare">https://docs.fluentbit.io/</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file" class="bare">https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/installation/kubernetes" class="bare">https://docs.fluentbit.io/manual/installation/kubernetes</a></p>
+</li>
+<li>
+<p><a href="https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105" class="bare">https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/inputs/tail" class="bare">https://docs.fluentbit.io/manual/pipeline/inputs/tail</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/inputs/systemd" class="bare">https://docs.fluentbit.io/manual/pipeline/inputs/systemd</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/filters/kubernetes" class="bare">https://docs.fluentbit.io/manual/pipeline/filters/kubernetes</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/12/31/kubernetes-securitycontext-user-and-group/">&laquo; Kubernetes Securitycontext, User and Group</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2022/02/11/overview-of-linux-kernel-security-features/">Overview of Linux Kernel Security Features &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

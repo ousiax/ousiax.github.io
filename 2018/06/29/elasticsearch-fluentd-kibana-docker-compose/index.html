@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Docker Logging with EFK Stack</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2018/06/29/elasticsearch-fluentd-kibana-docker-compose/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Docker Logging with EFK Stack</h1>
+    
+    
+    <p class="post-meta"><time datetime="2018-06-29T15:42:23+08:00" itemprop="datePublished">Jan 11, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#what-is-the-elkefk-stack">1. What is the ELK/EFK Stack?</a></li>
+<li><a href="#what-is-the-fluentd">2. What is the Fluentd?</a></li>
+<li><a href="#what-is-fluent-bit">3. What is Fluent Bit?</a></li>
+<li><a href="#collect-docker-logs-with-efk-stack">4. Collect Docker logs with EFK Stack</a></li>
+<li><a href="#references">5. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="what-is-the-elkefk-stack">1. What is the ELK/EFK Stack?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>ELK</strong> is the arconym for three open source projects: <a href="https://www.elastic.co/guide/en/elasticsearch/reference/7.10/docker.html"><strong>E</strong>lasticsearch</a>, <a href="https://www.elastic.co/logstash/"><strong>L</strong>ogstash</a>, and <a href="https://www.elastic.co/guide/en/kibana/7.10/docker.html"><strong>K</strong>ibana</a>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Elasticsearch is a search and analytics engine.</p>
+</li>
+<li>
+<p>Logstash is a server-side data processing pipeline that ingests data from multiple sources simultaneously, tranforms it, and then sends it to a "stash" like Elasticsearch.</p>
+</li>
+<li>
+<p>Kibana lets users visualize data with charts and graphs in Elasticsearch.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>EFK</strong> is the arconym for <strong>E</strong>lasticsearch, <a href="https://fluentbit.io/"><strong>F</strong>luent Bit</a> (or <a href="https://www.fluentd.org/">Fluentd</a>, <a href="https://www.elastic.co/beats/filebeat">Filebeat</a> etc.), <strong>K</strong>ibana.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p><strong>Fluentd &amp; LogStash</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.loomsystems.com/blog/single-post/2017/01/30/a-comparison-of-fluentd-vs-logstash-log-collector" class="bare">https://www.loomsystems.com/blog/single-post/2017/01/30/a-comparison-of-fluentd-vs-logstash-log-collector</a></p>
+</li>
+<li>
+<p><a href="https://logz.io/blog/fluentd-logstash/" class="bare">https://logz.io/blog/fluentd-logstash/</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Fluentd &amp; Fluent Bit</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/about/history" class="bare">https://docs.fluentbit.io/manual/about/history</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/about/fluentd-and-fluent-bit" class="bare">https://docs.fluentbit.io/manual/about/fluentd-and-fluent-bit</a></p>
+</li>
+</ul>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-is-the-fluentd">2. What is the Fluentd?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><span class="image"><img src="/assets/efk/fluentd-before.png" alt="Before Fluentd" width="40%"></span>
+<span class="image"><img src="/assets/efk/fluentd-architecture.png" alt="After Fluentd" width="40%"></span></p>
+</div>
+<div class="paragraph">
+<p><a href="https://www.fluentd.org/"><strong>Fluentd</strong></a> is an open source data collector, which lets you unify the data collection and consumption for a better use and understanding of data.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-is-fluent-bit">3. What is Fluent Bit?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="http://fluentbit.io/"><strong>Fluent Bit</strong></a> is an open source and multi-platform log processor tool which aims to be a fast and lightweight generic Swiss knife for logs processing and distribution.</p>
+</div>
+<div class="paragraph">
+<p><a href="http://fluentbit.io/">Fluent Bit</a> is a <a href="https://cncf.io/"><strong>CNCF</strong></a> sub-project under the umbrella of <a href="http://fluentd.org/">Fluentd</a>, it&#8217;s licensed under the terms of the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2.0</a>. The project was originally created by <a href="https://www.treasuredata.com/">Treasure Data</a> and is currently a vendor neutral and community driven project.</p>
+</div>
+<div class="paragraph">
+<p>Logging and data processing in general can be complex, and at scale a bit more, that&#8217;s why it was born.</p>
+</div>
+<div class="paragraph">
+<p><strong>Fluentd</strong> has become more than a simple tool, it has grown into a fullscale ecosystem that contains SDKs for different languages and sub-projects like <strong>Fluent Bit</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Both projects share a lot of similarities, Fluent Bit is fully designed and built on top of the best ideas of Fluentd architecture and general design. Choosing which one to use depends on the end-user needs.</p>
+</div>
+<div class="paragraph">
+<p>The following table describes a comparison in different areas of the projects:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 33.3333%;">
+<col style="width: 50.0001%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top"></th>
+<th class="tableblock halign-left valign-top">Fluentd</th>
+<th class="tableblock halign-left valign-top">Fluent Bit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Scope</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Containers / Servers</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Embedded Linux / Containers / Servers</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Language</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">C &amp; Ruby</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">C</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Memory</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">~40MB</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">~650KB</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Performance</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">High Performance</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">High Performance</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Dependencies</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Built as a Ruby Gem, it requires a certain number of gems.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Zero dependencies, unless some special plugin requires them.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Plugins</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">More than 1000 plugins available</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Around 70 plugins available</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">License</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2.0</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License v2.0</a></p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Both Fluentd and Fluent Bit can work as Aggregators or Forwarders, they both can complement each other or use them as standalone solutions.</p>
+</div>
+<div class="paragraph">
+<p><a href="http://fluentbit.io/">Fluent Bit</a> collects and process logs from different <a href="https://docs.fluentbit.io/manual/pipeline/inputs"><strong>input</strong></a> sources and allows to <a href="https://docs.fluentbit.io/manual/pipeline/parsers"><strong>parse</strong></a> and <a href="https://docs.fluentbit.io/manual/pipeline/filters"><strong>filter</strong></a> these records before they hit the <a href="https://docs.fluentbit.io/manual/administration/buffering-and-storage"><strong>Storage</strong></a> interface. Once data is processed and it&#8217;s in a safe state (either in memory or the file system), the records are routed through the proper <a href="https://docs.fluentbit.io/manual/pipeline/outputs"><strong>output</strong></a> destinations.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/efk/fluent-bit-data-pipeline.png" alt="Fluent Bit Data Pipeline" width="70%" height="70%">
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="collect-docker-logs-with-efk-stack">4. Collect Docker logs with EFK Stack</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Starting from Docker v1.8, it provides a <a href="https://docs.docker.com/config/containers/logging/fluentd/">Fluentd Logging Driver</a> which implements the <strong>Forward</strong> protocol. <a href="http://fluentbit.io/">Fluent Bit</a> have native support for this protocol, so it can be used as a lightweight log collector.</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>ref: <a href="https://fluentbit.io/articles/docker-logging-elasticsearch/" class="bare">https://fluentbit.io/articles/docker-logging-elasticsearch/</a></p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p><strong>Talk is cheap, show me the code @ <a href="https://github.com/qqbuby/efk-docker" class="bare">https://github.com/qqbuby/efk-docker</a>.</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>tree
+<span class="c">.
+</span><span class="go">├── conf
+│   ├── fluent-bit.conf
+│   └── parsers.conf
+├── docker-compose.yml
+├── LICENSE
+└── README.md
+
+1 directory, 5 files</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">docker-compose.yml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yml"><span class="na">version</span><span class="pi">:</span> <span class="s2">"</span><span class="s">2.4"</span>
+<span class="na">services</span><span class="pi">:</span>
+    <span class="na">elasticsearch</span><span class="pi">:</span>
+        <span class="na">image</span><span class="pi">:</span> <span class="s">docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2</span>
+        <span class="na">restart</span><span class="pi">:</span> <span class="s">on-failure</span>
+        <span class="na">mem_limit</span><span class="pi">:</span> <span class="s">2g</span>
+        <span class="na">environment</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">discovery.type=single-node</span>
+        <span class="na">ports</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="m">9200</span>
+        <span class="na">volumes</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">/var/lib/elasticsearch:/usr/share/elasticsearch/data</span>
+        <span class="na">networks</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">local</span>
+        <span class="na">depends_on</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">fluent-bit</span>
+        <span class="na">logging</span><span class="pi">:</span>
+          <span class="na">driver</span><span class="pi">:</span> <span class="s">fluentd</span>
+          <span class="na">options</span><span class="pi">:</span>
+            <span class="na">tag</span><span class="pi">:</span> <span class="s">efk.es</span>
+    <span class="na">kibana</span><span class="pi">:</span>
+        <span class="na">image</span><span class="pi">:</span> <span class="s">docker.elastic.co/kibana/kibana-oss:7.10.2</span>
+        <span class="na">restart</span><span class="pi">:</span> <span class="s">on-failure</span>
+        <span class="na">mem_limit</span><span class="pi">:</span> <span class="s">256m</span>
+        <span class="na">environment</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">ELASTICSEARCH_HOSTS=http://elasticsearch:9200</span>
+        <span class="na">ports</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">5601:5601</span>
+        <span class="na">networks</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">local</span>
+        <span class="na">depends_on</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">fluent-bit</span>
+          <span class="pi">-</span> <span class="s">elasticsearch</span>
+        <span class="na">logging</span><span class="pi">:</span>
+          <span class="na">driver</span><span class="pi">:</span> <span class="s">fluentd</span>
+          <span class="na">options</span><span class="pi">:</span>
+            <span class="na">tag</span><span class="pi">:</span> <span class="s">efk.kibana</span>
+    <span class="na">fluent-bit</span><span class="pi">:</span>
+        <span class="na">image</span><span class="pi">:</span> <span class="s">fluent/fluent-bit:1.8</span>
+        <span class="na">command</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">/fluent-bit/bin/fluent-bit</span>
+          <span class="pi">-</span> <span class="s">--config=/etc/fluent-bit/fluent-bit.conf</span>
+        <span class="na">environment</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">FLB_ES_HOST=elasticsearch</span>
+          <span class="pi">-</span> <span class="s">FLB_ES_PORT=9200</span>
+        <span class="na">ports</span><span class="pi">:</span>
+          <span class="c1">#- 2020:2020</span>
+          <span class="pi">-</span> <span class="s">24224:24224</span>
+        <span class="na">volumes</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">./conf/:/etc/fluent-bit/:ro</span>
+        <span class="na">networks</span><span class="pi">:</span>
+          <span class="pi">-</span> <span class="s">local</span>
+        <span class="na">logging</span><span class="pi">:</span>
+          <span class="na">driver</span><span class="pi">:</span> <span class="s">fluentd</span>
+          <span class="na">options</span><span class="pi">:</span>
+            <span class="na">tag</span><span class="pi">:</span> <span class="s">efk.fluent-bit</span>
+<span class="na">networks</span><span class="pi">:</span>
+  <span class="na">local</span><span class="pi">:</span>
+    <span class="na">driver</span><span class="pi">:</span> <span class="s">bridge</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">conf/fluent-bit.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf">[<span class="n">SERVICE</span>]
+    <span class="n">flush</span>     <span class="m">5</span>
+    <span class="n">daemon</span>    <span class="n">off</span>
+    <span class="n">http_server</span> <span class="n">on</span>
+    <span class="n">log_level</span> <span class="n">info</span>
+    <span class="n">parsers_file</span> <span class="n">parsers</span>.<span class="n">conf</span>
+
+[<span class="n">INPUT</span>]
+    <span class="n">Name</span>   <span class="n">forward</span>
+    <span class="n">Listen</span> <span class="m">0</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">0</span>
+    <span class="n">Port</span>   <span class="m">24224</span>
+
+[<span class="n">FILTER</span>]
+    <span class="n">name</span> <span class="n">parser</span>
+    <span class="n">match</span> <span class="n">efk</span>.*
+    <span class="n">key_name</span> <span class="n">log</span>
+    <span class="n">parser</span> <span class="n">json</span>
+    <span class="n">reserve_data</span> <span class="n">true</span>
+
+[<span class="n">OUTPUT</span>]
+    <span class="n">name</span>            <span class="n">es</span>
+    <span class="n">match</span>           *
+    <span class="n">host</span>            ${<span class="n">FLB_ES_HOST</span>}
+    <span class="n">port</span>            ${<span class="n">FLB_ES_PORT</span>}
+    <span class="n">replace_dots</span>    <span class="n">on</span>
+    <span class="n">retry_limit</span>     <span class="n">false</span>
+    <span class="n">logstash_format</span> <span class="n">on</span>
+    <span class="n">logstash_prefix</span> <span class="n">fluent</span>-<span class="n">bit</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">conf/fluent-bit.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="conf">[<span class="n">PARSER</span>]
+    <span class="n">name</span>   <span class="n">json</span>
+    <span class="n">format</span> <span class="n">json</span>
+    <span class="n">time_key</span> <span class="n">time</span>
+    <span class="n">time_format</span> %<span class="n">d</span>/%<span class="n">b</span>/%<span class="n">Y</span>:%<span class="n">H</span>:%<span class="n">M</span>:%<span class="n">S</span> %<span class="n">z</span>
+
+[<span class="n">PARSER</span>]
+    <span class="n">name</span>        <span class="n">docker</span>
+    <span class="n">format</span>      <span class="n">json</span>
+    <span class="n">time_key</span>    <span class="n">time</span>
+    <span class="n">time_format</span> %<span class="n">Y</span>-%<span class="n">m</span>-%<span class="n">dT</span>%<span class="n">H</span>:%<span class="n">M</span>:%<span class="n">S</span>.%<span class="n">L</span>
+    <span class="n">time_keep</span>   <span class="n">On</span></code></pre>
+</div>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>By default, Elasticsearch runs inside the container as user <code>elasticsearch</code> using uid:gid <code>1000:0</code>.</p>
+</div>
+<div class="paragraph">
+<p>If you are bind-mouting a local directory or file, ensure it is readable by this user, while the data and log dirs additionally require write access. A good strategy is to grant group access to gid <code>1000</code> or <code>0</code> for the local directory. As an example, to prepare a local directory for storing data through a bind-mout:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nb">mkdir </span>esdatadir
+<span class="nb">chmod </span>g+rwx esdatadir
+<span class="nb">chgrp </span>1000 esdatadir</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For more information, see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/7.10/docker.html#_configuration_files_must_be_readable_by_the_elasticsearch_user">Configuration files must be readable by the elasticsearch user</a></p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Now let&#8217;s create host path for ES data directory and start our EFK services.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create ES data directory.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nv">$ </span><span class="nb">sudo mkdir</span> /var/lib/elasticsearch
+<span class="nv">$ </span><span class="nb">sudo chown </span>1000 /var/lib/elasticsearch
+<span class="nv">$ </span><span class="nb">sudo ls</span> <span class="nt">-ldn</span> /var/lib/elasticsearch
+drwxr-xr-x 2 1000 0 4096 Jan 11 17:53 /var/lib/elasticsearch</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Use <code>docker-compose</code> to start services</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Fluent Bit Test</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker-compose up fluent-bit
+<span class="go">Creating network "efk-docker_local" with driver "bridge"
+Creating efk-docker_fluent-bit_1 ... done
+Attaching to efk-docker_fluent-bit_1
+fluent-bit_1     | Fluent Bit v1.8.11
+fluent-bit_1     | * Copyright (C) 2019-2021 The Fluent Bit Authors
+fluent-bit_1     | * Copyright (C) 2015-2018 Treasure Data
+fluent-bit_1     | * Fluent Bit is a CNCF sub-project under the umbrella of Fluentd
+fluent-bit_1     | * https://fluentbit.io
+fluent-bit_1     |
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [engine] started (pid=1)
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [storage] version=1.1.5, initializing...
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [storage] in-memory
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [storage] normal synchronization mode, checksum disabled, max_chunks_up=128
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [cmetrics] version=0.2.2
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [input:forward:forward.0] listening on 0.0.0.0:24224
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [http_server] listen iface=0.0.0.0 tcp_port=2020
+fluent-bit_1     | [2022/01/11 09:36:39] [ info] [sp] stream processor started
+^CGracefully stopping... (press Ctrl+C again to force)
+Stopping efk-docker_fluent-bit_1 ... done</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With <a href="https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression"><strong>regex parser</strong></a>, you can also take any unstructured <code>fluent-bit_1</code> log entry and give them a structure that makes easier it processing and further filtering.</p>
+</div>
+<div class="listingblock">
+<div class="title">conf/parsers.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[PARSER]
+    name   json
+    format json
+    time_key time
+    time_format %d/%b/%Y:%H:%M:%S %z
+
+[PARSER]
+    name        docker
+    format      json
+    time_key    time
+    time_format %Y-%m-%dT%H:%M:%S.%L
+    time_keep   On
+
+<span class="hll">[PARSER]
+</span><span class="hll">    name   fluentbit
+</span><span class="hll">    format regex
+</span><span class="hll">    regex ^\[(?&lt;time&gt;[^\]]+)\] \[ (?&lt;level&gt;\w+)\] \[(?&lt;compoment&gt;\w+)\] (?&lt;message&gt;.*)$
+</span><span class="hll">    time_key time
+</span><span class="hll">    time_format %Y/%m/%d %H:%M:%S
+</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">conf/fluent-bit.conf</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[SERVICE]
+    flush     5
+    daemon    off
+    http_server on
+    log_level info
+    parsers_file parsers.conf
+
+[INPUT]
+    Name   forward
+    Listen 0.0.0.0
+    Port   24224
+
+[FILTER]
+    name parser
+    match efk.*
+    key_name log
+    parser json
+    reserve_data true
+
+<span class="hll">[FILTER]
+</span><span class="hll">    name parser
+</span><span class="hll">    match efk.fluent-bit
+</span><span class="hll">    key_name log
+</span><span class="hll">    parser fluentbit
+</span><span class="hll">    reserve_data true
+</span>
+[OUTPUT]
+    name            es
+    match           *
+    host            ${FLB_ES_HOST}
+    port            ${FLB_ES_PORT}
+    replace_dots    on
+    retry_limit     false
+    logstash_format on
+    logstash_prefix fluent-bit</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following is a structured sample log output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">[
+    1642068626.000000000,
+    {
+        "level"=&gt;"info",
+        "compoment"=&gt;"storage",
+        "message"=&gt;"normal synchronization mode, checksum disabled, max_chunks_up=128",
+        "container_id"=&gt;"1a8f252975be8d83b534e76c81a2a47466314f52a5344b892d14c14f1d4be58b",
+        "container_name"=&gt;"/efk-docker_fluent-bit_1",
+        "source"=&gt;"stderr"
+    }
+]</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>ElasticSearch Test</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker-compose up elasticsearch
+<span class="go">Creating network "efk-docker_local" with driver "bridge"
+Creating efk-docker_fluent-bit_1 ... done
+Creating efk-docker_elasticsearch_1 ... done
+Attaching to efk-docker_elasticsearch_1
+elasticsearch_1  | {"type": "server", "timestamp": "2022-01-11T09:56:23,016Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "453b5fbbea27", "message": "version[7.10.2], pid[9], build[oss/docker/747e1cc71def077253878a59143c1f785afa92b9/2021-01-13T00:42:12.435326Z], OS[Linux/5.10.0-9-amd64/amd64], JVM[AdoptOpenJDK/OpenJDK 64-Bit Server VM/15.0.1/15.0.1+9]" }
+elasticsearch_1  | {"type": "server", "timestamp": "2022-01-11T09:56:23,019Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "453b5fbbea27", "message": "JVM home [/usr/share/elasticsearch/jdk], using bundled JDK [true]" }
+elasticsearch_1  | {"type": "server", "timestamp": "2022-01-11T09:56:23,020Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "453b5fbbea27", "message": "JVM arguments [-Xshare:auto, -Des.networkaddress.cache.ttl=60, -Des.networkaddress.cache.negative.ttl=10, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -XX:+ShowCodeDetailsInExceptionMessages, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, -Dio.netty.allocator.numDirectArenas=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Djava.locale.providers=SPI,COMPAT, -Xms1g, -Xmx1g, -XX:+UseG1GC, -XX:G1ReservePercent=25, -XX:InitiatingHeapOccupancyPercent=30, -Djava.io.tmpdir=/tmp/elasticsearch-16115776092982339533, -XX:+HeapDumpOnOutOfMemoryError, -XX:HeapDumpPath=data, -XX:ErrorFile=logs/hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m, -Des.cgroups.hierarchy.override=/, -XX:MaxDirectMemorySize=536870912, -Des.path.home=/usr/share/elasticsearch, -Des.path.conf=/usr/share/elasticsearch/config, -Des.distribution.flavor=oss, -Des.distribution.type=docker, -Des.bundled_jdk=true]" }
+</span><span class="c">...
+</span><span class="go">elasticsearch_1  | {"type": "server", "timestamp": "2022-01-11T09:56:24,020Z", "level": "INFO", "component": "o.e.e.NodeEnvironment", "cluster.name": "docker-cluster", "node.name": "453b5fbbea27", "message": "using [1] data paths, mounts [[/usr/share/elasticsearch/data (/dev/sda1)]], net usable_space [47.2gb], net total_space [97.9gb], types [ext4]" }
+</span><span class="c">...
+</span><span class="go">elasticsearch_1  | {"type": "server", "timestamp": "2022-01-11T09:56:28,189Z", "level": "INFO", "component": "o.e.t.TransportService", "cluster.name": "docker-cluster", "node.name": "453b5fbbea27", "message": "publish_address {192.168.112.3:9300}, bound_addresses {0.0.0.0:9300}" }
+</span><span class="c">...
+</span><span class="go">elasticsearch_1  | {"type": "server", "timestamp": "2022-01-11T09:56:28,724Z", "level": "INFO", "component": "o.e.h.AbstractHttpServerTransport", "cluster.name": "docker-cluster", "node.name": "453b5fbbea27", "message": "publish_address {192.168.112.3:9200}, bound_addresses {0.0.0.0:9200}", "cluster.uuid": "Ylk56XOzTIehhBYYTVod2A", "node.id": "GJJwqaYqQWmv_wLXTquCqA"  }
+</span><span class="c">...
+</span><span class="go">^CGracefully stopping... (press Ctrl+C again to force)
+Stopping efk-docker_elasticsearch_1 ... done</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Startup all three services</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nv">$ </span>docker-compose up
+Creating network <span class="s2">"efk-docker_local"</span> with driver <span class="s2">"bridge"</span>
+Creating efk-docker_fluent-bit_1 ... <span class="k">done
+</span>Creating efk-docker_elasticsearch_1 ... <span class="k">done
+</span>Creating efk-docker_kibana_1        ... <span class="k">done
+</span>Attaching to efk-docker_fluent-bit_1, efk-docker_elasticsearch_1, efk-docker_kibana_1
+...</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Please go to <code>http://localhost:5601</code> with your browser and follow the Kibana <a href="https://www.elastic.co/guide/en/kibana/7.10/index-patterns.html">documentation</a> to define your index pattern with <code>fluent-bit-*</code>,</p>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/efk/define-index-pattern.png" alt="Create Index Pattern">
+</div>
+</div>
+</li>
+<li>
+<p>Fllow the Kibana <a href="https://www.elastic.co/guide/en/kibana/7.10/discover.html">documentation</a> to explore your logging data for the Discover page.</p>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/efk/discover-logging-data.png" alt="Discover Logging Data">
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">5. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.elastic.co/elk-stack" class="bare">https://www.elastic.co/elk-stack</a></p>
+</li>
+<li>
+<p><a href="https://www.elastic.co/guide/en/elasticsearch/reference/7.10/docker.html" class="bare">https://www.elastic.co/guide/en/elasticsearch/reference/7.10/docker.html</a></p>
+</li>
+<li>
+<p><a href="https://www.elastic.co/guide/en/kibana/7.10/docker.html" class="bare">https://www.elastic.co/guide/en/kibana/7.10/docker.html</a></p>
+</li>
+<li>
+<p><a href="https://www.fluentd.org/architecture" class="bare">https://www.fluentd.org/architecture</a></p>
+</li>
+<li>
+<p><a href="https://fluentbit.io/articles/docker-logging-elasticsearch/" class="bare">https://fluentbit.io/articles/docker-logging-elasticsearch/</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/installation/docker" class="bare">https://docs.fluentbit.io/manual/installation/docker</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/concepts/key-concepts" class="bare">https://docs.fluentbit.io/manual/concepts/key-concepts</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/concepts/data-pipeline" class="bare">https://docs.fluentbit.io/manual/concepts/data-pipeline</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/administration/configuring-fluent-bit" class="bare">https://docs.fluentbit.io/manual/administration/configuring-fluent-bit</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/inputs/forward" class="bare">https://docs.fluentbit.io/manual/pipeline/inputs/forward</a></p>
+</li>
+<li>
+<p><a href="https://docs.fluentbit.io/manual/pipeline/outputs/elasticsearch" class="bare">https://docs.fluentbit.io/manual/pipeline/outputs/elasticsearch</a></p>
+</li>
+<li>
+<p><a href="https://docs.docker.com/compose/" class="bare">https://docs.docker.com/compose/</a></p>
+</li>
+<li>
+<p><a href="https://docs.docker.com/config/containers/logging/fluentd/" class="bare">https://docs.docker.com/config/containers/logging/fluentd/</a></p>
+</li>
+<li>
+<p><a href="https://www.loomsystems.com/blog/single-post/2017/01/30/a-comparison-of-fluentd-vs-logstash-log-collector" class="bare">https://www.loomsystems.com/blog/single-post/2017/01/30/a-comparison-of-fluentd-vs-logstash-log-collector</a></p>
+</li>
+<li>
+<p><a href="https://logz.io/blog/fluentd-logstash/" class="bare">https://logz.io/blog/fluentd-logstash/</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2018/05/19/tcp-ip-protocol/">&laquo; TCP/IP Protocol</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2018/08/09/http-proxy-docker-minikube/">Docker and Minikube behind HTTP Proxy &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

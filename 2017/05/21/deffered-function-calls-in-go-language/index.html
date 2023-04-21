@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Deffered Function Calls in Go Language</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/05/21/deffered-function-calls-in-go-language/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Deffered Function Calls in Go Language</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-05-21T10:30:37+08:00" itemprop="datePublished">May 21, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <p>The program below fetchs an HTML document and prints it to the <code class="language-plaintext highlighter-rouge">os.Stdout</code>. The <code class="language-plaintext highlighter-rouge">title</code> function inspects the <code class="language-plaintext highlighter-rouge">Content-Type</code> header of the server’s response and returns an error if the document is not HTML.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">title</span><span class="p">(</span><span class="n">url</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="n">resp</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">http</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+
+	<span class="c">// Check Content-Type is HTML (e.g., "text/html; charset=utf-8").</span>
+	<span class="n">ct</span> <span class="o">:=</span> <span class="n">resp</span><span class="o">.</span><span class="n">Header</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="s">"Content-Type"</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">ct</span> <span class="o">!=</span> <span class="s">"text/html"</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">strings</span><span class="o">.</span><span class="n">HasPrefix</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="s">"text/html;"</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+		<span class="k">return</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"%s has type %s, not text/html"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">ct</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="n">_</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">Copy</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">Stdout</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="p">)</span>
+	<span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="no">nil</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Observe the duplicated <code class="language-plaintext highlighter-rouge">resp.Body.Close()</code> call, which ensures that <code class="language-plaintext highlighter-rouge">title</code> closes the network connection on all execution paths, including failures. As functions grow more complex and have to handle more errors, such duplication of clean-up logic become a maintenance problem. Let’s see how Go’s novel <code class="language-plaintext highlighter-rouge">defer</code> mechanism makes things simpler.</p>
+
+<p>Syntactically, a <code class="language-plaintext highlighter-rouge">defer</code> statement is an ordinary function or method call prefixed by the keyword <code class="language-plaintext highlighter-rouge">defer</code>. <strong>The function and argument expressions are evaluated when the statement is executed, but the actual call is <em>deferred</em> until the function that contains the <code class="language-plaintext highlighter-rouge">defer</code> statement has finished</strong>, whether normally, by execution a return statement or falling off the end, or abnormally, by panicking. <strong>Any number of calls may be deferred; they are executed in the reverse of the order in which they were deferred.</strong></p>
+
+<p>A <code class="language-plaintext highlighter-rouge">defer</code> statement is often used with paried operations like open and close, connect and disconnect, or lock and unlock to ensure the resources are released in all cases, no matter how complex the control flow. The right place for a <code class="language-plaintext highlighter-rouge">defer</code> statement that releases a resource is immediately after the resource has been successfully acquired. In the <code class="language-plaintext highlighter-rouge">title</code> function below, a single deferred call replaces both previous calls to <code class="language-plaintext highlighter-rouge">resp.Body.Close()</code>:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">title</span><span class="p">(</span><span class="n">url</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="n">resp</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">http</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">defer</span> <span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+
+	<span class="c">// Check Content-Type is HTML (e.g., "text/html; charset=utf-8").</span>
+	<span class="n">ct</span> <span class="o">:=</span> <span class="n">resp</span><span class="o">.</span><span class="n">Header</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="s">"Content-Type"</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">ct</span> <span class="o">!=</span> <span class="s">"text/html"</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">strings</span><span class="o">.</span><span class="n">HasPrefix</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="s">"text/html;"</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"%s has type %s, not text/html"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">ct</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="n">_</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">Copy</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">Stdout</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">Body</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="no">nil</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The same pattern can be used for other resources beside network connections, for instance to close an open file:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">ioutil</span>
+
+<span class="k">func</span> <span class="n">ReadFile</span><span class="p">(</span><span class="n">filename</span> <span class="kt">string</span><span class="p">)</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="n">f</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">os</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">defer</span> <span class="n">f</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+	<span class="k">return</span> <span class="n">ReadAll</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>or to unlock a mutext:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">var</span> <span class="n">mu</span> <span class="n">sync</span><span class="o">.</span><span class="n">Mutex</span>
+<span class="k">var</span> <span class="n">m</span> <span class="o">=</span> <span class="nb">make</span><span class="p">(</span><span class="k">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int</span><span class="p">)</span>
+
+<span class="k">func</span> <span class="n">lookup</span><span class="p">(</span><span class="n">key</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+	<span class="n">mu</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="n">mu</span><span class="o">.</span><span class="n">Unlock</span><span class="p">()</span>
+	<span class="k">return</span> <span class="n">m</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">defer</code> statement can also be used to pair “on entry” and “on exit” actions when debugging a complex function. The <code class="language-plaintext highlighter-rouge">bigSlowOperation</code> function below calls <code class="language-plaintext highlighter-rouge">trace</code> immediately, which does the “on entry” action then returns a function value that, when called, does the corresponding “on exit” action. By deferring a call to the returned function in this way, we can instrument the entry point and all exit points of a function in a single statement and even pass values, like the <code class="language-plaintext highlighter-rouge">start</code> time, between the two actions. But don’t forget the final parentheses in the <code class="language-plaintext highlighter-rouge">defer</code> statement, or the “on entry” action will happen on exit and the on-exit action won’t happen at all!</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">bigSlowOperation</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">defer</span> <span class="n">trace</span><span class="p">(</span><span class="s">"bigSlowOperation"</span><span class="p">)()</span> <span class="c">// don't forget the extra parentheses</span>
+	<span class="c">// ...lots of work...</span>
+	<span class="n">time</span><span class="o">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">10</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Second</span><span class="p">)</span> <span class="c">// simulate slow operation by sleeping</span>
+<span class="p">}</span>
+<span class="k">func</span> <span class="n">trace</span><span class="p">(</span><span class="n">msg</span> <span class="kt">string</span><span class="p">)</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">start</span> <span class="o">:=</span> <span class="n">time</span><span class="o">.</span><span class="n">Now</span><span class="p">()</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"enter %s"</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+	<span class="k">return</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span> <span class="n">log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"exit %s (%s)"</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">Since</span><span class="p">(</span><span class="n">start</span><span class="p">))</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Because an anonymous function can access its enclosing funciton’s variables, including named results, a deferred anoymous function can observe the function’s result.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">double</span><span class="p">(</span><span class="n">x</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="n">result</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">defer</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span> <span class="n">fmt</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"double(%d) = %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span> <span class="p">}()</span>
+	<span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">x</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">_</span> <span class="o">=</span> <span class="n">double</span><span class="p">(</span><span class="m">4</span><span class="p">)</span>
+	<span class="c">// Output:</span>
+	<span class="c">// "double(4) = 8"</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Go’s <code class="language-plaintext highlighter-rouge">defer</code> statement schedules a function call (the deferred function) to be run immediately before the function executing the <code class="language-plaintext highlighter-rouge">defer</code> returns. A deffered anonymous function can even change the values that the enclosing function returns to its caller:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">func</span> <span class="n">triple</span><span class="p">(</span><span class="n">x</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="n">result</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">defer</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span> <span class="n">result</span> <span class="o">+=</span> <span class="n">x</span> <span class="p">}()</span>
+	<span class="k">return</span> <span class="n">double</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">triple</span><span class="p">(</span><span class="m">4</span><span class="p">))</span> <span class="c">// "12"</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Because deffered functions aren’t executed until the very end of a function’s execution, a <code class="language-plaintext highlighter-rouge">defer</code> function statement in a loop deserves extra scrutiny. The code below could run out of file descriptors since on file will closed until all files have been processed:</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">filename</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">filenames</span> <span class="p">{</span>
+	<span class="n">f</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">os</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">defer</span> <span class="n">f</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span> <span class="c">// NOTE: risky; could run out of file descriptors</span>
+	<span class="c">// ...process f...</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>One solution is to move the loop body, including the <code class="language-plaintext highlighter-rouge">defer</code> statement, into another function that is called on each iteration.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">filename</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">filenames</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">doFile</span><span class="p">(</span><span class="n">filename</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">doFile</span><span class="p">(</span><span class="n">filename</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="n">f</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">os</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+	<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="n">err</span>
+	<span class="p">}</span>
+	<span class="k">defer</span> <span class="n">f</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+	<span class="c">// ...process f...</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<hr />
+
+<h3 id="references">References</h3>
+
+<ol>
+  <li>Alan A. A. Donovan, Brian W. Kernighan. The Go Programming Language, 2015.11.</li>
+  <li><a href="https://golang.org/doc/effective_go.html#defer">Defer</a>, Effective Go - The Go Programming Language</li>
+  <li><a href="/2016/04/03/anonymous-functions-and-closures/">Anonymous functions and closures</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2017/05/15/capturing-iteration-variables-in-go-language/">&laquo; Capturing Iteration Variables in Go Language</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/05/21/object-oriented-programming-in-go-language/">Object-oriented Programming in Go Language &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Device Mapper and Linux LVM</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/11/29/device-mapper-and-linux-lvm/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Device Mapper and Linux LVM</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-11-29T10:29:24+08:00" itemprop="datePublished">Nov 29, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#device-files">1. Device Files</a>
+<ul class="sectlevel2">
+<li><a href="#unix-and-unix-like-systems">1.1. Unix and Unix-like Systems</a>
+<ul class="sectlevel3">
+<li><a href="#character-devices">1.1.1. Character Devices</a></li>
+<li><a href="#block-devices">1.1.2. Block Devices</a></li>
+<li><a href="#pseudo-devices">1.1.3. Pseudo-devices</a></li>
+<li><a href="#naming-conventions">1.1.4. Naming Conventions</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#device-mapper">2. Device Mapper</a>
+<ul class="sectlevel2">
+<li><a href="#device-table-mappings">2.1. Device Table Mappings</a></li>
+<li><a href="#the-dmsetup-command">2.2. The <code>dmsetup</code> Command</a></li>
+</ul>
+</li>
+<li><a href="#logical-volume-manager-lvm">3. Logical Volume Manager (LVM)</a>
+<ul class="sectlevel2">
+<li><a href="#logical-volumes">3.1. Logical Volumes</a></li>
+<li><a href="#lvm-with-cli-command">3.2. LVM with CLI Command</a>
+<ul class="sectlevel3">
+<li><a href="#physical-volumes">3.2.1. Physical Volumes</a></li>
+<li><a href="#volume-groups">3.2.2. Volume Groups</a></li>
+<li><a href="#logical-volumes-2">3.2.3. Logical Volumes</a></li>
+</ul>
+</li>
+<li><a href="#lvm-configuration-examples">3.3. LVM Configuration Examples</a></li>
+</ul>
+</li>
+<li><a href="#docker-device-mapper-storage-driver">4. Docker Device Mapper Storage Driver</a>
+<ul class="sectlevel2">
+<li><a href="#configure-loop-lvm-mode-for-testing">4.1. Configure <code>loop-lvm</code> mode for testing</a></li>
+<li><a href="#configure-direct-lvm-mode-manually">4.2. Configure <code>direct-lvm</code> mode manually</a></li>
+</ul>
+</li>
+<li><a href="#references">5. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="device-files">1. Device Files</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Unix-like operating systems, a <strong>device file</strong> or <strong>special file</strong> is an interface to a <strong><em>device driver</em></strong> that appears in a <strong><em>file system</em></strong> as if it were an ordinary file. These special files allow an application program to interact with a device by using its device driver via standard <strong><em>input/output</em></strong> <strong><em>system calls</em></strong>. Using standard system calls simplifies many programming tasks, and leads to consistent user-space I/O mechanisms regardless of device features and functions.</p>
+</div>
+<div class="paragraph">
+<p>There are two general kinds of device files in Unix-like operating systems, known as <strong>character special files</strong> and <strong>block special files</strong>. The difference between them lies in how much data is read and written by the operating system and hardware. These together can be called <strong>device special files</strong> in contrast to <strong><em>named pipes</em></strong>, which are not connected to a device but are not ordinary files either.</p>
+</div>
+<div class="paragraph">
+<p>In some Unix-like systems, most device files are managed as part of a <strong><em>virtual file system</em></strong> traditionally mounted at <strong>/dev</strong>, possibly associated with a controlling daemon, which monitors hardware addition and removal at run time, making corresponding changes to the <strong><em>device file system</em></strong> if that&#8217;s not automatically done by the kernel, and possibly invoking scripts in system or user space to handle special device needs. The FreeBSD, DragonFly BSD and Darwin have a dedicated file system <strong><em>devfs</em></strong>; device nodes are managed automatically by this file system, in <strong><em>kernel space</em></strong>.</p>
+</div>
+<div class="sect2">
+<h3 id="unix-and-unix-like-systems">1.1. Unix and Unix-like Systems</h3>
+<div class="paragraph">
+<p>Device nodes correspond to resources that an operating system&#8217;s kernel has already allocated. Unix identifies those resources by a <strong><em>major number</em></strong> and a <strong><em>minor number</em></strong>, both stored as part of the structure of a node. The assignment of these numbers occurs uniquely in different operating systems and on different computer platforms. Generally, the major number identifies the device driver and the minor number identifies a particular device (possibly out of many) that the driver controls: in this case, the system may pass the minor number to a driver. However, in the presence of <strong><em>dynamic number allocation</em></strong>, this may not be the case.</p>
+</div>
+<div class="paragraph">
+<p><span class="image"><img src="/assets/device-mapper/Simplified%20Structure%20of%20the%20Linux%20Kernel.svg" alt="Simplified Structure of the Linux Kernel" width="45%" height="45%"></span>
+<span class="image"><img src="https://www.ibm.com/docs/en/linuxonibm/com.ibm.linux.z.lgdd/lxnode.jpg" alt="lxnode" width="45%" height="45%"></span></p>
+</div>
+<div class="paragraph">
+<p>User space programs access character and block devices through device nodes also referred to as device special files.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lsblk
+<span class="go">NAME                    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                       8:0    0   20G  0 disk
+├─docker-thinpool_tmeta 254:0    0   52M  0 lvm
+│ └─docker-thinpool     254:2    0  864M  0 lvm
+└─docker-thinpool_tdata 254:1    0  864M  0 lvm
+  └─docker-thinpool     254:2    0  864M  0 lvm
+sdb                       8:16   0  100G  0 disk
+└─sdb1                    8:17   0  100G  0 part /
+sdc                       8:32   0   10G  0 disk
+
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">ls</span> <span class="nt">-l</span> /dev/sd<span class="k">*</span>
+<span class="go">brw-rw---- 1 root disk 8,  0 Nov 29 20:13 /dev/sda
+brw-rw---- 1 root disk 8, 16 Nov 29 19:16 /dev/sdb
+brw-rw---- 1 root disk 8, 17 Nov 29 19:16 /dev/sdb1
+brw-rw---- 1 root disk 8, 32 Nov 29 20:13 /dev/sdc</span></code></pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="character-devices">1.1.1. Character Devices</h4>
+<div class="paragraph">
+<p><strong>Character special files</strong> or <strong>character devices</strong> provide unbuffered, direct access to the hardware device. They do not necessarily allow programs to read or write single characters at a time; that is up to the device in question.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="block-devices">1.1.2. Block Devices</h4>
+<div class="paragraph">
+<p><strong>Block special files</strong> or <strong>block devices</strong> provide buffered access to hardware devices, and provide some abstraction from their specifics. Unlike character devices, block devices will always allow the programmer to read or write a block of any size (including single characters/bytes) and any alignment.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="pseudo-devices">1.1.3. Pseudo-devices</h4>
+<div class="paragraph">
+<p>Device nodes on Unix-like systems do not necessarily have to correspond to <strong><em>physical devices</em></strong>. Nodes that lack this correspondence form the group of <strong>pseudo-devices</strong>. They provide various functions handled by the operating system. Some of the most commonly used (character-based) pseudo-devices include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>/dev/null</code> – accepts and discards all input written to it; provides an <strong><em>end-of-file</em></strong> indication when read from.</p>
+</li>
+<li>
+<p><code>/dev/zero</code> – accepts and discards all input written to it; produces a continuous stream of <strong><em>null characters</em></strong> (zero-value bytes) as output when read from.</p>
+</li>
+<li>
+<p><code>/dev/full</code> – produces a continuous stream of null characters (zero-value bytes) as output when read from, and generates an <strong><em>ENOSPC</em></strong> ("disk full") error when attempting to write to it.</p>
+</li>
+<li>
+<p><code>/dev/random</code> – produces bytes generated by the kernel&#8217;s cryptographically secure pseudorandom number generator.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="naming-conventions">1.1.4. Naming Conventions</h4>
+<div class="paragraph">
+<p>The following prefixes are used for the names of some devices in the <code>/dev</code> hierarchy, to identify the type of device:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>pt</strong>: pseudo-terminals (virtual terminals)</p>
+</li>
+<li>
+<p><strong>tty</strong>: terminals</p>
+</li>
+<li>
+<p><strong>hd</strong>: ("classic") IDE driver</p>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>hda: the master device on the first ATA channel</p>
+</li>
+<li>
+<p>hdb: the slave device on the first ATA channel</p>
+</li>
+<li>
+<p>hdc: the master device on the second ATA channel</p>
+</li>
+<li>
+<p>hdd: the slave device on the second ATA channel</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p><strong>sd</strong>: mass-storage driver (block device), SCSI driver</p>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>sda: first registered device</p>
+</li>
+<li>
+<p>sdb, sdc, etc.: second, third, etc. registered devices</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="device-mapper">2. Device Mapper</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <strong>device mapper</strong> is a framework provided by the Linux kernel for mapping <strong><em>physical block devices</em></strong> onto higher-level <strong><em>virtual block devices</em></strong>. It forms the foundation of the <a href="https://en.wikipedia.org/wiki/Logical_volume_management">logical volume manager (LVM)</a>, <em>software RAIDs</em> and <em>dm-crypt</em> disk encryption, and offers additional features such as file system <em>snapshots</em>.</p>
+</div>
+<div class="paragraph">
+<p>Device mapper works by passing data from a virtual block device, which is provided by the device mapper itself, to another block device. Data can be also modified in transition, which is performed, for example, in the case of device mapper providing disk encryption or simulation of unreliable hardware behavior.</p>
+</div>
+<div class="paragraph">
+<p>The following mapping targets are available:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>cache</strong> – allows creation of hybrid volumes, by using solid-state drives (SSDs) as caches for hard disk drives (HDDs)</p>
+</li>
+<li>
+<p><strong>clone</strong> – will permit usage before a transfer is complete.</p>
+</li>
+<li>
+<p><strong>crypt</strong> – provides data encryption, by using the Linux kernel&#8217;s Crypto API</p>
+</li>
+<li>
+<p><strong>delay</strong> – delays reads and/or writes to different devices (used for testing)</p>
+</li>
+<li>
+<p><strong>era</strong> – behaves in a way similar to the linear target, while it keeps track of blocks that were written to within a user-defined period of time</p>
+</li>
+<li>
+<p><strong>error</strong> – simulates I/O errors for all mapped blocks (used for testing)</p>
+</li>
+<li>
+<p><strong>flakey</strong> – simulates periodic unreliable behaviour (used for testing)</p>
+</li>
+<li>
+<p><strong>linear</strong> – maps a continuous range of blocks onto another block device</p>
+</li>
+<li>
+<p><strong>mirror</strong> – maps a mirrored logical device, while providing data redundancy</p>
+</li>
+<li>
+<p><strong>multipath</strong> – supports the mapping of multipathed devices, through usage of their path groups</p>
+</li>
+<li>
+<p><strong>raid</strong> – offers an interface to the Linux kernel&#8217;s <em>software RAID</em> driver (md)</p>
+</li>
+<li>
+<p><strong>snapshot and snapshot-origin</strong> – used for creation of LVM snapshots, as part of the underlying <em>copy-on-write</em> scheme</p>
+</li>
+<li>
+<p><strong>striped</strong> – stripes the data across physical devices, with the number of stripes and the striping chunk size as parameters</p>
+</li>
+<li>
+<p><strong>thin</strong>  – allows creation of devices larger than the underlying physical device, physical space is allocated only when written to</p>
+</li>
+<li>
+<p><strong>zero</strong> – an equivalent of <em>/dev/zero</em>, all reads return blocks of zeros, and writes are discarded</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/device-mapper/The%20Linux%20Storage%20Stack%20Diagram.svg" alt="The Linux Storage Stack Diagram" width="75%" height="75%">
+</div>
+</div>
+<div class="sect2">
+<h3 id="device-table-mappings">2.1. Device Table Mappings</h3>
+<div class="paragraph">
+<p>A <strong>mapped device</strong> is defined by a table that specifies how to map each range of logical sectors of the device using a supported <strong>Device Table</strong> mapping. The table for a mapped device is constructed from a list of lines of the form:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="text">start length mapping [mapping_parameters...]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the first line of a Device Mapper table, the <code>start</code> parameter must equal <code>0</code>. The <code>start + length</code> parameters on one line must equal the <code>start</code> on the next line. Which <code>mapping parameters</code> are specified in a line of the mapping table depends on which mapping type is specified on the line.</p>
+</div>
+<div class="paragraph">
+<p>Sizes in the Device Mapper are always specified in sectors (512 bytes).</p>
+</div>
+<div class="paragraph">
+<p>When a device is specified as a mapping parameter in the Device Mapper, it can be referenced by the device name in the filesystem (for example, <em>/dev/hda</em>) or by the major and minor numbers in the format <code>major:minor</code>. The <code>major:minor</code> format is preferred because it avoids pathname lookups.</p>
+</div>
+<div class="paragraph">
+<p>The following shows a sample mapping table for a device.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span>
+<span class="go">docker-thinpool_tdata	(254:1)
+docker-thinpool_tmeta	(254:0)
+docker-thinpool	(254:2)
+docker-8:17-3541243-067f280bcb2a54b005f1c85751b39d0b60fbe82a27bb84f0292b310f70fb754b	(254:3)
+
+</span><span class="gp">#</span><span class="w"> </span>dmsetup table
+<span class="go">docker-thinpool_tdata: 0 1024000 linear 8:0 2048
+docker-thinpool_tdata: 1024000 745472 linear 8:0 1239040
+docker-thinpool_tmeta: 0 106496 linear 8:0 1026048
+docker-thinpool: 0 1769472 thin-pool 254:0 254:1 1024 345 1 skip_block_zeroing
+docker-8:17-3541243-067f280bcb2a54b005f1c85751b39d0b60fbe82a27bb84f0292b310f70fb754b: 0 20971520 thin 254:2 24</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-dmsetup-command">2.2. The <code>dmsetup</code> Command</h3>
+<div class="paragraph">
+<p>The application interface to the Device Mapper is the <code>ioctl</code> system call. The user interface is the <code>dmsetup</code> command.</p>
+</div>
+<div class="paragraph">
+<p>The <code>dmsetup</code> command is a command line wrapper for communication with the Device Mapper. For general system information about LVM devices, you may find the <code>info</code>, <code>ls</code>, <code>status</code>, and <code>deps</code> options of the <code>dmsetup</code> command to be useful.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>The <code>dmsetup ls</code> Command</strong></p>
+<div class="paragraph">
+<p>You can list the device names of mapped devices with the <code>dmsetup ls</code> command. You can list devices that have at least one target of a specified type with the <code>dmsetup ls --target target_type</code> command.  The <code>dmsetup ls</code> command provides a <code>--tree</code> option that displays dependencies between devices as a tree.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span>
+<span class="go">vg0-lvol0	(254:0)
+
+</span><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span> <span class="nt">--target</span> linear
+<span class="go">vg0-lvol0	(254, 0)
+
+</span><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span> <span class="nt">--tree</span>
+<span class="go">vg0-lvol0 (254:0)
+ └─ (8:0)
+
+</span><span class="gp">#</span><span class="w"> </span>lvextend <span class="nt">-L</span> +20G vg0/lvol0
+<span class="go">  Size of logical volume vg0/lvol0 changed from 500.00 MiB (125 extents) to &lt;20.49 GiB (5245 extents).
+  Logical volume vg0/lvol0 successfully resized.
+
+</span><span class="gp">#</span><span class="w"> </span>lsblk
+<span class="go">NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda           8:0    0   20G  0 disk
+└─vg0-lvol0 254:0    0 20.5G  0 lvm
+sdb           8:16   0   10G  0 disk
+└─vg0-lvol0 254:0    0 20.5G  0 lvm
+sdc           8:32   0  100G  0 disk
+└─sdc1        8:33   0  100G  0 part /
+
+</span><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span> <span class="nt">--tree</span>
+<span class="go">vg0-lvol0 (254:0)
+ ├─ (8:16)
+ └─ (8:0)</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>The <code>dmsetup info</code> Command</strong></p>
+<div class="paragraph">
+<p>The <code>dmsetup info</code> device command provides summary information about Device Mapper devices. If you do not specify a device name, the output is information about all of the currently configured Device Mapper devices.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>dmsetup info vg0-lvol0
+<span class="go">Name:              vg0-lvol0
+State:             ACTIVE
+Read Ahead:        256
+Tables present:    LIVE
+Open count:        0
+Event number:      0
+Major, minor:      254, 0
+Number of targets: 2
+UUID: LVM-iGEIRSIULIXi00RrqQZzoFEHYupSo8xDEYdOMnMSAjPKLNsXtT3wp9ozCyHzfZa5
+
+</span><span class="gp">#</span><span class="w"> </span>lvs <span class="nt">-v</span>
+<span class="gp">  LV    VG  #</span>Seg Attr       LSize   Maj Min KMaj KMin Pool Origin Data%  Meta%  Move Cpy%Sync Log Convert LV UUID                                LProfile
+<span class="go">  lvol0 vg0    2 -wi-a----- &lt;20.49g  -1  -1  254    0                                                     EYdOMn-MSAj-PKLN-sXtT-3wp9-ozCy-HzfZa5</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>The <code>dmsetup status</code> Command</strong></p>
+<div class="paragraph">
+<p>The <code>dmsetup status</code> device command provides status information for each target in a specified device. If you do not specify a device name, the output is information about all of the currently configured Device Mapper devices.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>dmsetup status vg0-lvol0
+<span class="go">0 41934848 linear
+41934848 1032192 linear</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>The <code>dmsetup deps</code> Command</strong></p>
+<div class="paragraph">
+<p>The <code>dmsetup deps</code> device command provides a list of (major, minor) pairs for devices referenced by the mapping table for the specified device. If you do not specify a device name, the output is information about all of the currently configured Device Mapper devices.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>dmsetup deps vg0-lvol0
+<span class="go">2 dependencies	: (8, 16) (8, 0)</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="logical-volume-manager-lvm">3. Logical Volume Manager (LVM)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In <a href="https://en.wikipedia.org/wiki/Computer_storage">computer storage</a>, <strong>logical volume management</strong> or <strong>LVM</strong> provides a method of allocating space on mass-storage devices that is more flexible than conventional <a href="https://en.wikipedia.org/wiki/Disk_partitioning">partitioning</a> schemes to store volumes. In particular, a volume manager can concatenate, <a href="https://en.wikipedia.org/wiki/Data_striping">stripe</a> together or otherwise combine partitions (or block devices in general) into larger virtual partitions that administrators can re-size or move, potentially without interrupting system use.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<a href="https://en.wikipedia.org/wiki/Disk_partitioning"><strong>Disk partitioning</strong></a> or <strong>disk slicing</strong> is the creation of one or more regions on <strong><em>secondary storage</em></strong>, so that each region can be managed separately. These regions are called <strong>partitions</strong>. It is typically the first step of preparing a newly installed disk, before any file system is created. The disk stores the information about the partitions' locations and sizes in an area known as the <strong>partition table</strong> that the operating system reads before any other part of the disk. Each partition then appears to the operating system as a distinct "logical" disk that uses part of the actual disk.
+</td>
+</tr>
+</table>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<a href="https://en.wikipedia.org/wiki/Data_striping"><strong>Data striping</strong></a> is the technique of segmenting logically sequential data, such as a file, so that <strong><em>consecutive segments</em></strong> are stored on different physical storage devices. Striping is useful when a processing device requests data more quickly than a single storage device can provide it. By spreading segments across multiple devices which can be accessed concurrently, total data throughput is increased.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Most volume-manager implementations share the same basic design. They start with <strong>physical volumes</strong> (<strong>PVs</strong>), which can be either <strong><em>hard disks</em></strong>, <strong><em>hard disk partitions</em></strong>, or Logical Unit Numbers (LUNs) of an external storage device. Volume management treats each PV as being composed of a sequence of chunks called <strong>physical extents</strong> (<strong>PEs</strong>).</p>
+</div>
+<div class="paragraph">
+<p>Normally, PEs simply map one-to-one to <strong>logical extents</strong> (<strong>LEs</strong>). With mirroring, multiple PEs map to each LE. These PEs are drawn from a <strong>physical volume group</strong> (<strong>PVG</strong>), a set of same-sized PVs which act similarly to hard disks in a <strong><em>RAID1</em></strong> array. PVGs are usually laid out so that they reside on different disks or data buses for maximum redundancy.</p>
+</div>
+<div class="paragraph">
+<p>The system pools LEs into a <strong>volume group</strong> (<strong>VG</strong>). The pooled LEs can then be concatenated together into virtual disk partitions called <strong>logical volumes</strong> or <strong>LVs</strong>. Systems can use LVs as raw block devices just like disk partitions: creating mountable file systems on them, or using them as swap storage.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/device-mapper/LVM1.svg" alt="LVM1" width="55%" height="55%">
+</div>
+</div>
+<div class="paragraph">
+<p>LVM is used for the following purposes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Creating single logical volumes of multiple physical volumes or entire hard disks (somewhat similar to RAID 0, but more similar to JBOD), allowing for dynamic volume resizing.</p>
+</li>
+<li>
+<p>Managing large hard disk farms by allowing disks to be added and replaced without downtime or service disruption, in combination with <a href="https://en.wikipedia.org/wiki/Hot_swapping">hot swapping</a>.</p>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<a href="https://en.wikipedia.org/wiki/Hot_swapping"><strong>Hot swapping</strong></a> is the replacement or addition of components to a computer system without stopping, shutting down, or rebooting the system; <strong>hot plugging</strong> describes the addition of components only. Components which have such functionality are said to be <strong>hot-swappable</strong> or <strong>hot-pluggable</strong>; likewise, components which do not are <strong>cold-swappable</strong> or <strong>cold-pluggable</strong>.
+</td>
+</tr>
+</table>
+</div>
+</li>
+<li>
+<p>On small systems (like a desktop), instead of having to estimate at installation time how big a partition might need to be, LVM allows filesystems to be easily resized as needed.</p>
+</li>
+<li>
+<p>Performing consistent backups by taking snapshots of the logical volumes.</p>
+</li>
+<li>
+<p>Encrypting multiple physical partitions with one password.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>LVM can be considered as <strong>a thin software layer on top of the hard disks and partitions</strong>, which creates an abstraction of continuity and ease-of-use for managing hard drive replacement, repartitioning and backup.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/device-mapper/Lvm.svg" alt="Lvm" width="55%" height="55%">
+</div>
+</div>
+<div class="sect2">
+<h3 id="logical-volumes">3.1. Logical Volumes</h3>
+<div class="paragraph">
+<p>Volume management creates a layer of abstraction over physical storage, allowing you to create logical storage volumes. This provides much greater flexibility in a number of ways than using physical storage directly. With a logical volume, you are not restricted to physical disk sizes. In addition, the hardware storage configuration is hidden from the software so it can be resized and moved without stopping applications or unmounting file systems. This can reduce operational costs.
+Logical volumes provide the following advantages over using physical storage directly:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Flexible capacity</p>
+<div class="paragraph">
+<p>When using logical volumes, file systems can extend across multiple disks, since you can aggregate disks and partitions into a single logical volume.</p>
+</div>
+</li>
+<li>
+<p>Resizeable storage pools</p>
+<div class="paragraph">
+<p>You can extend logical volumes or reduce logical volumes in size with simple software commands, without reformatting and repartitioning the underlying disk devices.</p>
+</div>
+</li>
+<li>
+<p>Online data relocation</p>
+<div class="paragraph">
+<p>To deploy newer, faster, or more resilient storage subsystems, you can move data while your system is active. Data can be rearranged on disks while the disks are in use. For example, you can empty a hot-swappable disk before removing it.</p>
+</div>
+</li>
+<li>
+<p>Convenient device naming</p>
+<div class="paragraph">
+<p>Logical storage volumes can be managed in user-defined and custom named groups.</p>
+</div>
+</li>
+<li>
+<p>Disk striping</p>
+<div class="paragraph">
+<p>You can create a logical volume that stripes data across two or more disks. This can dramatically increase throughput.</p>
+</div>
+</li>
+<li>
+<p>Mirroring volumes</p>
+<div class="paragraph">
+<p>Logical volumes provide a convenient way to configure a mirror for your data.</p>
+</div>
+</li>
+<li>
+<p>Volume Snapshots</p>
+<div class="paragraph">
+<p>Using logical volumes, you can take device snapshots for consistent backups or to test the effect of changes without affecting the real data.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="lvm-with-cli-command">3.2. LVM with CLI Command</h3>
+<div class="sect3">
+<h4 id="physical-volumes">3.2.1. Physical Volumes</h4>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Setting the Partition Type</strong></p>
+<div class="paragraph">
+<p>If you are using a whole disk device for your physical volume, the disk must have no partition table. For whole disk devices only the partition table must be erased, which will effectively destroy all data on that disk. You can remove an existing partition table by zeroing the first sector with the following command:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span><span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span>PhysicalVolume <span class="nv">bs</span><span class="o">=</span>512 <span class="nv">count</span><span class="o">=</span>1</code></pre>
+</div>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>Use <code>dd</code> to erase disk partition table</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+└─sda1   8:1    0   20G  0 part
+sdb      8:16   0   10G  0 disk
+└─sdb1   8:17   0    5G  0 part
+sdc      8:32   0  100G  0 disk
+└─sdc1   8:33   0  100G  0 part /
+
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span>/dev/sda <span class="nv">bs</span><span class="o">=</span>512 <span class="nv">count</span><span class="o">=</span>1
+<span class="go">1+0 records in
+1+0 records out
+512 bytes copied, 0.00303601 s, 169 kB/s
+
+</span><span class="gp">#</span><span class="w"> </span>lsblk
+<span class="go">NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+sdb      8:16   0   10G  0 disk
+└─sdb1   8:17   0    5G  0 part
+sdc      8:32   0  100G  0 disk
+└─sdc1   8:33   0  100G  0 part /</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Initializing Physical Volumes</strong></p>
+<div class="paragraph">
+<p>Use the <code>pvcreate</code> command to initialize a block device to be used as a physical volume. Initialization is analogous to formatting a file system.</p>
+</div>
+<div class="paragraph">
+<p>The following command initializes the whole disk <code>/dev/sda</code>, and partition <code>/dev/sdb1</code> as LVM physical volumes for later use as part of LVM logical volumes.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvcreate /dev/sda /dev/sdb1
+<span class="go">  Physical volume "/dev/sda" successfully created.
+  Physical volume "/dev/sdb1" successfully created.</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Scanning for Block Devices</strong></p>
+<div class="paragraph">
+<p>You can scan for block devices that may be used as physical volumes with the <code>lvmdiskscan</code> command, as shown in the following example.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvmdiskscan
+<span class="go">  /dev/sda  [      20.00 GiB] LVM physical volume
+  /dev/sdb1 [       5.00 GiB] LVM physical volume
+  /dev/sdc1 [    &lt;100.00 GiB]
+  0 disks
+  1 partition
+  1 LVM physical volume whole disk
+  1 LVM physical volume</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Displaying Physical Volumes</strong></p>
+<div class="paragraph">
+<p>There are three commands you can use to display properties of LVM physical volumes: <code>pvs</code>, <code>pvdisplay</code>, and <code>pvscan</code>.</p>
+</div>
+<div class="paragraph">
+<p>The <code>pvs</code> command provides physical volume information in a configurable form, displaying one line per physical volume.</p>
+</div>
+<div class="paragraph">
+<p>The <code>pvdisplay</code> command provides a verbose multi-line output for each physical volume. It displays physical properties (size, extents, volume group, and so on) in a fixed format.</p>
+</div>
+<div class="paragraph">
+<p>The <code>pvscan</code> command scans all supported LVM block devices in the system for physical volumes.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvs
+<span class="go">  PV         VG Fmt  Attr PSize  PFree
+  /dev/sda      lvm2 ---  20.00g 20.00g
+  /dev/sdb1     lvm2 ---   5.00g  5.00g
+
+</span><span class="gp">#</span><span class="w"> </span>pvdisplay
+<span class="go">  "/dev/sda" is a new physical volume of "20.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/sda
+  VG Name
+  PV Size               20.00 GiB
+  Allocatable           NO
+  PE Size               0
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               dkb7NA-jjx0-203S-wb8K-KUnu-dbj3-RLQ1lc
+
+  "/dev/sdb1" is a new physical volume of "5.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/sdb1
+  VG Name
+  PV Size               5.00 GiB
+  Allocatable           NO
+  PE Size               0
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               TYTlaL-Wbzd-wZhW-tNeb-GWFA-HErD-NJbKNU
+
+</span><span class="gp">#</span><span class="w"> </span>pvscan
+<span class="go">  PV /dev/sda                       lvm2 [20.00 GiB]
+  PV /dev/sdb1                      lvm2 [5.00 GiB]
+  Total: 2 [25.00 GiB] / in use: 0 [0   ] / in no VG: 2 [25.00 GiB]</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Resizing a Physical Volume</strong></p>
+<div class="paragraph">
+<p>If you need to change the size of an underlying block device for any reason, use the <code>pvresize</code> command to update LVM with the new size. You can execute this command while LVM is using the physical volume.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvresize <span class="nt">--setphysicalvolumesize</span> 10G /dev/sda
+<span class="go">/dev/sda: Requested size 10.00 GiB is less than real size 20.00 GiB. Proceed?  [y/n]: y
+  WARNING: /dev/sda: Pretending size is 20971520 not 41943040 sectors.
+  Physical volume "/dev/sda" changed
+  1 physical volume(s) resized or updated / 0 physical volume(s) not resized</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Removing Physical Volumes</strong></p>
+<div class="paragraph">
+<p>If a device is no longer required for use by LVM, you can remove the LVM label with the <code>pvremove</code> command. Executing the <code>pvremove</code> command zeroes the LVM metadata on an empty physical volume.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvremove /dev/sda
+<span class="go">  Labels on physical volume "/dev/sda" successfully wiped.</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="volume-groups">3.2.2. Volume Groups</h4>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Creating Volume Groups</strong></p>
+<div class="paragraph">
+<p>To create a volume group from one or more physical volumes, use the <code>vgcreate</code> command. The <code>vgcreate</code> command creates a new volume group by name and adds at least one physical volume to it.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgcreate vg0 /dev/sda /dev/sdb1
+<span class="go">  Volume group "vg0" successfully created
+
+</span><span class="gp">#</span><span class="w"> </span>pvs
+<span class="go">  PV         VG  Fmt  Attr PSize   PFree
+  /dev/sda   vg0 lvm2 a--  &lt;20.00g &lt;20.00g
+  /dev/sdb1  vg0 lvm2 a--   &lt;5.00g  &lt;5.00g</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When physical volumes are used to create a volume group, its disk space is divided into <code>4MB</code> extents, by default.</p>
+</div>
+<div class="paragraph">
+<p>LVM volume groups and underlying logical volumes are included in the device special file directory tree in the /dev directory with the following layout:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">/dev/&lt;vg&gt;</span>/&lt;lv&gt;/</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The device special files are not present if the corresponding logical volume is not currently active.</p>
+</div>
+</li>
+<li>
+<p><strong>Adding Physical Volumes to a Volume Group</strong></p>
+<div class="paragraph">
+<p>To add additional physical volumes to an existing volume group, use the <code>vgextend</code> command. The <code>vgextend</code> command increases a volume group&#8217;s capacity by adding one or more free physical volumes.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgextend vg0 /dev/sdb2
+<span class="go">  Volume group "vg0" successfully extended</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Displaying Volume Groups</strong></p>
+<div class="paragraph">
+<p>The <code>vgscan</code> command, which scans all the disks for volume groups and rebuilds the LVM cache file, also displays the volume groups.</p>
+</div>
+<div class="paragraph">
+<p>The <code>vgs</code> command provides volume group information in a configurable form, displaying one line per volume group.</p>
+</div>
+<div class="paragraph">
+<p>The <code>vgdisplay</code> command displays volume group properties (such as size, extents, number of physical volumes, and so on) in a fixed form.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgs
+<span class="gp">  VG  #</span>PV <span class="c">#LV #SN Attr   VSize   VFree</span>
+<span class="go">  vg0   3   0   0 wz--n- &lt;25.99g &lt;25.99g
+
+</span><span class="gp">#</span><span class="w"> </span>vgscan
+<span class="go">  Found volume group "vg0" using metadata type lvm2
+
+</span><span class="gp">#</span><span class="w"> </span>vgdisplay
+<span class="go">  --- Volume group ---
+  VG Name               vg0
+  System ID
+  Format                lvm2
+  Metadata Areas        3
+  Metadata Sequence No  2
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                0
+  Open LV               0
+  Max PV                0
+  Cur PV                3
+  Act PV                3
+  VG Size               &lt;25.99 GiB
+  PE Size               4.00 MiB
+  Total PE              6653
+  Alloc PE / Size       0 / 0
+  Free  PE / Size       6653 / &lt;25.99 GiB
+  VG UUID               5dLR48-em6r-8UIA-PcPe-RyLY-p8gB-QNOzpU</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Removing Physical Volumes from a Volume Group</strong></p>
+<div class="paragraph">
+<p>To remove unused physical volumes from a volume group, use the <code>vgreduce</code> command. The <code>vgreduce</code> command shrinks a volume group&#8217;s capacity by removing one or more empty physical volumes. This frees those physical volumes to be used in different volume groups or to be removed from the system.</p>
+</div>
+<div class="paragraph">
+<p>Before removing a physical volume from a volume group, you can make sure that the physical volume is not used by any logical volumes by using the <code>pvdisplay</code> command.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvdisplay /dev/sdb2
+<span class="go">  --- Physical volume ---
+  PV Name               /dev/sdb2
+  VG Name               vg0
+  PV Size               1.00 GiB / not usable 4.00 MiB
+  Allocatable           yes
+  PE Size               4.00 MiB
+  Total PE              255
+  Free PE               255
+  Allocated PE          0
+  PV UUID               sBmEek-5ylr-T3FE-daaw-mNOb-J2Yu-XzNR1q</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the physical volume is still being used you will have to migrate the data to another physical volume using the <code>pvmove</code> command. Then use the <code>vgreduce</code> command to remove the physical volume.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvmove /dev/sdb2 /dev/sdb1
+<span class="go">  No data to move for vg0.</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Activating and Deactivating Volume Groups</strong></p>
+<div class="paragraph">
+<p>When you create a volume group it is, by default, activated. This means that the logical volumes in that group are accessible and subject to change.</p>
+</div>
+<div class="paragraph">
+<p>There are various circumstances for which you need to make a volume group inactive and thus unknown to the kernel. To deactivate or activate a volume group, use the <code>-a</code> (<code>--active</code>) argument of the <code>vgchange</code> command.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgchange <span class="nt">-a</span> n vg0
+<span class="go">  0 logical volume(s) in volume group "vg0" now active</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Renaming a Volume Group</strong></p>
+<div class="paragraph">
+<p>Use the <code>vgrename</code> command to rename an existing volume group.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgrename vg0 vg1
+<span class="go">  Volume group "vg0" successfully renamed to "vg1"</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Removing Volume Groups</strong></p>
+<div class="paragraph">
+<p>To remove a volume group that contains no logical volumes, use the <code>vgremove</code> command.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgremove vg1
+<span class="go">  Volume group "vg1" successfully removed</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="logical-volumes-2">3.2.3. Logical Volumes</h4>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Creating Linear Logical Volumes</strong></p>
+<div class="paragraph">
+<p>To create a logical volume, use the <code>lvcreate</code> command. If you do not specify a name for the logical volume, the default name <code>lvol#</code> is used where <code>#</code> is the internal number of the logical volume.</p>
+</div>
+<div class="paragraph">
+<p>When you create a logical volume, the logical volume is carved from a volume group using the free extents on the physical volumes that make up the volume group. Normally logical volumes use up any space available on the underlying physical volumes on a next-free basis. Modifying the logical volume frees and reallocates space in the physical volumes.</p>
+</div>
+<div class="paragraph">
+<p>The following command creates a logical volume 10 gigabytes in size in the volume group <code>vg0</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-L</span> 10G vg1
+<span class="go">  Logical volume "lvol0" created.
+
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">ls</span> <span class="nt">-l</span> /dev/vg1/lvol0
+<span class="gp">lrwxrwxrwx 1 root root 7 Nov 29 15:39 /dev/vg1/lvol0 -&gt;</span><span class="w"> </span>../dm-0</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can use the <code>-l</code> argument of the <code>lvcreate</code> command to specify the size of the logical volume in extents.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-l</span> 50 vg1
+<span class="go">  Logical volume "lvol1" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV    VG  Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0 vg1 -wi-a-----  10.00g
+  lvol1 vg1 -wi-a----- 200.00m</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Creating Thinly-Provisioned Logical Volumes</strong></p>
+<div class="paragraph">
+<p>Logical volumes can be thinly provisioned. This allows you to create logical volumes that are larger than the available extents. Using thin provisioning, you can manage a storage pool of free space, known as a thin pool, which can be allocated to an arbitrary number of devices when needed by applications. You can then create devices that can be bound to the thin pool for later allocation when an application actually writes to the logical volume. The thin pool can be expanded dynamically when needed for cost-effective allocation of storage space.</p>
+</div>
+<div class="paragraph">
+<p>You can use the <code>-T</code> (or <code>--thin</code>) option of the <code>lvcreate</code> command to create either a thin pool or a thin volume. You can also use <code>-T</code> option of the <code>lvcreate</code> command to create both a thin pool and a thin volume in that pool at the same time with a single command.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-L</span> 100M <span class="nt">-T</span> vg1/mythinpool0
+<span class="go">  Thin pool volume with chunk size 64.00 KiB can address at most 15.81 TiB of data.
+  Logical volume "mythinpool0" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV          VG  Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 -wi-a-----  10.00g
+  lvol1       vg1 -wi-a----- 200.00m
+  mythinpool0 vg1 twi-a-tz-- 100.00m             0.00   10.84
+
+</span><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-V</span> 1G <span class="nt">-T</span> vg1/mythinpool0 <span class="nt">-n</span> thinvolume0
+<span class="go">  WARNING: Sum of all thin volume sizes (1.00 GiB) exceeds the size of thin pool vg1/mythinpool0 (100.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "thinvolume0" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV          VG  Attr       LSize   Pool        Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 -wi-a-----  10.00g
+  lvol1       vg1 -wi-a----- 200.00m
+  mythinpool0 vg1 twi-aotz-- 100.00m                    0.00   10.94
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0        0.00
+
+
+</span><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-L</span> 100m <span class="nt">-T</span> vg1/mythinpool1 <span class="nt">-V</span> 50m <span class="nt">-n</span> thinvolume1
+<span class="go">  Rounding up size to full physical extent 52.00 MiB
+  Thin pool volume with chunk size 64.00 KiB can address at most 15.81 TiB of data.
+  Logical volume "thinvolume1" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV          VG  Attr       LSize   Pool        Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 -wi-a-----  10.00g
+  lvol1       vg1 -wi-a----- 200.00m
+  mythinpool0 vg1 twi-aotz-- 100.00m                    0.00   10.94
+  mythinpool1 vg1 twi-aotz-- 100.00m                    0.00   10.94
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0        0.00
+  thinvolume1 vg1 Vwi-a-tz--  52.00m mythinpool1        0.00</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Creating Snapshot Volumes</strong></p>
+<div class="paragraph">
+<p>Use the <code>-s</code> argument of the <code>lvcreate</code> command to create a snapshot volume. <strong>A snapshot volume is writable.</strong></p>
+</div>
+<div class="paragraph">
+<p>LVM does not allow you to create a snapshot volume that is larger than the size of the origin volume plus needed metadata for the volume. If you specify a snapshot volume that is larger than this, the system will create a snapshot volume that is only as large as will be needed for the size of the origin.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-L</span> 100m <span class="nt">-n</span> snap0 <span class="nt">-s</span> /dev/vg1/lvol0
+<span class="go">  WARNING: Sum of all thin volume sizes (1.05 GiB) exceeds the size of thin pools (200.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "snap0" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV          VG  Attr       LSize   Pool        Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 owi-a-s---  10.00g
+  lvol1       vg1 -wi-a----- 200.00m
+  mythinpool0 vg1 twi-aotz-- 100.00m                    0.00   10.94
+  mythinpool1 vg1 twi-aotz-- 100.00m                    0.00   10.94
+  snap0       vg1 swi-a-s--- 100.00m             lvol0  0.00
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0        0.00
+  thinvolume1 vg1 Vwi-a-tz--  52.00m mythinpool1        0.00</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Creating Thinly-Provisioned Snapshot Volumes</strong></p>
+<div class="paragraph">
+<p>Thin snapshot volumes allow many virtual devices to be stored on the same data volume. This simplifies administration and allows for the sharing of data between snapshot volumes.</p>
+</div>
+<div class="paragraph">
+<p>Thin snapshot volumes provide the following benefits:</p>
+</div>
+<div class="openblock">
+<div class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>A thin snapshot volume can reduce disk usage when there are multiple snapshots of the same origin volume.</p>
+</li>
+<li>
+<p>If there are multiple snapshots of the same origin, then a write to the origin will cause one <strong>COW</strong> operation to preserve the data. Increasing the number of snapshots of the origin should yield no major slowdown.</p>
+</li>
+<li>
+<p>Thin snapshot volumes can be used as a logical volume origin for another snapshot. This allows for an arbitrary depth of recursive snapshots (snapshots of snapshots of snapshots&#8230;&#8203;).</p>
+</li>
+<li>
+<p>A snapshot of a thin logical volume also creates a thin logical volume. This consumes no data space until a COW operation is required, or until the snapshot itself is written.</p>
+</li>
+<li>
+<p>A thin snapshot volume does not need to be activated with its origin, so a user may have only the origin active while there are many inactive snapshot volumes of the origin.</p>
+</li>
+<li>
+<p>When you delete the origin of a thinly-provisioned snapshot volume, each snapshot of that origin volume becomes an independent thinly-provisioned volume. This means that instead of merging a snapshot with its origin volume, you may choose to delete the origin volume and then create a new thinly-provisioned snapshot using that independent volume as the origin volume for the new snapshot.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="paragraph">
+<p>Thin snapshots can be created for thinly-provisioned origin volumes, or for origin volumes that are not thinly-provisioned.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-s</span> <span class="nt">-n</span> mysnapshot1  vg1/thinvolume0
+<span class="go">  WARNING: Sum of all thin volume sizes (2.05 GiB) exceeds the size of thin pools (200.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "mysnapshot1" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvchange <span class="nt">-p</span> r vg1/lvol1
+<span class="go">  Logical volume vg1/lvol1 changed.
+
+</span><span class="gp">#</span><span class="w"> </span>lvchange <span class="nt">-a</span> n vg1/lvol1
+<span class="go">
+</span><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-s</span> <span class="nt">-n</span> mysnapshot2 <span class="nt">--thinpool</span> mythinpool1  vg1/lvol1
+<span class="go">  WARNING: Sum of all thin volume sizes (&lt;2.25 GiB) exceeds the size of thin pools (200.00 MiB).
+  WARNING: You have not turned on protection against thin pools running out of space.
+  WARNING: Set activation/thin_pool_autoextend_threshold below 100 to trigger automatic extension of thin pools before they get full.
+  Logical volume "mysnapshot2" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV          VG  Attr       LSize   Pool        Origin      Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0       vg1 owi-a-s---  10.00g
+  lvol1       vg1 ori------- 200.00m
+  mysnapshot1 vg1 Vwi---tz-k   1.00g mythinpool0 thinvolume0
+  mysnapshot2 vg1 Vwi-a-tz-- 200.00m mythinpool1 lvol1       0.00
+  mythinpool0 vg1 twi-aotz-- 100.00m                         0.00   10.94
+  mythinpool1 vg1 twi-aotz-- 100.00m                         0.00   11.04
+  snap0       vg1 swi-a-s--- 100.00m             lvol0       0.00
+  thinvolume0 vg1 Vwi-a-tz--   1.00g mythinpool0             0.00
+  thinvolume1 vg1 Vwi-a-tz--  52.00m mythinpool1             0.00</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="lvm-configuration-examples">3.3. LVM Configuration Examples</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>To use disks in a volume group, <strong>label them as LVM physical volumes</strong> with the <code>pvcreate</code> command.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lsblk
+<span class="go">NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   20G  0 disk
+└─sda1   8:1    0   10G  0 part
+sdb      8:16   0   10G  0 disk
+sdc      8:32   0  100G  0 disk
+└─sdc1   8:33   0  100G  0 part /
+
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span>/dev/sda <span class="nv">count</span><span class="o">=</span>1
+<span class="go">1+0 records in
+1+0 records out
+512 bytes copied, 0.00135126 s, 379 kB/s
+
+</span><span class="gp">#</span><span class="w"> </span>pvcreate /dev/sda /dev/sdb
+<span class="go">  Physical volume "/dev/sda" successfully created.
+  Physical volume "/dev/sdb" successfully created.
+
+</span><span class="gp">#</span><span class="w"> </span>pvs
+<span class="go">  PV         VG Fmt  Attr PSize  PFree
+  /dev/sda      lvm2 ---  20.00g 20.00g
+  /dev/sdb      lvm2 ---  10.00g 10.00g</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Create a volume group</strong> that consists of the LVM physical volumes you have created.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgcreate vg0 /dev/sda /dev/sdb
+<span class="go">  Volume group "vg0" successfully created
+
+</span><span class="gp">#</span><span class="w"> </span>vgs
+<span class="gp">  VG  #</span>PV <span class="c">#LV #SN Attr   VSize  VFree</span>
+<span class="go">  vg0   2   0   0 wz--n- 29.99g 29.99g</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Create the logical volume</strong> from the volume group you have created.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">-L</span> 5G vg0
+<span class="go">  Logical volume "lvol0" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV    VG  Attr       LSize Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol0 vg0 -wi-a----- 5.00g</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Create a file system</strong> on the logical volume.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>mkfs.ext4 /dev/vg0/lvol0
+<span class="go">mke2fs 1.46.2 (28-Feb-2021)
+Creating filesystem with 1310720 4k blocks and 327680 inodes
+Filesystem UUID: b08cfa69-5034-4e46-b045-d5d7221bc434
+Superblock backups stored on blocks:
+	32768, 98304, 163840, 229376, 294912, 819200, 884736
+
+Allocating group tables: done
+Writing inode tables: done
+Creating journal (16384 blocks): done
+Writing superblocks and filesystem accounting information: done</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Resize the file system</strong> online.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span><span class="nb">mkdir</span> /mnt/data
+<span class="gp">#</span><span class="w"> </span>mount /dev/mapper/vg0-lvol0 /mnt/data/
+<span class="gp">#</span><span class="w"> </span><span class="nb">grep </span>mapper /proc/mounts
+<span class="go">/dev/mapper/vg0-lvol0 /mnt/data ext4 rw,relatime 0 0
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">df</span> <span class="nt">-h</span> /mnt/data/
+<span class="go">Filesystem             Size  Used Avail Use% Mounted on
+/dev/mapper/vg0-lvol0  4.9G   24K  4.6G   1% /mnt/data
+
+</span><span class="gp">#</span><span class="w"> </span>lvextend <span class="nt">-L</span> +5G /dev/vg0/lvol0
+<span class="go">  Size of logical volume vg0/lvol0 changed from 5.00 GiB (1280 extents) to 10.00 GiB (2560 extents).
+  Logical volume vg0/lvol0 successfully resized.
+
+</span><span class="gp">#</span><span class="w"> </span>resize2fs /dev/vg0/lvol0
+<span class="go">resize2fs 1.46.2 (28-Feb-2021)
+</span><span class="gp">Filesystem at /dev/vg0/lvol0 is mounted on /mnt/data;</span><span class="w"> </span>on-line resizing required
+<span class="go">old_desc_blocks = 1, new_desc_blocks = 2
+The filesystem on /dev/vg0/lvol0 is now 2621440 (4k) blocks long.
+
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">df</span> <span class="nt">-h</span> /mnt/data/
+<span class="go">Filesystem             Size  Used Avail Use% Mounted on
+/dev/mapper/vg0-lvol0  9.8G   23M  9.3G   1% /mnt/data</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Cleanup</strong></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>umount /mnt/data <span class="o">&amp;&amp;</span> <span class="nb">rm</span> <span class="nt">-rf</span> /mnt/data/
+<span class="go">
+</span><span class="gp">#</span><span class="w"> </span>vgremove vg0 <span class="nt">-y</span>
+<span class="go">  Logical volume "lvol0" successfully removed
+  Volume group "vg0" successfully removed
+
+</span><span class="gp">#</span><span class="w"> </span>pvremove /dev/sda /dev/sdb
+<span class="go">  Labels on physical volume "/dev/sda" successfully wiped.
+  Labels on physical volume "/dev/sdb" successfully wiped.</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="docker-device-mapper-storage-driver">4. Docker Device Mapper Storage Driver</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Device Mapper is a kernel-based framework that underpins many advanced volume management technologies on Linux. Docker’s <strong>devicemapper</strong> storage driver leverages the <strong><em>thin provisioning</em></strong> and <strong><em>snapshotting</em></strong> capabilities of this framework for image and container management.</p>
+</div>
+<div class="paragraph">
+<p>The <code>devicemapper</code> driver uses block devices dedicated to Docker and operates at the block level, rather than the file level. These devices can be extended by adding physical storage to your Docker host, and they perform better than using a filesystem at the operating system (OS) level.</p>
+</div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The <code>devicemapper</code> storage driver requires <code>direct-lvm</code> for production environments, because <code>loopback-lvm</code>, while zero-configuration, has very poor performance. <code>devicemapper</code> was the recommended storage driver for CentOS and RHEL, as their kernel version did not support <code>overlay2</code>. However, current versions of CentOS and RHEL now have support for <code>overlay2</code>, which is now the recommended driver.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="configure-loop-lvm-mode-for-testing">4.1. Configure <code>loop-lvm</code> mode for testing</h3>
+<div class="paragraph">
+<p>This configuration is only appropriate for testing. The <code>loop-lvm</code> mode makes use of a ‘loopback’ mechanism that allows files on the local disk to be read from and written to as if they were an actual physical disk or block device. However, the addition of the loopback mechanism, and interaction with the OS filesystem layer, means that IO operations can be slow and resource-intensive. Use of loopback devices can also introduce race conditions. However, setting up <code>loop-lvm</code> mode can help identify basic issues (such as missing user space packages, kernel drivers, etc.) ahead of attempting the more complex set up required to enable <code>direct-lvm</code> mode. <code>loop-lvm</code> mode should therefore only be used to perform rudimentary testing prior to configuring <code>direct-lvm</code>.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Stop Docker.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nb">sudo </span>systemctl stop docker</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Edit <code>/etc/docker/daemon.json</code>. If it does not yet exist, create it. Assuming that the file was empty, add the following contents.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"storage-driver"</span><span class="p">:</span><span class="w"> </span><span class="s2">"devicemapper"</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Start Docker.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nb">sudo </span>systemctl start docker</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Verify that the daemon is using the devicemapper storage driver. Use the <code>docker info</code> command and look for Storage Driver.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker info
+<span class="c">&lt;...&gt;
+</span><span class="go">Server:
+</span><span class="c">&lt;...&gt;
+</span><span class="go"> Server Version: 20.10.10
+ Storage Driver: devicemapper
+  Pool Name: docker-8:33-3832377-pool
+  Pool Blocksize: 65.54kB
+  Base Device Size: 10.74GB
+  Backing Filesystem: ext4
+  Udev Sync Supported: true
+  Data file: /dev/loop0
+  Metadata file: /dev/loop1
+  Data loop file: /var/lib/docker/devicemapper/devicemapper/data
+  Metadata loop file: /var/lib/docker/devicemapper/devicemapper/metadata
+  Data Space Used: 240.1MB
+  Data Space Total: 107.4GB
+  Data Space Available: 39.26GB
+  Metadata Space Used: 17.47MB
+  Metadata Space Total: 2.147GB
+  Metadata Space Available: 2.13GB
+  Thin Pool Minimum Free Space: 10.74GB
+  Deferred Removal Enabled: true
+  Deferred Deletion Enabled: true
+  Deferred Deleted Device Count: 0
+  Library Version: 1.02.175 (2021-01-08)
+</span><span class="c">&lt;...&gt;
+</span><span class="go">WARNING: the devicemapper storage-driver is deprecated, and will be removed in a future release.
+WARNING: devicemapper: usage of loopback devices is strongly discouraged for production use.
+         Use `--storage-opt dm.thinpooldev` to specify a custom block storage device.</span></code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="configure-direct-lvm-mode-manually">4.2. Configure <code>direct-lvm</code> mode manually</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a physical volume on your block device</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>pvcreate /dev/sda /dev/sdb
+<span class="go">  Physical volume "/dev/sda" successfully created.
+  Physical volume "/dev/sdb" successfully created.
+
+</span><span class="gp">#</span><span class="w"> </span>pvs
+<span class="go">  PV         VG Fmt  Attr PSize  PFree
+  /dev/sda      lvm2 ---  20.00g 20.00g
+  /dev/sdb      lvm2 ---  10.00g 10.00g</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create a <code>docker</code> volume group on the same device</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>vgcreate docker /dev/sda /dev/sdb
+<span class="go">  Volume group "docker" successfully created
+
+</span><span class="gp">#</span><span class="w"> </span>vgs
+<span class="gp">  VG     #</span>PV <span class="c">#LV #SN Attr   VSize  VFree</span>
+<span class="go">  docker   2   0   0 wz--n- 29.99g 29.99g</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create two logical volumes named <code>thinpool</code> and <code>thinpoolmeta</code></p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">--wipesignatures</span> y <span class="nt">-n</span> thinpool docker <span class="nt">-L</span> 500m
+<span class="go">  Logical volume "thinpool" created.
+
+</span><span class="gp">#</span><span class="w"> </span>lvcreate <span class="nt">--wipesignatures</span> y <span class="nt">-n</span> thinpoolmeta docker <span class="nt">-L</span> 50m
+<span class="go">  Rounding up size to full physical extent 52.00 MiB
+  Logical volume "thinpoolmeta" created.
+
+</span><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span>
+<span class="go">docker-thinpoolmeta	(254:1)
+docker-thinpool	(254:0)
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV           VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool     docker -wi-a----- 500.00m
+  thinpoolmeta docker -wi-a-----  52.00m</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Convert the volumes to a thin pool and a storage location for metadata for the thin pool.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvconvert <span class="nt">-y</span> <span class="se">\</span>
+<span class="go">    --zero n \
+    -c 512K \
+    --thinpool docker/thinpool \
+    --poolmetadata docker/thinpoolmeta
+
+  Thin pool volume with chunk size 512.00 KiB can address at most 126.50 TiB of data.
+  WARNING: Converting docker/thinpool and docker/thinpoolmeta to thin pool's data and metadata volumes with metadata wiping.
+  THIS WILL DESTROY CONTENT OF LOGICAL VOLUME (filesystem etc.)
+  Converted docker/thinpool and docker/thinpoolmeta to thin pool.
+
+</span><span class="gp">#</span><span class="w"> </span>dmsetup <span class="nb">ls</span>
+<span class="go">docker-thinpool_tdata	(254:1)
+docker-thinpool_tmeta	(254:0)
+docker-thinpool	(254:2)
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-a-t--- 500.00m             0.00   10.07</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Configure autoextension of thin pools via an <code>lvm</code> profile.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span><span class="nb">cat</span> <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh"> &gt; /etc/lvm/profile/docker-thinpool.profile
+</span><span class="gp">&gt;</span><span class="w"> </span><span class="sh">activation {
+</span><span class="go">  thin_pool_autoextend_threshold=80
+  thin_pool_autoextend_percent=20
+}
+</span><span class="gp">&gt;</span><span class="w"> </span>EOF</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Apply the LVM profile.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvchange <span class="nt">--metadataprofile</span> docker-thinpool docker/thinpool
+<span class="go">  Logical volume docker/thinpool changed.
+
+</span><span class="gp">#</span><span class="w"> </span>lvs <span class="nt">-v</span>
+<span class="gp">  LV       VG     #</span>Seg Attr       LSize   Maj Min KMaj KMin Pool Origin Data%  Meta%  Move Cpy%Sync Log Convert LV UUID                                LProfile
+<span class="go">  thinpool docker    1 twi-a-t--- 500.00m  -1  -1  254    2             0.00   10.07                            34X3Lb-QjmS-tkgG-LZWm-OUs3-FECR-X2hmMp docker-thinpool</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Ensure monitoring of the logical volume is enabled.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>lvs <span class="nt">-o</span>+seg_monitor
+<span class="go">  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert Monitor
+  thinpool docker twi-a-t--- 500.00m             0.00   10.07                            monitored</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>If you have ever run Docker on this host before, or if <code>/var/lib/docker/</code> exists, move it out of the way so that Docker can use the new LVM pool to store the contents of image and containers.</p>
+</li>
+<li>
+<p>Edit <code>/etc/docker/daemon.json</code> and configure the options needed for the devicemapper storage driver.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">{
+    "storage-driver": "devicemapper",
+    "storage-opts": [
+    "dm.thinpooldev=/dev/mapper/docker-thinpool",
+    "dm.use_deferred_removal=true",
+    "dm.use_deferred_deletion=true"
+    ]
+}</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Verify that Docker is using the new configuration using <code>docker info</code>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>systemctl start docker
+<span class="go">
+</span><span class="gp">#</span><span class="w"> </span>docker info
+<span class="c">&lt;...&gt;
+</span><span class="go">Server:
+</span><span class="c">&lt;...&gt;
+</span><span class="go"> Server Version: 20.10.10
+ Storage Driver: devicemapper
+  Pool Name: docker-thinpool
+  Pool Blocksize: 524.3kB
+  Base Device Size: 10.74GB
+  Backing Filesystem: ext4
+  Udev Sync Supported: true
+  Data Space Used: 246.4MB
+  Data Space Total: 524.3MB
+  Data Space Available: 277.9MB
+  Metadata Space Used: 5.505MB
+  Metadata Space Total: 54.53MB
+  Metadata Space Available: 49.02MB
+  Thin Pool Minimum Free Space: 52.43MB
+  Deferred Removal Enabled: true
+  Deferred Deletion Enabled: true
+  Deferred Deleted Device Count: 0
+  Library Version: 1.02.175 (2021-01-08)
+</span><span class="c">&lt;...&gt;
+</span><span class="go">
+WARNING: the devicemapper storage-driver is deprecated, and will be removed in a future release.</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>docker pull nginx
+<span class="go">Using default tag: latest
+latest: Pulling from library/nginx
+Digest: sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e
+Status: Image is up to date for nginx:latest
+docker.io/library/nginx:latest
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-a-t--- 600.00m             69.42  10.31
+
+</span><span class="gp">#</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-d</span> nginx
+<span class="go">9c4cb272b38b3bc1cf469cfa885abe2547df49c93f983b3b48596bed1cdb1b8e
+</span><span class="gp">#</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-d</span> nginx
+<span class="go">99d9be78d9707f36bda6329e42448e3fb0f18eb79b41eb072db4144f490bebbd
+</span><span class="gp">#</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-d</span> nginx
+<span class="go">53e8d193c92132431ffb0c34c2b3575f1a0df81dff718d34153970f3bdb61a9a
+</span><span class="gp">#</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-d</span> nginx
+<span class="go">dd2834a4f72305a90eb332c1970667e601dabc6a47ca27be4882b7e01a4c7107
+</span><span class="gp">#</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-d</span> nginx
+<span class="go">353a9cb5896670f7edbd0caed4a716552a1d1bf8948c31b1c2791ae26715cda9
+</span><span class="gp">#</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-d</span> nginx
+<span class="go">9e8c545bcbfa2a01c0708140bb9e3ab29b829e14a096084839e9c428e1cf6c72
+
+</span><span class="gp">#</span><span class="w"> </span>docker ps <span class="nt">-s</span>
+<span class="go">CONTAINER ID   IMAGE     COMMAND                  CREATED         STATUS         PORTS     NAMES                 SIZE
+9e8c545bcbfa   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    romantic_chaum        1.09kB (virtual 141MB)
+353a9cb58966   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    peaceful_carson       1.09kB (virtual 141MB)
+dd2834a4f723   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    suspicious_thompson   1.09kB (virtual 141MB)
+53e8d193c921   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    lucid_antonelli       1.09kB (virtual 141MB)
+99d9be78d970   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    gifted_chaum          1.09kB (virtual 141MB)
+9c4cb272b38b   nginx     "/docker-entrypoint.…"   2 minutes ago   Up 2 minutes   80/tcp    youthful_allen        1.09kB (virtual 141MB)
+
+</span><span class="gp">#</span><span class="w"> </span><span class="nb">df</span> <span class="nt">-h</span>
+<span class="go">Filesystem      Size  Used Avail Use% Mounted on
+udev            1.9G     0  1.9G   0% /dev
+tmpfs           391M  1.4M  389M   1% /run
+/dev/sdb1        98G   62G   32G  67% /
+tmpfs           2.0G     0  2.0G   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+tmpfs           391M  4.0K  391M   1% /run/user/1000
+/dev/dm-4       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/1e3bc2b9ece4a7496fb62ac28b70f81c2c9c2c12c1a11f8be45bb0d1aba37a46
+/dev/dm-3       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/3de2e58935eae6cec5b8412db8f75cf1113c5df202a4c3c52354892af054a5b4
+/dev/dm-5       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/28cca0406d4e6e0d166d8da345bbb113bff1c40f5a493d957877eecd1d6b214b
+/dev/dm-7       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/67bba018334381eb84a5c8bcdd123af5db429d3add3d27cea9ee39359d9d127f
+/dev/dm-6       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/f37bd1fabee07ec2e4256c3e725e7d9001a5cb042c6993a56cc3db1840ad3d5e
+/dev/dm-8       9.8G  148M  9.1G   2% /var/lib/docker/devicemapper/mnt/6e9517b86e554438cd35d9d78474677da7a65de9ab4fd1dd25583dfd5ba8e6f1
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-aot--- 600.00m             73.42  10.63</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">#</span><span class="w"> </span>docker pull debian:bullseye
+<span class="go">bullseye: Pulling from library/debian
+647acf3d48c2: Pull complete
+Digest: sha256:e8c184b56a94db0947a9d51ec68f42ef5584442f20547fa3bd8cbd00203b2e7a
+Status: Downloaded newer image for debian:bullseye
+docker.io/library/debian:bullseye
+
+</span><span class="gp">#</span><span class="w"> </span>lvs
+<span class="go">  LV       VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  thinpool docker twi-aot--- 864.00m             71.30  10.71</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">5. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="/2018/04/09/partition-format-mount-disk-driver-linux/">Partition, format and mount disk driver on Linux</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Device_file" class="bare">https://en.wikipedia.org/wiki/Device_file</a></p>
+</li>
+<li>
+<p><a href="https://www.ibm.com/docs/en/linux-on-systems?topic=hdaa-names-nodes-numbers" class="bare">https://www.ibm.com/docs/en/linux-on-systems?topic=hdaa-names-nodes-numbers</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Device_mapper" class="bare">https://en.wikipedia.org/wiki/Device_mapper</a></p>
+</li>
+<li>
+<p><a href="https://wiki.gentoo.org/wiki/Device-mapper" class="bare">https://wiki.gentoo.org/wiki/Device-mapper</a></p>
+</li>
+<li>
+<p><a href="https://www.kernel.org/doc/Documentation/admin-guide/devices.txt" class="bare">https://www.kernel.org/doc/Documentation/admin-guide/devices.txt</a></p>
+</li>
+<li>
+<p><a href="https://www.kernel.org/doc/html/latest/admin-guide/device-mapper/thin-provisioning.html" class="bare">https://www.kernel.org/doc/html/latest/admin-guide/device-mapper/thin-provisioning.html</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux" class="bare">https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux</a>)</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Logical_volume_management" class="bare">https://en.wikipedia.org/wiki/Logical_volume_management</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Hot_swapping" class="bare">https://en.wikipedia.org/wiki/Hot_swapping</a></p>
+</li>
+<li>
+<p><a href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/device_mapper" class="bare">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/device_mapper</a></p>
+</li>
+<li>
+<p><a href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/index" class="bare">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/logical_volume_manager_administration/index</a></p>
+</li>
+<li>
+<p><a href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/storage_administration_guide/ext4grow" class="bare">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/storage_administration_guide/ext4grow</a></p>
+</li>
+<li>
+<p><a href="https://docs.docker.com/storage/storagedriver/device-mapper-driver/" class="bare">https://docs.docker.com/storage/storagedriver/device-mapper-driver/</a></p>
+</li>
+<li>
+<p><a href="https://developers.redhat.com/blog/2014/09/30/overview-storage-scalability-docker" class="bare">https://developers.redhat.com/blog/2014/09/30/overview-storage-scalability-docker</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/11/26/linux-overlayfs-and-container/">&laquo; Linux OverlayFS and Container</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/12/06/time-series-prometheus/">Time Series and Prometheus &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

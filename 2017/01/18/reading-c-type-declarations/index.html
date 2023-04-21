@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Reading C type declarations</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2017/01/18/reading-c-type-declarations/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Reading C type declarations</h1>
+    
+    
+    <p class="post-meta"><time datetime="2017-01-18T11:31:28+08:00" itemprop="datePublished">Jan 18, 2017</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <p>Even relatively new C programmers have no trouble reading simple C declarations such as</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">int</span> <span class="n">foo</span><span class="p">[</span><span class="mi">5</span><span class="p">];</span>     <span class="c1">// foo is an array of 5 ints</span>
+<span class="kt">char</span> <span class="o">*</span><span class="n">foo</span><span class="p">;</span>      <span class="c1">// foo is a pointer to char</span>
+<span class="kt">double</span> <span class="nf">foo</span><span class="p">();</span>   <span class="c1">// foo is a function returing a double</span>
+</code></pre></div></div>
+
+<p>but as the declartions get bit more involved, it’s more difficult to know exactly what’s you’re looking at.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">char</span> <span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="o">**</span><span class="n">foo</span><span class="p">[][</span><span class="mi">8</span><span class="p">])())[];</span>  <span class="c1">// huh ?????</span>
+</code></pre></div></div>
+<p>It turns out that the rules for reading an arbitrarily-complex C variable declaration are easily learned by even beginning programmers (though how to actually <em>use</em> the variable so declared may be well out of reach).</p>
+
+<p>This Tech Tip show how to do it.</p>
+
+<p><strong>Basic and Derived Types</strong></p>
+
+<p>In addition to one variable name, a declaration is composed of one “basic type” and zero or more “derived types”, and it’s crucial to understand the distinction between them.</p>
+
+<p>The complete list of basic type is :</p>
+
+<pre><code class="language-txt">• char             • signed char          • unsigned char     
+• short            • unsigned short        
+• int              • unsigned int      
+• long             • unsigned long         
+• float            • double               • void  
+• struct tag       • union tag            • enum tag      
+• long long        • unsigned long long   • long double      ANSI/ISO C only
+</code></pre>
+
+<p>A declaration can have exactly <strong>one</strong> basic type, and it’s always on the far left of the expression.</p>
+
+<p>The “basic types” are augmented with “derived types”, and C has three of them:</p>
+
+<ul>
+  <li>
+    <p><strong>* pointer to…</strong></p>
+
+    <p>This is denoted by the familiar <strong>*</strong> character, and it should be self evident that a pointer always has to point <strong><em>to</em></strong> something.</p>
+  </li>
+  <li>
+    <p><strong>[] array of…</strong></p>
+
+    <p>“Array of” can be undimensioned <strong>[]</strong> or dimensioned <strong>[10]</strong> but the sizes don’t really play significantly into reading into reading a declaration. We typically include the size in the description. It should be clear that arrays have to be “arrays <strong><em>of</em></strong>” something.</p>
+  </li>
+  <li>
+    <p><strong>() fuction returning…</strong></p>
+
+    <p>This is usually denoted by a pair of parentheses together <strong>()</strong> though it’s also possible to find a prototype parameter list inside.</p>
+
+    <p>Parameters lists (if present) don’t really play into reading a declaration, and we typically ignore them. We’ll note that parens used to represent “function returning” are different than those used for grouping: grouping parents <em>surround</em> the variable name, while “function returning” parens are always on the right.</p>
+
+    <p>Functions are meaningless unless they <em>return</em> something (and we accommodate the <strong>void</strong> type by waving the hand and pretend that it’s “returning” void).</p>
+  </li>
+</ul>
+
+<p>A derived type <em>always</em> modifies something that follows, whether it be the basic type or another derived type, and to make a declaration read properly one must always include the preposition (“to”, “of”, “returning”). Saying “pointer” instead of “pointer to” will make your declarations fall apart.</p>
+
+<p>It’s possible that a type expression may have no derived type (e.g., <strong>“int i”</strong> describes “i is an int”), or it can have many. Interpreting the derived types is usually the sticking point when reading a complex declartion, but this is resolved with operator precedence in the next section.</p>
+
+<p><strong>Operator Precedence</strong></p>
+
+<p>Almost every C programmer is familiar with the operator precedence tables, which give rules that say (for instance) multiply and divide have higher precedence than (“are performed before”) addition or subtraction, and parentheses can be used to alter the groupoing. This seems natural for “normal” expressions, but the same rules do indeed apply to declarations - the are <em>type</em> expressions rather than <em>computational</em> ones.</p>
+
+<p>The “array of” <strong>[]</strong> and “function returning” <strong>()</strong> type operators have higher precedence than “pointer to” <strong>*</strong>, and this leads to some fairly straightforward rules for decoding.</p>
+
+<p><em>Always</em> start with the variable name:</p>
+
+<blockquote>
+  <p><strong>foo is …</strong></p>
+</blockquote>
+
+<p>and <em>always</em> end with the basic type:</p>
+
+<blockquote>
+  <p>foo is … <strong>int</strong></p>
+</blockquote>
+
+<p>The “filling in the middle” part is usually the tricker part, but it can be summarize with this rule:</p>
+
+<blockquote>
+  <p>“go right when you can, go left when you must”</p>
+</blockquote>
+
+<p>Working your way out from the variable name, honor the precedence rules and consume derived-type tokens to the right as far as possible without bumping into a grouping parenthesis. Then go left to the matching paren.</p>
+
+<p><strong>cdecl</strong></p>
+
+<p>Cdecl  (and  c++decl) is a program for encoding and decoding C (or C++) type declarations.</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>cdecl <span class="nt">-i</span>
+Type <span class="sb">`</span><span class="nb">help</span><span class="s1">' or `?'</span> <span class="k">for </span><span class="nb">help
+</span>cdecl&gt; explain int foo[5]<span class="p">;</span>
+<span class="nb">declare </span>foo as array 5 of int
+cdecl&gt; explain char <span class="k">*</span>foo<span class="p">;</span>
+<span class="nb">declare </span>foo as pointer to char
+cdecl&gt; explain double foo<span class="o">()</span><span class="p">;</span>
+<span class="nb">declare </span>foo as <span class="k">function </span>returning double
+cdecl&gt; explain char <span class="k">*</span><span class="o">(</span><span class="k">*</span><span class="o">(</span><span class="k">**</span>foo[][8]<span class="o">)())[]</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to <span class="k">function </span>returning pointer to array of pointer to char
+</code></pre></div></div>
+
+<p><strong>A simple example</strong></p>
+
+<p>We’ll start with a simple example:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">long</span> <span class="o">**</span><span class="n">foo</span><span class="p">[</span><span class="mi">7</span><span class="p">];</span>
+</code></pre></div></div>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>cdecl explain long <span class="k">**</span>foo[7]<span class="p">;</span>
+<span class="nb">declare </span>foo as array 7 of pointer to pointer to long
+</code></pre></div></div>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="c"># Start with the variable name and end with the basic type: foo is ... long</span>
+<span class="nv">$ </span>cdecl explain long foo<span class="p">;</span>
+<span class="nb">declare </span>foo as long
+<span class="nv">$ </span><span class="c"># At this point, the variable name is touching two derived types: "array of 7" and "pointer to", and the rule is to go right when you can, so in this case we consume the "array of 7"</span>
+<span class="nv">$ </span>cdecl explain long foo[7]<span class="p">;</span>
+<span class="nb">declare </span>foo as array 7 of long
+<span class="nv">$ </span><span class="c"># Now we've gong as far right as possible, so the intermost part is only touching the "pointer to" - consume it.</span>
+<span class="nv">$ </span>cdecl explain long <span class="k">*</span>foo[7]<span class="p">;</span>
+<span class="nb">declare </span>foo as array 7 of pointer to long
+<span class="nv">$ </span><span class="c"># The innermost part is now only touching a "pointer to", so consume it also.</span>
+<span class="nv">$ </span>cdecl explain long <span class="k">**</span>foo[7]<span class="p">;</span>
+<span class="nb">declare </span>foo as array 7 of pointer to pointer to long
+</code></pre></div></div>
+
+<p><strong>A hairy example</strong></p>
+
+<p>To really test our skills, we’ll try a very complex declaration that very well may never appear in real life (indead: we’re hard-pressed to think of how this could actually be used). But it shows that the rules scale to very complex declarations.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">char</span> <span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="o">**</span><span class="n">foo</span> <span class="p">[][</span><span class="mi">8</span><span class="p">])())[];</span>
+</code></pre></div></div>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>cdecl explain char <span class="k">*</span><span class="o">(</span><span class="k">*</span><span class="o">(</span><span class="k">**</span>foo <span class="o">[][</span>8]<span class="o">)())[]</span><span class="p">;</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to <span class="k">function </span>returning pointer to array of pointer to char
+</code></pre></div></div>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>cdecl <span class="nt">-i</span>
+Type <span class="sb">`</span><span class="nb">help</span><span class="s1">' or `?'</span> <span class="k">for </span><span class="nb">help
+</span>cdecl&gt; explain char foo<span class="p">;</span>
+<span class="nb">declare </span>foo as char
+cdecl&gt; explain char foo[]<span class="p">;</span>
+<span class="nb">declare </span>foo as array of char
+cdecl&gt; explain char foo[][8]<span class="p">;</span>
+<span class="nb">declare </span>foo as array of array 8 of char
+cdecl&gt; explain char <span class="k">*</span>foo <span class="o">[][</span>8]<span class="p">;</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to char
+cdecl&gt; explain char <span class="k">**</span>foo <span class="o">[][</span>8]<span class="p">;</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to char
+cdecl&gt; explain char <span class="o">(</span><span class="k">**</span>foo <span class="o">[][</span>8]<span class="o">)()</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to <span class="k">function </span>returning char
+cdecl&gt; explain char <span class="k">*</span><span class="o">(</span><span class="k">**</span>foo <span class="o">[][</span>8]<span class="o">)()</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to <span class="k">function </span>returning pointer to char
+cdecl&gt; explain char <span class="o">(</span><span class="k">*</span><span class="o">(</span><span class="k">**</span>foo <span class="o">[][</span>8]<span class="o">)())[]</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to <span class="k">function </span>returning pointer to array of char
+cdecl&gt; explain char <span class="k">*</span><span class="o">(</span><span class="k">*</span><span class="o">(</span><span class="k">**</span>foo <span class="o">[][</span>8]<span class="o">)())[]</span>
+<span class="nb">declare </span>foo as array of array 8 of pointer to pointer to <span class="k">function </span>returning pointer to array of pointer to char
+</code></pre></div></div>
+
+<p><strong>Abstract Declarations</strong></p>
+
+<p>The C standard describes an “abstract declarator”, which is used when a type needs to be described but not associated with a variable name.</p>
+
+<p>These occur in two places – casts, and as arguments to <strong>sizeof</strong> – and the can look intimidating:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="p">)())()</span>
+</code></pre></div></div>
+
+<p>To the obvious question of “where does one start?”, the answer if “find where the variable name would go, then treat it like a normal declaration”. There is only one place where a variable name could possibly go, and locating it is actually straithforward. Using the syntax rules, we know that:</p>
+
+<ul>
+  <li>to the right of all the “pointer to” derived type tokens</li>
+  <li>to the left of all “array of” derived type tokens</li>
+  <li>to the left of all “function returning” derived type tokens</li>
+  <li>inside all the grouping parentheses</li>
+</ul>
+
+<p>Looking at the example, we see that the rightmost “pointer to” sets one boundary, and the leftmost “function returning” set another one:</p>
+
+<blockquote>
+  <p><del>int (<em>(</em></del> • ) • <del>())()</del></p>
+</blockquote>
+
+<p>The • indicators show the only two places that could possibly hold the variable name, but the leftmost one is the only one that fits the “inside the grouping parens” rule. This gives us our declaration as:</p>
+
+<blockquote>
+  <p>int (<em>(</em>foo)())()</p>
+</blockquote>
+
+<p>which our “normal” rules describe as:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>cdecl explain <span class="s1">'int (*(*foo)())()'</span>
+<span class="nb">declare </span>foo as pointer to <span class="k">function </span>returning pointer to <span class="k">function </span>returning int
+</code></pre></div></div>
+
+<p><strong>Semantic restrictions/notes</strong></p>
+
+<p>Not all combinations of derived types are allowed, and it’s possible to create a declaration that perfectly follows the syntax rules but is nevetheless not legal in C (e.g., <em>syntatically</em> valid but <em>sematically</em> invalid). We’ll touch on them here.</p>
+
+<ul>
+  <li>
+    <p><strong>Can’t have arrays of functions</strong></p>
+
+    <p>Use “array of pointer to function returning…” instead.</p>
+  </li>
+  <li>
+    <p><strong>Functions can’t return functions</strong></p>
+
+    <p>Use “function returning pointer of function returning…” instead.</p>
+  </li>
+  <li>
+    <p><strong>Functions can’t return arrays</strong></p>
+
+    <p>Use “function returning pointer to array of…” instead.</p>
+  </li>
+  <li>
+    <p><strong>In arrays, only the leftmost [] can be undimensioned</strong></p>
+
+    <p>C support multi-dimensional arrays (e.g., <strong>char foo[1][2][3][4][5]</strong>), though in pratice this often suggests poor data structing.</p>
+
+    <p>Nevertheless, when there is more than one array dimension, only the leftmost one is allowed to be empty. <strong>char foo[]</strong> and <strong>char foo[][5]</strong> are legal, but <strong>char foo[5][]</strong> is not.</p>
+  </li>
+  <li>
+    <p><strong>“void” type is restricted</strong></p>
+
+    <p>Since <strong>void</strong> is a special pseudo-type, a varialbe with this basic type is only legal with a final derived type of “pointer to” or “function returning”. It’s not legal to have “array of void” or to declare a variable of just type “void” without any derived types.</p>
+  </li>
+</ul>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">void</span> <span class="o">*</span><span class="n">foo</span><span class="p">;</span>            <span class="c1">// legal</span>
+<span class="kt">void</span> <span class="nf">foo</span><span class="p">();</span>           <span class="c1">// legal</span>
+<span class="kt">void</span> <span class="n">foo</span><span class="p">;</span>             <span class="c1">// not legal</span>
+<span class="kt">void</span> <span class="n">foo</span><span class="p">[];</span>           <span class="c1">// not legal</span>
+</code></pre></div></div>
+
+<hr />
+<hr />
+
+<p><strong>References:</strong></p>
+
+<ol>
+  <li><a href="http://unixwiz.net/techtips/reading-cdecl.html">Steve Friedl’s Unixwiz.net Tech Tips - Reading C type declarations</a></li>
+</ol>
+
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2016/11/16/getting-started-with-bash/">&laquo; 认识与学习 BASH</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2017/02/26/keywords-in-c-language/">Keywords in C Language &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

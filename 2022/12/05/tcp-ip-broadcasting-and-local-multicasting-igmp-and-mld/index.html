@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>TCP/IP: Broadcasting and Local Multicasting (IGMP and MLD)</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2022/12/05/tcp-ip-broadcasting-and-local-multicasting-igmp-and-mld/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">TCP/IP: Broadcasting and Local Multicasting (IGMP and MLD)</h1>
+    
+    
+    <p class="post-meta"><time datetime="2022-12-05T08:53:32+08:00" itemprop="datePublished">Dec 5, 2022</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are four kinds of IP addresses: <strong>unicast</strong>, <strong>anycast</strong>, <strong>multicast</strong>, and <strong>broadcast</strong>.</p>
+</div>
+<div class="paragraph">
+<p>At the present time, multicast is used more in enterprise and local networks than in the wide area.</p>
+</div>
+<div class="paragraph">
+<p>Broadcasting and multicasting provide two services for an application: delivery of packets to multiple destinations, and solicitation/discovery of servers by clients.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Delivery to multiple destinations</p>
+<div class="paragraph">
+<p>There are many applications that deliver information to multiple recipients: interactive conferencing and dissemination of mail or news to multiple recipients, for example.</p>
+</div>
+<div class="paragraph">
+<p>Without broadcasting or multicasting, these types of services tend to use TCP today (delivering a separate copy to each destination, which can be very inefficient).</p>
+</div>
+</li>
+<li>
+<p>Solicitation of servers by clients</p>
+<div class="paragraph">
+<p>Using broadcasting or multicasting, an application can send a request for a server without knowing any particular server&#8217;s IP address.</p>
+</div>
+<div class="paragraph">
+<p>A laptop, for example, might need to get its initial IP address and find its nearest router using DHCP when little is known about the local networking environment.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Although both broadcasting and multicasting can provide these important capabilities,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>multicasting is generally preferable to broadcasting because multicasting involves only those systems that support or use a particular service or protocol, and broadcasting does not.</p>
+</li>
+<li>
+<p>Thus, a broadcast request affects all hosts that are reachable within the scope of the broadcast, whereas multicast affects only those hosts that are likely to be interested in the request.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Broadcasting has been supported by the IPv4 protocol since its inception, and multicast was added with the publication of [RFC1112].</p>
+</div>
+<div class="paragraph">
+<p><strong>IPv6 supports multicasting but does not support broadcasting.</strong></p>
+</div>
+<div class="paragraph">
+<p>Generally, only user applications that use the</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>UDP transport protocol take advantage of broadcasting and multicasting, where it makes sense for an application to send a single message to multiple recipients.</p>
+</li>
+<li>
+<p>TCP is a connection-oriented protocol that implies a connection between two hosts (specified by IP addresses) and one process on each host (specified by port numbers).</p>
+<div class="paragraph">
+<p>TCP can use unicast and anycast addresses (recall that anycast addresses behave like unicast addresses), but not broadcast or multicast addresses.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Broadcasting and multicasting are also used by important system processes such as routing protocols, ARP, ND in IPv6, and others.</p>
+</div>
+<div class="paragraph">
+<p>Multicasting is an important but arguably optional feature in IPv4, but it is mandatory in IPv6 because of its use in ND, a service critical even to unicast communication.</p>
+</div>
+</div>
+<div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#broadcasting">1. Broadcasting</a>
+<ul class="sectlevel2">
+<li><a href="#using-broadcast-addresses">1.1. Using Broadcast Addresses</a></li>
+</ul>
+</li>
+<li><a href="#multicasting">2. Multicasting</a>
+<ul class="sectlevel2">
+<li><a href="#converting-ip-multicast-addresses-to-802-macethernet-addresses">2.1. Converting IP Multicast Addresses to 802 MAC/Ethernet Addresses</a></li>
+<li><a href="#receiving-multicast-datagrams">2.2. Receiving Multicast Datagrams</a></li>
+<li><a href="#host-address-filtering">2.3. Host Address Filtering</a></li>
+</ul>
+</li>
+<li><a href="#the-internet-group-management-protocol-igmp-and-multicast-listener-discovery-protocol-mld">3. The Internet Group Management Protocol (IGMP) and Multicast Listener Discovery Protocol (MLD)</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+</div>
+<div class="sect1">
+<h2 id="broadcasting">1. Broadcasting</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Broadcasting refers to sending a message to all possible receivers in a network.</p>
+</div>
+<div class="paragraph">
+<p>In principle, this is simple: a router simply forwards a copy of any message it receives out of every interface other than the one on which the message arrived.</p>
+</div>
+<div class="paragraph">
+<p>Consider a set of hosts on a network such as an Ethernet that supports broadcasting at the link layer.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Each Ethernet frame contains the source and destination MAC addresses (48-bit values).</p>
+</li>
+<li>
+<p>Normally, each IP packet is destined for a single host, so unicast addressing is used and the destination&#8217;s unique MAC address is determined using ARP or IPv6 ND.</p>
+<div class="paragraph">
+<p>When a frame is sent to a unicast destination in this way, communication between any two hosts does not bother any of the remaining hosts on the network.</p>
+</div>
+<div class="paragraph">
+<p>For switched Ethernet networks, these are the types of addresses found in the station caches in switches and bridges.</p>
+</div>
+</li>
+<li>
+<p>There are times, however, when a host wants to send a frame to every other host on the network (or VLAN)—this is called a <strong>broadcast</strong>.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="using-broadcast-addresses">1.1. Using Broadcast Addresses</h3>
+<div class="paragraph">
+<p>On an Ethernet or similar network, a multicast MAC address has the low-order bit of the high-order byte turned on.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In hexadecimal this looks like <em>01:00:00:00:00:00</em>.</p>
+</li>
+<li>
+<p>We may consider the Ethernet broadcast address <em>ff:ff:ff:ff:ff:ff</em> as a special case of the Ethernet multicast address.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Recall that in IPv4, each subnet has</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>a <em>local subnet-directed broadcast address</em> formed by placing <em>all 1 bits in the host portion of the address</em>,</p>
+</li>
+<li>
+<p>and the special address <em>255.255.255.255</em> corresponds to a local network (also called <em>limited</em>) broadcast.</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Directed broadcasts are routable in principle but won&#8217;t be forwarded by default.</p>
+</div>
+<div class="paragraph">
+<p>Limited broadcasts are generally not routable and won&#8217;t be forwarded.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip a show ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 2000 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:8c:df:3f brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 192.168.91.128/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Here, the address <em>192.168.91.255</em> is the (subnet-directed) broadcast address used on the network to which device <em>ens32</em> is attached.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This address is formed by taking the network prefix (<em>192.168.91.0/24</em>) and combining it with 32 – 24 = 8 bits of 1s in the host portion of the address: <em>192.168.91.0 OR 0.0.0.255 = 192.68.91.255</em>.</p>
+</li>
+<li>
+<p>A simple utility called <em>ipcalc</em> or <em>ipcalc-ng</em> is available on some systems to perform this calculation.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ipcalc 192.168.91.128/24
+<span class="go">Address:   192.168.91.128       11000000.10101000.01011011. 10000000
+Netmask:   255.255.255.0 = 24   11111111.11111111.11111111. 00000000
+Wildcard:  0.0.0.255            00000000.00000000.00000000. 11111111
+</span><span class="gp">=&gt;</span><span class="w">
+</span><span class="go">Network:   192.168.91.0/24      11000000.10101000.01011011. 00000000
+HostMin:   192.168.91.1         11000000.10101000.01011011. 00000001
+HostMax:   192.168.91.254       11000000.10101000.01011011. 11111110
+Broadcast: 192.168.91.255       11000000.10101000.01011011. 11111111
+Hosts/Net: 254                   Class C, Private Internet
+
+</span><span class="gp">x@node-0:~$</span><span class="w"> </span>ipcalc-ng fe80::20c:29ff:fe8c:df3f/64
+<span class="go">Full Address:	fe80:0000:0000:0000:020c:29ff:fe8c:df3f
+Address:	fe80::20c:29ff:fe8c:df3f
+Full Network:	fe80:0000:0000:0000:0000:0000:0000:0000/64
+Network:	fe80::/64
+Netmask:	ffff:ffff:ffff:ffff:: = 64
+
+Address space:	Link-Scoped Unicast
+HostMin:	fe80::
+HostMax:	fe80::ffff:ffff:ffff:ffff
+Hosts/Net:	2^(64) = 18446744073709551616</span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>ip a show ens32
+<span class="gp">2: ens32: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt;</span><span class="w"> </span>mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+<span class="go">    link/ether 00:0c:29:85:26:10 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.91.137/24 brd 192.168.91.255 scope global ens32
+       valid_lft forever preferred_lft forever
+
+</span><span class="gp">x@node-1:~$</span><span class="w"> </span><span class="nb">sudo </span>sysctl net.ipv4.icmp_echo_ignore_broadcasts<span class="o">=</span>0 <span class="c"># If this value is nonzero, Linux will ignore all ICMP_ECHO packets sent to broadcast addresses.</span>
+<span class="go">net.ipv4.icmp_echo_ignore_broadcasts = 0</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ping <span class="nt">-c</span> 1 <span class="nt">-b</span> 192.168.91.255
+<span class="go">PING 192.168.91.255 (192.168.91.255) 56(84) bytes of data.
+64 bytes from 192.168.91.128: icmp_seq=1 ttl=64 time=0.016 ms</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-en</span> icmp
+<span class="gp">10:02:47.802057 00:0c:29:8c:df:3f &gt;</span><span class="w"> </span>ff:ff:ff:ff:ff:ff, ethertype IPv4 <span class="o">(</span>0x0800<span class="o">)</span>, length 98: 192.168.91.128 <span class="o">&gt;</span> 192.168.91.255: ICMP <span class="nb">echo </span>request, <span class="nb">id </span>33826, <span class="nb">seq </span>1, length 64
+<span class="gp">10:02:47.802164 00:50:56:e9:f6:27 &gt;</span><span class="w"> </span>00:0c:29:8c:df:49, ethertype IPv4 <span class="o">(</span>0x0800<span class="o">)</span>, length 98: 192.168.91.2 <span class="o">&gt;</span> 192.168.91.128: ICMP <span class="nb">echo </span>reply, <span class="nb">id </span>33826, <span class="nb">seq </span>1, length 64
+<span class="gp">10:02:47.802408 00:0c:29:85:26:10 &gt;</span><span class="w"> </span>00:0c:29:8c:df:3f, ethertype IPv4 <span class="o">(</span>0x0800<span class="o">)</span>, length 98: 192.168.91.137 <span class="o">&gt;</span> 192.168.91.128: ICMP <span class="nb">echo </span>reply, <span class="nb">id </span>33826, <span class="nb">seq </span>1, length 64</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An ICMPv4 Echo Request message sent to the <em>directed broadcast address</em> on the local subnetwork is encapsulated in a <em>link-layer broadcast</em> frame with a destination address of all 1s.</p>
+</li>
+<li>
+<p>The source addresses at both the IP and link layers are entirely conventional unicast; multicast addresses are used only as destination addresses.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="multicasting">2. Multicasting</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To reduce the amount of overhead involved in broadcasting, it is possible to send traffic only to those receivers that are interested in it. This is called <strong>multicasting</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Fundamentally, this is accomplished by either having the sender indicate the receivers, or instead having the receivers independently indicate their interest. The network then becomes responsible for sending traffic only to intended/interested recipients.</p>
+</div>
+<div class="paragraph">
+<p>Implementing multicast is considerably more challenging than broadcast because <em>multicast state</em> (information) must be maintained by hosts and routers as to what traffic is of interest to what receivers.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In the TCP/IP model of multicasting, receivers indicate their interest in what traffic they wish to receive by specifying a multicast address and optional list of sources.</p>
+<div class="paragraph">
+<p>This information is maintained as <em>soft state</em> within hosts and routers, meaning that it must be updated regularly or it will time out and be deleted.</p>
+</div>
+<div class="paragraph">
+<p>When this happens, delivery of multicast traffic either ceases or reverts to broadcast.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>ASM (any-source multicast)</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>IP multicasting originated using a design based on the way <em>group addressing</em> works in link-layer networks such as Ethernet.</p>
+<div class="paragraph">
+<p>Each station selects the group address for which it is willing to accept traffic, also sometimes called <em>any-source multicast</em> (ASM) because of the insensitivity to the identity of the sender.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>SSM (source-specific multicast)</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An alternative form that is sensitive to the identity of the sender called <em>source-specific multicast</em> (SSM) [RFC4607] that allows end stations to explicitly include or exclude traffic sent to a <em>multicast group</em> from a particular set of senders.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="converting-ip-multicast-addresses-to-802-macethernet-addresses">2.1. Converting IP Multicast Addresses to 802 MAC/Ethernet Addresses</h3>
+<div class="paragraph">
+<p>When using unicast addresses on Ethernet-like networks, ARP is usually used to determine a local destination&#8217;s MAC address given its IPv4 address. In IPv6, ND serves a similar role.</p>
+</div>
+<div class="paragraph">
+<p>When we looked at broadcasting earlier, we noticed that there is a single well-known broadcast MAC address that can always be used to reach all stations on a LAN or VLAN.</p>
+</div>
+<div class="paragraph">
+<p>What destination MAC address should be placed in a link-layer frame when we wish to send multicast traffic?</p>
+</div>
+<div class="paragraph">
+<p>To carry IP multicast efficiently on a link-layer on IEEE 802 networks, there should be a one-to-one mapping between packets and addresses at the IP layer and frames at the link layer.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The IANA owns the IEEE <em>Organizationally Unique Identifier</em> (abbreviated <em>OUI</em>, or more informally <em>Ethernet address prefix</em>) <em>00:00:5e</em>.</p>
+<div class="paragraph">
+<p>With it, IANA is given the right to use group (multicast) MAC addresses starting with <em>01:00:5e</em> as well as unicast addresses starting with <em>00:00:5e</em>.</p>
+</div>
+<div class="paragraph">
+<p>This prefix is used as the high-order 24 bits of the Ethernet address, meaning that this block includes unicast addresses in the range <em>00:00:5e:00:00:00</em> through <em>00:00:5e:ff:ff:ff</em> and group addresses in the range <em>01:00:5e:00:00:00</em> through <em>01:00:5e:ff:ff:ff</em>.</p>
+</div>
+</li>
+<li>
+<p>Other organizations besides IANA own address blocks as well, but only IANA devotes some of its space to support of IP multicasting.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The IANA allocates half of its group block to identifying IPv4 multicast traffic on IEEE 802 LANs, which means that the Ethernet addresses corresponding to IPv4 multicasting are in the range <em>01:00:5e:00:00:00</em> through <em>01:00:5e:7f:ff:ff</em>.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/broadcasting-and-local-multicasting-igmp-and-mld/ipv4-to-ieee-802-mac-multicast-address-mapping.png" alt="IPv4-to-IEEE-802 MAC multicast address mapping" width="75%" height="75%">
+</div>
+<div class="title">Figure 1. The IPv4-to-IEEE-802 MAC multicast address mapping uses the lower-order 23 bits of the IPv4 group address as the suffix of a MAC address starting with 01:00:5e. Because only 23 of the 28 group address bits are used, 32 groups are mapped to the same MAC-layer address.</div>
+</div>
+<div class="paragraph">
+<p>Example: 224.0.0.17 (11100000.000-00000.00000000.00010001) &#8594; 01:00:5e:01:11</p>
+</div>
+<div class="paragraph">
+<p>IPv4 multicast addresses are contained within the address space from <em>224.0.0.0</em> to <em>239.255.255.255</em> (formerly known as class D address space). All such addresses share a common 4-bit sequence of <em>1110</em> in the high-order bits.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">IP Address:   224.0.0.0            11100000.0-0000000.00000000.00000000
+IP Address:   239.255.255.255      11101111.1-1111111.11111111.11111111
+MAC Address      00000001.00000000.01011110.0-0000000.00000000.00000000
+</span><span class="gp">=&gt;</span><span class="w">
+</span><span class="go">MAC Address      00000001.00000000.01011110.0-0000000.00000000.00000000
+MAC Address      00000001.00000000.01011110.0-1111111.11111111.11111111</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For IPv6, the 16-bit OUI hexadecimal prefix is <em>33:33</em>, which means that the last <em>32</em> bits of the IPv6 address can be used to form the link-layer address. All IPv6 multicast addresses begin with <em>ff</em>, and the subsequent 8 bits are used for flags and scope information, this leaves 128 – 16 = 112 bits for representing groups.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/broadcasting-and-local-multicasting-igmp-and-mld/ipv6-to-ieee-802-mac-multicast-address-mapping.png" alt="IPv4-to-IEEE-802 MAC multicast address mapping" width="75%" height="75%">
+</div>
+<div class="title">Figure 2. The IPv6-to-IEEE-802 MAC multicast address mapping uses the low-order 32 bits of the IPv6 multicast address as the suffix of a MAC address starting with 33:33. Because only 32 of the 112 multicast address bits are used, 2^80 groups are mapped to the same MAC-layer address.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>ICMPv4 echo request to those hosts that respond to the Multicast DNS (mDNS) address <em>224.0.0.251</em>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>ping <span class="nt">-c</span> 1 224.0.0.251
+<span class="go">PING 224.0.0.251 (224.0.0.251) 56(84) bytes of data.
+64 bytes from 192.168.91.128: icmp_seq=1 ttl=64 time=0.187 ms
+
+--- 224.0.0.251 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.187/0.187/0.187/0.000 ms</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-ten</span> icmp
+<span class="gp">00:0c:29:85:26:10 &gt;</span><span class="w"> </span>01:00:5e:00:00:fb, ethertype IPv4 <span class="o">(</span>0x0800<span class="o">)</span>, length 98: 192.168.91.137 <span class="o">&gt;</span> 224.0.0.251: ICMP <span class="nb">echo </span>request, <span class="nb">id </span>13338, <span class="nb">seq </span>1, length 64
+<span class="gp">00:0c:29:8c:df:3f &gt;</span><span class="w"> </span>00:0c:29:85:26:10, ethertype IPv4 <span class="o">(</span>0x0800<span class="o">)</span>, length 98: 192.168.91.128 <span class="o">&gt;</span> 192.168.91.137: ICMP <span class="nb">echo </span>reply, <span class="nb">id </span>13338, <span class="nb">seq </span>1, length 64</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>ICMPv6 echo request to those hosts that respond to the Multicast DNS (mDNSv6) address <em>ff02::fb</em>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-1:~$</span><span class="w"> </span>ping <span class="nt">-c</span> 1 <span class="nt">-I</span> ens32 ff02::fb
+<span class="go">PING ff02::fb(ff02::fb) from :: ens32: 56 data bytes
+64 bytes from fe80::20c:29ff:fe8c:df3f%ens32: icmp_seq=1 ttl=64 time=0.667 ms
+
+--- ff02::fb ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.667/0.667/0.667/0.000 ms</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">root@node-0:~#</span><span class="w"> </span>tcpdump <span class="nt">-i</span> ens32 <span class="nt">-ten</span> icmp6
+<span class="gp">00:0c:29:85:26:10 &gt;</span><span class="w"> </span>33:33:00:00:00:fb, ethertype IPv6 <span class="o">(</span>0x86dd<span class="o">)</span>, length 118: fe80::20c:29ff:fe85:2610 <span class="o">&gt;</span> ff02::fb: ICMP6, <span class="nb">echo </span>request, <span class="nb">id </span>13361, <span class="nb">seq </span>1, length 64
+<span class="gp">00:0c:29:8c:df:3f &gt;</span><span class="w"> </span>00:0c:29:85:26:10, ethertype IPv6 <span class="o">(</span>0x86dd<span class="o">)</span>, length 118: fe80::20c:29ff:fe8c:df3f <span class="o">&gt;</span> fe80::20c:29ff:fe85:2610: ICMP6, <span class="nb">echo </span>reply, <span class="nb">id </span>13361, <span class="nb">seq </span>1, length 64</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="receiving-multicast-datagrams">2.2. Receiving Multicast Datagrams</h3>
+<div class="paragraph">
+<p>Fundamental to multicasting is the concept of a process <em>joining</em> or <em>leaving</em> one or more multicast groups on a given interface on a host.</p>
+</div>
+<div class="paragraph">
+<p>Membership in a multicast group on a given interface is dynamic—it changes over time as processes join and leave groups.</p>
+</div>
+<div class="paragraph">
+<p>In addition to joining or leaving groups, additional methods are needed if a process wishes to specify sources it cares to hear from or exclude.</p>
+</div>
+<div class="paragraph">
+<p>A process can join the same group on multiple interfaces, multiple groups on the same interface, or any combination thereof.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">C:\&gt;</span>netsh interface ipv6 show joins
+<span class="go">
+Interface 1: Loopback Pseudo-Interface 1
+
+Scope       References  Last  Address
+----------  ----------  ----  ---------------------------------
+0                    1  Yes   ff02::c
+
+Interface 13: Wi-Fi
+
+Scope       References  Last  Address
+----------  ----------  ----  ---------------------------------
+0                    0  Yes   ff01::1
+0                    0  Yes   ff02::1
+0                    1  Yes   ff02::c
+0                    3  Yes   ff02::fb
+0                    1  Yes   ff02::1:3
+0                    1  Yes   ff02::1:ff18:5956</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">x@node-0:~$</span><span class="w"> </span>ip m
+<span class="go">1:	lo
+	inet  224.0.0.251
+	inet  224.0.0.1
+	inet6 ff02::fb
+	inet6 ff02::1
+	inet6 ff01::1
+2:	ens32
+	link  01:00:5e:00:00:01
+	link  01:00:5e:00:00:fb
+	link  33:33:00:00:00:01
+	link  33:33:ff:8c:df:3f
+	link  33:33:00:00:00:fb
+	inet  224.0.0.251
+	inet  224.0.0.1
+	inet6 ff02::fb
+	inet6 ff02::1:ff8c:df3f
+	inet6 ff02::1
+	inet6 ff01::1</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="host-address-filtering">2.3. Host Address Filtering</h3>
+<div class="paragraph">
+<p>In a typical switched Ethernet environment, broadcast and multicast frames are replicated on all segments within a VLAN, along a spanning tree formed among the switches. Such frames are delivered to the NIC on each host which checks the correctness of the frame (using the CRC) and makes a decision about whether to receive the frame and deliver it to the device driver and network stack.</p>
+</div>
+<div class="paragraph">
+<p>Normally the NIC receives only those frames whose destination address is either the hardware address of the interface or the broadcast address.</p>
+</div>
+<div class="paragraph">
+<p>However, when multicast frames are involved, the situation is somewhat more complicated.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/broadcasting-and-local-multicasting-igmp-and-mld/multicast-datagrams-host-filtering.png" alt="Multicast datagrams filtering" width="55%" height="55%">
+</div>
+<div class="title">Figure 3. Each layer implements filtering on some portion of the received message. MAC address filtering can take place in either software or hardware. Cheaper NICs tend to impose a larger processing burden on software because they perform fewer functions in hardware.</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-internet-group-management-protocol-igmp-and-multicast-listener-discovery-protocol-mld">3. The Internet Group Management Protocol (IGMP) and Multicast Listener Discovery Protocol (MLD)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When multicast datagrams are to be forwarded over a wide area network or within an enterprise across multiple subnets, we require that <em>multicast routing</em> be enabled by one or more multicast routers.</p>
+</div>
+<div class="paragraph">
+<p>Two major protocols are used to allow multicast routers to learn the groups in which nearby hosts are interested:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the <strong>Internet Group Management Protocol</strong> (IGMP) used by IPv4</p>
+</li>
+<li>
+<p>and the <strong>Multicast Listener Discovery</strong> (MLD) protocol used by IPv6.</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/broadcasting-and-local-multicasting-igmp-and-mld/igmp-mld-message-format.png" alt="IGMP/MLD Message" width="75%" height="75%">
+</div>
+<div class="title">Figure 4. IGMP is encapsulated as a separate protocol in IPv4. MLD is a type of ICMPv6 message.</div>
+</div>
+<div class="paragraph">
+<p>While IGMP is a separate protocol used with IPv4, MLD is really part of ICMPv6.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="/assets/tcp-ip/broadcasting-and-local-multicasting-igmp-and-mld/igmp-mld-multicast-routers.png" alt="Multicast routers send IGMP (MLD) requests" width="55%" height="55%">
+</div>
+<div class="title">Figure 5. Multicast routers send IGMP (MLD) requests to each attached subnet periodically to determine which groups and sources are of interest to the attached hosts. Hosts respond with reports indicating which groups and sources are of interest. Hosts may also send unsolicited reports if membership changes occur.</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>IGMP (MLD) queries are sent by multicast routers to the All Hosts multicast address, <em>224.0.0.1</em> (IGMP), or the All Nodes link-scope multicast address, <em>ff02::1</em> (MLD), and processed by every host implementing IP multicast.</p>
+</li>
+<li>
+<p>Membership report messages are sent by group members (hosts) in response to the queries but may also be sent in an unsolicited way from hosts that wish to inform multicast routers that their group membership(s) and/or interest in particular sources has changed.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>IGMPv3 reports are sent to the IGMPv3-capable multicast router address <em>224.0.0.22</em>.</p>
+</li>
+<li>
+<p>MLDv2 reports are sent to the corresponding MLDv2 Listeners IPv6 multicast address <em>ff02::16</em>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Note that multicast routers themselves may also act as members when they join multicast groups.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">References</h2>
+<div class="sectionbody">
+<div class="ulist bibliography">
+<ul class="bibliography">
+<li>
+<p><a id="tcp_ip_vol_1"></a>[1] Kevin Fall, W. Stevens <em>TCP/IP Illustrated: The Protocols, Volume 1</em>. 2nd edition, Addison-Wesley Professional, 2011</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2022/11/30/tcp-ip-internet-control-message-protocol/">&laquo; TCP/IP: Internet Control Message Protocol</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2022/12/06/tcp-ip-user-datagram-protocol-udp-and-ip-fragmentation/">TCP/IP: User Datagram Protocol (UDP) and IP Fragmentation &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>

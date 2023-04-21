@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bing WebMaster -->
+  <meta name="msvalidate.01" content="AB2FFF876C37F59D9121882CC8395DE5" />
+
+  <title>Kubernetes Admission Controllers</title>
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="https://blog.codefarm.me/2021/12/15/kubernetes-admission-controllers/">
+  <link rel="alternate" type="application/rss+xml" title="CODE FARM" href="https://blog.codefarm.me/feed.xml">
+
+  <!-- https://cdn.jsdelivr.net/gh/lurongkai/anti-baidu/js/anti-baidu-latest.min.js -->
+<script type="text/javascript" src="/js/anti-baidu.min.js" charset="UTF-8"></script>
+
+  
+<!-- Google Analytics Website tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-83971182-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+
+  
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SN88FJ18E5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-SN88FJ18E5');
+</script>
+
+
+
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+    <h2 class="site-title">
+      <a class="site-title" href="/">CODE FARM</a>
+    </h2>
+
+     <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+        <div class="trigger">
+            <ul>
+                <li><a href="/">home</a>
+                <li><a href="/category">category</a>
+                <li><a href="/tag">tag</a>
+                <li><a href="/archive">archive</a>
+                <li><a href="/about">about</a>
+                <li><a href="https://resume.github.io/?qqbuby" target="_blank">R&eacute;sum&eacute;</a>
+            </ul>
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title" itemprop="name headline">Kubernetes Admission Controllers</h1>
+    
+    
+    <p class="post-meta"><time datetime="2021-12-15T12:27:15+08:00" itemprop="datePublished">Dec 15, 2021</time></p>
+  </header>
+
+  <div class="post-content" itemprop="articleBody">
+    <div id="toc" class="toc">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#what-is-an-admission-controller">1. What is an admission controller</a>
+<ul class="sectlevel2">
+<li><a href="#turn-onoff-an-admission-controller">1.1. Turn on/off an admission controller</a></li>
+<li><a href="#dynamic-admission-control">1.2. Dynamic Admission Control</a></li>
+</ul>
+</li>
+<li><a href="#pod-and-container-security-context">2. Pod and Container Security Context</a>
+<ul class="sectlevel2">
+<li><a href="#set-the-security-context-for-a-pod">2.1. Set the security context for a Pod</a></li>
+<li><a href="#set-the-security-context-for-a-container">2.2. Set the security context for a Container</a></li>
+<li><a href="#set-capabilities-for-a-container">2.3. Set capabilities for a Container</a></li>
+<li><a href="#clean-up">2.4. Clean up</a></li>
+</ul>
+</li>
+<li><a href="#what-is-a-pod-security-policy">3. What is a Pod Security Policy?</a>
+<ul class="sectlevel2">
+<li><a href="#policy-order">3.1. Policy Order</a></li>
+<li><a href="#enabling-pod-security-policies">3.2. Enabling Pod Security Policies</a></li>
+<li><a href="#authorizing-policies">3.3. Authorizing Policies</a></li>
+<li><a href="#kube-psp-advisor">3.4. kube-psp-advisor</a></li>
+<li><a href="#example">3.5. Example</a></li>
+</ul>
+</li>
+<li><a href="#pod-security-admission-controller">4. Pod Security Admission Controller</a></li>
+<li><a href="#references">5. References</a></li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="what-is-an-admission-controller">1. What is an admission controller</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>An <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/"><strong>admission controller</strong></a> is a piece of code that intercepts requests to the Kubernetes API server prior to persistence of the object, but after the request is authenticated and authorized.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://d33wubrfki0l68.cloudfront.net/673dbafd771491a080c02c6de3fdd41b09623c90/50100/images/docs/admin/access-control-overview.svg" alt="access control overview" width="65%" height="65%">
+</div>
+</div>
+<div class="paragraph">
+<p>The controllers are compiled into the <strong>kube-apiserver</strong> binary, and may only be configured by the cluster administrator. There are two special controllers: <strong>MutatingAdmissionWebhook</strong> and <strong>ValidatingAdmissionWebhook</strong>. These execute the mutating and validating (respectively) <a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#admission-webhooks">admission control webhooks</a> which are configured in the API.</p>
+</div>
+<div class="paragraph">
+<p>Admission controllers <strong>limit requests</strong> to create, delete, modify objects or connect to proxy. They do <strong>not limit requests</strong> to read objects.</p>
+</div>
+<div class="paragraph">
+<p>The admission control process proceeds in two phases. In the first phase, <strong>mutating</strong> admission controllers are run. In the second phase, <strong>validating</strong> admission controllers are run. Note again that some of the controllers are both.</p>
+</div>
+<div class="paragraph">
+<p>If any of the controllers in either phase reject the request, the entire request is rejected immediately and an error is returned to the end-user.</p>
+</div>
+<div class="sect2">
+<h3 id="turn-onoff-an-admission-controller">1.1. Turn on/off an admission controller</h3>
+<div class="paragraph">
+<p>The Kubernetes API server flag <code>enable-admission-plugins</code> takes a comma-delimited list of admission control plugins to invoke prior to modifying objects in the cluster.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">kube-apiserver <span class="nt">--enable-admission-plugins</span><span class="o">=</span>NamespaceLifecycle,LimitRanger ...</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The Kubernetes API server flag <code>disable-admission-plugins</code> takes a comma-delimited list of admission control plugins to be disabled, even if they are in the list of plugins enabled by default.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">kube-apiserver <span class="nt">--disable-admission-plugins</span><span class="o">=</span>PodNodeSelector,AlwaysDeny ...</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see which admission plugins are enabled by default:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh">kube-apiserver <span class="nt">-h</span> | <span class="nb">grep </span>enable-admission-plugins</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>docker run <span class="nt">--rm</span> <span class="nt">-it</span> k8s.gcr.io/kube-apiserver:v1.22.3 kube-apiserver <span class="nt">-h</span> | <span class="nb">grep </span>enable-admission-plugins
+<span class="go">      --enable-admission-plugins strings       admission plugins that should be enabled in addition to default enabled ones (NamespaceLifecycle, LimitRanger, ServiceAccount, TaintNodesByCondition, PodSecurity, Priority, DefaultTolerationSeconds, DefaultStorageClass, StorageObjectInUseProtection, PersistentVolumeClaimResize, RuntimeClass, CertificateApproval, CertificateSigning, CertificateSubjectRestriction, DefaultIngressClass, MutatingAdmissionWebhook, ValidatingAdmissionWebhook, ResourceQuota). Comma-delimited list of admission plugins: AlwaysAdmit, AlwaysDeny, AlwaysPullImages, CertificateApproval, CertificateSigning, CertificateSubjectRestriction, DefaultIngressClass, DefaultStorageClass, DefaultTolerationSeconds, DenyServiceExternalIPs, EventRateLimit, ExtendedResourceToleration, ImagePolicyWebhook, LimitPodHardAntiAffinityTopology, LimitRanger, MutatingAdmissionWebhook, NamespaceAutoProvision, NamespaceExists, NamespaceLifecycle, NodeRestriction, OwnerReferencesPermissionEnforcement, PersistentVolumeClaimResize, PersistentVolumeLabel, PodNodeSelector, PodSecurity, PodSecurityPolicy, PodTolerationRestriction, Priority, ResourceQuota, RuntimeClass, SecurityContextDeny, ServiceAccount, StorageObjectInUseProtection, TaintNodesByCondition, ValidatingAdmissionWebhook. The order of plugins in this flag does not matter.</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="dynamic-admission-control">1.2. Dynamic Admission Control</h3>
+<div class="paragraph">
+<p>In addition to <strong>compiled-in admission plugins</strong>, admission plugins can be developed as extensions and run as <strong>webhooks</strong> configured at runtime.</p>
+</div>
+<div class="paragraph">
+<p>Admission webhooks are HTTP callbacks that receive admission requests and do something with them. You can define both <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#validatingadmissionwebhook"><strong>validating admission webhook</strong></a> and <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#mutatingadmissionwebhook"><strong>mutating admission webhook</strong></a> admission webhooks.</p>
+</div>
+<div class="paragraph">
+<p>The webhook handles the <code>AdmissionReview</code> request sent by the apiservers, and sends back its decision as an <code>AdmissionReview</code> object in the same version it received.</p>
+</div>
+<div class="paragraph">
+<p>Mutating admission webhooks are invoked first, and can modify objects sent to the API server to enforce custom defaults. After all object modifications are complete, and after the incoming object is validated by the API server, validating admission webhooks are invoked and can reject requests to enforce custom policies.</p>
+</div>
+<div class="paragraph">
+<p>You can dynamically configure what resources are subject to what admission webhooks via <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#validatingwebhookconfiguration-v1-admissionregistration-k8s-io">ValidatingWebhookConfiguration</a> or <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#mutatingwebhookconfiguration-v1-admissionregistration-k8s-io">MutatingWebhookConfiguration</a>.</p>
+</div>
+<div class="paragraph">
+<p>You can use the follow commands to inspect details about each config field:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="sh"><span class="nv">$ </span>kubectl explain mutatingwebhookconfigurations
+<span class="nv">$ </span>kubectl explain validatingwebhookconfigurations</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following is an example <code>ValidatingWebhookConfiguration</code>, a mutating webhook configuration is similar.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">admissionregistration.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">ValidatingWebhookConfiguration</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">pod-policy.kube-admission.io"</span>
+<span class="na">webhooks</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">pod-policy.kube-admission.io"</span>
+  <span class="na">rules</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">apiGroups</span><span class="pi">:</span>   <span class="pi">[</span><span class="s2">"</span><span class="s">"</span><span class="pi">]</span>
+      <span class="na">apiVersions</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">v1"</span><span class="pi">]</span>
+      <span class="na">operations</span><span class="pi">:</span>  <span class="pi">[</span><span class="s2">"</span><span class="s">CREATE"</span><span class="pi">]</span>
+      <span class="na">resources</span><span class="pi">:</span>   <span class="pi">[</span><span class="s2">"</span><span class="s">pods"</span><span class="pi">]</span>
+      <span class="na">scope</span><span class="pi">:</span>       <span class="s2">"</span><span class="s">Namespaced"</span>
+  <span class="na">clientConfig</span><span class="pi">:</span>
+    <span class="na">caBundle</span><span class="pi">:</span> <span class="s">LS0....</span>
+    <span class="na">service</span><span class="pi">:</span>
+      <span class="na">namespace</span><span class="pi">:</span> <span class="s2">"</span><span class="s">default"</span>
+      <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">kube-admission"</span>
+      <span class="na">path</span><span class="pi">:</span> <span class="s">/always-allow-delay-5s</span>
+  <span class="na">admissionReviewVersions</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">v1"</span><span class="pi">]</span>
+  <span class="na">sideEffects</span><span class="pi">:</span> <span class="s">None</span>
+  <span class="na">timeoutSeconds</span><span class="pi">:</span> <span class="s">10</span></code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Note: When using <code>clientConfig.service</code>, the server cert must be valid for <code>&lt;svc_name&gt;.&lt;svc_namespace&gt;.svc</code>.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Besides, there&#8217;s a sample of admission controller at my GitHub: <a href="https://github.com/qqbuby/sample-kube-admission-controller" class="bare">https://github.com/qqbuby/sample-kube-admission-controller</a>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="pod-and-container-security-context">2. Pod and Container Security Context</h2>
+<div class="sectionbody">
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="title">Principle of Least Privilege</div>
+<div class="paragraph">
+<p>ref: <a href="https://en.wikipedia.org/wiki/Principle_of_least_privilege" class="bare">https://en.wikipedia.org/wiki/Principle_of_least_privilege</a></p>
+</div>
+<div class="paragraph">
+<p>In information security, computer science, and other fields, the <strong>principle of least privilege</strong> (<strong>PoLP</strong>), also known as the <strong>principle of minimal privilege</strong> or the <strong>principle of least authority</strong>, requires that in a particular <em>abstraction layer</em> of a computing environment, every module (such as a <em>process</em>, a <em>user</em>, or a <em>program</em>, depending on the subject) must be able to access only the information and resources that are necessary for its legitimate purpose.</p>
+</div>
+<div class="paragraph">
+<p>Benefits of the principle include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Better system stability</strong>.</p>
+<div class="paragraph">
+<p>When code is limited in the scope of changes it can make to a system, it is easier to test its possible actions and interactions with other applications. In practice for example, applications running with restricted rights will not have access to perform operations that could crash a machine, or adversely affect other applications running on the same system.</p>
+</div>
+</li>
+<li>
+<p><strong>Better system security</strong>.</p>
+<div class="paragraph">
+<p>When code is limited in the system-wide actions it may perform, vulnerabilities in one application cannot be used to exploit the rest of the machine. For example, Microsoft states “Running in standard user mode gives customers increased protection against inadvertent system-level damage caused by "shatter attacks" and malware, such as root kits, spyware, and undetectable viruses”.</p>
+</div>
+</li>
+<li>
+<p><strong>Ease of deployment</strong>.</p>
+<div class="paragraph">
+<p>In general, the fewer privileges an application requires, the easier it is to deploy within a larger environment. This usually results from the first two benefits, applications that install device drivers or require elevated security privileges typically have additional steps involved in their deployment. For example, on Windows a solution with no device drivers can be run directly with no installation, while device drivers must be installed separately using the Windows installer service in order to grant the driver elevated privileges.</p>
+</div>
+</li>
+</ul>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>A <strong>security context</strong> defines privilege and access control settings for a Pod or Container. Security context settings include, but are not limited to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Discretionary Access Control: Permission to access an object, like a file, is based on <a href="https://wiki.archlinux.org/index.php/users_and_groups">user ID (UID) and group ID (GID)</a>.</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Security-Enhanced_Linux">Security Enhanced Linux (SELinux)</a>: Objects are assigned security labels.</p>
+</li>
+<li>
+<p>Running as privileged or unprivileged.</p>
+</li>
+<li>
+<p><a href="https://linux-audit.com/linux-capabilities-hardening-linux-binaries-by-removing-setuid/">Linux Capabilities</a>: Give a process some privileges, but not all the privileges of the root user.</p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tutorials/clusters/apparmor/">AppArmor</a>: Use program profiles to restrict the capabilities of individual programs.</p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tutorials/clusters/seccomp/">Seccomp</a>: Filter a process&#8217;s system calls.</p>
+</li>
+<li>
+<p>AllowPrivilegeEscalation: Controls whether a process can gain more privileges than its parent process. This bool directly controls whether the <a href="https://www.kernel.org/doc/Documentation/prctl/no_new_privs.txt">no_new_privs</a> flag gets set on the container process.</p>
+<div class="paragraph">
+<p>AllowPrivilegeEscalation is true always when the container is:</p>
+</div>
+<div class="paragraph">
+<p>1) run as Privileged</p>
+</div>
+<div class="paragraph">
+<p>OR</p>
+</div>
+<div class="paragraph">
+<p>2) has <code>CAP_SYS_ADMIN</code>.</p>
+</div>
+</li>
+<li>
+<p>readOnlyRootFilesystem: Mounts the container&#8217;s root filesystem as read-only.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For more information about security mechanisms in Linux, see <a href="https://www.linux.com/learn/overview-linux-kernel-security-features">Overview of Linux Kernel Security Features</a>.</p>
+</div>
+<div class="sect2">
+<h3 id="set-the-security-context-for-a-pod">2.1. Set the security context for a Pod</h3>
+<div class="paragraph">
+<p>To specify security settings for a Pod, include the <code>securityContext</code> field in the Pod specification.</p>
+</div>
+<div class="paragraph">
+<p>The <code>securityContext</code> field is a <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core">PodSecurityContext</a> object.</p>
+</div>
+<div class="paragraph">
+<p>The security settings that you specify for a Pod apply to all Containers in the Pod.</p>
+</div>
+<div class="listingblock">
+<div class="title">pods/security/security-context.yaml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">security-context-demo</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">securityContext</span><span class="pi">:</span>
+    <span class="na">runAsUser</span><span class="pi">:</span> <span class="m">1000</span>
+    <span class="na">runAsGroup</span><span class="pi">:</span> <span class="m">3000</span>
+    <span class="na">fsGroup</span><span class="pi">:</span> <span class="m">2000</span>
+  <span class="na">volumes</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">sec-ctx-vol</span>
+    <span class="na">emptyDir</span><span class="pi">:</span> <span class="pi">{}</span>
+  <span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">sec-ctx-demo</span>
+    <span class="na">image</span><span class="pi">:</span> <span class="s">busybox:1</span>
+    <span class="na">stdin</span><span class="pi">:</span> <span class="no">true</span>
+    <span class="na">tty</span><span class="pi">:</span> <span class="no">true</span>
+    <span class="na">volumeMounts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">sec-ctx-vol</span>
+      <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/data/demo</span>
+    <span class="na">securityContext</span><span class="pi">:</span>
+      <span class="na">allowPrivilegeEscalation</span><span class="pi">:</span> <span class="no">false</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the configuration file, the <code>runAsUser</code> field specifies that for any Containers in the Pod, all processes run with user ID 1000. The <code>runAsGroup</code> field specifies the primary group ID of 3000 for all processes within any containers of the Pod. <strong>If this field is omitted, the primary group ID of the containers will be root(0).</strong> Any files created will also be owned by user 1000 and group 3000 when <code>runAsGroup</code> is specified. Since <code>fsGroup</code> field is specified, all processes of the container are also part of the supplementary group ID 2000. The owner for volume <code>/data/demo</code> and any files created in that volume will be Group ID 2000.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> pods/security/security-context.yaml
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> security-context-demo <span class="nt">--</span> sh
+<span class="gp">/ $</span><span class="w"> </span><span class="nb">id</span>
+<span class="go">uid=1000 gid=3000 groups=2000
+
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">ls</span> <span class="nt">-l</span> /data
+<span class="go">total 4
+drwxrwsrwx    2 root     2000          4096 Dec 16 09:14 demo
+
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">touch</span> /data/demo/testfile
+<span class="go">
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">ls</span> <span class="nt">-l</span> /data/demo/testfile
+<span class="go">-rw-r--r--    1 1000     2000             0 Dec 16 09:15 /data/demo/testfile
+
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">stat</span> /data/demo/
+<span class="go">  File: /data/demo/
+  Size: 4096      	Blocks: 8          IO Block: 4096   directory
+Device: 801h/2049d	Inode: 3539320     Links: 2
+Access: (2777/drwxrwsrwx)  Uid: (    0/    root)   Gid: ( 2000/ UNKNOWN)
+</span><span class="c">&lt;...&gt;
+</span><span class="go">
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">cat</span> /etc/passwd
+<span class="go">root:x:0:0:root:/root:/bin/sh
+</span><span class="c">&lt;...&gt;
+</span><span class="go">www-data:x:33:33:www-data:/var/www:/bin/false
+operator:x:37:37:Operator:/var:/bin/false
+nobody:x:65534:65534:nobody:/home:/bin/false
+
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">cat</span> /etc/group
+<span class="go">root:x:0:
+</span><span class="c">&lt;...&gt;
+</span><span class="go">nobody:x:65534:
+
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">exit</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="set-the-security-context-for-a-container">2.2. Set the security context for a Container</h3>
+<div class="paragraph">
+<p>To specify security settings for a Container, include the <code>securityContext</code> field in the Container manifest.</p>
+</div>
+<div class="paragraph">
+<p>The <code>securityContext</code> field is a <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#securitycontext-v1-core">SecurityContext</a> object.</p>
+</div>
+<div class="paragraph">
+<p>Security settings that you specify for a Container apply only to the individual Container, and they override settings made at the Pod level when there is overlap.</p>
+</div>
+<div class="paragraph">
+<p>Container settings do not affect the Pod&#8217;s Volumes.</p>
+</div>
+<div class="listingblock">
+<div class="title">pods/security/security-context-2.yaml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">security-context-demo-2</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">securityContext</span><span class="pi">:</span>
+    <span class="na">runAsUser</span><span class="pi">:</span> <span class="m">1000</span>
+  <span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">sec-ctx-demo-2</span>
+    <span class="na">image</span><span class="pi">:</span> <span class="s">busybox:1</span>
+    <span class="na">stdin</span><span class="pi">:</span> <span class="no">true</span>
+    <span class="na">tty</span><span class="pi">:</span> <span class="no">true</span>
+    <span class="na">securityContext</span><span class="pi">:</span>
+      <span class="na">runAsUser</span><span class="pi">:</span> <span class="m">2000</span>
+      <span class="na">allowPrivilegeEscalation</span><span class="pi">:</span> <span class="no">false</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> pods/security/security-context-2.yaml
+<span class="go">
+</span><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> security-context-demo-2 <span class="nt">--</span> sh
+<span class="gp">/ $</span><span class="w"> </span><span class="nb">id</span>
+<span class="go">uid=2000 gid=0(root)
+
+</span><span class="gp">/ $</span><span class="w"> </span><span class="nb">exit</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="set-capabilities-for-a-container">2.3. Set capabilities for a Container</h3>
+<div class="paragraph">
+<p>With <a href="https://man7.org/linux/man-pages/man7/capabilities.7.html">Linux capabilities</a>, you can grant certain privileges to a process without granting all the privileges of the root user. To add or remove Linux capabilities for a Container, include the <code>capabilities</code> field in the <code>securityContext</code> section of the Container manifest.</p>
+</div>
+<div class="paragraph">
+<p>First, see what happens when you don&#8217;t include a <code>capabilities</code> field.</p>
+</div>
+<div class="listingblock">
+<div class="title">pods/security/security-context-3.yaml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">security-context-demo-3</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">sec-ctx-3</span>
+    <span class="na">image</span><span class="pi">:</span> <span class="s">k8s.gcr.io/echoserver:1.10</span>
+    <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">containerPort</span><span class="pi">:</span> <span class="s">8080</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> security-context-demo-3 <span class="nt">--</span> sh
+
+<span class="gp">#</span><span class="w"> </span><span class="nb">id</span>
+<span class="go">uid=0(root) gid=0(root) groups=0(root)</span>
+
+<span class="gp">#</span><span class="w"> </span><span class="nb">cat</span> /proc/1/status | <span class="nb">grep </span>Cap
+<span class="go">CapInh:	00000000a80425fb</span>
+<span class="hll"><span class="go">CapPrm:	00000000a80425fb</span>
+</span><span class="hll"><span class="go">CapEff:	00000000a80425fb</span>
+</span><span class="go">CapBnd:	00000000a80425fb</span>
+<span class="go">CapAmb:	0000000000000000</span>
+
+<span class="gp">#</span><span class="w"> </span><span class="nb">exit</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Next, run a Container that is the same as the preceding container, except that it has additional capabilities set.</p>
+</div>
+<div class="listingblock">
+<div class="title">pods/security/security-context-4.yaml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Pod</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">security-context-demo-4</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">sec-ctx-4</span>
+    <span class="na">image</span><span class="pi">:</span> <span class="s">k8s.gcr.io/echoserver:1.10</span>
+    <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">containerPort</span><span class="pi">:</span> <span class="m">8080</span>
+    <span class="na">securityContext</span><span class="pi">:</span>
+      <span class="na">capabilities</span><span class="pi">:</span>
+        <span class="na">add</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">NET_ADMIN"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">SYS_TIME"</span><span class="pi">]</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl <span class="nb">exec</span> <span class="nt">-it</span> security-context-demo-4 <span class="nt">--</span> sh
+
+<span class="gp">#</span><span class="w"> </span><span class="nb">id</span>
+<span class="go">uid=0(root) gid=0(root) groups=0(root)</span>
+
+<span class="gp">#</span><span class="w"> </span><span class="nb">cat</span> /proc/1/status | <span class="nb">grep </span>Cap
+<span class="go">CapInh:	00000000aa0435fb</span>
+<span class="hll"><span class="go">CapPrm:	00000000aa0435fb</span>
+</span><span class="hll"><span class="go">CapEff:	00000000aa0435fb</span>
+</span><span class="go">CapBnd:	00000000aa0435fb</span>
+<span class="go">CapAmb:	0000000000000000</span>
+
+<span class="gp">#</span><span class="w"> </span><span class="nb">exit</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Compare the capabilities of the two Containers:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">00000000a80425fb
+00000000aa0435fb</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the capability bitmap of the first container, bits 12 and 25 are clear. In the second container, bits 12 and 25 are set. Bit 12 is <code>CAP_NET_ADMIN</code>, and bit 25 is <code>CAP_SYS_TIME</code>. See <a href="https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h">capability.h</a> for definitions of the capability constants.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Linux capability constants have the form <code>CAP_XXX</code>. But when you list capabilities in your Container manifest, you must omit the <code>CAP_</code> portion of the constant. For example, to add <code>CAP_SYS_TIME</code>, include <code>SYS_TIME</code> in your list of capabilities.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="clean-up">2.4. Clean up</h3>
+<div class="paragraph">
+<p>Delete the Pod:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="go">kubectl delete pod security-context-demo
+kubectl delete pod security-context-demo-2
+kubectl delete pod security-context-demo-3
+kubectl delete pod security-context-demo-4</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-is-a-pod-security-policy">3. What is a Pod Security Policy?</h2>
+<div class="sectionbody">
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Kubernetes has officially <a href="https://kubernetes.io/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/">deprecated PodSecurityPolicy</a> in version 1.21. PodSecurityPolicy will be shut down in version 1.25.</p>
+</div>
+<div class="paragraph">
+<p><strong>PodSecurityPolicy is being replaced by a new, simplified <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#podsecurity">PodSecurity</a> admission controller.</strong></p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>PodSecurityPolicy is a built-in admission controller that allows a cluster administrator to control security-sensitive aspects of the Pod specification.</p>
+</div>
+<div class="paragraph">
+<p>A <a href="https://kubernetes.io/docs/concepts/policy/pod-security-policy/"><strong>PodSecurityPolicy</strong></a> is a built-in admission controller that allows a cluster administrator to control security-sensitive aspects of the Pod specification to create and update Pods on your cluster.</p>
+</div>
+<div class="paragraph">
+<p>In most Kubernetes clusters, RBAC (Role-Based Access Control) <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole">rules</a> control access to these resources. <code>list</code>, <code>get</code>, <code>create</code>, <code>edit</code>, and <code>delete</code> are the sorts of API operations that RBAC cares about, but <em>RBAC does not consider what settings are being put into the resources it controls</em>.</p>
+</div>
+<div class="paragraph">
+<p>To control what sorts of settings are allowed in the resources defined in your cluster, you need <strong>Admission Control</strong> in addition to RBAC.</p>
+</div>
+<div class="paragraph">
+<p>Kubernetes SIG Security, SIG Auth, and a diverse collection of other community members have been working together for months to ensure that what’s coming next is going to be awesome. We have developed a Kubernetes Enhancement Proposal (<a href="https://github.com/kubernetes/enhancements/issues/2579">KEP 2579</a>) and a prototype for a new feature, currently being called by the temporary name "<strong>PSP Replacement Policy</strong>."</p>
+</div>
+<div class="paragraph">
+<p>If your use of PSP is relatively simple, with a few policies and straightforward binding to service accounts in each namespace, you will likely find PSP Replacement Policy to be a good match for your needs. Evaluate your PSPs compared to the Kubernetes <a href="https://kubernetes.io/docs/concepts/security/pod-security-standards/"><strong>Pod Security Standards</strong></a> to get a feel for where you’ll be able to use the Restricted, Baseline, and Privileged policies. Please follow along with or contribute to the KEP and subsequent development, and try out the Alpha release of PSP Replacement Policy when it becomes available.</p>
+</div>
+<div class="listingblock">
+<div class="title"># policy/privileged-psp.yaml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">policy/v1beta1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PodSecurityPolicy</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">privileged</span>
+  <span class="na">annotations</span><span class="pi">:</span>
+    <span class="na">seccomp.security.alpha.kubernetes.io/allowedProfileNames</span><span class="pi">:</span> <span class="s1">'</span><span class="s">*'</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">privileged</span><span class="pi">:</span> <span class="no">true</span>
+  <span class="na">allowPrivilegeEscalation</span><span class="pi">:</span> <span class="no">true</span>
+  <span class="na">allowedCapabilities</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s1">'</span><span class="s">*'</span>
+  <span class="na">volumes</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s1">'</span><span class="s">*'</span>
+  <span class="na">hostNetwork</span><span class="pi">:</span> <span class="no">true</span>
+  <span class="na">hostPorts</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">min</span><span class="pi">:</span> <span class="m">0</span>
+    <span class="na">max</span><span class="pi">:</span> <span class="m">65535</span>
+  <span class="na">hostIPC</span><span class="pi">:</span> <span class="no">true</span>
+  <span class="na">hostPID</span><span class="pi">:</span> <span class="no">true</span>
+  <span class="na">runAsUser</span><span class="pi">:</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">RunAsAny'</span>
+  <span class="na">seLinux</span><span class="pi">:</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">RunAsAny'</span>
+  <span class="na">supplementalGroups</span><span class="pi">:</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">RunAsAny'</span>
+  <span class="na">fsGroup</span><span class="pi">:</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">RunAsAny'</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title"># policy/restricted-psp.yaml</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">policy/v1beta1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">PodSecurityPolicy</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">restricted</span>
+  <span class="na">annotations</span><span class="pi">:</span>
+    <span class="na">seccomp.security.alpha.kubernetes.io/allowedProfileNames</span><span class="pi">:</span> <span class="s1">'</span><span class="s">docker/default,runtime/default'</span>
+    <span class="na">apparmor.security.beta.kubernetes.io/allowedProfileNames</span><span class="pi">:</span> <span class="s1">'</span><span class="s">runtime/default'</span>
+    <span class="na">apparmor.security.beta.kubernetes.io/defaultProfileName</span><span class="pi">:</span>  <span class="s1">'</span><span class="s">runtime/default'</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">privileged</span><span class="pi">:</span> <span class="no">false</span>
+  <span class="c1"># Required to prevent escalations to root.</span>
+  <span class="na">allowPrivilegeEscalation</span><span class="pi">:</span> <span class="no">false</span>
+  <span class="na">requiredDropCapabilities</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">ALL</span>
+  <span class="c1"># Allow core volume types.</span>
+  <span class="na">volumes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">configMap'</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">emptyDir'</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">projected'</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">secret'</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">downwardAPI'</span>
+    <span class="c1"># Assume that ephemeral CSI drivers &amp; persistentVolumes set up by the cluster admin are safe to use.</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">csi'</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">persistentVolumeClaim'</span>
+    <span class="pi">-</span> <span class="s1">'</span><span class="s">ephemeral'</span>
+  <span class="na">hostNetwork</span><span class="pi">:</span> <span class="no">false</span>
+  <span class="na">hostIPC</span><span class="pi">:</span> <span class="no">false</span>
+  <span class="na">hostPID</span><span class="pi">:</span> <span class="no">false</span>
+  <span class="na">runAsUser</span><span class="pi">:</span>
+    <span class="c1"># Require the container to run without root privileges.</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">MustRunAsNonRoot'</span>
+  <span class="na">seLinux</span><span class="pi">:</span>
+    <span class="c1"># This policy assumes the nodes are using AppArmor rather than SELinux.</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">RunAsAny'</span>
+  <span class="na">supplementalGroups</span><span class="pi">:</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">MustRunAs'</span>
+    <span class="na">ranges</span><span class="pi">:</span>
+      <span class="c1"># Forbid adding the root group.</span>
+      <span class="pi">-</span> <span class="na">min</span><span class="pi">:</span> <span class="m">1</span>
+        <span class="na">max</span><span class="pi">:</span> <span class="m">65535</span>
+  <span class="na">fsGroup</span><span class="pi">:</span>
+    <span class="na">rule</span><span class="pi">:</span> <span class="s1">'</span><span class="s">MustRunAs'</span>
+    <span class="na">ranges</span><span class="pi">:</span>
+      <span class="c1"># Forbid adding the root group.</span>
+      <span class="pi">-</span> <span class="na">min</span><span class="pi">:</span> <span class="m">1</span>
+        <span class="na">max</span><span class="pi">:</span> <span class="m">65535</span>
+  <span class="na">readOnlyRootFilesystem</span><span class="pi">:</span> <span class="no">false</span></code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="policy-order">3.1. Policy Order</h3>
+<div class="paragraph">
+<p>In addition to restricting pod creation and update, pod security policies can also be used to provide default values for many of the fields that it controls. When multiple policies are available, the pod security policy controller selects policies according to the following criteria:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>PodSecurityPolicies which allow the pod as-is, without changing defaults or mutating the pod, are preferred. The order of these non-mutating PodSecurityPolicies doesn&#8217;t matter.</p>
+</li>
+<li>
+<p>If the pod must be defaulted or mutated, the first PodSecurityPolicy (ordered by name) to allow the pod is selected.</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+During update operations (during which mutations to pod specs are disallowed) only non-mutating PodSecurityPolicies are used to validate the pod.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="enabling-pod-security-policies">3.2. Enabling Pod Security Policies</h3>
+<div class="paragraph">
+<p>Pod security policy control is implemented as an optional <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#podsecuritypolicy">admission controller</a>. PodSecurityPolicies are enforced by <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#how-do-i-turn-on-an-admission-control-plug-in">enabling the admission controller</a>, but doing so <strong>without authorizing any policies will prevent any pods from being created in the cluster</strong>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml">  <span class="na">name</span><span class="pi">:</span> <span class="s">kube-apiserver</span>
+  <span class="na">namespace</span><span class="pi">:</span> <span class="s">kube-system</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">command</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">kube-apiserver</span>
+<span class="c1"># ...</span>
+<span class="hll">    <span class="pi">-</span> <span class="s">--enable-admission-plugins=NodeRestriction,PodSecurityPolicy</span>
+</span><span class="c1"># ...</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl create ns psp-test
+<span class="go">namespace/psp-test created</span>
+
+<span class="gp">$</span><span class="w"> </span>kubectl create rolebinding <span class="nt">-n</span> psp-test default:edit <span class="nt">--clusterrole</span> edit <span class="nt">--serviceaccount</span> psp-test:default
+<span class="go">rolebinding.rbac.authorization.k8s.io/default:edit created</span>
+
+<span class="gp">$</span><span class="w"> </span>kubectl <span class="nt">--as</span> system:serviceaccount:psp-test:default create <span class="nt">-n</span> psp-test <span class="nt">-f-</span> <span class="o">&lt;&lt;</span><span class="no">EOF</span>
+<span class="go">apiVersion: v1</span>
+<span class="go">kind: Pod</span>
+<span class="go">metadata:</span>
+<span class="go">  name: pause</span>
+<span class="go">spec:</span>
+<span class="go">  containers:</span>
+<span class="go">    - name: pause</span>
+<span class="go">      image: k8s.gcr.io/pause</span>
+<span class="go">EOF</span>
+<span class="hll"><span class="go">Error from server (Forbidden): error when creating "STDIN": pods "pause" is forbidden: PodSecurityPolicy: unable to admit pod: []</span>
+</span>
+<span class="gp">$</span><span class="w"> </span>kubectl delete ns psp-test
+<span class="go">namespace "psp-test" deleted</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="authorizing-policies">3.3. Authorizing Policies</h3>
+<div class="paragraph">
+<p>When a PodSecurityPolicy resource is created, it does nothing. In order to use it, the requesting user or target pod&#8217;s <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">service account</a> must be authorized to use the policy, by allowing the <code>use</code> verb on the policy.</p>
+</div>
+<div class="paragraph">
+<p>Most Kubernetes pods are not created directly by users. Instead, they are typically created indirectly as part of a <em>Deployment</em>, <em>ReplicaSet</em>, or other templated controller via the <em>controller manager</em>. Granting the controller access to the policy would grant access for all pods created by that controller, so the preferred method for authorizing policies is to grant access to the pod&#8217;s service account.</p>
+</div>
+<div class="paragraph">
+<p>RBAC is a standard Kubernetes authorization mode, and can easily be used to authorize use of policies.</p>
+</div>
+<div class="paragraph">
+<p>First, a <code>Role</code> or <code>ClusterRole</code> needs to grant access to use the desired policies. The rules to grant access look like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">ClusterRole</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;role name&gt;</span>
+<span class="na">rules</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">apiGroups</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">policy'</span><span class="pi">]</span>
+  <span class="na">resources</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">podsecuritypolicies'</span><span class="pi">]</span>
+  <span class="na">verbs</span><span class="pi">:</span>     <span class="pi">[</span><span class="s1">'</span><span class="s">use'</span><span class="pi">]</span>
+  <span class="na">resourceNames</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">&lt;list of policies to authorize&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then the <code>(Cluster)Role</code> is bound to the authorized user(s):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">ClusterRoleBinding</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;binding name&gt;</span>
+<span class="na">roleRef</span><span class="pi">:</span>
+  <span class="na">kind</span><span class="pi">:</span> <span class="s">ClusterRole</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;role name&gt;</span>
+  <span class="na">apiGroup</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io</span>
+<span class="na">subjects</span><span class="pi">:</span>
+<span class="c1"># Authorize all service accounts in a namespace (recommended):</span>
+<span class="pi">-</span> <span class="na">kind</span><span class="pi">:</span> <span class="s">Group</span>
+  <span class="na">apiGroup</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">system:serviceaccounts:&lt;authorized namespace&gt;</span>
+<span class="c1"># Authorize specific service accounts (not recommended):</span>
+<span class="pi">-</span> <span class="na">kind</span><span class="pi">:</span> <span class="s">ServiceAccount</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;authorized service account name&gt;</span>
+  <span class="na">namespace</span><span class="pi">:</span> <span class="s">&lt;authorized pod namespace&gt;</span>
+<span class="c1"># Authorize specific users (not recommended):</span>
+<span class="pi">-</span> <span class="na">kind</span><span class="pi">:</span> <span class="s">User</span>
+  <span class="na">apiGroup</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">&lt;authorized user name&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If a <code>RoleBinding</code> (not a <code>ClusterRoleBinding</code>) is used, it will only grant usage for pods being run in the same namespace as the binding. This can be paired with system groups to grant access to all pods run in the namespace:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="c1"># Authorize all service accounts in a namespace:</span>
+<span class="pi">-</span> <span class="na">kind</span><span class="pi">:</span> <span class="s">Group</span>
+  <span class="na">apiGroup</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">system:serviceaccounts</span>
+<span class="c1"># Or equivalently, all authenticated users in a namespace:</span>
+<span class="pi">-</span> <span class="na">kind</span><span class="pi">:</span> <span class="s">Group</span>
+  <span class="na">apiGroup</span><span class="pi">:</span> <span class="s">rbac.authorization.k8s.io</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">system:authenticated</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="kube-psp-advisor">3.4. kube-psp-advisor</h3>
+<div class="paragraph">
+<p>Kubernetes Pod Security Policy Advisor (a.k.a <a href="https://github.com/sysdiglabs/kube-psp-advisor">kube-psp-advisor</a>) is an opensource tool from Sysdig. kube-psp-advisor scans the existing security context from Kubernetes resources like deployments, daementsets, replicasets, etc taken as the reference model we want to enforce and then automatically generates the Pod Security Policy for all the resources in the entire cluster.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl krew <span class="nb">install </span>advise-psp
+<span class="go">Updated the local copy of plugin index.
+Installing plugin: advise-psp
+Installed plugin: advise-psp
+\
+ | Use this plugin:
+ | 	kubectl advise-psp
+ | Documentation:
+ | 	https://github.com/sysdiglabs/kube-psp-advisor
+/
+WARNING: You installed plugin "advise-psp" from the krew-index plugin repository.
+   These plugins are not audited for security by the Krew maintainers.
+   Run them at your own risk.
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl advise-psp inspect <span class="nt">--namespace</span> default <span class="nt">--report</span>
+<span class="go">{
+  "podSecuritySpecs": {
+    "hostIPC": [],
+    "hostNetwork": [],
+    "hostPID": []
+  },
+  "podVolumeTypes": {
+</span><span class="c">...</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="example">3.5. Example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="console"><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> - <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+</span><span class="go">apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: psp-hostpath
+spec:
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  volumes:
+    - configMap
+    - emptyDir
+    - projected
+    - secret
+    - downwardAPI
+EOF
+Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy/psp-hostpath created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-f</span> - <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+</span><span class="gp">&gt;</span><span class="w"> </span><span class="sh">apiVersion: rbac.authorization.k8s.io/v1
+</span><span class="go">kind: ClusterRole
+metadata:
+  name: psp:hostpath
+rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs:     ['use']
+    resourceNames:
+      - psp-hostpath
+EOF
+clusterrole.rbac.authorization.k8s.io/psp:hostpath unchanged
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create ns psp-test
+<span class="go">namespace/psp-test created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create rolebinding <span class="nt">-n</span> psp-test edit <span class="nt">--clusterrole</span> edit <span class="nt">--serviceaccount</span> psp-test:default
+<span class="go">rolebinding.rbac.authorization.k8s.io/edit created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl create rolebinding <span class="nt">-n</span> psp-test psp:hostpath <span class="nt">--clusterrole</span> psp:hostpath <span class="nt">--serviceaccount</span> psp-test:default
+<span class="go">rolebinding.rbac.authorization.k8s.io/psp:hostpath created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-n</span> psp-test <span class="nt">--as</span> system:serviceaccount:psp-test:default <span class="nt">-f</span> - <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+</span><span class="go">apiVersion: v1
+kind: Pod
+metadata:
+  name: pause
+spec:
+  containers:
+    - name: pause
+      image: k8s.gcr.io/pause:3.6
+EOF
+pod/pause created
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl apply <span class="nt">-n</span> psp-test <span class="nt">--as</span> system:serviceaccount:psp-test:default <span class="nt">-f</span> - <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+</span><span class="gp">&gt;</span><span class="w"> </span><span class="sh">apiVersion: v1
+</span><span class="go">kind: Pod
+metadata:
+  name: hostpath
+spec:
+  containers:
+    - name: pause
+      image: k8s.gcr.io/pause:3.6
+  volumes:
+    - name: hostpath
+      hostPath:
+        path: /tmp
+EOF
+Error from server (Forbidden): error when creating "STDIN": pods "hostpath" is forbidden: PodSecurityPolicy: unable to admit pod: [spec.volumes[0]: Invalid value: "hostPath": hostPath volumes are not allowed to be used]
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl delete ns psp-test
+<span class="go">namespace "psp-test" deleted
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl delete psp psp-hostpath
+<span class="go">Warning: policy/v1beta1 PodSecurityPolicy is deprecated in v1.21+, unavailable in v1.25+
+podsecuritypolicy.policy "psp-hostpath" deleted
+
+</span><span class="gp">$</span><span class="w"> </span>kubectl delete clusterrole psp:hostpath
+<span class="go">clusterrole.rbac.authorization.k8s.io "psp:hostpath" deleted</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="pod-security-admission-controller">4. Pod Security Admission Controller</h2>
+<div class="sectionbody">
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+FEATURE STATE: <code>Kubernetes v1.23 [beta]</code>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>The Kubernetes <a href="https://kubernetes.io/docs/concepts/security/pod-security-standards/">Pod Security Standards</a> define different isolation levels for Pods. These standards let you define how you want to restrict the behavior of pods in a clear, consistent fashion.</p>
+</div>
+<div class="paragraph">
+<p>Kubernetes offers a built-in <strong>Pod Security</strong> <a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/">admission controller</a>, the successor to <a href="https://kubernetes.io/docs/concepts/policy/pod-security-policy/">PodSecurityPolicies</a>.</p>
+</div>
+<div class="paragraph">
+<p>Pod security restrictions are applied at the namespace level when pods are created.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="references">5. References</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/" class="bare">https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/" class="bare">https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/policy/pod-security-policy/" class="bare">https://kubernetes.io/docs/concepts/policy/pod-security-policy/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/" class="bare">https://kubernetes.io/blog/2021/04/06/podsecuritypolicy-deprecation-past-present-and-future/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/concepts/security/pod-security-admission/" class="bare">https://kubernetes.io/docs/concepts/security/pod-security-admission/</a></p>
+</li>
+<li>
+<p><a href="https://www.suse.com/c/rancher_blog/enhancing-kubernetes-security-with-pod-security-policies-part-2/" class="bare">https://www.suse.com/c/rancher_blog/enhancing-kubernetes-security-with-pod-security-policies-part-2/</a></p>
+</li>
+<li>
+<p><a href="https://sysdig.com/blog/enable-kubernetes-pod-security-policy/" class="bare">https://sysdig.com/blog/enable-kubernetes-pod-security-policy/</a></p>
+</li>
+<li>
+<p><a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/" class="bare">https://kubernetes.io/docs/tasks/configure-pod-container/security-context/</a></p>
+</li>
+<li>
+<p><a href="https://bridgecrew.io/blog/creating-a-secure-kubernetes-nginx-deployment-using-checkov/" class="bare">https://bridgecrew.io/blog/creating-a-secure-kubernetes-nginx-deployment-using-checkov/</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+  </div>
+
+  <ul class="post-navigation">
+    <li>
+      
+      <a href="/2021/12/11/kubernetes-networking/">&laquo; Kubernetes Networking</a>
+      
+    </li>
+    <li>
+      
+      <a href="/2021/12/18/access-kubernetes/">How to Access Kubernetes API Server &raquo;</a>
+      
+    </li>
+  </ul>
+</article>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+  <div class="license">
+    <span>Article licensed under <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a></span>
+  </div>
+  
+  <details open>
+    <summary>Extral Links</summary>
+    <div>
+      
+      <a href="https://jekyllrb.com/">Jekyll</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://shopify.github.io/">Liquid</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://docs.asciidoctor.org/">Asciidoctor</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="https://github.com/qqbuby/">GitHub</a>
+      
+      &nbsp;.&nbsp;
+      
+      
+      <a href="/feed.xml">RSS</a>
+      
+      
+    </div>
+  </details>
+  
+</footer>
+
+
+<!-- https://github.com/bryanbraun/anchorjs -->
+<script src="/js/anchor.min.js"></script>
+<script>
+  anchors.add();
+  anchors.remove(".site-title");
+</script>
+
+
+
+
+  </body>
+
+</html>
