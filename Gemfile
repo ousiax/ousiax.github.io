@@ -1,7 +1,7 @@
 # A sample Gemfile
 source "https://rubygems.org/"
 
-gem "jekyll", "4.2.0"
+gem "jekyll", "4.3.2"
 
 # If you have any plugins, put them here!
 group :jekyll_plugins do
@@ -9,5 +9,5 @@ group :jekyll_plugins do
   gem "jekyll-asciidoc", "3.0.0"
   gem "jekyll-paginate-v2", "3.0.0"
   gem "jekyll-sitemap", "1.4.0"
-  gem "jekyll-feed", "0.15.1"
+  gem "jekyll-feed", "0.17.0"
 end
