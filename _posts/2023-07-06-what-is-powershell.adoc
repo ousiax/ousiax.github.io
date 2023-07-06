@@ -1,0 +1,672 @@
+= What is PowerShell
+:page-layout: post
+:page-categories: ['powershell']
+:page-tags: ['powershell']
+:page-date: 2023-07-06 14:50:56 +0800
+:page-revdate: 2023-07-06 14:50:56 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+PowerShell is a cross-platform task automation solution made up of a *command-line shell*, a *scripting language*, and a *configuration management framework*. PowerShell runs on Windows, Linux, and macOS. <<1>>
+
+Commands for PowerShell are known as *cmdlets* (pronounced command-lets). In addition to cmdlets, PowerShell allows you to run any command available on your system. <<2>>
+
+* Cmdlets are native PowerShell commands, not stand-alone executables.
+* Cmdlets are collected into PowerShell *modules* that can be loaded on demand.
+* Cmdlets can be written in any compiled .NET language or in the PowerShell scripting language itself.
+* PowerShell uses a _Verb-Noun_ name pair to name cmdlets.
+
+PowerShell includes cmdlets that help you discover PowerShell. Using these three cmdlets, you can discover what commands available, what they do, and what types they operate on. <<3>>
+
+* `Get-Verb`. Running this command returns a list of verbs that most commands adhere to. The response includes a description of what these verbs do. Since most commands follow this naming convention, it sets expectations on what a command does. This helps you select the appropriate command and what to name a command, should you be creating one.
+* `Get-Command`. This command retrieves a list of all commands installed on your machine.
+* `Get-Member`. It operates on object based output and is able to discover what object, properties and methods are available for a command.
+* `Get-Help`. Invoking this command with the name of a command as an argument displays a help page describing various parts of a command.
+
+Using these commands, you can discover almost anything you need to know about PowerShell.
+
+[source,console]
+----
+PS C:\> Get-Command -Name Get-Process
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Cmdlet          Get-Process                                        3.1.0.0    Microsoft.PowerShell.Management
+
+PS C:\> Get-Command -Name *-Process | Select-Object -First 2
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Cmdlet          Debug-Process                                      3.1.0.0    Microsoft.PowerShell.Management
+Cmdlet          Get-Process                                        3.1.0.0    Microsoft.PowerShell.Management
+
+PS C:\> Get-Command -Verb Get | Select-Object -First 2
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Alias           Get-AppPackage                                     2.0.1.0    Appx
+Alias           Get-AppPackageDefaultVolume                        2.0.1.0    Appx
+
+PS C:\> Get-Command -Noun Process | Select-Object -First 2
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Cmdlet          Debug-Process                                      3.1.0.0    Microsoft.PowerShell.Management
+Cmdlet          Get-Process                                        3.1.0.0    Microsoft.PowerShell.Management
+
+PS C:\> Get-Process | Get-Member | Select-Object -First 3
+
+   TypeName: System.Diagnostics.Process
+
+Name    MemberType    Definition
+----    ----------    ----------
+Handles AliasProperty Handles = Handlecount
+Name    AliasProperty Name = ProcessName
+NPM     AliasProperty NPM = NonpagedSystemMemorySize64
+
+PS C:\> Get-Process | Get-Member -MemberType Method | Select-Object -First 3
+
+   TypeName: System.Diagnostics.Process
+
+Name                MemberType Definition
+----                ---------- ----------
+BeginErrorReadLine  Method     void BeginErrorReadLine()
+BeginOutputReadLine Method     void BeginOutputReadLine()
+CancelErrorRead     Method     void CancelErrorRead()
+
+PS C:\> Get-Command -ParameterType Process | Select-Object -First 3
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Cmdlet          Debug-Process                                      3.1.0.0    Microsoft.PowerShell.Management
+Cmdlet          Enter-PSHostProcess                                3.0.0.0    Microsoft.PowerShell.Core
+Cmdlet          Get-Process                                        3.1.0.0    Microsoft.PowerShell.Management
+----
+
+== Getting Started with PowerShell
+
+All modern versions of Windows operating systems ship with PowerShell installed. If you're running a version older than 5.1, you should install the latest version.
+
+:upgrading-existing-windows-powershell: https://learn.microsoft.com/en-us/powershell/scripting/windows-powershell/install/installing-windows-powershell#upgrading-existing-windows-powershell
+:installing-powershell: https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell
+
+* To upgrade to Windows PowerShell 5.1, see {upgrading-existing-windows-powershell}[Upgrading existing Windows PowerShell]
+* To install the latest version of PowerShell, see {installing-powershell}[Installing PowerShell]
+
+=== What version of PowerShell am I running?
+
+There are a number of automatic variables in PowerShell that store state information. One of these variables is `$PSVersionTable`, which contains a hashtable that can be used to display the relevant PowerShell version information:
+
+[source,console]
+----
+PS C:\> $PSVersionTable
+
+Name                           Value
+----                           -----
+PSVersion                      5.1.19041.3031
+PSEdition                      Desktop
+PSCompatibleVersions           {1.0, 2.0, 3.0, 4.0...}
+BuildVersion                   10.0.19041.3031
+CLRVersion                     4.0.30319.42000
+WSManStackVersion              3.0
+PSRemotingProtocolVersion      2.3
+SerializationVersion           1.1.0.1
+----
+
+=== Execution Policy
+
+Contrary to popular belief, the execution policy in PowerShell is not a security boundary. It's designed to prevent a user from unknowingly running a script.
+
+Regardless of the execution policy setting, any PowerShell command can be run interactively. The execution policy only affects commands running in a script.
+
+The `Get-ExecutionPolicy` cmdlet is used to determine what the current execution policy setting is and the `Set-ExecutionPolicy` cmdlet is used to change the execution policy.
+
+[source,console]
+----
+PS C:\> Get-ExecutionPolicy
+RemoteSigned
+PS C:\> Get-ExecutionPolicy -List
+
+        Scope ExecutionPolicy
+        ----- ---------------
+MachinePolicy       Undefined
+   UserPolicy       Undefined
+      Process       Undefined
+  CurrentUser    RemoteSigned
+ LocalMachine       Undefined
+----
+
+It's recommended to use the *RemoteSigned* policy, which requires downloaded scripts to be signed by a trusted publisher in order to be run.
+
+PowerShell scripts can't be run at all when the execution policy is set to *Restricted*. This is the default setting on all Windows client operating systems. 
+
+[source,console]
+----
+PS C:\> Set-ExecutionPolicy -Scope CurrentUser Restricted
+PS C:\> Get-Service -Name W32Time | Stop-Service -PassThru
+
+Status   Name               DisplayName
+------   ----               -----------
+Stopped  W32Time            Windows Time
+
+
+PS C:\> echo 'Get-Service -Name W32Time | Stop-Service -PassThru' > Stop-TimeService.ps1
+PS C:\> .\Stop-TimeService.ps1
+.\Stop-TimeService.ps1 : File C:\Stop-TimeService.ps1 cannot be loaded because running scripts is disabled on this system. For more
+information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.
+At line:1 char:1
++ .\Stop-TimeService.ps1
++ ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : SecurityError: (:) [], PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+PS C:\> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+PS C:\> .\Stop-TimeService.ps1
+
+Status   Name               DisplayName
+------   ----               -----------
+Stopped  W32Time            Windows Time
+----
+
+=== The Help System
+
+*Get-Help*
+
+`Get-Help` is a multipurpose command. `Get-Help` helps you learn how to use commands once you find them. `Get-Help` can also be used to help locate commands, but in a different and more indirect way when compared to `Get-Command`.
+
+When `Get-Help` is used to locate commands, it first searches for wildcard matches of command names based on the provided input. If it doesn't find a match, it searches through the help topics themselves, and if no match is found an error is returned. Contrary to popular belief, `Get-Help` can be used to find commands that don't have help topics.
+
+[source,powershell]
+----
+Get-Help -Name Get-Help
+----
+
+`Help` is a function that pipes `Get-Help` to a function named `more`, which is a wrapper for the `more.com` executable file in Windows.
+
+[source,powershell]
+----
+Get-Help -Name Get-Help -Full
+help -Name Get-Help -Full
+help Get-Help -Full
+
+Get-Help -Name Get-Command -Full
+Get-Help -Name Get-Command -Detailed
+Get-Help -Name Get-Command -Examples
+Get-Help -Name Get-Command -Online
+Get-Help -Name Get-Command -Parameter Noun
+Get-Help -Name Get-Command -ShowWindow
+----
+
+*Get-Command*
+
+`Get-Command` is designed to help you locate commands. Running `Get-Command` without any parameters returns a list of all the commands on your system. 
+
+[source,powershell]
+----
+Get-Command -Name *service* -CommandType Cmdlet, Function, Alias
+----
+
+Use `Get-Command` with the *Module* parameter to determine what commands were added as part of the ActiveDirectory PowerShell module when the remote server administration tools were installed.
+
+[source,powershell]
+----
+Get-Command -Module ActiveDirectory
+----
+
+*Get-Member*
+
+`Get-Member` helps you discover what objects, properties, and methods are available for commands. Any command that produces object-based output can be piped to `Get-Member`.
+
+[source,powershell]
+----
+Get-Service -Name w32time
+Get-Service -Name w32time | Get-Member
+Get-Command -ParameterType ServiceController
+Get-Service -Name w32time | Select-Object -Property *
+Get-Service -Name w32time | Select-Object -Property Status, Name, DisplayName, ServiceType
+Get-Service -Name w32time | Select-Object -Property Status, DisplayName, Can*
+Get-Service -Name w32time | Get-Member -MemberType Method
+(Get-Service -Name w32time).Stop()
+----
+
+=== Formatting, aliases, providers, comparison
+
+The most common *format* commands are `Format-Table` and `Format-List`. `Format-Wide` and `Format-Custom` can also be used, but are less common.
+
+[source,console]
+----
+PS C:\> Get-Service -Name w32time | Select-Object -Property Status, DisplayName, Can*
+
+Status              : Running
+DisplayName         : Windows Time
+CanPauseAndContinue : False
+CanShutdown         : True
+CanStop             : True
+
+PS C:\> Get-Service -Name w32time | Select-Object -Property Status, DisplayName, Can* | Format-Table
+
+ Status DisplayName  CanPauseAndContinue CanShutdown CanStop
+ ------ -----------  ------------------- ----------- -------
+Running Windows Time               False        True    True
+
+PS C:\> Get-Service -Name w32time | Format-List
+
+Name                : w32time
+DisplayName         : Windows Time
+Status              : Running
+DependentServices   : {}
+ServicesDependedOn  : {}
+CanPauseAndContinue : False
+CanShutdown         : True
+CanStop             : True
+ServiceType         : Win32OwnProcess, Win32ShareProcess
+----
+
+An *alias* in PowerShell is a shorter name for a command. PowerShell includes a set of built-in aliases and you can also define your own aliases.
+
+The `Get-Alias` cmdlet is used to find aliases. If you already know the alias for a command, the *Name* parameter is used to determine what command the alias is associated with.
+
+[source,console]
+----
+PS C:\> Get-Alias -Name gcm
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Alias           gcm -> Get-Command
+
+PS C:\> Get-Alias -Name gcm, gm
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Alias           gcm -> Get-Command
+Alias           gm -> Get-Member
+----
+
+A *provider* in PowerShell is an interface that allows file system like access to a datastore. There are a number of built-in providers in PowerShell.
+
+[source,console]
+----
+PS C:\> Get-PSProvider
+
+Name                 Capabilities                                                  Drives
+----                 ------------                                                  ------
+Registry             ShouldProcess, Transactions                                   {HKLM, HKCU}
+Alias                ShouldProcess                                                 {Alias}
+Environment          ShouldProcess                                                 {Env}
+FileSystem           Filter, ShouldProcess, Credentials                            {C, D}
+Function             ShouldProcess                                                 {Function}
+Variable             ShouldProcess                                                 {Variable}
+Certificate          ShouldProcess                                                 {Cert}
+WSMan                Credentials                                                   {WSMan}
+----
+
+The actual drives that these providers use to expose their datastore can be determined with the `Get-PSDrive` cmdlet. The `Get-PSDrive` cmdlet not only displays drives exposed by providers, but it also displays Windows logical drives including drives mapped to network shares.
+
+[source,console]
+----
+PS C:\> Get-PSDrive
+
+Name           Used (GB)     Free (GB) Provider      Root                                                                       CurrentLocation
+----           ---------     --------- --------      ----                                                                       ---------------
+Alias                                  Alias
+C                 138.14        131.16 FileSystem    C:\
+Cert                                   Certificate   \
+D                 205.78          0.33 FileSystem    D:\
+Env                                    Environment
+Function                               Function
+HKCU                                   Registry      HKEY_CURRENT_USER
+HKLM                                   Registry      HKEY_LOCAL_MACHINE
+Variable                               Variable
+WSMan                                  WSMan
+----
+
+Third-party modules such as the Active Directory PowerShell module and the SQLServer PowerShell module both add their own PowerShell provider and PSDrive.
+
+[source,console]
+----
+PS C:\> Import-Module SqlServer
+PS C:\> Get-PSProvider
+
+Name                 Capabilities                                                  Drives
+----                 ------------                                                  ------
+Registry             ShouldProcess                                                 {HKLM, HKCU}
+Alias                ShouldProcess                                                 {Alias}
+Environment          ShouldProcess                                                 {Env}
+FileSystem           Filter, ShouldProcess, Credentials                            {C, D, Temp}
+Function             ShouldProcess                                                 {Function}
+Variable             ShouldProcess                                                 {Variable}
+SqlServer            Credentials                                                   {SQLSERVER}
+Certificate          ShouldProcess                                                 {Cert}
+WSMan                Credentials                                                   {WSMan}
+
+PS C:\> Get-PSDrive
+
+Name           Used (GB)     Free (GB) Provider      Root                                                                       CurrentLocation
+----           ---------     --------- --------      ----                                                                       ---------------
+Alias                                  Alias
+C                 138.14        131.16 FileSystem    C:\
+Cert                                   Certificate   \
+D                 205.78          0.33 FileSystem    D:\
+Env                                    Environment
+Function                               Function
+HKCU                                   Registry      HKEY_CURRENT_USER
+HKLM                                   Registry      HKEY_LOCAL_MACHINE
+SQLSERVER                              SqlServer     SQLSERVER:\
+Temp              138.14        131.16 FileSystem    C:\Users\xuqiang3\AppData\Local\Te…
+Variable                               Variable
+WSMan                                  WSMan
+----
+
+PSDrives can be accessed just like a traditional file system.
+
+[source,console]
+----
+PS C:\> Get-ChildItem -Path Cert:\LocalMachine\CA
+
+   PSParentPath: Microsoft.PowerShell.Security\Certificate::LocalMachine\CA
+
+Thumbprint                                Subject              EnhancedKeyUsageList
+----------                                -------              --------------------
+FEE449EE0E3965A5246F000E87FDE2A065FD89D4  CN=Root Agency
+D559A586669B08F46A30A133F8A9ED3D038E2EA8  OU=www.verisign.com… {Server Authentication, Client Authentication, $null, $null}
+D4FFDB19BA590FFFAA34DB5F4B568706A2978436  CN=Microsoft TPM Ro…
+5E94211AC5D477F157230E6E316AA923E521AF2C  CN=NCU-INTC-KEYID-B… {$null, Attestation Identity Key Certificate}
+109F1CAED645BB78B3EA2B94C0697C740733031C  CN=Microsoft Window… {Code Signing, Windows Hardware Driver Verification}
+----
+
+PowerShell contains a number of *comparison* operators that are used to compare values or find values that match certain patterns. Table 5-1 contains a list of comparison operators in PowerShell.
+
+.All of the operators listed are case-insensitive. Place a `c` in front of the operator listed to make it case-sensitive. For example, `-ceq` is the case-sensitive version of the `-eq` comparison operator.
+[%header,cols="1,1"]
+|===
+|Operator
+|Definition
+
+|-eq
+|Equal to
+
+|-ne
+|Not equal to
+
+|-gt
+|Greater than
+
+|-ge
+|Greater than or equal to
+
+|-lt
+|Less than
+
+|-le
+|Less than or equal to
+
+|-Like
+|Match using the * wildcard character
+
+|-NotLike
+|Does not match using the * wildcard character
+
+|-Match
+|Matches the specified regular expression
+
+|-NotMatch
+|Does not match the specified regular expression
+
+|-Contains
+|Determines if a collection contains a specified value
+
+|-NotContains
+|Determines if a collection does not contain a specific value
+
+|-In
+|Determines if a specified value is in a collection
+
+|-NotIn
+|Determines if a specified value is not in a collection
+
+|-Replace
+|Replaces the specified value
+|===
+
+== The PowerShellGet module
+
+:powershellgallery: https://www.powershellgallery.com/
+
+The *PowerShellGet* module contains cmdlets for discovering, installing, updating, and publishing PowerShell packages from the {powershellgallery}[PowerShell Gallery]. These packages can contain artifacts such as Modules, DSC Resources, and Scripts.
+
+Use the following command to see what version is installed.
+
+[source,console]
+----
+PS C:\> Get-Module PowerShellGet, PackageManagement
+
+ModuleType Version    Name                                ExportedCommands
+---------- -------    ----                                ----------------
+Binary     1.0.0.1    PackageManagement                   {Find-Package, Find-PackageProvider, Get-Package, Get-PackageProvider...}
+Script     1.0.0.1    PowerShellGet                       {Find-Command, Find-DscResource, Find-Module, Find-RoleCapability...}
+----
+
+To install the latest versions of these modules run the following:
+
+[source,powershell]
+----
+Install-Module PowerShellGet -Force -AllowClobber
+----
+
+Windows PowerShell 5.1 comes with version 1.0.0.1 of the *PowerShellGet* and *PackageManagement* preinstalled. This version of *PowerShellGet* has a limited features and must be updated to work with the PowerShell Gallery. To be supported, you must update to the latest version.
+
+Windows PowerShell 5.1 comes with *PowerShellGet* version 1.0.0.1, which doesn't include the NuGet provider. The provider is required by *PowerShellGet* when working with the PowerShell Gallery.
+
+There are two ways to install the NuGet provider:
+
+* Use `Install-PackageProvider` to install NuGet before installing other modules
++
+Run the following command to install the NuGet provider.
++
+[source,powershell]
+----
+Install-PackageProvider -Name NuGet -Force
+----
++
+After you have installed the provider you should be able to use any of the *PowerShellGet* cmdlets with the PowerShell Gallery.
+
+* Let `Install-Module` prompt you to install the NuGet provider
++
+The following command attempts to install the updated PowerShellGet module without the NuGet provider.
++
+[source,powershell]
+----
+Install-Module PowerShellGet -AllowClobber -Force
+----
+
+After you have installed the new version of *PowerShellGet*, you should open a new PowerShell session. PowerShell automatically loads the newest version of the module when you use a *PowerShellGet* cmdlet.
+
+It's also recommended to register the PowerShell Gallery as a trusted repository. Use the following command:
+
+[source,powershell]
+----
+Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+----
+
+== Scripting language
+
+As a scripting language, PowerShell is commonly used for automating the management of systems. It's also used to build, test, and deploy solutions, often in CI/CD environments. PowerShell is built on the .NET Common Language Runtime (CLR). All inputs and outputs are .NET objects. No need to parse text output to extract information from output. The PowerShell scripting language includes the following features:
+
+* Extensible through _functions_, _classes_, _scripts_, and _modules_
+* Extensible _formatting system_ for easy output
+* Extensible _type system_ for creating dynamic types
+* Built-in support for common data formats like CSV, JSON, and XML
+
+=== How to run a script
+
+Before you can run a script on Windows, you need to change the default PowerShell execution policy. Execution policy does not apply to PowerShell running on non-Windows platforms.
+
+The default execution policy, *Restricted*, prevents all scripts from running, including scripts that you write on the local computer. For more information, see about_Execution_Policies.
+
+The execution policy is saved in the registry, so you need to change it only once on each computer.
+
+To change the execution policy, use the following procedure.
+
+At the command prompt, type:
+
+[source,powershell]
+----
+Set-ExecutionPolicy AllSigned
+----
+
+or
+
+[source,powershell]
+----
+Set-ExecutionPolicy RemoteSigned
+----
+
+The change is effective immediately.
+
+To run a script, type the full name and the full path to the script file.
+
+For example, to run the Get-ServiceLog.ps1 script in the `C:\Scripts` directory, type:
+
+[source,powershell]
+----
+C:\Scripts\Get-ServiceLog.ps1
+----
+
+To run a script in the current directory, type the path to the current directory, or use a dot to represent the current directory, followed by a path backslash (`.\`).
+
+For example, to run the ServicesLog.ps1 script in the local directory, type:
+PowerShell
+
+[source,powershell]
+----
+.\Get-ServiceLog.ps1
+----
+
+If the script has parameters, type the parameters and parameter values after the script filename.
+
+For example, the following command uses the ServiceName parameter of the *Get-ServiceLog* script to request a log of *WinRM* service activity.
+
+[source,powershell]
+----
+.\Get-ServiceLog.ps1 -ServiceName WinRM
+----
+
+As a security feature, PowerShell does not run scripts when you double-click the script icon in File Explorer or when you type the script name without a full path, even when the script is in the current directory.
+
+Beginning in PowerShell 3.0, you can run scripts from File Explorer.
+
+* To use the "Run with PowerShell" feature: Run File Explorer, right-click the script filename and then select "Run with PowerShell".
+
+* The "Run with PowerShell" feature is designed to run scripts that do not have required parameters and do not return output to the command prompt.
+
+=== How to write a script
+
+A script can contain any valid PowerShell commands, including single commands, commands that use the pipeline, functions, and control structures such as If statements and For loops.
+
+To write a script, open a new file in a text editor, type the commands, and save them in a file with a valid filename with the `.ps1` file extension.
+
+To define parameters in a script, use a `Param` statement. The `Param` statement must be the first statement in a script, except for comments and any `#Require` statements.
+
+Script parameters work like function parameters. The parameter values are available to all of the commands in the script. All of the features of function parameters, including the Parameter attribute and its named arguments, are also valid in scripts.
+
+[source,powershell]
+----
+# Test-Remote.ps1
+param ($ComputerName = $(throw "ComputerName parameter is required."))
+
+function CanPing {
+   $error.clear()
+   $tmp = test-connection $computername -erroraction SilentlyContinue
+
+   if (!$?)
+       {write-host "Ping failed: $ComputerName."; return $false}
+   else
+       {write-host "Ping succeeded: $ComputerName"; return $true}
+}
+
+function CanRemote {
+    $s = new-pssession $computername -erroraction SilentlyContinue
+
+    if ($s -is [System.Management.Automation.Runspaces.PSSession])
+        {write-host "Remote test succeeded: $ComputerName."}
+    else
+        {write-host "Remote test failed: $ComputerName."}
+}
+
+if (CanPing $computername) {CanRemote $computername}
+----
+
+=== Functions
+
+A function is a list of PowerShell statements that has a name that you assign. When you run a function, you type the function name. The statements in the list run as if you had typed them at the command prompt.
+
+Functions can be as simple as:
+
+[source,powershell]
+----
+function Get-PowerShellProcess { Get-Process PowerShell }
+----
+
+Like cmdlets, functions can have parameters. The parameters can be named, positional, switch, or dynamic parameters. Function parameters can be read from the command line or from the pipeline.
+
+Functions can return values that can be displayed, assigned to variables, or passed to other functions or cmdlets. You can also specify a return value using the `return` keyword. The `return` keyword doesn't affect or suppress other output returned from your function. However, the `return` keyword exits the function at that line.
+
+The function's statement list can contain different types of statement lists with the keywords `begin`, `process`, `end`, and `clean`. These statement lists handle input from the pipeline differently.
+
+The `filter` keyword is used to create a type of function that runs on each object in the pipeline. A filter resembles a function with all its statements in a process block.
+
+The following are the syntax for a function:
+
+[source,text]
+----
+function [<scope:>]<name> [([type]$parameter1[,[type]$parameter2])]
+{
+  begin {<statement list>}
+  process {<statement list>}
+  end {<statement list>}
+  clean {<statement list>}
+}
+----
+
+[source,text]
+----
+function [<scope:>]<name>
+{
+  param([type]$parameter1 [,[type]$parameter2])
+  dynamicparam {<statement list>}
+  begin {<statement list>}
+  process {<statement list>}
+  end {<statement list>}
+  clean {<statement list>}
+}
+----
+
+A function includes the following items:
+
+* A `function` keyword
+* A scope (optional)
+* A name that you select
+* Any number of named parameters (optional)
+* One or more PowerShell commands enclosed in braces {}
+
+Functions don't have to be complicated to be useful. The simplest functions have the following format:
+
+[source,text]
+----
+function <function-name> {statements}
+----
+
+For example, the following function starts PowerShell with the *Run as Administrator* option.
+
+[source,powershell]
+----
+function Start-PSAdmin {Start-Process PowerShell -Verb RunAs}
+----
+
+[bibliography]
+== References
+
+* [[[overview,1]]] https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.3
+* [[[commands,2]]] https://learn.microsoft.com/en-us/powershell/scripting/powershell-commands?view=powershell-7.3
+* [[[discover,3]]] https://learn.microsoft.com/en-us/powershell/scripting/discover-powershell?view=powershell-7.3
