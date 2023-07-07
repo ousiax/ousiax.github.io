@@ -833,6 +833,252 @@ Use the Disconnect-MgGraph command to sign out.
 Disconnect-MgGraph
 ----
 
+==== Using authentication cmdlets
+
+Microsoft Graph PowerShell supports two types of authentication: *delegated* and *app-only* access. There are a number of cmdlets that can be used to manage the different parameters required during authentication, for example, environment, application ID, and certificate. <<graph-powershell-auth-cmdlets>>
+
+===== Using `Connect-MgGraph`
+
+You must invoke `Connect-MgGraph` before any commands that access Microsoft Graph. This cmdlet gets the access token using the Microsoft Authentication Library.
+
+* *Delegated access*
++
+There are three ways to allow delegated access using `Connect-MgGraph`:
+
+** Using interactive authentication, where you provide the scopes that you require during your session:
++
+[source,powershell]
+----
+Connect-MgGraph -Scopes "User.Read.All", "Group.ReadWrite.All"
+----
+
+** Using device code flow:
++
+[source,powershell]
+----
+Connect-MgGraph -Scopes "User.Read.All", "Group.ReadWrite.All" -UseDeviceAuthentication
+----
+
+** Using your own access token:
++
+[source,powershell]
+----
+Connect-MgGraph -AccessToken $AccessToken
+----
+
+* *App-only access*
+
+** Using client credential with a certificate
++
+To use app-only access, the certificate is loaded from either `Cert:\CurrentUser\My\` or `Cert:\LocalMachine\My\` when `-CertificateThumbprint` or `-CertificateName` is specified. Make sure that the certificate you're using is present in either certificate store before calling `Connect-MgGraph`.
+
+*** Using Certificate Thumbprint:
++
+[source,powershell]
+----
+Connect-MgGraph -ClientId "YOUR_APP_ID" -TenantId "YOUR_TENANT_ID" -CertificateThumbprint "YOUR_CERT_THUMBPRINT"
+----
+
+*** Using Certificate name:
++
+[source,powershell]
+----
+Connect-MgGraph -ClientId "YOUR_APP_ID" -TenantId "YOUR_TENANT_ID" -CertificateName "YOUR_CERT_SUBJECT"
+----
+
+*** Using a certificate:
++
+[source,powershell]
+----
+$Cert = Get-ChildItem Cert:\LocalMachine\My\$CertThumbprint
+Connect-MgGraph -ClientId "YOUR_APP_ID" -TenantId "YOUR_TENANT_ID" -Certificate $Cert
+----
++
+To use a certificate stored in your machine's certificate store or another location when connecting to Microsoft Graph, specify the certificate's location.
+
+** Using client secret credentials
++
+If you need interactions in the background, without a user to sign in, this type of grant will help you. Support for client secret credentials was added by adding `-ClientSecretCredential` parameter to `Connect-MgGraph`.
++
+[source,powershell]
+----
+$ClientSecretCredential = Get-Credential -Username "Client_Id"
+# Enter client_secret in the password prompt.
+Connect-MgGraph -TenantId "Tenant_Id" -ClientSecretCredential $ClientSecretCredential
+----
+
+** Using managed identity
++
+A common challenge when writing automation scripts is the management of secrets, credentials, certificates, and keys used to secure communication between services. Eliminate the need to manage credentials by allowing the module to obtain access tokens for Azure resources that are protected by Azure AD. The identity is managed by the Azure platform and does not require you to provision or rotate any secrets.
+
+*** System-assigned managed identity:
++
+Uses an automatically managed identity on a service instance. The identity is tied to the lifecycle of a service instance.
++
+[source,powershell]
+----
+Connect-MgGraph -Identity
+----
+
+*** User-assigned managed identity:
++
+Uses a user created managed identity as a standalone Azure resource.
++
+[source,powershell]
+----
+Connect-MgGraph -Identity -ClientId "User_Assigned_Managed_identity_Client_Id"
+----
+
+===== Using Get-MgEnvironment: Connecting to an environment or cloud
+
+When you use `Connect-MgGraph`, you can choose to target other environments. By default, `Connect-MgGraph` targets the global public cloud.
+
+To get a list of all clouds that you can choose from, run:
+
+[source,powershell]
+----
+Get-MgEnvironment
+----
+
+[source,console]
+----
+Name     AzureADEndpoint                   GraphEndpoint                           Type
+----     ---------------                   -------------                           ----
+China    https://login.chinacloudapi.cn    https://microsoftgraph.chinacloudapi.cn Built-in
+Global   https://login.microsoftonline.com https://graph.microsoft.com             Built-in
+USGov    https://login.microsoftonline.us  https://graph.microsoft.us              Built-in
+USGovDoD https://login.microsoftonline.us  https://dod-graph.microsoft.us          Built-in
+Germany  https://login.microsoftonline.de  https://graph.microsoft.de              Built-in
+----
+
+To explicitly target other clouds, for example, US Government and Azure China, use the `-Environment` parameter.
+
+[source,powershell]
+----
+Connect-MgGraph -Environment USGov
+----
+
+NOTE: Globally registered apps don't replicate to Azure China. You'll need to register your own applications in Azure China and use them when connecting to Microsoft Graph.
+
+===== Connecting to an environment as a different identity
+
+To connect as a different identity other than CurrentUser, specify the `-ContextScope` parameter with the value *Process*.
+
+[source,powershell]
+----
+Connect-MgGraph -ContextScope Process -ForceRefresh
+----
+
+===== Using Disconnect-MgGraph
+
+Once you're signed in, you'll remain signed in until you invoke `Disconnect-MgGraph`. Microsoft Graph PowerShell automatically refreshes the access token for you and sign-in persists across PowerShell sessions because Microsoft Graph PowerShell securely caches the token.
+
+Use `Disconnect-MgGraph` to sign out.
+
+[source,powershell]
+----
+Disconnect-MgGraph
+----
+
+===== Using Get-MgContext
+
+`Get-MgContext` is used to retrieve the details about your current session, which include:
+
+* ClientID
+* TenantID
+* Certificate Thumbprint
+* Scopes consented to
+* AuthType: Delegated or app-only
+* AuthProviderType
+* CertificateName
+* Account
+* AppName
+* ContextScope
+* Certificate
+* PSHostVersion
+* ClientTimeOut.
+
+To retrieve the session details, run:
+
+[source,powershell]
+----
+Get-MgContext
+----
+
+To retrieve all the scopes that you've consented to, expand the Scopes property using the -ExpandProperty parameter.
+
+[source,powershell]
+----
+Get-MgContext | Select -ExpandProperty Scopes
+----
+
+===== Using Invoke-MgGraphRequest
+
+`Invoke-MgGraphRequest` issues REST API requests to the Graph API. It works for any Graph API if you know the REST URI, method and optional body parameter. This command is especially useful for accessing APIs for which there isn't an equivalent cmdlet yet.
+
+To retrieve the details of the signed-in user, run:
+
+[source,powershell]
+----
+Invoke-MgGraphRequest -Method GET https://graph.microsoft.com/v1.0/me
+----
+
+==== Using Find-MgGraphCommand cmdlet
+
+Find-MgGraphCommand aims to make it easier for you to discover which API path a command calls, by providing a URI or a command name.
+
+The Find-MgGraphCommand allows to:
+
+* Pass a Microsoft Graph URL (relative and absolute) and get an equivalent Microsoft Graph PowerShell command.
+* Pass a command and get the URL it calls.
+* Pass a command or URI wildcard (.*) to find all commands that match it.
+
+[source,syntax]
+----
+Find-MgGraphCommand -Uri <String[]> [-Method <String>] [-ApiVersion <String>] [<CommonParameters>]
+Find-MgGraphCommand -Uri .*searchstring.* [-ApiVersion <String>] [<CommonParameters>] [-Method <String>]
+
+Find-MgGraphCommand -Command <String[]> [-ApiVersion <String>] [<CommonParameters>]
+Find-MgGraphCommand -Command .*searchstring.* [-ApiVersion <String>] [<CommonParameters>]
+----
+
+[source,powershell]
+----
+# Use a URI to get all related cmdlets
+Find-MgGraphCommand -Uri '/users/{id}'
+
+# Search for commands using URI wildcard
+Find-MgGraphCommand -Uri ".*users.*" -Method 'Get' -ApiVersion 'v1.0'
+
+# Pass a command and get the URI it calls
+Find-MgGraphCommand -Command 'Get-MgUser'
+
+# Pass a command and get the permissions required
+Find-MgGraphCommand -command Get-MgUser | Select -First 1 -ExpandProperty Permissions
+
+# Search for commands using a command wildcard
+Find-MgGraphCommand -Command .*UserToDo.* -APIVersion 'v1.0'
+----
+
+==== Using Find-MgGraphPermission cmdlet
+
+The Microsoft Graph PowerShell SDK application requires users to have domain knowledge of both the semantics and syntax of Microsoft Graph API permissions used to authorize access to the API. This cmdlet helps to answer the following questions:
+
+* How do I find the values to supply to the permission-related parameters of commands like `New-MgApplication` and other application and consent related commands?
+* What permissions are applicable to a certain domain, for example, application, directory? To use Microsoft Graph PowerShell SDK to access Microsoft Graph, users must sign in to an Azure AD application using the `Connect-MgGraph` command. 
+
+[source,powershell]
+----
+# Find permissions related to a given domain
+Find-MgGraphPermission application
+
+# Find the identifier for a specific permission
+Find-MgGraphPermission application.Read | Format-List
+
+# Pass a command and get the permissions required
+Find-MgGraphCommand New-MgApplication | Select -ExpandProperty Permissions
+----
+
 === Exchange Online PowerShell
 
 Exchange Online PowerShell is the administrative interface that enables you to manage your Microsoft Exchange Online organization from the command line. For example, you can use Exchange Online PowerShell to configure mail flow rules (also known as transport rules) and connectors. <<6>>
@@ -893,4 +1139,6 @@ Disconnect-ExchangeOnline -Confirm:$false
 * [[[discover,3]]] https://learn.microsoft.com/en-us/powershell/scripting/discover-powershell?view=powershell-7.3
 * [[[microsoft-365-powershell,4]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/connect-to-microsoft-365-powershell?view=o365-worldwide
 * [[[graph-powershell,5]]] https://learn.microsoft.com/en-us/powershell/microsoftgraph/overview?view=graph-powershell-1.0
+* [[[graph-powershell-auth-cmdlets]]] https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands?view=graph-powershell-1.0
 * [[[exchange-ps,6]]] https://learn.microsoft.com/en-us/powershell/exchange/exchange-online-powershell?view=exchange-ps
+
