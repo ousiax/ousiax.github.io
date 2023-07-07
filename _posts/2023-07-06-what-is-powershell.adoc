@@ -9,16 +9,16 @@
 :sectnums:
 :sectnumlevels: 4
 
-PowerShell is a cross-platform task automation solution made up of a *command-line shell*, a *scripting language*, and a *configuration management framework*. PowerShell runs on Windows, Linux, and macOS. <<1>>
+PowerShell is a cross-platform task automation solution made up of a *command-line shell*, a *scripting language*, and a *configuration management framework*. PowerShell runs on Windows, Linux, and macOS. <<ps-overview>>
 
-Commands for PowerShell are known as *cmdlets* (pronounced command-lets). In addition to cmdlets, PowerShell allows you to run any command available on your system. <<2>>
+Commands for PowerShell are known as *cmdlets* (pronounced command-lets). In addition to cmdlets, PowerShell allows you to run any command available on your system. <<ps-cmdlets>>
 
 * Cmdlets are native PowerShell commands, not stand-alone executables.
 * Cmdlets are collected into PowerShell *modules* that can be loaded on demand.
 * Cmdlets can be written in any compiled .NET language or in the PowerShell scripting language itself.
 * PowerShell uses a _Verb-Noun_ name pair to name cmdlets.
 
-PowerShell includes cmdlets that help you discover PowerShell. Using these three cmdlets, you can discover what commands available, what they do, and what types they operate on. <<3>>
+PowerShell includes cmdlets that help you discover PowerShell. Using these three cmdlets, you can discover what commands available, what they do, and what types they operate on. <<ps-discover>>
 
 * `Get-Verb`. Running this command returns a list of verbs that most commands adhere to. The response includes a description of what these verbs do. Since most commands follow this naming convention, it sets expectations on what a command does. This helps you select the appropriate command and what to name a command, should you be creating one.
 * `Get-Command`. This command retrieves a list of all commands installed on your machine.
@@ -132,7 +132,9 @@ Stopped  W32Time            Windows Time
 
 === The Help System
 
-*Get-Help*
+Compiled commands in PowerShell are called *cmdlets*. Cmdlet is pronounced "command-let" (not CMD-let). Cmdlets names have the form of singular "Verb-Noun" commands to make them easily discoverable.
+
+==== Get-Help
 
 `Get-Help` is a multipurpose command. `Get-Help` helps you learn how to use commands once you find them. `Get-Help` can also be used to help locate commands, but in a different and more indirect way when compared to `Get-Command`.
 
@@ -159,7 +161,7 @@ Get-Help -Name Get-Command -Parameter Noun
 Get-Help -Name Get-Command -ShowWindow
 ----
 
-*Get-Command*
+==== Get-Command
 
 `Get-Command` is designed to help you locate commands. Running `Get-Command` without any parameters returns a list of all the commands on your system. 
 
@@ -175,7 +177,7 @@ Use `Get-Command` with the *Module* parameter to determine what commands were ad
 Get-Command -Module ActiveDirectory
 ----
 
-*Get-Member*
+==== Get-Member
 
 `Get-Member` helps you discover what objects, properties, and methods are available for commands. Any command that produces object-based output can be piped to `Get-Member`.
 
@@ -627,7 +629,7 @@ function Start-PSAdmin {Start-Process PowerShell -Verb RunAs}
 
 == Manage Microsoft 365 with PowerShell
 
-PowerShell for Microsoft 365 enables you to manage your Microsoft 365 settings from the command line. To connect to PowerShell, just install the required software and then connect to your Microsoft 365 organization. <<4>>
+PowerShell for Microsoft 365 enables you to manage your Microsoft 365 settings from the command line. To connect to PowerShell, just install the required software and then connect to your Microsoft 365 organization. <<m365-powershell>>
 
 There are two versions of the PowerShell module that you can use to connect to Microsoft 365 and administer user accounts, groups, and licenses:
 
@@ -713,7 +715,7 @@ To connect to Azure AD for your Microsoft 365 subscription with an account name 
 
 === Microsoft Graph PowerShell SDK
 
-The Microsoft Graph PowerShell SDK acts as an API wrapper for the Microsoft Graph APIs, exposing the entire API set for use in PowerShell. It contains a set of cmdlets that helps you manage identities at scale from automating tasks to managing users in bulk using Azure Active Directory (Azure AD). It will help administer every Azure AD feature that has an API in Microsoft Graph. <<5>>
+The Microsoft Graph PowerShell SDK acts as an API wrapper for the Microsoft Graph APIs, exposing the entire API set for use in PowerShell. It contains a set of cmdlets that helps you manage identities at scale from automating tasks to managing users in bulk using Azure Active Directory (Azure AD). It will help administer every Azure AD feature that has an API in Microsoft Graph. <<mgraph-powershell>>
 
 The Microsoft Graph PowerShell SDK provides the following benefits:
 
@@ -835,7 +837,7 @@ Disconnect-MgGraph
 
 ==== Using authentication cmdlets
 
-Microsoft Graph PowerShell supports two types of authentication: *delegated* and *app-only* access. There are a number of cmdlets that can be used to manage the different parameters required during authentication, for example, environment, application ID, and certificate. <<graph-powershell-auth-cmdlets>>
+Microsoft Graph PowerShell supports two types of authentication: *delegated* and *app-only* access. There are a number of cmdlets that can be used to manage the different parameters required during authentication, for example, environment, application ID, and certificate. <<mgraph-ps-auth-cmdlets>>
 
 ===== Using `Connect-MgGraph`
 
@@ -1079,9 +1081,489 @@ Find-MgGraphPermission application.Read | Format-List
 Find-MgGraphCommand New-MgApplication | Select -ExpandProperty Permissions
 ----
 
+==== View Microsoft 365 licenses and services with PowerShell
+
+Every Microsoft 365 subscription consists of the following elements: <<mgraph-ps-view-licenses>>
+
+* *Licensing plans* These are also known as license plans or Microsoft 365 plans. Licensing plans define the Microsoft 365 services that are available to users. Your Microsoft 365 subscription may contain multiple licensing plans. An example licensing plan would be Microsoft 365 E3.
+
+* *Services* These are also known as service plans. Services are the Microsoft 365 products, features, and capabilities that are available in each licensing plan, for example, Exchange Online and Microsoft 365 Apps for enterprise (previously named Office 365 ProPlus). Users can have multiple licenses assigned to them from different licensing plans that grant access to different services.
+
+* *Licenses* Each licensing plan contains the number of licenses that you purchased. You assign licenses to users so they can use the Microsoft 365 services that are defined by the licensing plan. Every user account requires at least one license from one licensing plan so they can log on to Microsoft 365 and use the services.
+
+Reading subscription license plans requires the `Organization.Read.All` permission scope or one of the other permissions listed in the https://learn.microsoft.com/en-us/graph/api/subscribedsku-list['List subscribedSkus' Graph API reference page].
+
+[source,powershell]
+----
+Connect-Graph -Scopes Organization.Read.All
+----
+
+* To view summary information about your current licensing plans and the available licenses for each plan, run this command:
++
+[source,powershell]
+----
+Get-MgSubscribedSku | Select -Property Sku*, ConsumedUnits -ExpandProperty PrepaidUnits | Format-List
+----
++
+--
+The results contain:
+
+* *SkuPartNumber*: Shows the available licensing plans for your organization. For example, `ENTERPRISEPACK` is the license plan name for Office 365 Enterprise E3.
+
+* *Enabled*: Number of licenses that you've purchased for a specific licensing plan.
+
+* *ConsumedUnits*: Number of licenses that you've assigned to users from a specific licensing plan.
+--
+
+* To view details about the Microsoft 365 services that are available in all of your license plans, first display a list of your license plans.
++
+[source,powershell]
+----
+Get-MgSubscribedSku
+----
++
+Next, store the license plans information in a variable.
++
+[source,powershell]
+----
+$licenses = Get-MgSubscribedSku
+----
++
+Next, display the services in a specific license plan.
++
+[source,powershell]
+----
+$licenses[<index>].ServicePlans
+----
++
+`<index>` is an integer that specifies the row number of the license plan from the display of the `Get-MgSubscribedSku | Select SkuPartNumber` command, minus 1.
++
+For example, if the display of the `Get-MgSubscribedSku | Select SkuPartNumber` command is this:
++
+[source,console]
+----
+SkuPartNumber
+-------------
+WIN10_VDA_E5
+EMSPREMIUM
+ENTERPRISEPREMIUM
+FLOW_FREE
+-------------
+----
++
+Then the command to display the services for the `ENTERPRISEPREMIUM` license plan is this:
++
+[source,powershell]
+----
+$licenses[2].ServicePlans
+----
++
+`ENTERPRISEPREMIUM` is the third row. Therefore, the index value is (3 - 1), or 2.
++
+--
+:licensing-service-plan-reference: https://learn.microsoft.com/en-us/azure/active-directory/users-groups-roles/licensing-service-plan-reference
+
+For a complete list of license plans (also known as product names), their included service plans, and their corresponding friendly names, see {licensing-service-plan-reference}[Product names and service plan identifiers for licensing].
+--
+
+==== View licensed and unlicensed Microsoft 365 users with PowerShell
+
+User accounts in your Microsoft 365 organization may have some, all, or none of the available licenses assigned to them from the licensing plans that are available in your organization. <<mgraph-view-licensed-and-unlicensed-users>>
+
+Reading user properties including license details requires the *User.Read.All* permission scope or one of the other permissions listed in the https://learn.microsoft.com/en-us/graph/api/user-get['Get a user' Graph API reference page].
+
+The *Organization.Read.All* permission scope is required to read the licenses available in the tenant.
+
+[source,powershell]
+----
+Connect-Graph -Scopes User.Read.All, Organization.Read.All
+----
+
+* To view the license details of a specific user account, run the following command:
++
+[source,powershell]
+----
+Get-MgUserLicenseDetail -UserId "<user sign-in name (UPN)>"
+----
+
+* To view the list of all user accounts in your organization that have NOT been assigned any of your licensing plans (unlicensed users), run the following command:
++
+[source,powershell]
+----
+Get-MgUser -Filter 'assignedLicenses/$count eq 0' -ConsistencyLevel eventual -CountVariable unlicensedUserCount -All
+
+Write-Host "Found $unlicensedUserCount unlicensed users."
+----
+
+* To view the list of all member user accounts (excluding guests) in your organization that have NOT been assigned any of your licensing plans (unlicensed users), run the following command:
++
+[source,powershell]
+----
+Get-MgUser -Filter "assignedLicenses/`$count eq 0 and userType eq 'Member'" -ConsistencyLevel eventual -CountVariable unlicensedUserCount -All
+
+Write-Host "Found $unlicensedUserCount unlicensed users (excluding guests)."
+----
+
+* To view the list of all user accounts in your organization that have been assigned any of your licensing plans (licensed users), run the following command:
++
+[source,powershell]
+----
+Get-MgUser -Filter 'assignedLicenses/$count ne 0' -ConsistencyLevel eventual -CountVariable licensedUserCount -All -Select UserPrincipalName,DisplayName,AssignedLicenses | Format-Table -Property UserPrincipalName,DisplayName,AssignedLicenses
+
+Write-Host "Found $licensedUserCount licensed users."
+----
+
+* To view the list of all user accounts in your organization that have an E5 license assigned, run the following command:
++
+[source,powershell]
+----
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+
+Get-MgUser -Filter "assignedLicenses/any(x:x/skuId eq $($e5sku.SkuId) )" -ConsistencyLevel eventual -CountVariable e5licensedUserCount -All
+
+Write-Host "Found $e5licensedUserCount E5 licensed users."
+----
+
+==== Assign Microsoft 365 licenses to user accounts with PowerShell
+
+Users can't use any Microsoft 365 services until their account has been assigned a license from a licensing plan. You can use PowerShell to quickly assign licenses to unlicensed accounts. <<mgraph-assign-licenses-to-user-accounts>>
+
+User accounts must first be assigned a location. Specifying a location is a required part of creating a new user account in the https://learn.microsoft.com/en-us/microsoft-365/admin/add-users/add-users?view=o365-worldwide[Microsoft 365 admin center].
+
+Accounts synchronized from your on-premises Active Directory Domain Services do not by default have a location specified. You can configure a location for these accounts from:
+
+* The Microsoft 365 admin center
+* https://learn.microsoft.com/en-us/microsoft-365/enterprise/configure-user-account-properties-with-microsoft-365-powershell?view=o365-worldwide[PowerShell]
+* The Azure portal
+
+Assigning and removing licenses for a user requires the *User.ReadWrite.All* permission scope or one of the other permissions listed in the https://learn.microsoft.com/en-us/graph/api/user-assignlicense['Assign license' Microsoft Graph API reference page].
+
+The *Organization.Read.All* permission scope is required to read the licenses available in the tenant.
+
+[source,powershell]
+----
+Connect-MgGraph -Scopes User.ReadWrite.All, Organization.Read.All
+----
+
+Run the `Get-MgSubscribedSku` command to view the available licensing plans and the number of available licenses in each plan in your organization. The number of available licenses in each plan is *ActiveUnits* - *WarningUnits* - *ConsumedUnits*. 
+
+* To find the unlicensed accounts in your organization, run this command.
++
+[source,powershell]
+----
+Get-MgUser -Filter 'assignedLicenses/$count eq 0' -ConsistencyLevel eventual -CountVariable unlicensedUserCount -All
+----
+
+* To find the unlicensed synchronized users in your organization, run this command.
++
+[source,powershell]
+----
+Get-MgUser -Filter 'assignedLicenses/$count eq 0 and OnPremisesSyncEnabled eq true' -ConsistencyLevel eventual -CountVariable unlicensedUserCount -All -Select UserPrincipalName
+----
++
+You can only assign licenses to user accounts that have the *UsageLocation* property set to a valid ISO 3166-1 alpha-2 country code. For example, US for the United States, and FR for France. Some Microsoft 365 services aren't available in certain countries. 
+
+* To find accounts that don't have a *UsageLocation* value, run this command.
++
+[source,powershell]
+----
+Get-MgUser -Select Id,DisplayName,Mail,UserPrincipalName,UsageLocation,UserType | where { $_.UsageLocation -eq $null -and $_.UserType -eq 'Member' }
+----
+
+* To set the UsageLocation value on an account, run this command.
++
+[source,powershell]
+----
+$userUPN="<user sign-in name (UPN)>"
+$userLoc="<ISO 3166-1 alpha-2 country code>"
+
+Update-MgUser -UserId $userUPN -UsageLocation $userLoc
+----
++
+For example:
++
+[source,powershell]
+----
+Update-MgUser -UserId "belindan@litwareinc.com" -UsageLocation US
+----
++
+If you use the `Get-MgUser` cmdlet without using the *-All* parameter, only the first 100 accounts are returned.
+
+* To assign a license to a user, use the following command in PowerShell.
++
+[source,powershell]
+----
+Set-MgUserLicense -UserId $userUPN -AddLicenses @{SkuId = "<SkuId>"} -RemoveLicenses @()
+----
++
+This example assigns a license from the *SPE_E5* (Microsoft 365 E5) licensing plan to the unlicensed user *belindan@litwareinc.com*:
++
+[source,powershell]
+----
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+Set-MgUserLicense -UserId "belindan@litwareinc.com" -AddLicenses @{SkuId = $e5Sku.SkuId} -RemoveLicenses @()
+----
++
+This example assigns *SPE_E5* (Microsoft 365 E5) and *EMSPREMIUM* (ENTERPRISE MOBILITY + SECURITY E5) to the user *belindan@litwareinc.com*:
++
+[source,powershell]
+----
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+$e5EmsSku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'EMSPREMIUM'
+$addLicenses = @(
+    @{SkuId = $e5Sku.SkuId},
+    @{SkuId = $e5EmsSku.SkuId}
+)
+
+Set-MgUserLicense -UserId "belinda@litwareinc.com" -AddLicenses $addLicenses -RemoveLicenses @()
+----
++
+This example assigns *SPE_E5* (Microsoft 365 E5) with the *MICROSOFTBOOKINGS* (Microsoft Bookings) and *LOCKBOX_ENTERPRISE* (Customer Lockbox) services turned off:
++
+[source,powershell]
+----
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+$disabledPlans = $e5Sku.ServicePlans | `
+    Where ServicePlanName -in ("LOCKBOX_ENTERPRISE", "MICROSOFTBOOKINGS") | `
+    Select -ExpandProperty ServicePlanId
+
+$addLicenses = @(
+    @{
+        SkuId = $e5Sku.SkuId
+        DisabledPlans = $disabledPlans
+    }
+)
+
+Set-MgUserLicense -UserId "belinda@litwareinc.com" -AddLicenses $addLicenses -RemoveLicenses @()
+----
++
+This example updates a user with *SPE_E5* (Microsoft 365 E5) and turns off the Sway and Forms service plans while leaving the user's existing disabled plans in their current state:
++
+[source,powershell]
+----
+$userLicense = Get-MgUserLicenseDetail -UserId "belinda@litwareinc.com"
+$userDisabledPlans = $userLicense.ServicePlans | `
+    Where ProvisioningStatus -eq "Disabled" | `
+    Select -ExpandProperty ServicePlanId
+
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+$newDisabledPlans = $e5Sku.ServicePlans | `
+    Where ServicePlanName -in ("SWAY", "FORMS_PLAN_E5") | `
+    Select -ExpandProperty ServicePlanId
+
+$disabledPlans = ($userDisabledPlans + $newDisabledPlans) | Select -Unique
+
+$addLicenses = @(
+    @{
+        SkuId = $e5Sku.SkuId
+        DisabledPlans = $disabledPlans
+    }
+)
+
+Set-MgUserLicense -UserId "belinda@litwareinc.com" -AddLicenses $addLicenses -RemoveLicenses @()
+----
++
+This example updates a user with *SPE_E5* (Microsoft 365 E5) and turns off the Sway and Forms service plans while leaving the user's existing disabled plans in all other subscriptions in their current state:
++
+[source,powershell]
+----
+$userLicense = Get-MgUserLicenseDetail -UserId belinda@litwareinc.com
+
+$userDisabledPlans = $userLicense.ServicePlans | Where-Object ProvisioningStatus -eq "Disabled" | Select -ExpandProperty ServicePlanId
+
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+
+$newDisabledPlans = $e5Sku.ServicePlans | Where ServicePlanName -in ("SWAY", "FORMS_PLAN_E5") | Select -ExpandProperty ServicePlanId
+
+$disabledPlans = ($userDisabledPlans + $newDisabledPlans) | Select -Unique
+
+$result=@()
+$allPlans = $e5Sku.ServicePlans | Select -ExpandProperty ServicePlanId
+
+foreach($disabledPlan in $disabledPlans)
+{
+    foreach($allPlan in $allPlans)
+    {
+        if($disabledPlan -eq $allPlan)
+        {
+            $property = @{
+                Disabled = $disabledPlan
+            }
+        }
+     }
+     $result += New-Object psobject -Property $property
+}
+
+$finalDisabled = $result | Select-Object -ExpandProperty Disabled
+
+$addLicenses = @(
+    @{
+        SkuId = $e5Sku.SkuId
+        DisabledPlans = $finalDisabled
+    }
+)
+
+Set-MgUserLicense -UserId belinda@litwareinc.com -AddLicenses $addLicenses -RemoveLicenses @()
+----
+
+* Assign licenses to a user by copying the license assignment from another user
++
+This example assigns *jamesp@litwareinc.com* with the same licensing plan that has been applied to *belindan@litwareinc.com*:
++
+[source,powershell]
+----
+$mgUser = Get-MgUser -UserId "belindan@litwareinc.com" -Property AssignedLicenses
+Set-MgUserLicense -UserId "jamesp@litwareinc.com" -AddLicenses $mgUser.AssignedLicenses -RemoveLicenses @()
+----
+
+* Move a user to a different subscription (license plan)
++
+This example upgrades a user from the *SPE_E3* (Microsoft 365 E3) licensing plan to the *SPE_E5* (Microsoft 365 E5) licensing plan:
++
+[source,powershell]
+----
+$e3Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E3'
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+
+# Unassign E3
+Set-MgUserLicense -UserId "belindan@litwareinc.com" -AddLicenses @{} -RemoveLicenses @($e3Sku.SkuId)
+# Assign E5
+Set-MgUserLicense -UserId "belindan@litwareinc.com" -AddLicenses @{SkuId = $e5Sku.SkuId} -RemoveLicenses @()
+----
++
+You can verify the change in subscription for the user account with this command.
++
+[source,powershell]
+----
+Get-MgUserLicenseDetail -UserId "belindan@litwareinc.com"
+----
+
+==== View Microsoft 365 account license and service details with PowerShell
+
+In Microsoft 365, licenses from licensing plans (also called SKUs or Microsoft 365 plans) give users access to the Microsoft 365 services that are defined for those plans. However, a user might not have access to all the services that are available in a license that's currently assigned to them. You can use PowerShell for Microsoft 365 to view the status of services on user accounts. <<mgraph-view-account-license-and-service-details>>
+
+Reading user properties including license details requires the *User.Read.All* permission scope or one of the other permissions listed in the https://learn.microsoft.com/en-us/graph/api/user-get['Get a user' Graph API reference page].
+
+The *Organization.Read.All* permission scope is required to read the licenses available in the tenant.
+
+[source,powershell]
+----
+Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All
+----
+
+Next, list the license plans for your tenant with this command.
+
+[source,powershell]
+----
+Get-MgSubscribedSku
+----
+
+* Use these commands to list the services that are available in each licensing plan.
++
+[source,powershell]
+----
+$allSKUs = Get-MgSubscribedSku -Property SkuPartNumber, ServicePlans 
+$allSKUs | ForEach-Object {
+    Write-Host "Service Plan:" $_.SkuPartNumber
+    $_.ServicePlans | ForEach-Object {$_}
+}
+----
+
+* Use these commands to list the licenses that are assigned to a user account.
++
+[source,powershell]
+----
+Get-MgUserLicenseDetail -UserId "<user sign-in name (UPN)>"
+----
++
+For example:
++
+[source,powershell]
+----
+Get-MgUserLicenseDetail -UserId "belindan@litwareinc.com"
+----
+
+* To view all the Microsoft 365 services that a user has access to, use the following syntax:
++
+[source,powershell]
+----
+(Get-MgUserLicenseDetail -UserId <user account UPN> -Property ServicePlans)[<LicenseIndexNumber>].ServicePlans
+----
++
+This example shows the services to which the user *BelindaN@litwareinc.com* has access. This shows the services that are associated with all licenses that are assigned to her account.
++
+[source,powershell]
+----
+(Get-MgUserLicenseDetail -UserId belindan@litwareinc.com -Property ServicePlans).ServicePlans
+----
++
+This example shows the services that user *BelindaN@litwareinc.com* has access to from the first license that's assigned to her account (the index number is 0).
++
+[source,powershell]
+----
+(Get-MgUserLicenseDetail -UserId belindan@litwareinc.com -Property ServicePlans)[0].ServicePlans
+----
+
+* To view all the services for a user who has been assigned _multiple licenses_, use the following syntax:
++
+[source,powershell]
+----
+$userUPN="<user account UPN>"
+$allLicenses = Get-MgUserLicenseDetail -UserId $userUPN -Property SkuPartNumber, ServicePlans
+$allLicenses | ForEach-Object {
+    Write-Host "License:" $_.SkuPartNumber
+    $_.ServicePlans | ForEach-Object {$_}
+}
+----
+
+==== Remove Microsoft 365 licenses from user accounts with PowerShell
+
+Assigning and removing licenses for a user requires the User.ReadWrite.All permission scope or one of the other permissions listed in the https://learn.microsoft.com/en-us/graph/api/user-assignlicense['Assign license' Graph API reference page]. <<mgraph-remove-licenses-from-user-accounts>>
+
+The *Organization.Read.All* permission scope is required to read the licenses available in the tenant.
+
+[source,powershell]
+----
+Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All
+----
+
+* To remove licenses from an existing user account, use the following syntax:
++
+[source,powershell]
+----
+Set-MgUserLicense -UserId "<Account>" -RemoveLicenses @("<AccountSkuId1>") -AddLicenses @{}
+----
++
+This example removes the *SPE_E5* (Microsoft 365 E5) licensing plan from the user *BelindaN@litwareinc.com*:
++
+[source,powershell]
+----
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+Set-MgUserLicense -UserId "belindan@litwareinc.com" -RemoveLicenses @($e5Sku.SkuId) -AddLicenses @{}
+----
+
+* To remove all licenses from a group of existing licensed users, use the following syntax:
++
+[source,powershell]
+----
+$licensedUsers = Get-MgUser -Filter 'assignedLicenses/$count ne 0' `
+    -ConsistencyLevel eventual -CountVariable licensedUserCount -All `
+    -Select UserPrincipalName,DisplayName,AssignedLicenses
+
+foreach($user in $licensedUsers)
+{
+    $licencesToRemove = $user.AssignedLicenses | Select -ExpandProperty SkuId
+    $user = Set-MgUserLicense -UserId $user.UserPrincipalName -RemoveLicenses $licencesToRemove -AddLicenses @{} 
+}
+----
+
+Another way to free up a license is by deleting the user account.
+
+// ==== Disable access to Microsoft 365 services with PowerShell
+
 === Exchange Online PowerShell
 
-Exchange Online PowerShell is the administrative interface that enables you to manage your Microsoft Exchange Online organization from the command line. For example, you can use Exchange Online PowerShell to configure mail flow rules (also known as transport rules) and connectors. <<6>>
+Exchange Online PowerShell is the administrative interface that enables you to manage your Microsoft Exchange Online organization from the command line. For example, you can use Exchange Online PowerShell to configure mail flow rules (also known as transport rules) and connectors. <<exo-powershell>>
 
 The Exchange Online PowerShell module uses modern authentication and works with multi-factor authentication (MFA) for connecting to all Exchange-related PowerShell environments in Microsoft 365: Exchange Online PowerShell, Security & Compliance PowerShell, and standalone Exchange Online Protection (EOP) PowerShell.
 
@@ -1134,11 +1616,17 @@ Disconnect-ExchangeOnline -Confirm:$false
 [bibliography]
 == References
 
-* [[[overview,1]]] https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.3
-* [[[commands,2]]] https://learn.microsoft.com/en-us/powershell/scripting/powershell-commands?view=powershell-7.3
-* [[[discover,3]]] https://learn.microsoft.com/en-us/powershell/scripting/discover-powershell?view=powershell-7.3
-* [[[microsoft-365-powershell,4]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/connect-to-microsoft-365-powershell?view=o365-worldwide
-* [[[graph-powershell,5]]] https://learn.microsoft.com/en-us/powershell/microsoftgraph/overview?view=graph-powershell-1.0
-* [[[graph-powershell-auth-cmdlets]]] https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands?view=graph-powershell-1.0
-* [[[exchange-ps,6]]] https://learn.microsoft.com/en-us/powershell/exchange/exchange-online-powershell?view=exchange-ps
+* [[[ps-overview,1]]] https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.3
+* [[[ps-cmdlets,2]]] https://learn.microsoft.com/en-us/powershell/scripting/powershell-commands?view=powershell-7.3
+* [[[ps-discover,3]]] https://learn.microsoft.com/en-us/powershell/scripting/discover-powershell?view=powershell-7.3
+* [[[m365-powershell,4]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/connect-to-microsoft-365-powershell?view=o365-worldwide
+* [[[mgraph-powershell,5]]] https://learn.microsoft.com/en-us/powershell/microsoftgraph/overview?view=graph-powershell-1.0
+* [[[mgraph-ps-auth-cmdlets,6]]] https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands?view=graph-powershell-1.0
+* [[[mgraph-ps-view-licenses,7]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/view-licenses-and-services-with-microsoft-365-powershell?view=o365-worldwide
+* [[[mgraph-view-licensed-and-unlicensed-users,8]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/view-licensed-and-unlicensed-users-with-microsoft-365-powershell?view=o365-worldwide
+* [[[mgraph-assign-licenses-to-user-accounts,9]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/assign-licenses-to-user-accounts-with-microsoft-365-powershell?view=o365-worldwide
+* [[[mgraph-view-account-license-and-service-details, 10]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/view-account-license-and-service-details-with-microsoft-365-powershell?view=o365-worldwide
+* [[[mgraph-remove-licenses-from-user-accounts,11]]] https://learn.microsoft.com/en-us/microsoft-365/enterprise/remove-licenses-from-user-accounts-with-microsoft-365-powershell?view=o365-worldwide
 
+
+* [[[exo-powershell,9]]] https://learn.microsoft.com/en-us/powershell/exchange/exchange-online-powershell?view=exchange-ps
