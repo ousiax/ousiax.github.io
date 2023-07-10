@@ -1418,8 +1418,9 @@ Set-MgUserLicense -UserId "jamesp@litwareinc.com" -AddLicenses $mgUser.AssignedL
 
 * Move a user to a different subscription (license plan)
 +
-This example upgrades a user from the *SPE_E3* (Microsoft 365 E3) licensing plan to the *SPE_E5* (Microsoft 365 E5) licensing plan:
+** This example upgrades a user from the *SPE_E3* (Microsoft 365 E3) licensing plan to the *SPE_E5* (Microsoft 365 E5) licensing plan:
 +
+--
 [source,powershell]
 ----
 $e3Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E3'
@@ -1430,12 +1431,39 @@ Set-MgUserLicense -UserId "belindan@litwareinc.com" -AddLicenses @{} -RemoveLice
 # Assign E5
 Set-MgUserLicense -UserId "belindan@litwareinc.com" -AddLicenses @{SkuId = $e5Sku.SkuId} -RemoveLicenses @()
 ----
-+
+
 You can verify the change in subscription for the user account with this command.
-+
+
 [source,powershell]
 ----
 Get-MgUserLicenseDetail -UserId "belindan@litwareinc.com"
+----
+--
+
+** This example upgrades all users from *TEAMS_EXPLORATORY* (Microsoft Teams Exploratory) to *STANDARDPACK* (Office 365 E1):
++
+[source,powershell]
+----
+Connect-MgGraph -Scopes Organization.Read.All,User.ReadWrite.All
+$teamsExploratorySku = Get-MgSubscribedSku | Where SkuPartNumber -eq 'TEAMS_EXPLORATORY'
+$e1Sku = Get-MgSubscribedSku | Where SkuPartNumber -eq 'STANDARDPACK'
+
+$disabledPlans = $e1Sku.ServicePlans | Where ServicePlanName -in ("EXCHANGE_S_STANDARD") | Select -ExpandProperty ServicePlanId
+$addLicenses = @(
+    @{
+        SkuId = $e1Sku.SkuId
+        DisabledPlans = $disabledPlans
+    }
+)
+$removeLicenses = @($teamsExploratorySku.SkuId)
+
+$filter = "assignedLicenses/any(u:u/skuId eq $($teamsExploratorySku.SkuId))"
+$teamsExploratoryUserIds = Get-MgUser -Property UserPrincipalName -Filter $filter | Select -Property UserPrincipalName
+
+Write-Host $teamsExploratoryUserIds.Count
+foreach ($userId in $teamsExploratoryUserIds) {
+    Set-MgUserLicense -UserId $userId.UserPrincipalName -AddLicenses $addLicenses -RemoveLicenses $removeLicenses
+}
 ----
 
 ==== View Microsoft 365 account license and service details with PowerShell
@@ -1556,10 +1584,100 @@ foreach($user in $licensedUsers)
     $user = Set-MgUserLicense -UserId $user.UserPrincipalName -RemoveLicenses $licencesToRemove -AddLicenses @{} 
 }
 ----
-
++
 Another way to free up a license is by deleting the user account.
 
-// ==== Disable access to Microsoft 365 services with PowerShell
+==== Disable access to Microsoft 365 services with PowerShell
+
+When a Microsoft 365 account is assigned a license from a licensing plan, Microsoft 365 services are made available to the user from that license. However, you can control the Microsoft 365 services that the user can access. For example, even though the license allows access to the SharePoint Online service, you can disable access to it. You can use PowerShell to disable access to any number of services for a specific licensing plan for:
+
+* An individual account.
+* A group of accounts.
+* All accounts in your organization.
+
+Assigning and removing licenses for a user requires the User.ReadWrite.All permission scope or one of the other permissions listed in the https://learn.microsoft.com/en-us/graph/api/user-assignlicense['Assign license' Graph API reference page].
+
+The *Organization.Read.All* permission scope is required to read the licenses available in the tenant.
+
+[source,powershell]
+----
+Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All
+----
+
+Next, use this command to view your available licensing plans, also known as SkuPartNumber:
+
+[source,powershell]
+----
+Get-MgSubscribedSku | Select SkuId, SkuPartNumber, ServicePlans | Sort SkuPartNumber
+----
+
+* Disable specific Microsoft 365 services for specific users for a specific licensing plan
++
+First list the licensing plans available in your tenant using the following command.
++
+[source,powershell]
+----
+Get-MgSubscribedSku | Select SkuPartNumber
+----
++
+Next, use the SkuPartNumber from the command above, list the service plans available for a given license plan (Sku).
++
+[source,powershell]
+----
+Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5' |  select -ExpandProperty ServicePlans
+----
++
+The following example assigns *SPE_E5* (Microsoft 365 E5) with the *MICROSOFTBOOKINGS* (Microsoft Bookings) and *LOCKBOX_ENTERPRISE* (Customer Lockbox) services turned off:
++
+[source,powershell]
+----
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+$disabledPlans = $e5Sku.ServicePlans | `
+    Where ServicePlanName -in ("LOCKBOX_ENTERPRISE", "MICROSOFTBOOKINGS") | `
+    Select -ExpandProperty ServicePlanId
+
+$addLicenses = @(
+    @{
+        SkuId = $e5Sku.SkuId
+        DisabledPlans = $disabledPlans
+    }
+)
+
+Set-MgUserLicense -UserId "belinda@litwareinc.com" -AddLicenses $addLicenses -RemoveLicenses @()
+----
++
+The *DisabledPlans* property of the *AddLicenses* parameter in `Set-MgUserLicense` will overwrite the user's existing *DisabledPlans* value. To preserve the state of existing service plans, the user's current state of service plans must be merged with the new plans that are going to be disabled.
++
+Failing to include the existing *DisabledPlans* will result in the user's previously disabled plan being enabled.
++
+The following example updates a user with *SPE_E5* (Microsoft 365 E5) and turns off the *Sway* and *Forms* service plans while leaving the user's existing disabled plans in their current state:
++
+[source,powershell]
+----
+## Get the services that have already been disabled for the user.
+$userLicense = Get-MgUserLicenseDetail -UserId "belinda@fdoau.onmicrosoft.com"
+$userDisabledPlans = $userLicense.ServicePlans | `
+    Where ProvisioningStatus -eq "Disabled" | `
+    Select -ExpandProperty ServicePlanId
+
+## Get the new service plans that are going to be disabled
+$e5Sku = Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'SPE_E5'
+$newDisabledPlans = $e5Sku.ServicePlans | `
+    Where ServicePlanName -in ("SWAY", "FORMS_PLAN_E5") | `
+    Select -ExpandProperty ServicePlanId
+
+## Merge the new plans that are to be disabled with the user's current state of disabled plans
+$disabledPlans = ($userDisabledPlans + $newDisabledPlans) | Select -Unique
+
+$addLicenses = @(
+    @{
+        SkuId = $e5Sku.SkuId
+        DisabledPlans = $disabledPlans
+    }
+)
+## Update user's license
+Set-MgUserLicense -UserId "belinda@litwareinc.onmicrosoft.com" -AddLicenses $addLicenses -RemoveLicenses @()
+----
 
 === Exchange Online PowerShell
 
