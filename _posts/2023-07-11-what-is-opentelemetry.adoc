@@ -15,7 +15,7 @@
 :signals-logs: https://opentelemetry.io/docs/concepts/signals/logs/
 :ecosystem-vendors: https://opentelemetry.io/ecosystem/vendors/
 
-As modern application environments are polyglot, distributed, and increasingly complex, observing your application to identify and react to failures has become challenging. In early 2019, two popular instrumentation projects, OpenTracing and OpenCensus, merged to create OpenTelemetry, a new standard for observability telemetry. <<opentelemetry-net-reaches-v1-0>>
+As modern application environments are polyglot, distributed, and increasingly complex, observing your application to identify and react to failures has become challenging. In early 2019, two popular instrumentation projects, https://opentracing.io/[OpenTracing] and OpenCensus, merged to create https://opentelemetry.io/[OpenTelemetry], a new standard for observability telemetry. <<opentelemetry-net-reaches-v1-0>>
 
 OpenTelemetry is a collection of APIs, SDKs, and tools. Use it to instrument, generate, collect, and export telemetry data (metrics, logs, and traces) to help you analyze your software’s performance and behavior. <<otel>>
 
@@ -146,7 +146,108 @@ For more on traces and how they pertain to OTel, see {signals-traces}[Traces].
 
 == .NET observability with OpenTelemetry
 
-todo <<otel-dotnet>>
+When you run an application, you want to know how well the app is performing and to detect potential problems before they become larger. Commonly developers accomplish this by making the app emit telemetry data such as logs or metrics, then monitor and analyze that data. <<otel-dotnet>>
+
+=== What is observability
+
+Observability in the context of a distributed system is the ability to monitor and analyze telemetry about the state of each component, to be able to observe changes in performance, and to diagnose why those changes occur. Unlike debugging, which is invasive and can affect the operation of the application, observability is intended to be transparent to the primary operation and have a small enough performance impact that it can be used continuously.
+
+Observability is commonly done using a combination of:
+
+* Logs, which record individual operations, such as an incoming request, a failure in a specific component, or an order being placed.
+* Metrics, which are measuring counters and gauges such as number of completed requests, active requests, widgets that have been sold; or a histogram of the request latency.
+* Distributed tracing, which tracks requests and activities across components in a distributed system so that you can see where time is spent and track down specific failures.
+
+Together, logs, metrics, and distributed tracing are known as the _3 pillars of observability_.
+
+Each pillar might include telemetry data from:
+
+* The .NET runtime, such as the garbage collector or JIT compiler.
+* Libraries, such as from Kestrel (the ASP.NET web server) and `HttpClient`.
+* Application-specific telemetry that's emitted by your code.
+
+=== Observability approaches in .NET
+
+There are a few different ways to achieve observability in .NET applications:
+
+:dotnet-eventpipe: https://learn.microsoft.com/en-us/dotnet/core/diagnostics/eventpipe
+:dotnet-monitor: https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-monitor
+:dotnet-host-startup-hook: https://github.com/dotnet/runtime/blob/main/docs/design/features/host-startup-hook.md
+:opentelemetry-dotnet-instrumentation: https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation/blob/main/docs/README.md
+
+* Explicitly in code, by referencing and using a library such as OpenTelemetry.
++
+If you have access to the source code and can rebuild the app, then this is the most powerful and configurable mechanism.
+
+* Out-of-process using {dotnet-eventpipe}[EventPipe].
++
+Tools such as {dotnet-monitor}[dotnet-monitor] can listen to logs and metrics and then process them without affecting any code.
+
+* {dotnet-host-startup-hook}[Using a startup hook], assemblies can be injected into the process that can then collect instrumentation.
++
+An example of this approach is {opentelemetry-dotnet-instrumentation}[OpenTelemetry .NET Automatic Instrumentation].
+
+=== What is OpenTelemetry
+
+https://opentelemetry.io/[OpenTelemetry] (OTel) is a cross-platform, open standard for collecting and emitting telemetry data. OpenTelemetry includes:
+
+* https://opentelemetry.io/docs/concepts/instrumentation/manual/[APIs] for libraries to use to record telemetry data as code is running.
+* https://github.com/open-telemetry/opentelemetry-dotnet/blob/main/src/OpenTelemetry.Api/README.md[APIs] that app developers use to configure what portion of the recorded data will be sent across the network, where it will be sent to, and how it may be filtered, buffered, enriched, and transformed.
+* https://github.com/open-telemetry/semantic-conventions[Semantic conventions] provide guidance on naming and content of telemetry data. It is important for the apps that produce telemetry data and the tools that receive the data to agree on what different kinds of data means and what sorts of data are useful so that the tools can provide effective analysis.
+* An interface for https://opentelemetry.io/docs/concepts/components/#exporters[exporters]. Exporters are plugins that allow telemetry data to be transmitted in specific formats to different telemetry backends.
+* https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/README.md[OTLP wire protocol] is a vendor neutral network protocol option for transmitting telemetry data. Some tools and vendors support this protocol in addition to pre-existing proprietary protocols they may have.
+
+Using OTel enables the use of a wide variety of APM systems including open-source systems such as https://prometheus.io/[Prometheus] and https://grafana.com/oss/grafana/[Grafana], https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview?tabs=net[Azure Monitor] - Microsoft's APM product in Azure, or from the many https://opentelemetry.io/ecosystem/vendors/[APM vendors] that partner with OpenTelemetry.
+
+There are OpenTelemetry implementations for most languages and platforms, including .NET.
+
+=== OpenTelemetry packages
+
+OpenTelemetry in .NET is implemented as a series of NuGet packages that form a couple of categories:
+
+* Core API
+* Instrumentation - these packages collect instrumentation from the runtime and common libraries.
+* Exporters - these interface with APM systems such as Prometheus, Jaeger, and OTLP.
+
+The following table describes the main packages.
+
+[%header,cols="1,3"]
+|===
+|Package Name
+|Description
+
+|OpenTelemetry
+|Main library that provides the core OTEL functionality
+
+|OpenTelemetry.Instrumentation.AspNetCore
+|Instrumentation for ASP.NET Core and Kestrel
+
+|OpenTelemetry.Instrumentation.GrpcNetClient
+|Instrumentation for gRPC Client for tracking outbound gRPC calls
+
+|OpenTelemetry.Instrumentation.Http
+|Instrumentation for HttpClient and HttpWebRequest to track outbound HTTP calls
+
+|OpenTelemetry.Instrumentation.SqlClient
+|Instrumentation for SqlClient used to trace database operations
+
+|OpenTelemetry.Exporter.Console
+|Exporter for the console, commonly used to diagnose what telemetry is being exported
+
+|OpenTelemetry.Exporter.OpenTelemetryProtocol
+|Exporter using the OTLP protocol
+
+|OpenTelemetry.Exporter.Prometheus.AspNetCore
+|Exporter for Prometheus implemented using an ASP.NET Core endpoint
+
+|OpenTelemetry.Exporter.Zipkin
+|Exporter for Zipkin tracing
+|===
+
+=== Example: Use Prometheus, Grafana and Jaeger
+// todo
+
+// This example uses Prometheus for metrics collection, Grafana for creating a dashboard, and Jaeger to show distributed tracing.
 
 
 
