@@ -244,12 +244,235 @@ The following table describes the main packages.
 |Exporter for Zipkin tracing
 |===
 
-=== Example: Use Prometheus, Grafana and Jaeger
-// todo
+=== Example
 
-// This example uses Prometheus for metrics collection, Grafana for creating a dashboard, and Jaeger to show distributed tracing.
+This example shows the OpenTelemetry in .NET SDK.
 
+==== Create the project
 
+Create a simple web API project by using the *ASP.NET Core Empty* template in Visual Studio or the following .NET CLI command:
+
+[source,sh]
+----
+dotnet new web
+----
+
+==== Add metrics and activity definitions
+
+The following code defines a new metric (`greetings.count`) for the number of times the API has been called, and a new activity source (`OtPrGrYa.Example`).
+
+[source,cs]
+----
+// using System.Diagnostics;
+// using System.Diagnostics.Metrics;
+
+// Custom metrics for the application
+var greeterMeter = new Meter("OtPrGrYa.Example", "1.0.0");
+var countGreetings = greeterMeter.CreateCounter<int>("greetings.count", description: "Counts the number of greetings");
+
+// Custom ActivitySource for the application
+var greeterActivitySource = new ActivitySource("OtPrGrJa.Example");
+----
+
+==== Create an API endpoint
+
+[source,cs]
+----
+app.MapGet("/", SendGreeting);
+----
+
+[source,cs]
+----
+async Task<String> SendGreeting(ILogger<Program> logger)
+{
+    // Create a new Activity scoped to the method
+    using var activity = greeterActivitySource.StartActivity("GreeterActivity");
+
+    // Log a message
+    logger.LogInformation("Sending greeting");
+
+    // Increment the custom counter
+    countGreetings.Add(1);
+
+    // Add a tag to the Activity
+    activity?.SetTag("greeting", "Hello World!");
+
+    return "Hello World!";
+}
+----
+
+NOTE: The API definition does not use anything specific to OpenTelemetry. It uses the .NET APIs for observability.
+
+==== Reference the OpenTelemetry packages
+
+Use the NuGet Package Manager or command line to add the following NuGet packages:
+
+[source,xml]
+----
+<ItemGroup>
+   <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.5.0" />
+   <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.5.0" />
+   <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.5.0-rc.1" />
+   <PackageReference Include="OpenTelemetry.Exporter.Zipkin" Version="1.5.0" />
+   <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.5.0" />
+   <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.5.0-beta.1" />
+   <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.5.0-beta.1" />
+</ItemGroup>
+----
+
+NOTE: Use the latest versions, as the OTel APIs are constantly evolving.
+
+==== Configure OpenTelemetry with the correct providers
+
+[source,cs]
+----
+// using OpenTelemetry.Metrics;
+// using OpenTelemetry.Resources;
+// using OpenTelemetry.Trace;
+
+var tracingOtlpEndpoint = builder.Configuration["OTLP_ENDPOINT_URL"];
+var otel = builder.Services.AddOpenTelemetry();
+
+// Configure OpenTelemetry Resources with the application name
+otel.ConfigureResource(resource => resource
+    .AddService(serviceName: builder.Environment.ApplicationName));
+
+// Add Metrics for ASP.NET Core and our custom metrics and export to Prometheus
+otel.WithMetrics(metrics => metrics
+    // Metrics provider from OpenTelemetry
+    .AddAspNetCoreInstrumentation()
+    .AddMeter(greeterMeter.Name)
+    // Metrics provides by ASP.NET Core in .NET 8
+    .AddMeter("Microsoft.AspNetCore.Hosting")
+    .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
+    .AddPrometheusExporter());
+
+// Add Tracing for ASP.NET Core and our custom ActivitySource and export to Jaeger
+otel.WithTracing(tracing =>
+{
+    tracing.AddAspNetCoreInstrumentation();
+    tracing.AddHttpClientInstrumentation();
+    tracing.AddSource(greeterActivitySource.Name);
+    if (tracingOtlpEndpoint != null)
+    {
+        tracing.AddOtlpExporter(otlpOptions =>
+         {
+             otlpOptions.Endpoint = new Uri(tracingOtlpEndpoint);
+         });
+    }
+    else
+    {
+        tracing.AddConsoleExporter();
+    }
+});
+----
+
+This code uses ASP.NET Core instrumentation to get metrics and activities from ASP.NET Core. It also registers the `Metrics` and `ActivitySource` providers for metrics and tracing respectively.
+
+The code uses the Prometheus exporter for metrics, which uses ASP.NET Core to host the endpoint, so you also need to add:
+
+[source,cs]
+----
+// Configure the Prometheus scraping endpoint
+app.MapPrometheusScrapingEndpoint();
+----
+
+==== Run the project
+
+Run the project and then access the API with the browser or curl.
+
+[source,sh]
+----
+curl -k http://localhost:7275
+----
+
+Each time you request the page, it will increment the count for the number of greetings that have been made. You can access the metrics endpoint using the same base url, with the path `/metrics`.
+
+===== Log output
+
+The logging statements from the code are output using `ILogger`. By default, the https://learn.microsoft.com/en-us/dotnet/core/extensions/logging?tabs=command-line#configure-logging[Console Provider] is enabled so that output is directed to the console.
+
+There are a couple of options for how logs can be egressed from .NET:
+
+* `stdout` and `stderr` output is redirected to log files by container systems such as https://kubernetes.io/docs/concepts/cluster-administration/logging/#how-nodes-handle-container-logs[Kubernetes].
+
+* Using logging libraries that will integrate with ILogger, these include https://serilog.net/[Serilog] or https://nlog-project.org/[NLog].
+
+* Using logging providers for OTel such as OTLP or the Azure Monitor exporter shown further below.
+
+===== Access the metrics
+
+You can access the metrics using the `/metrics` endpoint.
+
+[source,console]
+----
+$ curl -k https://localhost:7275/
+Hello World!
+
+$ curl -k https://localhost:7275/metrics
+# TYPE greetings_count counter
+# HELP greetings_count Counts the number of greetings
+greetings_count 1 1686894204856
+
+# TYPE current_connections gauge
+# HELP current_connections Number of connections that are currently active on the server.
+current_connections{endpoint="127.0.0.1:7275"} 1 1686894204856
+current_connections{endpoint="[::1]:7275"} 0 1686894204856
+current_connections{endpoint="[::1]:5212"} 1 1686894204856
+...
+----
+
+===== Access the tracing
+
+If you look at the console for the server, you'll see the output from the console trace exporter, which outputs the information in a human readable format. This should show two activities, one from your custom `ActivitySource`, and the other from ASP.NET Core:
+
+[source,console]
+----
+Activity.TraceId:            9ef749f2829d7837e6edd163b8b6bb81
+Activity.SpanId:             45e86b6601f6b09d
+Activity.TraceFlags:         Recorded
+Activity.ParentSpanId:       d1af72ebe3cd5dba
+Activity.ActivitySourceName: OtPrGrJa.Example
+Activity.DisplayName:        GreeterActivity
+Activity.Kind:               Internal
+Activity.StartTime:          2023-07-19T00:44:43.2738232Z
+Activity.Duration:           00:00:00.0027491
+Activity.Tags:
+    greeting: Hello World!
+Resource associated with Activity:
+    service.name: OtPrGrJa.Example
+    service.instance.id: 11a771a5-d03b-4f66-baa0-2e968bd8b981
+    telemetry.sdk.name: opentelemetry
+    telemetry.sdk.language: dotnet
+    telemetry.sdk.version: 1.5.0
+
+Activity.TraceId:            9ef749f2829d7837e6edd163b8b6bb81
+Activity.SpanId:             d1af72ebe3cd5dba
+Activity.TraceFlags:         Recorded
+Activity.ActivitySourceName: OpenTelemetry.Instrumentation.AspNetCore
+Activity.DisplayName:        /
+Activity.Kind:               Server
+Activity.StartTime:          2023-07-19T00:44:43.2443183Z
+Activity.Duration:           00:00:00.0446847
+Activity.Tags:
+    net.host.name: localhost
+    net.host.port: 5138
+    http.method: GET
+    http.scheme: http
+    http.target: /
+    http.url: http://localhost:5138/
+    http.flavor: 1.1
+    http.user_agent: curl/7.88.1
+    http.status_code: 200
+Resource associated with Activity:
+    service.name: OtPrGrJa.Example
+    service.instance.id: 11a771a5-d03b-4f66-baa0-2e968bd8b981
+    telemetry.sdk.name: opentelemetry
+    telemetry.sdk.language: dotnet
+    telemetry.sdk.version: 1.5.0
+----
+
+The first is the inner custom activity you created. The second is created by ASP.NET for the request and includes tags for the HTTP request properties. You will see that both have the same `TraceId`, which identifies a single transaction and in a distributed system can be used to correlate the traces from each service involved in a transaction. The IDs are transmitted as HTTP headers. ASP.NET Core assigns a `TraceId` if none is present when it receives a request. `HttpClient` includes the headers by default on outbound requests. Each activity has a `SpanId`, which is the combination of `TraceId` and `SpanId` that uniquely identify each activity. The `Greeter` activity is parented to the HTTP activity through its `ParentSpanId`, which maps to the `SpanId` of the HTTP activity.
 
 [bibliography]
 == References
