@@ -1,0 +1,98 @@
+= TCP/IP: TCP Keepalive
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking', 'tcp']
+:page-date: 2023-02-08 13:23:50 +0800
+:page-revdate: 2023-07-21 13:23:50 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+Under some circumstances, it is useful for a client or server to become aware of the termination or loss of connection with its peer. In other circumstances, it is desirable to keep a minimal amount of data flowing over a connection, even if the applications do not have any to exchange. TCP *_keepalive_* provides a capability useful for both cases.
+
+Keepalive is a method for TCP to probe its peer without affecting the content of the data stream. It is driven by a *_keepalive timer_*. When the timer fires, a *_keepalive probe_* (*_keepalive_* for short) is sent, and the peer receiving the probe responds with an ACK.
+
+[NOTE]
+====
+Keepalives are not part of the TCP specification. The Host Requirements RFC [RFC1122] says that this is because they could
+
+(1) cause perfectly good connections to break during transient Internet failures,
+
+(2) consume unnecessary bandwidth, and
+
+(3) cost money for an Internet path that charges for packets.
+
+Nevertheless, most implementations provide the keepalive capability.
+====
+
+TCP keepalive is a controversial feature. Many feel that polling of the other end has no place in TCP and should be done by the application, if desired. On the other hand, if many applications require such functionality, it is convenient to place it in TCP so that its implementation can be shared.
+
+The keepalive is an optionally enabled feature that can cause an otherwise good connection between two processes to be terminated because of a temporary loss of connectivity in the network joining the two end systems.
+
+The keepalive feature was originally intended for server applications that might tie up resources on behalf of a client and want to know if the client host crashes or goes away.
+
+* Using TCP keepalive to detect dead clients is most useful for servers that expect to have a relatively short-duration dialogue with a noninteractive client (e.g., Web servers, POP and IMAP e-mail servers).
+
+* Servers implementing more interactive-style services that last for a long time (e.g., remote login such as ssh and Windows Remote Desktop) might wish to avoid using keepalives.
+
+== Description
+
+Either end of a TCP connection may request keepalives, which are turned off by default, for their respective direction of the connection. A keepalive can be set for one side, both sides, or neither side.
+
+There are several configurable parameters that control the operation of keepalives.
+
+* If there is no activity on the connection for some period of time (called the *keepalive time*), the side(s) with keepalive enabled sends a keepalive probe to its peer(s).
+
+* If no response is received, the probe is repeated periodically with a period set by the *keepalive interval* until a number of probes equal to the number *keepalive probes* is reached.
+
+* If this happens, the peer's system is determined to be unreachable and the connection is terminated.
+
+A keepalive probe is an empty (or 1-byte) segment with sequence number equal to one less than the largest ACK number seen from the peer so far. Because this sequence number has already been ACKed by the receiving TCP, the arriving segment does no harm, but it elicits an ACK that is used to determine whether the connection is still operating.
+
+Anytime it is operating, a TCP using keepalives may find its peer in one of four states:
+
+1. The peer host is still up and running and reachable.
++
+The peer's TCP responds normally and the requestor knows that the other end is still up.
++
+The requestor's TCP resets the keepalive timer for later (equal to the value of the keepalive time).
++
+If there is application traffic across the connection before the next timer expires, the timer is reset back to the value of keepalive time.
+
+2. The peer's host has crashed and is either down or in the process of rebooting.
++
+In either case, its TCP is not responding.
++
+The requestor does not receive a response to its probe, and it times out after a time specified by the *keepalive interval*.
++
+The requestor sends a total of *keepalive probes* of these probes, _keepalive interval_ time apart, and if it does not receive a response, the requestor considers the peer's host as down and terminates the connection.
+
+3. The client's host has crashed and rebooted.
++
+In this case, the server receives a response to its keepalive probe, but the response is a reset segment, causing the requestor to terminate the connection.
+
+4. The peer's host is up and running but is unreachable from the requestor for some reason (e.g., the network cannot deliver traffic and may or may not inform the peers of this fact using ICMP).
++
+This is effectively the same as state 2, because TCP cannot distinguish between the two. All TCP can tell is that no replies are received to its probes.
+
+It is transparent to the application until one of states 2, 3, or 4 is determined. In these three cases, an error is returned to the requestor's application by its TCP. (Normally the requestor has issued a read from the network, waiting for data from the peer. If the keepalive feature returns an error, it is returned to the requestor as the return value from the read.)
+
+In scenario 2 the error is something like “Connection timed out,” and in scenario 3 we expect “Connection reset by peer.” The fourth scenario may look as if the connection timed out, or may cause another error to be returned, depending on whether an ICMP error related to the connection is received and how it is processed.
+
+The values of the variables _keepalive time_, _keepalive interval_, and _keepalive probes_ can usually be changed. Some systems allow these changes on a per-connection basis, while others allow them to be set only system-wide (or both in some cases).
+
+In Linux, these values are available as `sysctl` variables with the names `net.ipv4.tcp_keepalive_time`, `net.ipv4.tcp_keepalive_intvl`, and `net.ipv4.tcp_keepalive_probes`, respectively. The defaults are 7200 (seconds, or 2 hours), 75 (seconds), and 9 (probes).
+
+In FreeBSD and Mac OS X, the first two values are also available as `sysctl` variables called `net.inet.tcp.keepidle` and `net.inet.tcp.keepintvl`, with default values 7,200,000 (milliseconds, or 2 hours) and 75,000 (milliseconds, or 75s), respectively. These systems also have a Boolean variable called `net.inet.tcp.always_keepalive`. If this value is enabled, all TCP connections have the keepalive function enabled, even if the application did not request it. In these systems, the number of probes is a fixed default value: 8 (FreeBSD) or 9 (Mac OS X).
+
+In Windows, these values are available for modification via registry entries under the system key:
+
+[source,txt]
+----
+HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters
+----
+
+The value `KeepAliveTime` defaults to 7,200,000ms (2 hours); `KeepAlive-Interval` defaults to 1000ms (1s). If there is no response to ten keepalive probes, Windows terminates the connection.
+
+== Keepalive Examples
