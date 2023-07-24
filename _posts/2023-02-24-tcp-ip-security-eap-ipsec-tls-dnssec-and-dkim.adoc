@@ -1,0 +1,218 @@
+= TCP/IP: Security: EAP, IPsec, TLS, DNSSEC, and DKIM
+:page-layout: post
+:page-categories: ['networking']
+:page-tags: ['networking', 'tcp']
+:page-date: 2023-02-24 08:27:23 +0800
+:page-revdate: 2023-07-24 08:27:23 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+There are three primary properties of information, whether in a computer network or not, that may be desirable from an information security point of view: confidentiality, integrity, and availability (the CIA triad) [L01], summarized here:
+
+* *Confidentiality* means that information is made known only to its intended users (which could include processing systems).
+* *Integrity* means that information has not been modified in an unauthorized way before it is delivered.
+* *Availability* means that information is available when needed.
+
+These are core properties of information, yet there are other properties we may also desire, including _authentication_, _nonrepudiation_, and _auditability_.
+
+* *Authentication* means that a particular identified party or principal is not impersonating another principal.
+
+* *Nonrepudiation* means that if some action is performed by a principal (e.g., agreeing to the terms of a contract), this fact can be proven later (i.e., cannot successfully be denied).
+
+* *Auditability* means that some sort of trustworthy log or accounting describing how information has been used is available.
++
+Such logs are often important for forensic (i.e., legal and prosecuritorial) purposes.
+
+These principles are applicable to information in physical (e.g., printed) form, for which mechanisms such as safes, secured facilities, and guards have been used for thousands of years to enforce controlled sharing, storage, and dissemination. When information is to be moved through an unsecured environment, additional techniques are required.
+
+== Threats to Network Communication
+
+Attacks can generally be categorized as either passive or active.
+
+* *Passive attacks* are mounted by monitoring or eavesdropping on the contents of network traffic, and if not handled they can lead to unauthorized release of information (loss of confidentiality).
+
+* *Active attacks* can cause modification of information (with possible loss of integrity) or denial of service (loss of availability).
++
+Logically, such attacks are carried out by an "intruder" or adversary.
+
+.The principals, Alice and Bob, attempt to communicate securely, but Eve may eavesdrop and Mallory may modify messages in transit.
+image::/assets/tcp-ip/security/passive-active-attacks.jpg[Passive and active attacks,50%,50%]
+
+Eve is able to eavesdrop (listen in on, also called _capture_ or _sniff_) and perform *_traffic analysis_* on the traffic passing between Alice and Bob.
+
+* Capturing the traffic could lead to compromise of confidentiality, as sensitive data may be available to Eve without Alice or Bob knowing.
++
+In addition, traffic analysis can determine the features of the traffic, such as its size and when it is sent, and possibly identify the parties to a communication. This information, although it does not reveal the exact contents of the communication, could also lead to disclosure of sensitive information and could be used to mount more powerful active attacks in the future.
+
+While the passive attacks are essentially impossible for Alice or Bob to detect, Mallory is capable of performing more easily noticed active attacks. These include
+_message stream modification_ (MSM), _denial-of-service_ (DoS), and _spurious association_ attacks.
+
+* MSM attacks (including so-called called *_man-in-the-middle_* or MITM_attacks) are a broad category and include any way traffic is modified in transit, including deletion, reordering, and content modification.
+
+* DoS might include deletion of traffic, or generation of such large volumes of traffic so as to overwhelm Alice, Bob, or the communication channel connecting them.
+
+* Spurious associations include *_masquerading_* (Mallory pretends to be Bob or Alice) and replay, whereby Alice or Bob’s earlier (authentic) communications are replayed later, from Mallory's memory.
+
+.Attacks on communication are broadly classified as passive or active. Passive attacks are ordinarily more difficult to detect, and active attacks are ordinarily more difficult to prevent.
+[%header,cols="1,1,1,1"]
+|===
+2+|Passive
+2+|Active
+
+h|Type
+h|Threats
+h|Type
+h|Threats
+
+|Eavesdropping
+|Confidentiality
+|Message stream modification
+|Authenticity, integrity
+
+|Traffic analysis
+|Confidentiality
+|Denial of service (DoS)
+|Availability
+
+|
+|
+|Spurious association
+|Authenticity
+
+|===
+
+With effective and careful use of *cryptography*, passive attacks are rendered ineffective, and active attacks are made detectable (and to some degree preventable).
+
+== Basic Cryptography and Security Mechanisms
+
+Cryptography evolved from the desire to protect the confidentiality, integrity, and authenticity of information carried through unsecured communication channels.
+
+The use of cryptography, at least in a primitive form, dates back to at least 3500 BCE. The earliest systems were usually *codes*.
+
+Codes involve substitutions of groups of words, phrases, or sentences with groups of numbers or letters as given in a codebook. Codebooks needed to be kept secret in order to keep communications private, so distributing them required considerable care.
+
+More advanced systems used *ciphers*, in which both substitution and rearrangement are used.
+
+=== Cryptosystems
+
+.The unencrypted (cleartext) message is passed through an encryption algorithm to produce an encrypted (ciphertext) message. In a symmetric cryptosystem, the same (secret) key is used for encryption and decryption. In an asymmetric or public key cryptosystem, confidentiality is achieved by using the recipient's public key for encryption and private (secret) key for decryption.
+image::/assets/tcp-ip/security/symmetric-asymmetric-cryptosystem.png[Symmetric and asymmetric key cryptosystem,50%,50%]
+
+* In each case, a *cleartext* message is processed by an encryption algorithm to produce *ciphertext* (scrambled text).
+
+* The *key* is a particular sequence of bits used to drive the *encryption algorithm* or cipher.
+
+* With different keys, the same input produces different outputs. Combining the algorithms with supporting protocols and operating methods forms a *cryptosystem*.
+
+* In a *symmetric cryptosystem*, the encryption and decryption keys are typically identical, as are the encryption and decryption algorithms.
+
+* In an *asymmetric cryptosystem*, each principal is generally provided with a *pair* of keys consisting of one public and one private key.
++
+The public key is intended to be known to any party that might want to send a message to the key pair's owner.
++
+The public and private keys are mathematically related and are themselves outputs of a *key generation* algorithm.
+
+Without knowing the symmetric key (in a symmetric cryptosystem) or the private key (in a public key cryptosystem), it is (believed to be) effectively impossible
+for any third party that intercepts the ciphertext to produce the corresponding cleartext. This provides the basis for confidentiality.
+
+For the symmetric key cryptosystem, it also provides a degree of authentication, because only a party holding the key is able to produce a useful ciphertext that can be decrypted to something sensible.
+
+* A receiver can decrypt the ciphertext, look for a portion of the resulting cleartext to contain a particular agreed-upon value, and conclude that the sender holds the appropriate key and is therefore authentic.
+
+* Furthermore, most encryption algorithms work in such a way that if messages are modified in transit, they are unable to produce useful cleartext upon decryption.
+
+Thus, symmetric cryptosystems provide a measure of both authentication and integrity protection for messages, but this approach alone is weak. Instead, special forms of checksums are usually coupled with symmetric cryptography to ensure integrity.
+
+A symmetric encryption algorithm is usually classified as either a *block cipher* or a *stream cipher*.
+
+* Block ciphers perform operations on a fixed number of bits (e.g., 64 or 128) at a time,
+
+* and stream ciphers operate continuously on however many bits (or bytes) are provided as input.
+
+For years, the most popular symmetric encryption algorithm was the *_Data Encryption Standard_* (DES), a block cipher that uses 64-bit blocks and 56-bit keys.
+
+Eventually, the use of 56-bit keys was felt to be insecure, and many applications turned to *_triple_*-_DES_ (also denoted 3DES or TDES—applying DES three times with two or three different keys to each block of data).
+
+Today, DES and 3DES have been largely phased out in favor of the *_Advanced Encryption Standard_* (AES), also known occasionally by its original name the _Rijndael_ algorithm (pronounced “rain-dahl”), in deference to its Belgian cryptographer inventors Vincent Rijmen and Joan Daemen.
+
+Different variants of AES provide key lengths of 128, 192, and 256 bits and are usually written with the corresponding extension (i.e., AES-128, AES-192, and AES-256).
+
+Asymmetric cryptosystems have some additional interesting properties beyond those of symmetric key cryptosystems.
+
+. Assuming we have Alice as sender and Bob as intended recipient, any third party is assumed to know Bob's public key and can therefore send him a secret message—only Bob is able to decrypt it because only Bob knows the private key corresponding to his public key.
+
+. However, Bob has no real assurance that the message is authentic, because any party can create a message and send it to Bob, encrypted in Bob's public key.
+
+. Fortunately, public key cryptosystems also provide another function when used in reverse: authentication of the sender.
+
+. In this case, Alice can encrypt a message using her private key and send it to Bob (or anyone else).
+
+. Using Alice's public key (known to all), anyone can verify that the message was authored by Alice and has not been modified.
+
+. However, it is not confidential because everyone has access to Alice's public key.
+
+. To achieve authenticity, integrity, and confidentiality, Alice can encrypt a message using her private key and encrypt the result using Bob's public key.
+
+. The result is a message that is reliably authored by Alice and is also confidential to Bob.
++
+.The asymmetric cryptosystem can be used for confidentiality (encryption), authentication (digital signatures or signing), or both. When used for both, it produces a signed output that is confidential to the sender and the receiver. Public keys, as their name suggests, are not kept secret.
+image::/assets/tcp-ip/security/asymmetric-cryptosystem.png[Asymmetric (Public Key) Cryptosystem,50%,50%]
+
+When public key cryptography is used in "reverse" like this, it provides a *digital signature*.
+
+* Digital signatures are important consequences of public key cryptography and can be used to help ensure authenticity and nonrepudiation.
+
+* Only a party possessing Alice’s private key is able to author messages or carry out transactions as Alice.
+
+In a *_hybrid_* cryptosystem, elements of both public key and symmetric key cryptography are used.
+
+* Most often, public key operations are used to exchange a randomly generated confidential (symmetric) *session key*, which is used to encrypt traffic for a single transaction using a symmetric algorithm.
+
+* The reason for doing so is performance—symmetric key operations are less computationally intensive than public key operations.
+
+* Most systems today are of the hybrid type: public key cryptography is used to establish keys used for symmetric encryption of individual sessions.
+
+=== Rivest, Shamir, and Adleman (RSA) Public Key Cryptography
+
+The most common approach used for both digital signatures and confidentiality is called RSA in deference to its authors' names, Rivest, Shamir, and Adleman. The security of this system hinges on the difficulty of factoring large numbers into constituent primes.
+
+=== Diffie-Hellman-Merkle Key Agreement (aka Diffie-Hellman or DH)
+
+The Diffie-Hellman-Merkle Key Agreement protocol (more commonly called simply Diffie-Hellman or DH) provides a method to have two parties agree on a common set of secret bits that can be used as a symmetric key, based on the use of finite field arithmetic.
+
+DH techniques are used in many of the Internet-related security protocols [RFC2631] and are closely related to the RSA approach for public key cryptography.
+
+=== Signcryption and Elliptic Curve Cryptography (ECC)
+
+When using RSA, additional security is provided with larger numbers. However, the basic mathematical operations required by RSA (e.g., exponentiation) can be computationally intensive and scale as the numbers grow. Reducing the effort of combining digital signatures and encryption for confidentiality, a class of *sign-cryption* schemes (also called *authenticated encryption*) provides both features at a cost less than the sum of the two if computed separately. However, even greater efficiency can sometimes be achieved by changing the mathematical basis for public key cryptography.
+
+In a continuing search for security with greater efficiency and performance, researchers have explored other public key cryptosystems beyond RSA. An alternative based on the difficulty of finding the discrete logarithm of an *elliptic curve* element has emerged, known as *elliptic curve cryptography* (ECC, not to be confused with _error-correcting code_).
+
+For equivalent security, ECC offers the benefit of using keys that are considerably smaller than those of RSA (e.g., by about a factor of 6 for a 1024-bit RSA modulus). This leads to simpler and faster implementations, issues of considerable practical concern.
+
+ECC has been standardized for use in many of the applications where RSA still retains dominance, but adoption has remained somewhat sluggish because of patents on ECC technology held by the Certicom Corporation. (The RSA algorithm was also patented, but patent protection lapsed in the year 2000.)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[bibliography]
+== References
+
+* [[[TCPIPV1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
