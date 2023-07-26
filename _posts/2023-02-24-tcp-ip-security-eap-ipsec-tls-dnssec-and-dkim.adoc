@@ -228,14 +228,70 @@ At the time, the encryption method (DES) was well known and there was concern th
 
 NOTE: However, there are limitations in the protections that a salt can provide. If the attacker is hitting an online service with a credential stuffing attack, a subset of the brute force attack category, salts won't help at all because the legitimate server is doing the salting+hashing for you. <<auth0-salt-hasing>>
 
+=== Cryptographic Hash Functions and Message Digests
 
+In most of the protocols, including Ethernet, IP, ICMP, UDP, and TCP, we have seen the use of a frame check sequence (FCS, either a checksum or a CRC) to determine whether a PDU has likely been delivered without bit errors. When considering security, ordinary FCS functions are not sufficient for this purpose.
 
+A checksum or FCS can be used to verify message integrity if properly constructed using special functions, which are called *cryptographic hash functions*.
 
+* The output of a cryptographic hash function _H_, when provided a message _M_, is called the *digest* or *fingerprint* of the message, _H(M)_.
 
+* A message digest is a type of strong FCS that is easy to compute and has the following important properties:
++
+--
+* Preimage resistance: Given _H(M)_, it should be difficult to determine _M_ if not already known.
 
+* Second preimage resistance: Given _H(M1)_, it should be difficult to determine an _M2 ≠ M1_ such that _H(M1) = H(M2)_.
+
+* Collision resistance: It should be difficult to find any pair _M1_, _M2_ where _H(M1) = H(M2)_ when _M2 ≠ M1_.
+--
++
+If a hash function has all of these properties, then if two messages have the same cryptographic hash value, they are, with negligible doubt, the same message. The two most common cryptographic hash algorithms are at present the _Message Digest Algorithm 5_ (*_MD5_*, [RFC1321]), which produces a 128-bit (16-byte) digest, and the _Secure Hash Algorithm 1_ (*_SHA-1_*), which produces a 160-bit (20-byte) digest.
++
+More recently, a family of functions based on SHA called *_SHA-2_* [RFC6234] produce digests with lengths of 224, 256, 384, or 512 bits (28, 32, 48, and 64 bytes, respectively). Others are under development.
+
+[NOTE]
+====
+Cryptographic hash functions are often based on a compression function _f_, which takes an input of length _L_ and produces a collision-resistant but deterministic output of size less than _L_. The Merkle-Damgård construction, which essentially breaks an arbitrarily long input into blocks of length _L_, pads them, passes them to _f_, and combines the results, produces a cryptographic hash function capable of taking a long input and producing an output with collision resistance.
+====
+
+=== Message Authentication Codes (MACs, HMAC, CMAC, and GMAC)
+
+A _message authentication code_ (unfortunately abbreviated *MAC* or sometimes *MIC* but unrelated to the link-layer MAC addresses) can be used to ensure message integrity and authentication.
+
+MACs are usually based on *_keyed cryptographic hash functions_*, which are like _message digest algorithms_ but require a _private key_ to produce or verify the integrity of a message and may also be used to verify (authenticate) the message's sender.
+
+MACs require resistance to various forms of *_forgery_*.
+
+* For a given keyed hash function _H(M,K)_ taking input message _M_ and key _K_, resistance to *_selective forgery_* means that it is difficult for an adversary not knowing _K_ to form _H(M,K)_ given a specific _M_.
+* _H(M,K)_ is resistant to *_existential forgery_* if it is difficult for an adversary lacking _K_ to find any previously unknown valid combination of _M_ and _H(M,K)_.
+
+NOTE: Note that MACs do not provide exactly the same features as digital signatures. For example, they cannot be a solid basis for nonrepudiation because the secret key is known to more than one party.
+
+A standard MAC that uses _cryptographic hash functions_ in a particular way is called the _keyed-hash message authentication code_ (*HMAC*) <<FIPS198>><<RFC2104>>.
+
+* The HMAC "algorithm" uses a generic cryptographic hash algorithm, say _H(M)_.
+
+* To form a _t_-byte HMAC on message _M_ with key _K_ using _H_ (called _HMAC-H_), we use the following definition:
++
+[.text-center,subs="+quotes"]
+----
+_HMAC-H (K, M)t = Λt (H((K ⊕ opad)||H((K ⊕ ipad)||M)))_
+----
++
+In this definition, `opad` (outer pad) is an array containing the value `0x5C` repeated `|K|` times, and `ipad` (inner pad) is an array containing the value `0x36` repeated `|K|` times. `⊕` is the vector XOR operator, and `||` is the concatenation operator.
++
+Normally the HMAC output is intended to be a certain number `t` of bytes in length, so the operator `Λt(M)` takes the left-most `t` bytes of `M`.
+
+More recently, other forms of MACs have been standardized, called the _cipherbased MAC_ (*CMAC*) <<FIPS800-38B>> and *GMAC* <<NIST800-38D>>. Instead of using a cryptographic hash function such as HMAC, these use a block cipher such as AES or 3DES.
 
 [bibliography]
 == References
 
 * [[[TCPIPV1,1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
 * [[[auth0-salt-hasing,2]]] https://auth0.com/blog/adding-salt-to-hashing-a-better-way-to-store-passwords/
+* [[[FIPS186-3]]] National Institute for Standards and Technology, “Digital Signature Standard (DSS),” FIPS PUB 186-3, June 2009.
+* [[[FIPS198]]] National Institute for Standards and Technology, “The Keyed-Hash Message Authentication Code (HMAC),” FIPS PUB 198, Mar. 2002.
+* [[[FIPS800-38B]]] National Institute for Standards and Technology, “Recommendation for Block Cipher Modes of Operation: The CMAC Mode for Authentication,”NIST Special Publication 800-38B, May 2005.
+* [[[NIST800-38D]]] National Institute for Standards and Technology, “Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC,” NIST Special Publication 800-38D, Nov. 2005.
+* [RFC2104] H. Krawczyk, M. Bellare, and R. Canetti, “HMAC: Keyed-Hashing for Message Authentication,” Internet RFC 2104 (informational), Feb. 1997.
