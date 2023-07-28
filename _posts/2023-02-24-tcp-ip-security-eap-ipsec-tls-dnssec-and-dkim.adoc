@@ -182,7 +182,7 @@ The most common approach used for both digital signatures and confidentiality is
 
 The Diffie-Hellman-Merkle Key Agreement protocol (more commonly called simply Diffie-Hellman or DH) provides a method to have two parties agree on a common set of secret bits that can be used as a symmetric key, based on the use of finite field arithmetic.
 
-DH techniques are used in many of the Internet-related security protocols [RFC2631] and are closely related to the RSA approach for public key cryptography.
+DH techniques are used in many of the Internet-related security protocols <<RFC2631>> and are closely related to the RSA approach for public key cryptography.
 
 === Signcryption and Elliptic Curve Cryptography (ECC)
 
@@ -212,7 +212,7 @@ For example, the common _Linear Congruential Generator_ (LCG) algorithm produces
 
 A *pseudorandom function family* (PRF) is a family of functions that appear to be algorithmically indistinguishable (by polynomial time algorithms) from truly random functions. A PRF is a stronger concept than a PRG, as a PRG can be created from a PRF.
 
-PRFs are the basis for *_cryptographically strong_* (or secure) pseudorandom number generators, called CSPRNGs. CSPRNGs are necessary in cryptographic applications for several purposes, including session key generation, for which a sufficient amount of randomness must be guaranteed [RFC4086].
+PRFs are the basis for *_cryptographically strong_* (or secure) pseudorandom number generators, called CSPRNGs. CSPRNGs are necessary in cryptographic applications for several purposes, including session key generation, for which a sufficient amount of randomness must be guaranteed <<RFC4086>>.
 
 === Nonces and Salt
 
@@ -246,9 +246,9 @@ A checksum or FCS can be used to verify message integrity if properly constructe
 * Collision resistance: It should be difficult to find any pair _M1_, _M2_ where _H(M1) = H(M2)_ when _M2 ≠ M1_.
 --
 +
-If a hash function has all of these properties, then if two messages have the same cryptographic hash value, they are, with negligible doubt, the same message. The two most common cryptographic hash algorithms are at present the _Message Digest Algorithm 5_ (*_MD5_*, [RFC1321]), which produces a 128-bit (16-byte) digest, and the _Secure Hash Algorithm 1_ (*_SHA-1_*), which produces a 160-bit (20-byte) digest.
+If a hash function has all of these properties, then if two messages have the same cryptographic hash value, they are, with negligible doubt, the same message. The two most common cryptographic hash algorithms are at present the _Message Digest Algorithm 5_ (*_MD5_*, <<RFC1321>>), which produces a 128-bit (16-byte) digest, and the _Secure Hash Algorithm 1_ (*_SHA-1_*), which produces a 160-bit (20-byte) digest.
 +
-More recently, a family of functions based on SHA called *_SHA-2_* [RFC6234] produce digests with lengths of 224, 256, 384, or 512 bits (28, 32, 48, and 64 bytes, respectively). Others are under development.
+More recently, a family of functions based on SHA called *_SHA-2_* <<RFC6234>> produce digests with lengths of 224, 256, 384, or 512 bits (28, 32, 48, and 64 bytes, respectively). Others are under development.
 
 [NOTE]
 ====
@@ -283,7 +283,49 @@ In this definition, `opad` (outer pad) is an array containing the value `0x5C` r
 +
 Normally the HMAC output is intended to be a certain number `t` of bytes in length, so the operator `Λt(M)` takes the left-most `t` bytes of `M`.
 
-More recently, other forms of MACs have been standardized, called the _cipherbased MAC_ (*CMAC*) <<FIPS800-38B>> and *GMAC* <<NIST800-38D>>. Instead of using a cryptographic hash function such as HMAC, these use a block cipher such as AES or 3DES.
+More recently, other forms of MACs have been standardized, called the _cipher-based MAC_ (*CMAC*) <<FIPS800-38B>> and *GMAC* <<NIST800-38D>>. Instead of using a cryptographic hash function such as HMAC, these use a block cipher such as AES or 3DES. CMAC is envisioned for use in environments where it is more convenient or efficient to use a block cipher in place of a hash function.
+
+=== Cryptographic Suites and Cipher Suites
+
+The combination of the mathematical or cryptographic techniques used in a particular system, especially the Internet protocols, are called a *cryptographic suite* or sometimes a *cipher suite*, although the first term is more accurate. A cryptographic suite defines not only an enciphering (encryption) algorithm but may also include a particular MAC algorithm, PRF, key agreement algorithm, signature algorithm, and associated key lengths and parameters.
+
+Usually, an _encryption algorithm_ is specified by its name and description, how many bits are used for its keys (often a multiple of 128 bits), along with its operating *_mode_*. Encryption algorithms that have been standardized for use with Internet protocols include AES, 3DES, NULL [RFC2410], and CAMELLIA [RFC3713]. The NULL encryption algorithm does not modify the input and is used in certain circumstances where confidentiality is not required.
+
+The operating *mode* of an encryption algorithm, especially a block cipher, describes how to use the encryption function for a single block repeatedly (e.g., in a cascade) to encrypt or decrypt an entire message with a single key. Common modes today include _cipher block chaining_ (*CBC*) and _counter_ (*CTR*) mode, although many others have been defined.
+
+* When performing encryption using CBC mode, a cleartext block to be encrypted is first XORed with the previous ciphertext block (the first block is XORed with a random _initialization vector_ or *IV*).
+
+* Encrypting in CTR mode involves first creating a value combining a nonce (or IV) and a counter that increments with each successive block to be encrypted.
++
+The combination is then encrypted, the output is XORed with a cleartext block to produce a ciphertext block, and the process repeats for successive blocks.
++
+In effect, this approach uses a block cipher to produce a *keystream*, a sequence of (random-appearing) bits that are combined (e.g., XORed) with cleartext bits to produce a ciphertext. Doing so essentially converts a block cipher into a stream cipher because no explicit padding of the input is required.
+
+* CBC requires a serial process for encryption and a partly serial process for decryption, whereas counter mode algorithms allow more efficient fully parallel encryption and decryption implementations. Consequently, counter mode is gaining popularity.
+
+In addition, variants of CTR mode (e.g., counter mode with CBC-MAC (CCM), Galois Counter Mode, or GCM) can be used for authenticated encryption [RFC4309], and possibly to authenticate (but not encrypt) additional data (called _authenticated encryption with associated data_ or *AEAD*) [RFC5116].
+
+When an encryption algorithm is specified as part of a cryptographic suite, its name usually includes the mode, and the key length is often implied. For example, ENCR_AES_CTR refers to AES-128 used in CTR mode.
+
+When a PRF is included in the definition of a cryptographic suite, it is usually based on a cryptographic hash algorithm family such as SHA-2 [RFC6234] or a cryptographic MAC such as CMAC [RFC4434][RFC4615]. For example, the algorithm AES-CMAC-PRF-128 refers to a PRF constructed using a CMAC based on AES-128. It is also written as PRF_AES128_CMAC. The algorithm PRF_HMAC_SHA1 refers to a PRF based on HMAC-SHA1.
+
+_Key agreement_ parameters, when included with an Internet cryptographic suite definition, refer to DH group definitions, as no other key agreement protocol is in widespread use. When DH key agreement is used in generating keys for a particular encryption algorithm, care must be taken to ensure that the keys produced are of sufficient length (strength) to avoid compromising the security of the encryption algorithm.
+
+A _signature algorithm_ is sometimes included in the definition of a cryptographic suite. It may be used for signing a variety of values including data, MACs, and DH values. The most common is to use RSA to sign a hashed value for some block of data, although the _digital signature standard_ (written as DSS or DSA to indicate the digital signature algorithm) [FIPS186-3] is also used in some circumstances. With the advent of ECC, signatures based on elliptic curves (e.g., ECDSA [X9.62-
+2005]) are also now supported in many systems.
+
+The concept of a cryptographic suite evolved in the context of Internet security protocols because of a need for modularity and decoupled evolution. As computational power has improved, older cryptographic algorithms and smaller key lengths have fallen victim to various forms of brute-force attacks. In some cases, more sophisticated attacks have revealed flaws that necessitate the replacement of the underlying mathematical and cryptographic methods, but the basic protocol machinery is otherwise sound. As a result, the choice of a cryptographic suite can now be made separately from the communication protocol details and depends on factors such as convenience, performance, and security. Protocols tend to make use of the components of a cryptographic suite in a standard way, so an appropriate cryptographic suite can be “snapped in” when deemed appropriate.
+
+
+
+
+
+
+
+
+
+
+
 
 [bibliography]
 == References
@@ -294,4 +336,8 @@ More recently, other forms of MACs have been standardized, called the _cipherbas
 * [[[FIPS198]]] National Institute for Standards and Technology, “The Keyed-Hash Message Authentication Code (HMAC),” FIPS PUB 198, Mar. 2002.
 * [[[FIPS800-38B]]] National Institute for Standards and Technology, “Recommendation for Block Cipher Modes of Operation: The CMAC Mode for Authentication,”NIST Special Publication 800-38B, May 2005.
 * [[[NIST800-38D]]] National Institute for Standards and Technology, “Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC,” NIST Special Publication 800-38D, Nov. 2005.
-* [RFC2104] H. Krawczyk, M. Bellare, and R. Canetti, “HMAC: Keyed-Hashing for Message Authentication,” Internet RFC 2104 (informational), Feb. 1997.
+* [[[RFC1321]]] R. Rivest, “The MD5 Message-Digest Algorithm,” Internet RFC 1321 (informational), Apr. 1992.
+* [[[RFC2104]]] H. Krawczyk, M. Bellare, and R. Canetti, “HMAC: Keyed-Hashing for Message Authentication,” Internet RFC 2104 (informational), Feb. 1997.
+* [[[RFC2631]]] E. Rescorla, “Diffie-Hellman Key Agreement Method,” Internet RFC 2631, June 1999.
+* [[[RFC4086]]] D. Eastlake 3rd, J. Schiller, and S. Crocker, “Randomness Requirements for Security,” Internet RFC 4086/BCP 0106, June 2005.
+* [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),” Internet RFC 6234 (informational), May 2011.
