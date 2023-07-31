@@ -1,4 +1,4 @@
-#	= TCP/IP: Security: EAP, IPsec, TLS, DNSSEC, and DKIM
+= TCP/IP: Security: EAP, IPsec, TLS, DNSSEC, and DKIM
 :page-layout: post
 :page-categories: ['networking']
 :page-tags: ['networking', 'tcp']
@@ -339,7 +339,7 @@ The concept of a cryptographic suite evolved in the context of Internet security
 
 * Protocols tend to make use of the components of a cryptographic suite in a standard way, so an appropriate cryptographic suite can be “snapped in” when deemed appropriate.
 
-=== Certificates, Certificate Authorities (CAs), and PKIs
+== Certificates, Certificate Authorities (CAs), and PKIs
 
 *Key management*, how keys are _created_, _exchanged_, and _revoked_, remains one of the greatest challenges in deploying cryptographic systems on a widespread basis across multiple administrative domains.
 
@@ -370,12 +370,231 @@ Having no central authority suggests that the scheme will not collapse because o
 
 * The web of trust model was first described as part of the *Pretty Good Privacy* (_PGP_) encryption system for electronic mail <<NAZ00>>, which has evolved to support a standard encoding format called *OpenPGP*, defined by <<RFC4880>>.
 
+A more formal approach, which has the added benefit of being provably secure under certain theoretical assumptions in exchange for more dependence on a centralized authority, involves the use of a *public key infrastructure* (*PKI*).
 
+* A PKI is a service that operates with a collection of *_certificate authorities_* (*CAs*) responsible for creating, revoking, distributing, and updating key pairs and certificates.
 
+* A CA is an entity and service set up to manage and attest to the bindings between identities and their corresponding public keys. There are several hundred commercial CAs.
++
+> A CA usually employs a _hierarchical_ signing scheme. This means that a public key may be signed using a parent key which is in turn signed by a grand-parent key, and so on. Ultimately a CA has one or more *_root certificates_* upon which many subordinate certificates depend for trust.
+>
+> .https://letsencrypt.org/certificates/[Let's Encrypt's Hierarchy as of August 2021]
+> image::https://letsencrypt.org/images/isrg-hierarchy.png["ISRG Certificate Hierarchy Diagram, as of December 2020",60%,60%]
 
+* An entity that is authoritative for certificates and keys (e.g., a CA) is called a *_trust anchor_*, although this term is also used to describe the certificates or other cryptographic material associated with such entities <<RFC6024>>.
 
+=== Public Key Certificates, Certificate Authorities, and X.509
 
+While several types of certificates have been used in the past, the one of most interest to us is based on an Internet profile of the ITU-T X.509 standard <<RFC5280>>.
 
+In addition, any particular certificate may be stored and exchanged in a number of file or encoding formats. The most common ones include DER, PEM (a Base64 encoded version of DER), PKCS#7 (P7B), PKCS#12 (PFX), and PKCS#1 <<RFC3447>>.
+
+Today, Internet PKI-related standards tend to use the _cryptographic message syntax_ <<RFC5652>>, which is based on PKCS#7 version 1.5.
+
+Certificates are primarily used in identifying four types of entities on the Internet: individuals, servers, software publishers, and CAs. Certificate classes are primarily a convenience for grouping and naming types of certificates and for defining different security policies associated with them.
+
+In practice, systems requiring public key operations have root certificates for popular CAs installed at configuration time (e.g., Microsoft Internet Explorer, Mozilla’s Firefox, and Google’s Chrome are all capable of accessing a preconfigured database of root certificates), to solve the chicken-egg PKI bootstrapping problem.
+
+The `openssl` command, available for most common platforms including Linux and Windows, allows us to see the certificates for a Web site:
+
+[source,console]
+----
+$ openssl version -d
+OPENSSLDIR: "/usr/lib/ssl"
+$ openssl s_client -CApath /usr/lib/ssl/certs/ -connect www.digicert.com:443 > digicert.out 2>1
+^C (to interrupt)
+----
+
+* The first command determines where the local system stores its preconfigured CA certificates. This is usually a directory that varies by system.
+
+* The next makes a connection to the HTTPS port (443) on the `www.digicert.com` server and redirect the output to the `digicert.out` file.
+
+* The `openssl` command takes care to print the entity identified by each of the certificates, and at what depth they are in the certificate hierarchy relative to the root (depth 0 is the server’s certificate, so the depth numbers are counted bottom to top).
++
+[source,console]
+----
+$ head digicert.out 
+CONNECTED(00000003)
+---
+Certificate chain
+ 0 s:jurisdictionC = US, jurisdictionST = Utah, businessCategory = Private Organization, serialNumber = 5299537-0142, C = US, ST = Utah, L = Lehi, O = "DigiCert, Inc.", CN = www.digicert.com
+   i:C = US, O = DigiCert Inc, CN = DigiCert EV RSA CA G2
+   a:PKEY: rsaEncryption, 2048 (bit); sigalg: RSA-SHA256
+   v:NotBefore: Jun 26 00:00:00 2023 GMT; NotAfter: Jun 25 23:59:59 2024 GMT
+ 1 s:C = US, O = DigiCert Inc, CN = DigiCert EV RSA CA G2
+   i:C = US, O = DigiCert Inc, OU = www.digicert.com, CN = DigiCert Global Root G2
+   a:PKEY: rsaEncryption, 2048 (bit); sigalg: RSA-SHA256
+----
+
+* It also checks the certificates against the stored CA certificates to see if they verify properly.
++
+In this case, they do, as indicated by “verify return” having value `0` (ok).
++
+[source,console]
+----
+$ grep 'return code' digicert.out 
+Verify return code: 0 (ok)
+----
+
+To get the certificate into a more usable form, we can extract the certificate data, convert it, and place the result into a PEM-encoded certificate file:
+
+[source,console]
+----
+$ openssl x509 -in digicert.out -out digicert.pem
+----
+
+Given the certificate in PEM format, we can now use a variety of `openssl` functions to manipulate and inspect it. At the highest level, the certificate includes some _data_ to be signed (called the _To Be Signed (TBS) certificate_) followed by a _signature algorithm identifier_ and _signature value_.
+
+[source,console]
+----
+$ openssl x509 -in digicert.pem -text 
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            09:fc:b7:40:3f:fd:79:b6:8f:e2:4f:74:80:5f:5d:00
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C = US, O = DigiCert Inc, CN = DigiCert EV RSA CA G2
+        Validity
+            Not Before: Jun 26 00:00:00 2023 GMT
+            Not After : Jun 25 23:59:59 2024 GMT
+        Subject: jurisdictionC = US, jurisdictionST = Utah, businessCategory = Private Organization, serialNumber = 5299537-0142, C = US, ST = Utah, L = Lehi, O = "DigiCert, Inc.", CN = www.digicert.com
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:98:df:33:59:c1:3b:a7:38:8c:5d:9e:2f:e3:cf:
+                    cb:ea:50:3a:36:fe:77:a7:98:52:4d:c2:ca:94:78:
+                    8f:e6:f3:57:5d:38:77:f2:d3:d7:6b:a4:90:42:f7:
+                    71:1e:58:6a:92:0d:95:91:5f:32:71:b1:93:1c:f5:
+                    db:e0:0a:d6:d2:a8:da:6f:1a:80:39:57:4d:e5:af:
+                    97:58:52:d1:ac:42:18:e1:99:2f:5e:b0:bd:1d:3b:
+                    f2:8c:5e:8c:ad:a7:99:f5:a5:51:d1:61:4a:65:a9:
+                    17:23:9e:bb:10:86:b5:36:9e:aa:33:87:8c:00:6f:
+                    28:ec:2a:5c:d9:51:4e:5c:34:08:24:3a:8f:61:85:
+                    a8:b1:8f:6c:9e:72:7e:a1:8b:88:31:81:07:e8:95:
+                    75:2f:28:09:0e:91:b4:f9:2c:1c:7f:c5:34:15:5e:
+                    59:bc:21:1c:4e:a3:ac:7f:b2:4c:76:e4:c4:9c:d9:
+                    c1:ce:56:f3:a6:07:1f:43:f0:9a:c5:dd:09:3f:60:
+                    77:27:d8:0f:55:05:9b:82:f2:f6:20:40:0a:05:04:
+                    61:b9:d7:11:e6:26:89:95:78:d3:20:c5:6f:09:19:
+                    d8:9b:e1:9a:d8:cd:e3:32:69:11:ce:3f:0c:fe:34:
+                    c0:ca:25:49:9d:45:d0:67:7e:d9:78:c9:0e:34:95:
+                    88:39
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Authority Key Identifier: 
+                6A:4E:50:BF:98:68:9D:5B:7B:20:75:D4:59:01:79:48:66:92:32:06
+            X509v3 Subject Key Identifier: 
+                D4:38:B0:9D:E2:63:52:91:C7:82:03:F0:1F:00:CE:EE:A0:FA:B7:93
+            X509v3 Subject Alternative Name: 
+                DNS:www.digicert.com, DNS:digicert.com, DNS:admin.digicert.com, DNS:api.digicert.com, DNS:content.digicert.com, DNS:order.digicert.com, DNS:login.digicert.com, DNS:ws.digicert.com
+            X509v3 Key Usage: critical
+                Digital Signature, Key Encipherment
+            X509v3 Extended Key Usage: 
+                TLS Web Server Authentication, TLS Web Client Authentication
+            X509v3 CRL Distribution Points: 
+                Full Name:
+                  URI:http://crl3.digicert.com/DigiCertEVRSACAG2.crl
+                Full Name:
+                  URI:http://crl4.digicert.com/DigiCertEVRSACAG2.crl
+            X509v3 Certificate Policies: 
+                Policy: 2.16.840.1.114412.2.1
+                Policy: 2.23.140.1.1
+                  CPS: http://www.digicert.com/CPS
+            Authority Information Access: 
+                OCSP - URI:http://ocsp.digicert.com
+                CA Issuers - URI:http://cacerts.digicert.com/DigiCertEVRSACAG2.crt
+            X509v3 Basic Constraints: 
+                CA:FALSE
+            CT Precertificate SCTs: 
+                Signed Certificate Timestamp:
+                    Version   : v1 (0x0)
+                    Log ID    : 76:FF:88:3F:0A:B6:FB:95:51:C2:61:CC:F5:87:BA:34:
+                                B4:A4:CD:BB:29:DC:68:42:0A:9F:E6:67:4C:5A:3A:74
+                    Timestamp : Jun 26 17:26:00.704 2023 GMT
+                    Extensions: none
+                    Signature : ecdsa-with-SHA256
+                                30:46:02:21:00:89:EB:FD:DB:D0:80:4F:31:30:73:D8:
+                                19:F3:B4:3B:44:96:33:A9:95:32:8B:27:EE:5A:2E:94:
+                                A7:4C:C8:BC:9E:02:21:00:A0:39:06:E3:1F:15:6F:F3:
+                                8D:D0:B6:D2:72:EE:8E:69:B5:23:FF:2B:8A:42:03:A1:
+                                27:74:33:78:C4:AC:AF:18
+                Signed Certificate Timestamp:
+                    Version   : v1 (0x0)
+                    Log ID    : 48:B0:E3:6B:DA:A6:47:34:0F:E5:6A:02:FA:9D:30:EB:
+                                1C:52:01:CB:56:DD:2C:81:D9:BB:BF:AB:39:D8:84:73
+                    Timestamp : Jun 26 17:26:00.754 2023 GMT
+                    Extensions: none
+                    Signature : ecdsa-with-SHA256
+                                30:44:02:20:79:AB:36:3F:F9:22:B1:E1:2D:F4:57:16:
+                                57:9D:38:85:70:E7:0B:8A:04:CB:CC:37:3B:91:5E:17:
+                                8D:06:8F:37:02:20:3E:B8:90:C7:68:4E:60:4C:DE:04:
+                                FA:72:DF:D1:B4:95:93:3E:14:0B:21:32:AD:39:14:3F:
+                                55:46:5E:B2:83:16
+                Signed Certificate Timestamp:
+                    Version   : v1 (0x0)
+                    Log ID    : 3B:53:77:75:3E:2D:B9:80:4E:8B:30:5B:06:FE:40:3B:
+                                67:D8:4F:C3:F4:C7:BD:00:0D:2D:72:6F:E1:FA:D4:17
+                    Timestamp : Jun 26 17:26:00.748 2023 GMT
+                    Extensions: none
+                    Signature : ecdsa-with-SHA256
+                                30:44:02:20:3A:F4:92:55:82:0E:1D:06:A6:21:90:C3:
+                                9F:F5:41:3E:27:4F:D1:E9:59:6E:D5:50:BE:9B:1E:0C:
+                                15:48:80:05:02:20:54:62:74:41:60:9B:A5:E5:EC:79:
+                                F1:32:46:A2:F0:A3:8B:6B:4E:79:B0:A6:7C:6C:DB:D5:
+                                CB:3A:14:83:07:27
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        5d:f7:f6:45:62:22:7e:93:dc:9e:5a:62:2b:3c:8a:f1:06:9b:
+        b2:18:77:ce:f9:36:dc:ea:31:f8:b6:bb:6d:e7:7b:fe:52:10:
+        20:ff:d6:12:bf:ec:e4:7d:73:c5:ee:2c:dc:25:38:df:9f:03:
+        2c:19:97:f7:70:7d:a0:ca:7e:69:fa:c7:3c:99:7f:66:41:00:
+        bd:58:44:3a:d3:3e:39:ec:28:3a:58:da:a2:2f:14:99:60:ba:
+        d2:29:9e:19:54:f8:34:86:45:ec:8d:e6:8a:09:9d:f3:ef:2b:
+        b9:a3:30:0e:06:9f:45:93:70:99:b6:43:f5:2e:56:d2:fe:17:
+        87:19:cc:b0:9d:36:67:a4:76:d3:d9:83:e2:c6:b9:fc:fa:a8:
+        be:e5:a0:19:c8:fa:e1:88:d2:b2:9c:a2:35:0b:a8:61:09:bf:
+        fc:4e:65:ee:ee:1d:9f:df:59:74:66:10:d9:f8:01:99:37:cf:
+        ea:c9:83:3c:69:91:b3:2e:9d:e0:2e:ca:56:bd:f3:b6:fc:27:
+        9e:eb:76:dd:42:65:8b:e8:25:0e:52:96:86:c4:5f:1e:03:1b:
+        2d:5d:90:87:af:de:47:47:a8:bd:f9:3c:6e:dd:7c:42:ab:c7:
+        a7:c3:f3:19:58:9d:63:98:4a:7a:8d:7a:de:84:64:10:85:7b:
+        e6:4d:4e:9f
+-----BEGIN CERTIFICATE-----
+MIIHbDCCBlSgAwIBAgIQCfy3QD/9ebaP4k90gF9dADANBgkqhkiG9w0BAQsFADBE
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMR4wHAYDVQQDExVE
+...
+AZk3z+rJgzxpkbMuneAuyla987b8J57rdt1CZYvoJQ5SlobEXx4DGy1dkIev3kdH
+qL35PG7dfEKrx6fD8xlYnWOYSnqNet6EZBCFe+ZNTp8=
+-----END CERTIFICATE-----
+----
+
+The decoded version of the certificate followed by an ASCII (PEM) representation of the certificate (between the `BEGIN CERTIFICATE` and `END CERTIFICATE` indicators) shows a _data_ portion and a _signature_ portion.
+
+Within the data portion is some metadata including:
+
+* a _Version_ field, indicating the particular X.509 certificate type (`3`, the most recent, is encoded using hex value `0x02`),
+
+* a _Serial Number_ of the particular certificate, a number assigned by the CA unique to each certificate,
+
+* and a _Validity_ field that gives the time during which the certificate should be treated as legitimate, starting with the _Not Before_ subfield and ending with the _Not After_ subfield.
+
+* The certificate metadata also indicates which _signature algorithm_ is used to sign the data portion.
++
+In this case (i.e. `sha256WithRSAEncryption`), it is signed by computing a hash using SHA-2 and signing the result using RSA. The signature itself appears at the end of the certificate.
+
+* The _Issuer_ field indicates the _distinguished name_ (jargon from the ITU-T X.500 standard) of the entity that issued the certificate and may have these special subfields (based on X.501): _C_ (country), _L_ (locale or city), _O_ (organization), _OU_ (organizational unit), _ST_ (state or province), _CN_ (common name).
++
+Other subfields have also been defined. In this case, we can see that an _extended validation_ (EV) <<CABF09>> CA certificate has been used to sign the server’s certificate.
++
+--
+EV certificates represent an industry response to certain phishing attacks involving malicious Web sites that were issued certificates without rigorous identity proofing. Issuing of an EV certificate takes place only under an agreed-upon set of stringent criteria, and a user visiting a Web site using EV certificates and a modern browser typically sees a _green_ title bar and CA information to indicate the enhanced level of rigor.
+
+One of the requirements for EV certificates placed upon each CA is to provide a _certification practice statement_ (CPS), which outlines the practices used in issuing certificates. Considerations for authors of CPSs (and _certificate policies_ or CPs that apply on a per-certificate basis) are given in <<RFC5280>>.
+
+Note that although EV certificates may provide higher assurance (e.g., for some Web sites), most users do not pay careful attention to the cues provided by Web browsers that reveal this fact <<BOPSW09>>.
+--
 
 
 [bibliography]
@@ -403,3 +622,10 @@ Having no central authority suggests that the scheme will not collapse because o
 * [[[X9.62-2005]]] American National Standards Institute, “Public Key Cryptography for the Financial Services Industry: The Elliptic Curve Digital Signature Standard (ECDSA),” ANSI X9.62, 2005.
 * [[[RFC4880]]] J. Callas, L. Donnerhacke, H. Finney, D. Shaw, and R. Thayer, “Open-PGP Message Format,” Internet RFC 4880, Nov. 2007.
 * [[[NAZ00]]] Network Associates and P. Zimmermann, Introduction to Cryptography, Part of PGP 7.0 Documentation, available from http://www.pgpi.org/doc/guide/7.0/en
+* [[[RFC6024]]] R. Reddy and C. Wallace, “Trust Anchor Management Requirements,” Internet RFC 6024 (informational), Oct. 2010.
+* [[[]]RFC5280] D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and W. Polk, “Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile,” Internet RFC 5280, May 2008.
+* [[[RFC3447]]] J. Jonsson and B. Kaliski, “Public-Key Cryptography Standards (PKCS) #1: RSA Cryptography Specifications Version 2.1,” Internet RFC 3447 (informational), Feb. 2003.
+* [[[RFC5652]]] R. Housley, “Cryptographic Message Syntax (CMS),” Internet RFC 5652/STD 0070, Sept. 2009.
+* [[[CABF09]]] CA/Browser Forum, “Guidelines for the Issuance and Management of Extended Validation Certificates (v1.4.6),” 2009, https://cabforum.org/wp-content/uploads/EV-SSL-Certificate-Guidelines-Version-1.4.6.pdf
+* [[[BOPSW09]]] R. Biddle et al., “Browser Interfaces and Extended Validation SSL Certificates: An Empirical Study,” Proc. ACM Cloud Security Workshop, Nov. 2009.
+* [[[RFC5280]]] D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and W. Polk, “Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile,” Internet RFC 5280, May 2008.
