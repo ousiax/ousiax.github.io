@@ -576,9 +576,10 @@ $ openssl dgst -sha256 -verify alice.pub -signature sig.txt.0 message.txt
 Verified OK
 ----
 
-[source,console,highlight="5,12"]
+[source,console,highlight="5,13"]
 ----
-$ # When signing a file, dgst will automatically determine the algorithm (RSA, ECC, etc) to use for signing based on the private key's ASN.1 info. 
+$ # When signing a file, dgst will automatically determine the algorithm (RSA, ECC, etc) to use for signing \
+$ # based on the private key's ASN.1 info. 
 $ openssl asn1parse -in alice.pub 
     0:d=0  hl=4 l= 546 cons: SEQUENCE          
     4:d=1  hl=2 l=  13 cons: SEQUENCE          
@@ -592,7 +593,6 @@ $ openssl asn1parse -in bob.pub
     4:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
    13:d=2  hl=2 l=   5 prim: OBJECT            :secp384r1
    20:d=1  hl=2 l=  98 prim: BIT STRING        
-
 ----
 
 == Certificates, Certificate Authorities (CAs), and PKIs
@@ -1021,7 +1021,7 @@ In addition to public key certificates (PKCs) used to bind names to public keys,
 * ACs contain other structures similar to PKCs, including extensions and AC policies.
 
 [appendix]
-== FAQs
+== FAQs about OpenSSL
 
 === How does OpenSSL determine the  the correct algorithm (RSA or ECC) based on the key's ASN.1 information?
 
@@ -1183,6 +1183,59 @@ RSA, DH, and ECDH are cryptographic algorithms that serve different purposes and
 
 In summary, RSA is an asymmetric cryptographic algorithm used for encryption, decryption, and digital signatures, while DH and ECDH are key exchange algorithms that allow parties to establish a shared secret securely. DH is based on modular exponentiation, while ECDH uses elliptic curve cryptography.
 
+=== What's best way to generate a key for AES in OpenSSL?
+
+The best way to generate a key for AES in OpenSSL is to use the openssl rand command, which generates cryptographically secure random bytes. The key size depends on the AES variant you want to use: AES-128, AES-192, or AES-256. Here's how to generate a key for each AES variant:
+
+[source,console]
+----
+$ # 1. Generate a 128-bit key for AES-128:
+$ openssl rand -out aes128_key.bin 16  
+ 
+$ # 2. Generate a 192-bit key for AES-192:
+$ openssl rand -out aes192_key.bin 24  
+ 
+$ # 3. Generate a 256-bit key for AES-256:
+$ openssl rand -out aes256_key.bin 32  
+----
+ 
+These commands will generate random binary files with the specified number of bytes (16 bytes for AES-128, 24 bytes for AES-192, and 32 bytes for AES-256). You can then use these keys with the `openssl enc1` command or other AES encryption tools.
+
+It is essential to protect the confidentiality of the generated AES keys, as anyone with access to the key can decrypt the encrypted data.
+
+=== How to To encrypt a message using AES and detect a corrupted message?
+
+To encrypt a message using AES and detect a corrupted message, you can use the `openssl enc` command along with an _authenticated encryption mode_ like GCM (Galois/Counter Mode). GCM provides both confidentiality and integrity, ensuring that the message cannot be tampered with without detection.
+
+Here's a step-by-step process to encrypt and decrypt a message using AES-GCM:
+
+[source,console]
+----
+$ # 1. Generate a 256-bit key for AES-256:
+$ openssl rand -out aes256_key.bin 32  
+ 
+$ # 2. Generate a random 96-bit (12-byte) nonce (also called IV - Initialization Vector) for GCM:
+$ openssl rand -out nonce.bin 12  
+ 
+$ # 3. Encrypt a message using AES-256-GCM:
+$ openssl enc -aes-256-gcm -in plaintext.txt -out encrypted.bin -K $(cat aes256_key.bin | xxd -p) -iv $(cat nonce.bin | xxd -p) -aead  
+----
+ 
+This command will encrypt the file `plaintext.txt` and create an encrypted file `encrypted.bin`. The `-K` and `-iv` options specify the key and nonce in hexadecimal format, respectively. The `-aead` option indicates that an authentication tag will be generated and appended to the encrypted message.
+
+Decrypt the message and verify its integrity:
+
+[source,console]
+----
+$ openssl enc -d -aes-256-gcm -in encrypted.bin -out decrypted.txt -K $(cat aes256_key.bin | xxd -p) -iv $(cat nonce.bin | xxd -p) -aead  
+----
+ 
+This command will decrypt the file `encrypted.bin` and create a decrypted file `decrypted.txt`. If the message has been tampered with, OpenSSL will display an error message like bad decrypt or error reading input file.
+
+Remember, you should securely share the AES key and nonce/IV with the recipient, but do not transmit them alongside the encrypted message. The nonce/IV should be unique for each encryption operation with the same key.
+
+Please note that this example uses the command line and stores the key, nonce, and authentication tag in files for simplicity. In real-world applications, you should handle these sensitive values securely, such as using secure key storage solutions and secure channels for key exchange.
+
 [appendix]
 == Extended Validation Certificate
 
@@ -1245,8 +1298,6 @@ EV certificates represent an industry response to certain phishing attacks invol
 One of the requirements for EV certificates placed upon each CA is to provide a _certification practice statement_ (CPS), which outlines the practices used in issuing certificates. Considerations for authors of CPSs (and _certificate policies_ or CPs that apply on a per-certificate basis) are given in <<RFC5280>>.
 
 Note that although EV certificates may provide higher assurance (e.g., for some Web sites), most users do not pay careful attention to the cues provided by Web browsers that reveal this fact <<BOPSW09>>.
-
-
 
 [bibliography]
 == References
