@@ -342,6 +342,14 @@ More recently, other forms of MACs have been standardized, called the _cipher-ba
 
 The combination of the mathematical or cryptographic techniques used in a particular system, especially the Internet protocols, defines not only an enciphering (encryption) algorithm but may also include a particular MAC algorithm, PRF (_pseudorandom function family_), key agreement algorithm, signature algorithm, and associated key lengths and parameters, are called a *cryptographic suite* or sometimes a *cipher suite*, although the first term is more accurate.
 
+[source,console]
+----
+$ openssl ciphers -v -s -tls1_3
+TLS_AES_256_GCM_SHA384         TLSv1.3 Kx=any      Au=any   Enc=AESGCM(256)            Mac=AEAD
+TLS_CHACHA20_POLY1305_SHA256   TLSv1.3 Kx=any      Au=any   Enc=CHACHA20/POLY1305(256) Mac=AEAD
+TLS_AES_128_GCM_SHA256         TLSv1.3 Kx=any      Au=any   Enc=AESGCM(128)            Mac=AEAD
+----
+
 > From Wikipedia, the free encyclopedia
 > 
 > A *_cipher suite_* is a set of algorithms that help secure a network connection. Suites typically use Transport Layer Security (TLS) or its now-deprecated predecessor Secure Socket Layer (SSL). The set of algorithms that cipher suites usually contain include: a key exchange algorithm, a bulk encryption algorithm, and a message authentication code (MAC) algorithm. <<CSWIKIPEDIA>>
@@ -1185,7 +1193,7 @@ In summary, RSA is an asymmetric cryptographic algorithm used for encryption, de
 
 === What's best way to generate a key for AES in OpenSSL?
 
-The best way to generate a key for AES in OpenSSL is to use the openssl rand command, which generates cryptographically secure random bytes. The key size depends on the AES variant you want to use: AES-128, AES-192, or AES-256. Here's how to generate a key for each AES variant:
+The best way to generate a key for AES in OpenSSL is to use the `openssl rand` command, which generates cryptographically secure random bytes. The key size depends on the AES variant you want to use: AES-128, AES-192, or AES-256. Here's how to generate a key for each AES variant:
 
 [source,console]
 ----
@@ -1203,7 +1211,7 @@ These commands will generate random binary files with the specified number of by
 
 It is essential to protect the confidentiality of the generated AES keys, as anyone with access to the key can decrypt the encrypted data.
 
-=== How to To encrypt a message using AES and detect a corrupted message?
+=== How to encrypt a message using AES and detect a corrupted message?
 
 To encrypt a message using AES and detect a corrupted message, you can use the `openssl enc` command along with an _authenticated encryption mode_ like GCM (Galois/Counter Mode). GCM provides both confidentiality and integrity, ensuring that the message cannot be tampered with without detection.
 
@@ -1235,6 +1243,236 @@ This command will decrypt the file `encrypted.bin` and create a decrypted file `
 Remember, you should securely share the AES key and nonce/IV with the recipient, but do not transmit them alongside the encrypted message. The nonce/IV should be unique for each encryption operation with the same key.
 
 Please note that this example uses the command line and stores the key, nonce, and authentication tag in files for simplicity. In real-world applications, you should handle these sensitive values securely, such as using secure key storage solutions and secure channels for key exchange.
+
+=== What's differences among AES, AES-128, AES-192, and AES-256?
+
+*AES* (Advanced Encryption Standard) is a symmetric block cipher used for encrypting and decrypting data. It operates on _fixed-size blocks of data (128 bits)_ and uses a secret key for both encryption and decryption.
+
+NOTE: The only way to find out if a decryption will fail is by attempting to decrypt it using the key you have. If the key is incorrect or the ciphertext is corrupted, the decryption will produce garbled or meaningless output. In some cases, you can also get an error or an exception while trying to decrypt, depending on the padding scheme used and the library you're using.
+
+AES is available in three different key lengths: AES-128, AES-192, and AES-256. The differences among AES, AES-128, and AES-256 are mainly related to the key length and the number of encryption rounds.
+
+. AES-128:
++
+--
+* Key length: 128 bits (16 bytes)
+* Number of rounds: 10
+--
++
+AES-128 uses a 128-bit key and performs 10 rounds of encryption and decryption. It is the fastest and requires the least amount of memory among the three AES key lengths, making it suitable for applications with limited resources or where performance is critical.
+
+. AES-192:
++
+--
+* Key length: 192 bits (24 bytes)
+* Number of rounds: 12
+--
++
+AES-192 uses a 192-bit key and performs 12 rounds of encryption and decryption. It provides a higher security level compared to AES-128, but it is slower and requires more memory.
+
+. AES-256:
++
+--
+* Key length: 256 bits (32 bytes)
+* Number of rounds: 14
+--
++
+AES-256 uses a 256-bit key and performs 14 rounds of encryption and decryption. It provides the highest security level among the three key lengths, making it suitable for applications requiring strong encryption. However, it is the slowest and requires the most memory.
+
+In summary, the differences among AES, AES-128, and AES-256 are related to the key length and the number of encryption rounds.
+
+* AES-128 is the fastest and requires the least memory, while AES-256 provides the highest security level but is slower and requires more memory.
+* AES-192 offers a balance between performance and security.
+* The choice of which AES key length to use depends on the specific requirements of the application and the desired balance between security, performance, and memory usage.
+
+The *Initialization Vector* (IV) length for all AES variants (AES-128, AES-192, and AES-256) is the same because the IV size depends on the block size of the cipher, not the key size.
+
+For AES, the block size is 128 bits. Therefore, the IV length for AES-128, AES-192, and AES-256 is 128 bits or 16 bytes.
+
+Remember that the IV should be unique and random for each encryption operation to maintain the security of the encrypted data. Although the IV can be public, ensure that the encryption key remains secret and secure.
+
+=== How to encrypt a message with AES?
+
+To generate a key and encrypt a message using AES with OpenSSL, follow these steps:
+
+[source,console]
+----
+$ # 1. Generate a random key:
+$ openssl rand -base64 32 > key.txt  
+$ # This will generate a random 256-bit key and save it to a file called "key.txt".
+
+$ # 2. Encrypt a message using the key:
+$ echo "Hello, 世界" > message.txt  
+$ openssl enc -aes-256-cbc -pbkdf2 -salt -in message.txt -out cipher.txt -pass file:key.txt
+$ # This will encrypt the message using AES-256 in CBC mode with a random IV and the key from "key.txt".
+$ # The encrypted message will be saved to a file called "cipher.txt".
+
+$ # 3. Decrypt the message using the key:
+$ openssl enc -aes-256-cbc -pbkdf2 -d -in cipher.txt -pass file:key.txt -out decrypted.txt
+$ # This will decrypt the message from "cipher.txt" using the same key from "key.txt"
+$ # and save the decrypted message to a file called "decrypted.txt".
+----
+
+NOTE: Note: Make sure to keep the key file secure and do not share it with anyone who should not have access to the encrypted message.
+
+When you use OpenSSL to encrypt a message with AES in CBC mode, an _initialization vector_ (IV) is automatically generated and used. The IV ensures that even if you encrypt the same plaintext with the same key multiple times, the resulting ciphertext will be different. This adds an additional layer of security to the encryption process.
+
+In the previous example, when you run the following command:
+
+[source,console]
+----
+$ openssl enc -aes-256-cbc -pbkdf2 -salt -in message.txt -out cipher.txt -pass file:key.txt
+----
+
+* OpenSSL automatically generates a random *IV* and uses it for the encryption.
++
+The IV is stored alongside the encrypted data in the output file (`cipher.txt`). When decrypting the data, OpenSSL will automatically extract the IV from the input file and use it for decryption.
++
+If you want to specify a custom IV, you can do so using the `-iv` option, but this is generally not recommended as it can weaken the security of the encryption. It is best to let OpenSSL generate a random IV for each encryption operation.
+
+* A *salt* is a random sequence of bytes that is used in the encryption process to ensure that even when the same plaintext is encrypted multiple times with the same password, the resulting ciphertext is different each time.
++
+The salt is combined with the password during the key derivation process, which generates the encryption key.
++
+When using OpenSSL, a salt is automatically generated and used by default when you encrypt data using a password. The salt is stored in the output file along with the encrypted data, making it possible to derive the same key during decryption.
++
+When decrypting the data, OpenSSL will automatically extract the salt from the input file and use it along with the password to derive the correct encryption key.
++
+It is important to note that while the salt can be stored and transmitted alongside the encrypted data, the password must be kept secret and secure to maintain the confidentiality of the encrypted data.
+
+When using OpenSSL, a *salt* is automatically generated and used by default when you encrypt data using a password. The salt is stored in the output file along with the encrypted data, making it possible to derive the same key during decryption.
+
+> A salt is a random sequence of bytes that is used in the encryption process to ensure that even when the same plaintext is encrypted multiple times with the same password, the resulting ciphertext is different each time. The salt is combined with the password during the key derivation process, which generates the encryption key.
+
+When you encrypt a message using OpenSSL with the command mentioned before, the output file contains the IV along with the ciphertext. By default, OpenSSL uses the following format:
+
+[source,text]
+----
+Salted__[8-byte salt][IV + ciphertext]  
+----
+
+> In fact, the IV is not meant to be secret like the encryption key. Its primary purpose is to introduce randomness and ensure that encrypting the same plaintext with the same key produces different ciphertexts.
+
+> The IV is often transmitted alongside the encrypted data, and it is necessary for the decryption process. However, it is essential to use a unique and random IV for each encryption operation to maintain the security of the encrypted data. Reusing an IV with the same key can expose patterns in the ciphertext, allowing attackers to potentially gain information about the plaintext.
+
+To extract the IV from the ciphertext file, you can use the `dd` command. Before doing that, make sure you know the size of the IV for the specific encryption method you used. For AES, the IV size is 16 bytes. Here's how to extract the IV:
+
+. First, remove the `Salted__` part and the 8-byte salt from the ciphertext file:
++
+[source,console]
+----
+$ dd if=cipher.txt of=data_without_salt.bin bs=1 skip=16  
+----
++
+This command reads from `cipher.txt`, skips the first 16 bytes (8 for `Salted__` and 8 for the salt), and writes the result to `data_without_salt.bin`.
+
+. Next, extract the IV (16 bytes for AES) from the output file:
++
+[source,console]
+----
+$ dd if=data_without_salt.bin of=iv.bin bs=1 count=16  
+----
++
+This command reads the first 16 bytes from `data_without_salt.bin` and writes them to a file called `iv.bin`.
+
+NOTE: Now, the IV is stored in the `iv.bin` file. Keep in mind that you should not share the IV with unauthorized parties, as it is essential for the decryption process.
+
+=== How to encrypte a message with AES using a specific salt and an IV?
+
+A *salt* is a random sequence of bytes used in the key derivation process, specifically when deriving an encryption key from a password. The salt is combined with the password to ensure that even when the same plaintext is encrypted multiple times with the same password, the resulting ciphertext is different each time. The salt helps protect against dictionary attacks and rainbow table attacks.
+
+For OpenSSL, the default salt size is 8 bytes (64 bits). This size provides a reasonable balance between security and efficiency. A larger salt size would increase the number of unique salts, making it more difficult for attackers to precompute tables for dictionary or rainbow table attacks. However, it would also require more storage space and processing time.
+
+The *Initialization Vector* (*IV*) is a random sequence of bytes used to ensure that encrypting the same plaintext with the same key produces different ciphertexts. The IV is combined with the plaintext during the encryption process to introduce randomness.
+
+For AES, the block size is 128 bits, which is why the IV size is 16 bytes (128 bits). The IV must be the same size as the block size to ensure that the encryption process works correctly and securely.
+
+Both the salt and IV are crucial for maintaining the security of encrypted data, but they serve different purposes and have different size requirements. While the salt is used in the key derivation process, the IV is used during the actual encryption and decryption processes.
+
+* To create a salt and an IV using OpenSSL, you can use the openssl rand command. Here's how to create them:
++
+[source,console]
+----
+$ # For OpenSSL, the salt is 8 bytes (64 bits) long.
+$ # To generate a random salt and save it to a file called salt.txt, use the following command:
+$ openssl rand -hex 8 > salt.txt
+
+$ # For AES, the IV is 16 bytes (128 bits) long.
+$ # To generate a random IV and save it to a file called iv.txt, use the following command:
+$ openssl rand -hex 16 > iv.txt 
+----
++
+These commands generate random salt and IV values in hexadecimal format and save them to separate files.
++
+NOTE: Remember to use unique and random salt and IV values for each encryption operation to maintain the security of the encrypted data.
++
+NOTE: Although the salt and IV can be public, ensure that the encryption key or password remains secret and secure.
+
+* To encrypt a message with AES using a specific salt and IV in OpenSSL, you can use the following steps:
++
+--
+. Prepare your plaintext message, password, salt, and IV:
+
+** Create a file called `plaintext.txt` containing your message.
+
+** Save your password to a file called `password.txt`.
+
+** Save your salt to a file called `salt.txt`.
++
+The salt must be in hexadecimal format. For OpenSSL, you need a 16-character long (8-byte) hexadecimal string.
+
+** Save your IV to a file called `iv.txt`.
++
+The IV must be in hexadecimal format. For AES, you need a 32-character long (16-byte) hexadecimal string.
+
+. Derive the encryption key from the password and salt using a key derivation function, such as `PBKDF2`:
++
+[source,console]
+----
+$ # Print out the key and IV used then immediately exit: don't do any encryption or decryption.
+$ openssl enc -aes-256-cbc -pbkdf2 -S "$(cat salt.txt)" -P -pass file:password.txt > key_and_iv.txt  
+$ cat key_and_iv.txt 
+salt=967D5441CD75BA53
+key=F29DCDB2D054B75CC380606B3FED28DF0FD84F3452EA6B0D759B412C22AF9D84
+iv =0029B6227C554F1AC120CB414708F08C
+----
++ 
+This command generates the key and IV using the password from `password.txt` and the salt from `salt.txt`. The key and IV are stored in a file called `key_and_iv.txt`.
++
+NOTE: Note that this command will generate a new IV, but we'll replace it with our specific IV in the next step.
+
+. Replace the generated IV in `key_and_iv.txt` with your specific IV:
+
+** Open `key_and_iv.txt` and locate the line that starts with "iv =". Replace the IV value with the contents of the `iv.txt` file.
++
+[source,console]
+----
+salt=8F585A18C70FBC06
+key=7E60368294A3223978F440BDC4A424DF03D281699F1BF3C38D461559E4A595F4
+iv =2b9233c61a92f9becc6af13b68747ad2
+----
+
+. Encrypt the message using AES, the key, and the specific IV:
++
+[source,console]
+----
+$ echo "Hello, 世界" | openssl enc -aes-256-cbc -out ciphertext.txt \
+     -K "$(grep -oP '(?<=key=).+' key_and_iv.txt)" \
+    -iv "$(grep -oP '(?<=iv =).+' key_and_iv.txt)" 
+----
++ 
+This command encrypts the message in `plaintext.txt` using AES-256-CBC with the key and specific IV from `key_and_iv.txt`. The encrypted data is stored in a file called `ciphertext.txt`.
+
+. Encrypt the message using AES, the key, and the specific IV:
++
+[source,console]
+----
+$ openssl enc -aes-256-cbc -d -in ciphertext.txt \
+     -K "$(grep -oP '(?<=key=).+' key_and_iv.txt)" \
+    -iv "$(grep -oP '(?<=iv =).+' key_and_iv.txt)" 
+Hello, 世界
+----
+--
 
 [appendix]
 == Extended Validation Certificate
