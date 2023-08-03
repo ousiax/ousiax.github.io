@@ -1029,11 +1029,410 @@ In addition to public key certificates (PKCs) used to bind names to public keys,
 * ACs contain other structures similar to PKCs, including extensions and AC policies.
 
 [appendix]
-== FAQs about OpenSSL
+== FAQs
 
-=== How does OpenSSL determine the  the correct algorithm (RSA or ECC) based on the key's ASN.1 information?
+=== AES, AES-128, AES-192, and AES-256?
 
-When you create a digital signature with openssl dgst, the command reads the private key file and extracts the relevant information, such as the algorithm used (RSA, ECC, etc.) from the ASN.1 encoded data. Based on this information, it selects the appropriate signing algorithm and creates the digital signature.
+*AES* (Advanced Encryption Standard) is a symmetric block cipher used for encrypting and decrypting data. It operates on _fixed-size blocks of data (128 bits)_ and uses a secret key for both encryption and decryption.
+
+NOTE: The only way to find out if a decryption will fail is by attempting to decrypt it using the key you have. If the key is incorrect or the ciphertext is corrupted, the decryption will produce garbled or meaningless output. In some cases, you can also get an error or an exception while trying to decrypt, depending on the padding scheme used and the library you're using.
+
+AES is available in three different key lengths: AES-128, AES-192, and AES-256. The differences among AES, AES-128, and AES-256 are mainly related to the key length and the number of encryption rounds.
+
+. AES-128:
++
+--
+* Key length: 128 bits (16 bytes)
+* Number of rounds: 10
+--
++
+AES-128 uses a 128-bit key and performs 10 rounds of encryption and decryption. It is the fastest and requires the least amount of memory among the three AES key lengths, making it suitable for applications with limited resources or where performance is critical.
+
+. AES-192:
++
+--
+* Key length: 192 bits (24 bytes)
+* Number of rounds: 12
+--
++
+AES-192 uses a 192-bit key and performs 12 rounds of encryption and decryption. It provides a higher security level compared to AES-128, but it is slower and requires more memory.
+
+. AES-256:
++
+--
+* Key length: 256 bits (32 bytes)
+* Number of rounds: 14
+--
++
+AES-256 uses a 256-bit key and performs 14 rounds of encryption and decryption. It provides the highest security level among the three key lengths, making it suitable for applications requiring strong encryption. However, it is the slowest and requires the most memory.
+
+In summary, the differences among AES, AES-128, and AES-256 are related to the key length and the number of encryption rounds.
+
+* AES-128 is the fastest and requires the least memory, while AES-256 provides the highest security level but is slower and requires more memory.
+
+* AES-192 offers a balance between performance and security.
+
+* The choice of which AES key length to use depends on the specific requirements of the application and the desired balance between security, performance, and memory usage.
+
+NOTE: The *Initialization Vector* (IV) length for all AES variants (AES-128, AES-192, and AES-256) is the same because the IV size depends on the block size of the cipher, not the key size.
+
+NOTE: For AES, the block size is 128 bits. Therefore, the IV length for AES-128, AES-192, and AES-256 is 128 bits or 16 bytes.
+
+NOTE: Remember that the IV should be unique and random for each encryption operation to maintain the security of the encrypted data. Although the IV can be public, ensure that the encryption key remains secret and secure.
+
+=== AES and AES-GCM
+
+AES (Advanced Encryption Standard) and AES-GCM (Advanced Encryption Standard with Galois/Counter Mode) are related concepts in cryptography, but they serve different purposes.
+
+. AES (Advanced Encryption Standard): AES is a symmetric key encryption algorithm that operates on blocks of fixed size (128 bits) with key sizes of 128, 192, or 256 bits. It is widely used for encrypting and decrypting data to ensure confidentiality. AES itself is a block cipher and does not specify how the blocks should be processed. To process multiple blocks, a block cipher mode of operation is used, such as ECB (Electronic Code Book), CBC (Cipher Block Chaining), CTR (Counter), or GCM (Galois/Counter Mode).
+
+. AES-GCM (Advanced Encryption Standard with Galois/Counter Mode): AES-GCM is a specific mode of operation for the AES block cipher. It combines the AES block cipher with the Galois/Counter Mode (GCM) to provide both encryption and authentication. AES-GCM is an authenticated encryption with associated data (AEAD) scheme, which means it not only ensures the confidentiality of the encrypted data but also provides integrity checks and authentication. This is achieved by generating an authentication tag during the encryption process, which is verified during decryption to ensure that the data has not been tampered with.
+
+In summary, AES is the underlying block cipher used for encryption and decryption, while AES-GCM is a specific mode of operation that combines AES with the GCM mode to provide both encryption and authentication.
+
+NOTE: Using _AES-GCM is recommended for modern applications_ as it provides both data confidentiality and integrity, ensuring that the encrypted data is not tampered with.
+
+=== What's the SALT and IV in AES?
+
+In AES (Advanced Encryption Standard), "salt" and "IV" (Initialization Vector) serve different purposes and are used in different contexts.
+
+* Salt: A salt is a random value that is combined with a password or secret key during the key derivation process. The purpose of using a salt is to prevent attacks that use precomputed tables (such as _rainbow tables_) to find the original password or key.
++
+By adding a unique, random salt to the input, the output of the key derivation function becomes unique for each salt value, making precomputed attacks infeasible.
++
+In the context of AES, salts are typically used when generating a key from a password using a _key derivation function_ like PBKDF2, bcrypt, or scrypt.
+
+* IV (Initialization Vector): An IV is a random value used as the starting point for certain block cipher modes of operation, such as CBC (Cipher Block Chaining) or GCM (Galois/Counter Mode). The purpose of using an IV is to ensure that the same plaintext encrypted with the same key results in different ciphertexts each time. This adds an extra layer of security and prevents attackers from recognizing patterns in the encrypted data.
++
+The IV should be unique and random for each encryption operation with the same key.
++
+In AES, the IV is used in conjunction with the chosen mode of operation (e.g., AES-CBC or AES-GCM) and is not part of the core AES algorithm itself.
+
+In AES (Advanced Encryption Standard), the Initialization Vector (IV) size depends on the block size of the cipher and the mode of operation used, such as AES-CBC (Cipher Block Chaining) or AES-GCM (Galois/Counter Mode). For AES, the block size is always 128 bits, regardless of the key size (128, 192, or 256 bits).
+
+* AES-CBC (Cipher Block Chaining): In AES-CBC mode, the IV size must be equal to the block size of the cipher, which is 128 bits (16 bytes) for AES.
++
+The IV is combined with the first block of plaintext using an XOR operation before encryption and should be unique and random for each encryption operation with the same key.
+
+* AES-GCM (Galois/Counter Mode): In AES-GCM mode, the recommended IV size is 96 bits (12 bytes).
++
+Using a 96-bit IV is considered the most efficient and secure option for GCM mode because it avoids the need for additional processing to generate the internal counter block.
++
+However, it is possible to use other IV sizes with AES-GCM, but this requires an additional step called GHASH to compute a new IV based on the original IV.
+
+In summary, the salt is used during the key derivation process to add randomness and prevent precomputed attacks, while the IV is used during encryption with specific block cipher modes of operation to ensure the uniqueness of the resulting ciphertexts. The IV size for AES-CBC is 128 bits (16 bytes), and for AES-GCM, the recommended size is 96 bits (12 bytes). Both salt and IV contribute to the overall security of AES encryption.
+
+NOTE: Using a unique and random IV for each encryption operation with the same key is essential for maintaining the security of the encryption scheme.
+
+=== What's the best way to generate an encrypted key for AES using OpenSSL?
+
+The best way to generate an encrypted key for AES using OpenSSL involves creating a strong, random symmetric key and then securely storing it.
+
+You can use the `openssl rand` command, which generates cryptographically secure random bytes. The key size depends on the AES variant you want to use: AES-128, AES-192, or AES-256. Here's how to generate a key for each AES variant:
+
+[source,console]
+----
+$ # 1. Generate a 128-bit key for AES-128:
+$ openssl rand -out aes128_key.bin 16  
+ 
+$ # 2. Generate a 192-bit key for AES-192:
+$ openssl rand -out aes192_key.bin 24  
+ 
+$ # 3. Generate a 256-bit key for AES-256:
+$ openssl rand -out aes256_key.bin 32  
+----
+
+These commands will generate random binary files with the specified number of bytes (16 bytes for AES-128, 24 bytes for AES-192, and 32 bytes for AES-256). You can then use these keys with the `openssl enc` command or other AES encryption tools.
+
+NOTE: It is essential to protect the confidentiality of the generated AES keys, as anyone with access to the key can decrypt the encrypted data.
+
+If you want to encrypt the generated key using a passphrase, you can use the `openssl enc` command with a suitable encryption algorithm like AES-256-CBC. For example:
+
+[source,console]
+----
+$ openssl enc -aes-256-cbc -salt -in aes_key.bin -out encrypted_aes_key.bin -pass pass:your_secure_passphrase  
+----
+
+* This command encrypts the `aes_key.bin` file using AES-256-CBC with a provided passphrase, adding a random salt for key derivation, and saves the encrypted key in the file `encrypted_aes_key.bin`.
+
+* Make sure to replace "your_secure_passphrase" with a strong, unique passphrase.
+
+To decrypt the encrypted key when needed, use the following command:
+
+[source,console]
+----
+$ openssl enc -d -aes-256-cbc -in encrypted_aes_key.bin -out decrypted_aes_key.bin -pass pass:your_secure_passphrase  
+----
+
+* This command decrypts the `encrypted_aes_key.bin` file using the provided passphrase and saves the decrypted key in the file `decrypted_aes_key.bin`.
+
+Remember to protect the key file and passphrase, as they are required to decrypt the data encrypted with the generated AES key. Store them securely and restrict access to only the users or systems that need them.
+
+You can also derive an AES key from a human-readable passphrase using a KDF (Key Derivation Function), such as PBKDF2 (Password-Based Key Derivation Function 2), which takes a passphrase, salt, and iteration count to generate a secure encryption key.
+
+Here's how to use the `openssl enc` command to derive an AES key from a passphrase and use it for encryption with OpenSSL:
+
+[source,console]
+----
+$ # print out the key and IV used a randomly generated salt then immediately exit: don't do any encryption or decryption.
+$ openssl enc -aes-192-cbc -pbkdf2 -salt -P -pass pass:your_passphrase > salt_iv_and_key.txt
+$ cat salt_iv_and_key.txt 
+salt=76D7E6752358F5B3
+key=CBE904342A2BB0C2385B01187EF5115FCBB6027521416708
+iv =BF5BCA68D74A0FE3592913420A8F24F3
+ 
+$ # encrypt a message using a passphrase, a randomly generated salt, and a key derived with PBKDF2:
+$ echo "Hello, 世界" | openssl enc -aes-256-cbc -pbkdf2 -salt -out encrypted.bin -p -pass pass:your_passphrase
+salt=361CA8EF534E1219
+key=7ED20774DE6A4369103736C851506B0E216BD52EA21C2CE00299EE3C98568CA7
+iv =455AA565070AEFBD51230D532C347627
+
+$ # to decrypt the encrypted message, use the following command:
+$ openssl enc -aes-256-cbc -pbkdf2 -d -in encrypted.bin -p -pass pass:your_passphrase
+salt=361CA8EF534E1219
+key=7ED20774DE6A4369103736C851506B0E216BD52EA21C2CE00299EE3C98568CA7
+iv =455AA565070AEFBD51230D532C347627
+Hello, 世界
+----
+ 
+NOTE: Make sure to replace "your_passphrase" with a strong, unique passphrase.
+
+NOTE: Remember to securely store the passphrase and salt, as they are required to decrypt the data encrypted with the derived AES key. Share them only with the users or systems that need them.
+
+=== How to encrypt a message with AES?
+
+To generate a key and encrypt a message using AES with OpenSSL, follow these steps:
+
+[source,console]
+----
+$ # 1. Generate a random key:
+$ openssl rand -base64 32 > key.txt  
+$ # This will generate a random 256-bit key and save it to a file called "key.txt".
+
+$ # 2. Encrypt a message using the key:
+$ echo "Hello, 世界" > message.txt  
+$
+$ # This will encrypt the message using AES-256 in CBC mode with a random IV and the key from "key.txt".
+$ # The encrypted message will be saved to a file called "cipher.txt".
+$ openssl enc -aes-256-cbc -pbkdf2 -salt -in message.txt -out cipher.txt -pass file:key.txt
+
+$ # 3. Decrypt the message using the key:
+$ # This will decrypt the message from "cipher.txt" using the same key from "key.txt"
+$ # and save the decrypted message to a file called "decrypted.txt".
+$ openssl enc -aes-256-cbc -pbkdf2 -d -in cipher.txt -pass file:key.txt -out decrypted.txt
+----
+
+NOTE: Note: Make sure to keep the key file secure and do not share it with anyone who should not have access to the encrypted message.
+
+In the previous example, when you run the following command:
+
+[source,console]
+----
+$ openssl enc -aes-256-cbc -pbkdf2 -salt -in message.txt -out cipher.txt -pass file:key.txt
+----
+
+* OpenSSL automatically generates a random *IV* and uses it for the encryption.
++
+The IV is stored alongside the encrypted data in the output file (`cipher.txt`). When decrypting the data, OpenSSL will automatically extract the IV from the input file and use it for decryption.
++
+If you want to specify a custom IV, you can do so using the `-iv` option, but this is generally not recommended as it can weaken the security of the encryption. It is best to let OpenSSL generate a random IV for each encryption operation.
+
+* OpenSSL automatically generates a salt and uses it by default when you encrypt data using a password.
++
+The salt is stored in the output file along with the encrypted data, making it possible to derive the same key during decryption.
++
+When decrypting the data, OpenSSL will automatically extract the salt from the input file and use it along with the password to derive the correct encryption key.
++
+NOTE: It is important to note that while the salt can be stored and transmitted alongside the encrypted data, the password must be kept secret and secure to maintain the confidentiality of the encrypted data.
+
+* By default, the output file contains the salt and the IV along with the ciphertext with the following format:
++
+[source,text]
+----
+Salted__[8-byte salt][IV + ciphertext]  
+----
++
+The salt and IV is often transmitted alongside the encrypted data, and it is necessary for the decryption process.
+
+To extract the IV from the ciphertext file, you can use the `dd` command.
+
+* Before doing that, make sure you know the size of the salt and the IV for the specific encryption method you used.
+
+* For AES, the default salt size if 8 bytes, and the IV size is 16 bytes, and the recommended IV size for AES-GCM is 12 bytes.
+
+Here's how to extract the IV:
+
+. First, remove the `Salted__` part and the 8-byte salt from the ciphertext file:
++
+[source,console]
+----
+$ dd if=cipher.txt of=data_without_salt.bin bs=1 skip=16  
+----
++
+This command reads from `cipher.txt`, skips the first 16 bytes (8 for `Salted__` and 8 for the salt), and writes the result to `data_without_salt.bin`.
+
+. Next, extract the IV (16 bytes for AES) from the output file:
++
+[source,console]
+----
+$ dd if=data_without_salt.bin of=iv.bin bs=1 count=16  
+----
++
+This command reads the first 16 bytes from `data_without_salt.bin` and writes them to a file called `iv.bin`.
+
+NOTE: Keep in mind that you should not share the IV with unauthorized parties, as it is essential for the decryption process.
+
+=== How to determine if AES cannot decrypt a ciphertext?
+
+AES is a symmetric encryption algorithm, which means that it uses the same key for both encryption and decryption. If you have the correct key and the ciphertext is not corrupted, you should be able to decrypt the ciphertext without any issues.
+
+However, you cannot determine if AES cannot decrypt a ciphertext only by looking at the ciphertext itself, without trying to decrypt it. The only way to find out if a decryption will fail is by attempting to decrypt it using the key you have. If the key is incorrect or the ciphertext is corrupted, the decryption will produce garbled or meaningless output. In some cases, you can also get an error or an exception while trying to decrypt, depending on the padding scheme used and the library you're using.
+
+However, AES-GCM can help determine whether AES can decrypt the ciphertext or not because it provides both encryption and authentication. If the key, IV (nonce), or ciphertext is incorrect or tampered with, the authentication tag verification will fail during decryption, and an exception will be thrown. In this case, you can conclude that the decryption failed.
+
+Here's a step-by-step process to encrypt and decrypt a message using AES-GCM:
+
+[source,console]
+----
+$ # 1. Generate a 256-bit key for AES-256:
+$ openssl rand -out aes256_key.bin 32  
+ 
+$ # 2. Generate a random 96-bit (12-byte) nonce (also called IV - Initialization Vector) for GCM:
+$ openssl rand -out nonce.bin 12  
+ 
+$ # 3. Encrypt a message using AES-256-GCM:
+$ openssl enc -aes-256-gcm -in plaintext.txt -out encrypted.bin \
+   -K $(cat aes256_key.bin | xxd -p) \
+   -iv $(cat nonce.bin | xxd -p) \
+   -aead  
+----
+ 
+This command will encrypt the file `plaintext.txt` and create an encrypted file `encrypted.bin`.
+
+* The `-K` and `-iv` options specify the key and nonce in hexadecimal format, respectively.
+* The `-aead` option indicates that an authentication tag will be generated and appended to the encrypted message.
+
+Decrypt the message and verify its integrity:
+
+[source,console]
+----
+$ openssl enc -d -aes-256-gcm -in encrypted.bin -out decrypted.txt \
+    -K $(cat aes256_key.bin | xxd -p) \
+    -iv $(cat nonce.bin | xxd -p) \
+    -aead  
+----
+ 
+This command will decrypt the file `encrypted.bin` and create a decrypted file `decrypted.txt`. If the message has been tampered with, OpenSSL will display an error message like bad decrypt or error reading input file.
+
+Remember, you should securely share the AES key and nonce/IV with the recipient, but do not transmit them alongside the encrypted message. The nonce/IV should be unique for each encryption operation with the same key.
+
+In real-world applications, you should handle these sensitive values securely, such as using secure key storage solutions and secure channels for key exchange.
+
+=== How to encrypte a message with AES using a specific salt and an IV?
+
+For OpenSSL, the default salt size is 8 bytes (64 bits). This size provides a reasonable balance between security and efficiency. A larger salt size would increase the number of unique salts, making it more difficult for attackers to precompute tables for dictionary or rainbow table attacks. However, it would also require more storage space and processing time.
+
+For AES, the block size is 128 bits, which is why the IV size is 16 bytes (128 bits). The IV must be the same size as the block size to ensure that the encryption process works correctly and securely.
+
+* To create a salt and an IV using OpenSSL, you can use the openssl rand command. Here's how to create them:
++
+[source,console]
+----
+$ # These commands generate random salt and IV values in hexadecimal format and save them to separate files.
+
+$ # For OpenSSL, the salt is 8 bytes (64 bits) long.
+$ # To generate a random salt and save it to a file called salt.txt, use the following command:
+$ openssl rand -hex 8 > salt.txt
+
+$ # For AES, the IV is 16 bytes (128 bits) long.
+$ # To generate a random IV and save it to a file called iv.txt, use the following command:
+$ openssl rand -hex 16 > iv.txt 
+----
+
+* To encrypt a message with AES using a specific salt and IV in OpenSSL, you can use the following steps:
++
+--
+. Derive the encryption key from the password and salt using a key derivation function, such as `PBKDF2`:
++
+[source,console]
+----
+$ # This command generates the key and IV using the password from `password.txt` and the salt from `salt.txt`.
+$ # The key and IV are stored in a file called `key_and_iv.txt`.
+
+$ # Print out the key and IV used then immediately exit: don't do any encryption or decryption.
+$ openssl enc -aes-256-cbc -pbkdf2 -S "$(cat salt.txt)" -P -pass file:password.txt > key_and_iv.txt  
+$ cat key_and_iv.txt 
+salt=967D5441CD75BA53
+key=F29DCDB2D054B75CC380606B3FED28DF0FD84F3452EA6B0D759B412C22AF9D84
+iv =0029B6227C554F1AC120CB414708F08C
+----
++
+NOTE: Note that this command will generate a new IV, but we'll replace it with our specific IV in the next step.
+
+. Replace the generated IV in `key_and_iv.txt` with your specific IV:
+
+** Open `key_and_iv.txt` and locate the line that starts with "iv =". Replace the IV value with the contents of the `iv.txt` file.
++
+[source,console]
+----
+salt=8F585A18C70FBC06
+key=7E60368294A3223978F440BDC4A424DF03D281699F1BF3C38D461559E4A595F4
+iv =2b9233c61a92f9becc6af13b68747ad2
+----
+
+. Encrypt the message using AES, the key, and the specific IV:
++
+[source,console]
+----
+$ # This command encrypts the message in `plaintext.txt`  \
+$ # using AES-256-CBC with the key and specific IV from `key_and_iv.txt`.
+$ # The encrypted data is stored in a file called `ciphertext.txt`.
+
+$ echo "Hello, 世界" | openssl enc -aes-256-cbc -out ciphertext.txt \
+     -K "$(grep -oP '(?<=key=).+' key_and_iv.txt)" \
+    -iv "$(grep -oP '(?<=iv =).+' key_and_iv.txt)" 
+----
+
+. Decrypt the message using AES, the key, and the specific IV:
++
+[source,console]
+----
+$ openssl enc -aes-256-cbc -d -in ciphertext.txt \
+     -K "$(grep -oP '(?<=key=).+' key_and_iv.txt)" \
+    -iv "$(grep -oP '(?<=iv =).+' key_and_iv.txt)" 
+Hello, 世界
+----
+--
+
+=== EC, ECC, ECDH and ECDSA?
+
+EC, ECC, ECDH, and ECDSA are all related to elliptic curve cryptography, but they serve different purposes and functions. Here's an explanation of each term:
+
+. EC (Elliptic Curve): An elliptic curve is a mathematical construct used in cryptography for creating cryptosystems that are based on the algebraic structure of elliptic curves over finite fields. Elliptic curves provide the basis for elliptic curve cryptography (ECC).
+
+. ECC (Elliptic Curve Cryptography): ECC is a public-key cryptosystem that is based on the algebraic structure of elliptic curves over finite fields. It offers the same security level as other public-key cryptosystems like RSA, but with smaller key sizes, which makes it more efficient in terms of computation and memory usage. ECC can be used for encryption, decryption, digital signatures, and key exchange. ECDH and ECDSA are both cryptographic schemes based on ECC.
+
+. ECDH (Elliptic Curve Diffie-Hellman): ECDH is a key exchange protocol that is based on elliptic curve cryptography. It allows two parties, each having an elliptic curve public-private key pair, to establish a shared secret over an insecure channel. This shared secret can then be used to encrypt and decrypt messages between the two parties or to generate symmetric keys for symmetric encryption algorithms like AES. ECDH provides a secure way to establish a shared secret key without directly transmitting the key itself.
+
+. ECDSA (Elliptic Curve Digital Signature Algorithm): ECDSA is a digital signature algorithm that is based on elliptic curve cryptography. It is used for signing and verifying digital signatures to ensure the integrity and authenticity of data. In ECDSA, a private key is used to generate a digital signature, and a public key is used to verify the signature. ECDSA provides similar functionality to other digital signature algorithms like RSA, but with smaller key sizes and more efficient operations.
+
+In summary, EC and ECC are related to the underlying mathematical concepts and the overall cryptography approach based on elliptic curves. ECDH and ECDSA are specific cryptographic schemes based on ECC, with ECDH being used for secure key exchange and ECDSA being used for digital signatures.
+
+=== RSA, DH, and ECDH
+
+RSA, DH, and ECDH are cryptographic algorithms that serve different purposes and are based on different mathematical foundations:
+
+. RSA (Rivest-Shamir-Adleman): RSA is an asymmetric cryptographic algorithm used for encryption, decryption, and digital signatures. It is based on the mathematical properties of large prime numbers and modular exponentiation. In RSA, a key pair (private key and public key) is generated, and the security relies on the difficulty of factoring the product of two large prime numbers. RSA is widely used in various security protocols and systems, such as TLS, SSH, and PGP.
+
+. DH (Diffie-Hellman): DH is a key exchange algorithm that allows two parties to establish a shared secret over an insecure communication channel. It is based on the mathematical properties of modular exponentiation and the discrete logarithm problem. In DH, both parties generate their own private keys and public keys, exchange the public keys, and perform calculations to derive the shared secret. The security relies on the difficulty of solving the Discrete Logarithm Problem (DLP). DH does not provide encryption, decryption, or digital signature capabilities by itself but enables secure key agreement to establish symmetric keys for use in encryption or authentication.
+
+. ECDH (Elliptic Curve Diffie-Hellman): ECDH is a key exchange algorithm that is based on elliptic curve cryptography. It is the elliptic curve counterpart of the Diffie-Hellman algorithm. ECDH allows two parties to establish a shared secret using elliptic curve operations instead of modular exponentiation. Like DH, both parties generate their own private keys and public keys, exchange the public keys, and perform calculations to derive the shared secret. The security relies on the difficulty of solving the Elliptic Curve Discrete Logarithm Problem (ECDLP). ECDH provides the same key exchange functionality as DH but with smaller key sizes and better performance.
+
+In summary, RSA is an asymmetric cryptographic algorithm used for encryption, decryption, and digital signatures, while DH and ECDH are key exchange algorithms that allow parties to establish a shared secret securely. DH is based on modular exponentiation, while ECDH uses elliptic curve cryptography.
+
+=== How does OpenSSL determine the algorithm (RSA or ECC)?
+
+When you create a digital signature with `openssl dgst`, the command reads the private key file and extracts the relevant information, such as the algorithm used (RSA, ECC, etc.) from the ASN.1 encoded data. Based on this information, it selects the appropriate signing algorithm and creates the digital signature.
 
 NOTE: ASN.1 (Abstract Syntax Notation One) is a standardized notation used to describe the structure and encoding of data in telecommunications and computer networking. Private keys are often stored in the PEM (Privacy Enhanced Mail) format, which contains the ASN.1 encoded data in a base64 representation.
 
@@ -1054,7 +1453,7 @@ Here's a high-level view of how OpenSSL determines the algorithm:
 
 This process allows OpenSSL to automatically determine the algorithm used for signing and verification based on the ASN.1 information in the private and public keys.
 
-=== How to use the command `openssl-asn1parse` to show the OID in a key file? 
+=== How to use OpenSSL to show the ASN.1 OID in a key file? 
 
 You can use the `openssl asn1parse` command to display the ASN.1 structure of a key file, which includes the OID (Object Identifier). Here's an example for both RSA and ECC keys:
 
@@ -1093,14 +1492,14 @@ In the output, you should see an entry with the OID `1.2.840.113549.1.1.1` corre
 9:d=2  hl=2 l=   9 prim: OBJECT            :rsaEncryption
 ----
 
-And, an entry with the OID 1.2.840.10045.2.1 corresponding to the ECC algorithm, like this:
+And, similarly, an entry with the OID `1.2.840.10045.2.1` corresponding to the ECC algorithm, like this:
 
 [source,console]
 ----
 8:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
 ----
 
-=== How to use `openssl pkeyutl` to derive a shared key?
+=== How to derive a shared key using key exchange algorithm?
 
 Here's an example of how to use the `openssl pkeyutl` command to derive a shared key using the Elliptic Curve Diffie-Hellman (ECDH) key exchange.
 
@@ -1123,13 +1522,18 @@ Note that the derived shared secret is a binary file. In practice, you may want 
 
 NOTE: Digital Signature Algorithm (DSA) is designed for digital signatures and not for key agreement or key exchange protocols like Diffie-Hellman or Elliptic Curve Diffie-Hellman, which are specifically designed for secure key agreement purposes.
 
-Note that the shared key derived from a static key pair will always be the same. To mitigate the risk of the shared key being compromised, you can use ephemeral (temporary) key pairs in the Diffie-Hellman (DH) or Elliptic Curve Diffie-Hellman (ECDH) key exchange process. This approach is called Ephemeral Diffie-Hellman (DHE) or Ephemeral Elliptic Curve Diffie-Hellman (ECDHE).
+Note that the shared key derived from a static key pair will always be the same.
 
-In DHE or ECDHE, each party generates a new temporary key pair for each key exchange session, derives the shared secret, and then discards the temporary keys. This approach provides forward secrecy, meaning that even if an attacker compromises a shared key for one session, they cannot use it to decrypt past or future sessions.
+* To mitigate the risk of the shared key being compromised, you can use ephemeral (temporary) key pairs in the Diffie-Hellman (DH) or Elliptic Curve Diffie-Hellman (ECDH) key exchange process.
+* This approach is called Ephemeral Diffie-Hellman (DHE) or Ephemeral Elliptic Curve Diffie-Hellman (ECDHE).
 
-Remember to generate new ephemeral key pairs for each session and securely delete the temporary keys after use to maintain forward secrecy.
+* In DHE or ECDHE, each party generates a new temporary key pair for each key exchange session, derives the shared secret, and then discards the temporary keys.
 
-=== Can I use `openssl pkeyutl` command to derive a shared key using two different cipher algorithm keys? 
+* This approach provides _forward secrecy_, meaning that even if an attacker compromises a shared key for one session, they cannot use it to decrypt past or future sessions.
+
+NOTE: Remember to generate new ephemeral key pairs for each session and securely delete the temporary keys after use to maintain forward secrecy.
+
+=== Can I derive a shared key using two different cipher algorithm keys? 
 
 No, you cannot use the `openssl pkeyutl` command to derive a shared key using two different cipher algorithm keys. Key derivation requires both parties to use keys generated with the same algorithm and compatible parameters.
 
@@ -1139,7 +1543,7 @@ Attempting to derive a shared key using keys from different algorithms, such as 
 
 If you want to derive a shared key, make sure both parties use compatible keys generated with the same algorithm and appropriate parameters.
 
-=== Can I use `openssl pkeyutl` to derive a shared key with RSA?
+=== Can I derive a shared key with RSA?
 
 No, you cannot use `openssl pkeyutl` to directly derive a shared key with RSA in the same way as you would with Diffie-Hellman (DH) or Elliptic Curve Diffie-Hellman (ECDH). This is because RSA is not designed as a key agreement or key exchange algorithm like DH or ECDH.
 
@@ -1165,7 +1569,7 @@ $ openssl pkeyutl -decrypt -in encrypted_pre_master_secret.bin -inkey server.key
  
 At this point, both the client and the server have the same pre-master secret (shared secret). You can use this shared secret to derive symmetric encryption keys using a key derivation function.
 
-Please note that this process does not provide _forward secrecy_, as mentioned in previous responses, and it is recommended to use modern key exchange algorithms like ECDHE or DHE for better security.
+NOTE: Please note that this process does not provide _forward secrecy_, as mentioned in previous responses, and it is recommended to use modern key exchange algorithms like ECDHE or DHE for better security.
 
 Although RSA key exchange is supported in TLS 1.0 - TLS 1.2, it has some drawbacks:
 
@@ -1177,302 +1581,7 @@ If an attacker manages to compromise the server's RSA private key, they can decr
 
 Due to these limitations, modern TLS configurations often prefer using ephemeral key exchange algorithms like DHE (Diffie-Hellman Ephemeral) or ECDHE (Elliptic Curve Diffie-Hellman Ephemeral), which provide forward secrecy and work independently of the server's certificate type.
 
-In TLS 1.3, RSA key exchange has been removed, and only ephemeral key exchange algorithms like ECDHE and DHE are supported.
-
-=== What's diffs between EC, ECC, and ECDSA?
-
-RSA, DH, and ECDH are cryptographic algorithms that serve different purposes and are based on different mathematical foundations:
-
-. RSA (Rivest-Shamir-Adleman): RSA is an asymmetric cryptographic algorithm used for encryption, decryption, and digital signatures. It is based on the mathematical properties of large prime numbers and modular exponentiation. In RSA, a key pair (private key and public key) is generated, and the security relies on the difficulty of factoring the product of two large prime numbers. RSA is widely used in various security protocols and systems, such as TLS, SSH, and PGP.
-
-. DH (Diffie-Hellman): DH is a key exchange algorithm that allows two parties to establish a shared secret over an insecure communication channel. It is based on the mathematical properties of modular exponentiation and the discrete logarithm problem. In DH, both parties generate their own private keys and public keys, exchange the public keys, and perform calculations to derive the shared secret. The security relies on the difficulty of solving the Discrete Logarithm Problem (DLP). DH does not provide encryption, decryption, or digital signature capabilities by itself but enables secure key agreement to establish symmetric keys for use in encryption or authentication.
-
-. ECDH (Elliptic Curve Diffie-Hellman): ECDH is a key exchange algorithm that is based on elliptic curve cryptography. It is the elliptic curve counterpart of the Diffie-Hellman algorithm. ECDH allows two parties to establish a shared secret using elliptic curve operations instead of modular exponentiation. Like DH, both parties generate their own private keys and public keys, exchange the public keys, and perform calculations to derive the shared secret. The security relies on the difficulty of solving the Elliptic Curve Discrete Logarithm Problem (ECDLP). ECDH provides the same key exchange functionality as DH but with smaller key sizes and better performance.
-
-In summary, RSA is an asymmetric cryptographic algorithm used for encryption, decryption, and digital signatures, while DH and ECDH are key exchange algorithms that allow parties to establish a shared secret securely. DH is based on modular exponentiation, while ECDH uses elliptic curve cryptography.
-
-=== What's best way to generate a key for AES in OpenSSL?
-
-The best way to generate a key for AES in OpenSSL is to use the `openssl rand` command, which generates cryptographically secure random bytes. The key size depends on the AES variant you want to use: AES-128, AES-192, or AES-256. Here's how to generate a key for each AES variant:
-
-[source,console]
-----
-$ # 1. Generate a 128-bit key for AES-128:
-$ openssl rand -out aes128_key.bin 16  
- 
-$ # 2. Generate a 192-bit key for AES-192:
-$ openssl rand -out aes192_key.bin 24  
- 
-$ # 3. Generate a 256-bit key for AES-256:
-$ openssl rand -out aes256_key.bin 32  
-----
- 
-These commands will generate random binary files with the specified number of bytes (16 bytes for AES-128, 24 bytes for AES-192, and 32 bytes for AES-256). You can then use these keys with the `openssl enc1` command or other AES encryption tools.
-
-It is essential to protect the confidentiality of the generated AES keys, as anyone with access to the key can decrypt the encrypted data.
-
-=== How to encrypt a message using AES and detect a corrupted message?
-
-To encrypt a message using AES and detect a corrupted message, you can use the `openssl enc` command along with an _authenticated encryption mode_ like GCM (Galois/Counter Mode). GCM provides both confidentiality and integrity, ensuring that the message cannot be tampered with without detection.
-
-Here's a step-by-step process to encrypt and decrypt a message using AES-GCM:
-
-[source,console]
-----
-$ # 1. Generate a 256-bit key for AES-256:
-$ openssl rand -out aes256_key.bin 32  
- 
-$ # 2. Generate a random 96-bit (12-byte) nonce (also called IV - Initialization Vector) for GCM:
-$ openssl rand -out nonce.bin 12  
- 
-$ # 3. Encrypt a message using AES-256-GCM:
-$ openssl enc -aes-256-gcm -in plaintext.txt -out encrypted.bin -K $(cat aes256_key.bin | xxd -p) -iv $(cat nonce.bin | xxd -p) -aead  
-----
- 
-This command will encrypt the file `plaintext.txt` and create an encrypted file `encrypted.bin`. The `-K` and `-iv` options specify the key and nonce in hexadecimal format, respectively. The `-aead` option indicates that an authentication tag will be generated and appended to the encrypted message.
-
-Decrypt the message and verify its integrity:
-
-[source,console]
-----
-$ openssl enc -d -aes-256-gcm -in encrypted.bin -out decrypted.txt -K $(cat aes256_key.bin | xxd -p) -iv $(cat nonce.bin | xxd -p) -aead  
-----
- 
-This command will decrypt the file `encrypted.bin` and create a decrypted file `decrypted.txt`. If the message has been tampered with, OpenSSL will display an error message like bad decrypt or error reading input file.
-
-Remember, you should securely share the AES key and nonce/IV with the recipient, but do not transmit them alongside the encrypted message. The nonce/IV should be unique for each encryption operation with the same key.
-
-Please note that this example uses the command line and stores the key, nonce, and authentication tag in files for simplicity. In real-world applications, you should handle these sensitive values securely, such as using secure key storage solutions and secure channels for key exchange.
-
-=== What's differences among AES, AES-128, AES-192, and AES-256?
-
-*AES* (Advanced Encryption Standard) is a symmetric block cipher used for encrypting and decrypting data. It operates on _fixed-size blocks of data (128 bits)_ and uses a secret key for both encryption and decryption.
-
-NOTE: The only way to find out if a decryption will fail is by attempting to decrypt it using the key you have. If the key is incorrect or the ciphertext is corrupted, the decryption will produce garbled or meaningless output. In some cases, you can also get an error or an exception while trying to decrypt, depending on the padding scheme used and the library you're using.
-
-AES is available in three different key lengths: AES-128, AES-192, and AES-256. The differences among AES, AES-128, and AES-256 are mainly related to the key length and the number of encryption rounds.
-
-. AES-128:
-+
---
-* Key length: 128 bits (16 bytes)
-* Number of rounds: 10
---
-+
-AES-128 uses a 128-bit key and performs 10 rounds of encryption and decryption. It is the fastest and requires the least amount of memory among the three AES key lengths, making it suitable for applications with limited resources or where performance is critical.
-
-. AES-192:
-+
---
-* Key length: 192 bits (24 bytes)
-* Number of rounds: 12
---
-+
-AES-192 uses a 192-bit key and performs 12 rounds of encryption and decryption. It provides a higher security level compared to AES-128, but it is slower and requires more memory.
-
-. AES-256:
-+
---
-* Key length: 256 bits (32 bytes)
-* Number of rounds: 14
---
-+
-AES-256 uses a 256-bit key and performs 14 rounds of encryption and decryption. It provides the highest security level among the three key lengths, making it suitable for applications requiring strong encryption. However, it is the slowest and requires the most memory.
-
-In summary, the differences among AES, AES-128, and AES-256 are related to the key length and the number of encryption rounds.
-
-* AES-128 is the fastest and requires the least memory, while AES-256 provides the highest security level but is slower and requires more memory.
-* AES-192 offers a balance between performance and security.
-* The choice of which AES key length to use depends on the specific requirements of the application and the desired balance between security, performance, and memory usage.
-
-The *Initialization Vector* (IV) length for all AES variants (AES-128, AES-192, and AES-256) is the same because the IV size depends on the block size of the cipher, not the key size.
-
-For AES, the block size is 128 bits. Therefore, the IV length for AES-128, AES-192, and AES-256 is 128 bits or 16 bytes.
-
-Remember that the IV should be unique and random for each encryption operation to maintain the security of the encrypted data. Although the IV can be public, ensure that the encryption key remains secret and secure.
-
-=== How to encrypt a message with AES?
-
-To generate a key and encrypt a message using AES with OpenSSL, follow these steps:
-
-[source,console]
-----
-$ # 1. Generate a random key:
-$ openssl rand -base64 32 > key.txt  
-$ # This will generate a random 256-bit key and save it to a file called "key.txt".
-
-$ # 2. Encrypt a message using the key:
-$ echo "Hello, 世界" > message.txt  
-$ openssl enc -aes-256-cbc -pbkdf2 -salt -in message.txt -out cipher.txt -pass file:key.txt
-$ # This will encrypt the message using AES-256 in CBC mode with a random IV and the key from "key.txt".
-$ # The encrypted message will be saved to a file called "cipher.txt".
-
-$ # 3. Decrypt the message using the key:
-$ openssl enc -aes-256-cbc -pbkdf2 -d -in cipher.txt -pass file:key.txt -out decrypted.txt
-$ # This will decrypt the message from "cipher.txt" using the same key from "key.txt"
-$ # and save the decrypted message to a file called "decrypted.txt".
-----
-
-NOTE: Note: Make sure to keep the key file secure and do not share it with anyone who should not have access to the encrypted message.
-
-When you use OpenSSL to encrypt a message with AES in CBC mode, an _initialization vector_ (IV) is automatically generated and used. The IV ensures that even if you encrypt the same plaintext with the same key multiple times, the resulting ciphertext will be different. This adds an additional layer of security to the encryption process.
-
-In the previous example, when you run the following command:
-
-[source,console]
-----
-$ openssl enc -aes-256-cbc -pbkdf2 -salt -in message.txt -out cipher.txt -pass file:key.txt
-----
-
-* OpenSSL automatically generates a random *IV* and uses it for the encryption.
-+
-The IV is stored alongside the encrypted data in the output file (`cipher.txt`). When decrypting the data, OpenSSL will automatically extract the IV from the input file and use it for decryption.
-+
-If you want to specify a custom IV, you can do so using the `-iv` option, but this is generally not recommended as it can weaken the security of the encryption. It is best to let OpenSSL generate a random IV for each encryption operation.
-
-* A *salt* is a random sequence of bytes that is used in the encryption process to ensure that even when the same plaintext is encrypted multiple times with the same password, the resulting ciphertext is different each time.
-+
-The salt is combined with the password during the key derivation process, which generates the encryption key.
-+
-When using OpenSSL, a salt is automatically generated and used by default when you encrypt data using a password. The salt is stored in the output file along with the encrypted data, making it possible to derive the same key during decryption.
-+
-When decrypting the data, OpenSSL will automatically extract the salt from the input file and use it along with the password to derive the correct encryption key.
-+
-It is important to note that while the salt can be stored and transmitted alongside the encrypted data, the password must be kept secret and secure to maintain the confidentiality of the encrypted data.
-
-When using OpenSSL, a *salt* is automatically generated and used by default when you encrypt data using a password. The salt is stored in the output file along with the encrypted data, making it possible to derive the same key during decryption.
-
-> A salt is a random sequence of bytes that is used in the encryption process to ensure that even when the same plaintext is encrypted multiple times with the same password, the resulting ciphertext is different each time. The salt is combined with the password during the key derivation process, which generates the encryption key.
-
-When you encrypt a message using OpenSSL with the command mentioned before, the output file contains the IV along with the ciphertext. By default, OpenSSL uses the following format:
-
-[source,text]
-----
-Salted__[8-byte salt][IV + ciphertext]  
-----
-
-> In fact, the IV is not meant to be secret like the encryption key. Its primary purpose is to introduce randomness and ensure that encrypting the same plaintext with the same key produces different ciphertexts.
-
-> The IV is often transmitted alongside the encrypted data, and it is necessary for the decryption process. However, it is essential to use a unique and random IV for each encryption operation to maintain the security of the encrypted data. Reusing an IV with the same key can expose patterns in the ciphertext, allowing attackers to potentially gain information about the plaintext.
-
-To extract the IV from the ciphertext file, you can use the `dd` command. Before doing that, make sure you know the size of the IV for the specific encryption method you used. For AES, the IV size is 16 bytes. Here's how to extract the IV:
-
-. First, remove the `Salted__` part and the 8-byte salt from the ciphertext file:
-+
-[source,console]
-----
-$ dd if=cipher.txt of=data_without_salt.bin bs=1 skip=16  
-----
-+
-This command reads from `cipher.txt`, skips the first 16 bytes (8 for `Salted__` and 8 for the salt), and writes the result to `data_without_salt.bin`.
-
-. Next, extract the IV (16 bytes for AES) from the output file:
-+
-[source,console]
-----
-$ dd if=data_without_salt.bin of=iv.bin bs=1 count=16  
-----
-+
-This command reads the first 16 bytes from `data_without_salt.bin` and writes them to a file called `iv.bin`.
-
-NOTE: Now, the IV is stored in the `iv.bin` file. Keep in mind that you should not share the IV with unauthorized parties, as it is essential for the decryption process.
-
-=== How to encrypte a message with AES using a specific salt and an IV?
-
-A *salt* is a random sequence of bytes used in the key derivation process, specifically when deriving an encryption key from a password. The salt is combined with the password to ensure that even when the same plaintext is encrypted multiple times with the same password, the resulting ciphertext is different each time. The salt helps protect against dictionary attacks and rainbow table attacks.
-
-For OpenSSL, the default salt size is 8 bytes (64 bits). This size provides a reasonable balance between security and efficiency. A larger salt size would increase the number of unique salts, making it more difficult for attackers to precompute tables for dictionary or rainbow table attacks. However, it would also require more storage space and processing time.
-
-The *Initialization Vector* (*IV*) is a random sequence of bytes used to ensure that encrypting the same plaintext with the same key produces different ciphertexts. The IV is combined with the plaintext during the encryption process to introduce randomness.
-
-For AES, the block size is 128 bits, which is why the IV size is 16 bytes (128 bits). The IV must be the same size as the block size to ensure that the encryption process works correctly and securely.
-
-Both the salt and IV are crucial for maintaining the security of encrypted data, but they serve different purposes and have different size requirements. While the salt is used in the key derivation process, the IV is used during the actual encryption and decryption processes.
-
-* To create a salt and an IV using OpenSSL, you can use the openssl rand command. Here's how to create them:
-+
-[source,console]
-----
-$ # For OpenSSL, the salt is 8 bytes (64 bits) long.
-$ # To generate a random salt and save it to a file called salt.txt, use the following command:
-$ openssl rand -hex 8 > salt.txt
-
-$ # For AES, the IV is 16 bytes (128 bits) long.
-$ # To generate a random IV and save it to a file called iv.txt, use the following command:
-$ openssl rand -hex 16 > iv.txt 
-----
-+
-These commands generate random salt and IV values in hexadecimal format and save them to separate files.
-+
-NOTE: Remember to use unique and random salt and IV values for each encryption operation to maintain the security of the encrypted data.
-+
-NOTE: Although the salt and IV can be public, ensure that the encryption key or password remains secret and secure.
-
-* To encrypt a message with AES using a specific salt and IV in OpenSSL, you can use the following steps:
-+
---
-. Prepare your plaintext message, password, salt, and IV:
-
-** Create a file called `plaintext.txt` containing your message.
-
-** Save your password to a file called `password.txt`.
-
-** Save your salt to a file called `salt.txt`.
-+
-The salt must be in hexadecimal format. For OpenSSL, you need a 16-character long (8-byte) hexadecimal string.
-
-** Save your IV to a file called `iv.txt`.
-+
-The IV must be in hexadecimal format. For AES, you need a 32-character long (16-byte) hexadecimal string.
-
-. Derive the encryption key from the password and salt using a key derivation function, such as `PBKDF2`:
-+
-[source,console]
-----
-$ # Print out the key and IV used then immediately exit: don't do any encryption or decryption.
-$ openssl enc -aes-256-cbc -pbkdf2 -S "$(cat salt.txt)" -P -pass file:password.txt > key_and_iv.txt  
-$ cat key_and_iv.txt 
-salt=967D5441CD75BA53
-key=F29DCDB2D054B75CC380606B3FED28DF0FD84F3452EA6B0D759B412C22AF9D84
-iv =0029B6227C554F1AC120CB414708F08C
-----
-+ 
-This command generates the key and IV using the password from `password.txt` and the salt from `salt.txt`. The key and IV are stored in a file called `key_and_iv.txt`.
-+
-NOTE: Note that this command will generate a new IV, but we'll replace it with our specific IV in the next step.
-
-. Replace the generated IV in `key_and_iv.txt` with your specific IV:
-
-** Open `key_and_iv.txt` and locate the line that starts with "iv =". Replace the IV value with the contents of the `iv.txt` file.
-+
-[source,console]
-----
-salt=8F585A18C70FBC06
-key=7E60368294A3223978F440BDC4A424DF03D281699F1BF3C38D461559E4A595F4
-iv =2b9233c61a92f9becc6af13b68747ad2
-----
-
-. Encrypt the message using AES, the key, and the specific IV:
-+
-[source,console]
-----
-$ echo "Hello, 世界" | openssl enc -aes-256-cbc -out ciphertext.txt \
-     -K "$(grep -oP '(?<=key=).+' key_and_iv.txt)" \
-    -iv "$(grep -oP '(?<=iv =).+' key_and_iv.txt)" 
-----
-+ 
-This command encrypts the message in `plaintext.txt` using AES-256-CBC with the key and specific IV from `key_and_iv.txt`. The encrypted data is stored in a file called `ciphertext.txt`.
-
-. Encrypt the message using AES, the key, and the specific IV:
-+
-[source,console]
-----
-$ openssl enc -aes-256-cbc -d -in ciphertext.txt \
-     -K "$(grep -oP '(?<=key=).+' key_and_iv.txt)" \
-    -iv "$(grep -oP '(?<=iv =).+' key_and_iv.txt)" 
-Hello, 世界
-----
---
+NOTE: In TLS 1.3, RSA key exchange has been removed, and only ephemeral key exchange algorithms like ECDHE and DHE are supported.
 
 [appendix]
 == Extended Validation Certificate
