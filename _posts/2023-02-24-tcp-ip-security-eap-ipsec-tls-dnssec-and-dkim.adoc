@@ -973,6 +973,27 @@ $ openssl verify -CAfile 996.icu.crt 955.wlb.crt
 
 Remember that the `openssl verify` command checks the trust chain up to the provided root certificate, so ensure that the certificate you are trying to verify is indeed signed by the provided root certificate. If there are intermediate certificates involved, you may need to include them in the command as well, using the `-untrusted` option.
 
+[source,console]
+----
+$ # Verify the signature in a CSR
+$ openssl req -in 955.wlb.csr -noout -verify 
+Certificate request self-signature verify OK
+$ openssl req -in 955.wlb.csr -noout -text | grep 'Signature Algorithm' -A 5
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        86:8e:d0:59:e4:19:7a:fa:88:bd:f9:df:33:c2:89:0d:0d:9b:
+        2b:fe:e7:72:04:c6:53:67:69:5e:51:2e:36:01:6d:5d:94:24:
+        b3:92:e8:7e:73:a2:02:07:23:a9:ad:31:8e:12:15:34:9e:97:
+        a3:9e:a4:96:d9:16:9f:a5:56:cf:c3:6a:cd:95:9c:00:c2:eb:
+$ openssl req -in 955.wlb.csr -outform DER | openssl dgst -sha256 -binary -out 955.wlb.dgst
+$ xxd -p 955.wlb.dgst | tr -d '\n'
+2230daf3595f1e9e55b20309e6b24add18412af648cdbcad03ee9a03ddb1dd65
+$ openssl pkeyutl -sign -inkey 955.wlb.key -in 955.wlb.dgst -out 955.wlb.sig
+$ openssl req -in 955.wlb.csr -pubkey -noout > 955.wlb.pub
+$ openssl pkeyutl -verify -pubin -inkey 955.wlb.pub -in 955.wlb.dgst -sigfile 955.wlb.sig 
+Signature Verified Successfully
+----
+
 === Validating and Revoking Certificates
 
 Within the IETF, <<RFC5280>> defines the use of X.509 version 3 certificates with X.509 version 2 CRLs for the Internet that a certificate may have to be revoked and possibly replaced with a freshly issued certificate.
@@ -1673,6 +1694,83 @@ If an attacker manages to compromise the server's RSA private key, they can decr
 Due to these limitations, modern TLS configurations often prefer using ephemeral key exchange algorithms like DHE (Diffie-Hellman Ephemeral) or ECDHE (Elliptic Curve Diffie-Hellman Ephemeral), which provide forward secrecy and work independently of the server's certificate type.
 
 NOTE: In TLS 1.3, RSA key exchange has been removed, and only ephemeral key exchange algorithms like ECDHE and DHE are supported.
+
+=== How to compute the digest and sign it from a CSR separately?
+
+The origin data of the digest in a CSR (Certificate Signing Request) is the DER-encoded data of the CertificationRequestInfo structure, which contains information about the subject, public key, and optional attributes.
+
+[source,console]
+----
+$ # Create a Certificate Signing Request (CSR)
+$ openssl req -subj "/CN=955.wlb" \
+    -addext "subjectAltName=DNS:955.wlb,DNS:*.955.wlb" \
+    -addext "basicConstraints=CA:false" \
+    -addext "keyUsage=digitalSignature,keyEncipherment" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -nodes -newkey rsa:2048 \
+    -keyout 955.wlb.key \
+    -out 955.wlb.csr \
+    2>/dev/null
+$ # Verify the self-signed signature of a request:
+$ openssl req -verify -in 955.wlb.csr -noout 
+Certificate request self-signature verify OK
+----
+
+A certification request shall have ASN.1 type CertificationRequest: [RFC2986]
+
+[source,asn1]
+----
+CertificationRequest ::= SEQUENCE {
+     certificationRequestInfo CertificationRequestInfo,
+     signatureAlgorithm AlgorithmIdentifier{{ SignatureAlgorithms }},
+     signature          BIT STRING
+}
+----
+
+[source,console]
+----
+$ # Parse the CSR information in ASN1
+$ openssl asn1parse -in 955.wlb.csr -i
+    0:d=0  hl=4 l= 702 cons: SEQUENCE          
+    4:d=1  hl=4 l= 422 cons:  SEQUENCE          
+    ...
+   31:d=2  hl=4 l= 290 cons:   SEQUENCE          
+   35:d=3  hl=2 l=  13 cons:    SEQUENCE          
+   37:d=4  hl=2 l=   9 prim:     OBJECT            :rsaEncryption
+    ...
+  430:d=1  hl=2 l=  13 cons:  SEQUENCE          
+    ...
+  445:d=1  hl=4 l= 257 prim:  BIT STRING        
+
+$ # Extract the certificationRequestInfo
+$ openssl asn1parse -in 955.wlb.csr -strparse 4 -out 955.wlb.cri -noout
+$ # Extract the signature vaule (ignore the error, because it's the raw signature bytes instead of ASN.1 encoded.
+$ openssl asn1parse -in 955.wlb.csr -strparse 445 -out 955.wlb.sig.o > /dev/null 2>&1
+$ # Determine the signature algorithm
+$ openssl req -in 955.wlb.csr -noout -text | grep 'Signature Algorithm:'
+    Signature Algorithm: sha256WithRSAEncryption
+$ # Sign the raw request information using the private key
+$ openssl pkeyutl -sign -inkey 955.wlb.key \
+    -digest sha256 -rawin \
+    -in 955.wlb.cri \
+    -out 955.wlb.sig.1
+$ # Compare the signatures
+$ diff 955.wlb.sig.o 955.wlb.sig.1
+<nothing is ok>
+
+$ # Extract the public key
+$ openssl pkey -in 955.wlb.key -pubout -out 955.wlb.pub
+$ # or
+$ openssl asn1parse -in 955.wlb.csr -strparse 31 -out /dev/stdout -noout \
+    | openssl pkey -pubin -inform DER -outform PEM -out 955.wlb.pub.1
+$ diff 955.wlb.pub 955.wlb.pub.1
+<nothing is ok>
+$ # Verify the signature using the publick key
+$ openssl pkeyutl -verify -pubin -inkey 955.wlb.pub \
+    -rawin -digest sha256 -in 955.wlb.cri \
+    -sigfile 955.wlb.sig.o 
+Signature Verified Successfully
+----
 
 [appendix]
 == Extended Validation Certificate
