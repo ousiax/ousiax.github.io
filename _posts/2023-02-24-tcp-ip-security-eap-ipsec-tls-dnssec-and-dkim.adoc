@@ -299,7 +299,9 @@ A checksum or FCS can be used to verify message integrity if properly constructe
 * Collision resistance: It should be difficult to find any pair _M1_, _M2_ where _H(M1) = H(M2)_ when _M2 ≠ M1_.
 --
 +
-If a hash function has all of these properties, then if two messages have the same cryptographic hash value, they are, with negligible doubt, the same message. The two most common cryptographic hash algorithms are at present the _Message Digest Algorithm 5_ (*_MD5_*, <<RFC1321>>), which produces a 128-bit (16-byte) digest, and the _Secure Hash Algorithm 1_ (*_SHA-1_*), which produces a 160-bit (20-byte) digest.
+If a hash function has all of these properties, then if two messages have the same cryptographic hash value, they are, with negligible doubt, the same message.
++
+The two most common cryptographic hash algorithms are at present the _Message Digest Algorithm 5_ (*_MD5_*, <<RFC1321>>), which produces a 128-bit (16-byte) digest, and the _Secure Hash Algorithm 1_ (*_SHA-1_*), which produces a 160-bit (20-byte) digest.
 +
 More recently, a family of functions based on SHA called *_SHA-2_* <<RFC6234>> produce digests with lengths of 224, 256, 384, or 512 bits (28, 32, 48, and 64 bytes, respectively). Others are under development.
 
@@ -310,9 +312,7 @@ Cryptographic hash functions are often based on a compression function _f_, whic
 
 === Message Authentication Codes (MACs, HMAC, CMAC, and GMAC)
 
-A _message authentication code_ (unfortunately abbreviated *MAC* or sometimes *MIC* but unrelated to the link-layer MAC addresses) can be used to ensure message integrity and authentication.
-
-MACs are usually based on *_keyed cryptographic hash functions_*, which are like _message digest algorithms_ but require a _private key_ to produce or verify the integrity of a message and may also be used to verify (authenticate) the message's sender.
+A _message authentication code_ (unfortunately abbreviated *MAC* or sometimes *MIC* but unrelated to the link-layer MAC addresses) can be used to ensure message integrity and authentication. MACs are usually based on *_keyed cryptographic hash functions_*, which are like _message digest algorithms_ but require a _private key_ to produce or verify the integrity of a message and may also be used to verify (authenticate) the message's sender.
 
 MACs require resistance to various forms of *_forgery_*.
 
@@ -336,7 +336,10 @@ In this definition, `opad` (outer pad) is an array containing the value `0x5C` r
 +
 Normally the HMAC output is intended to be a certain number `t` of bytes in length, so the operator `Λt(M)` takes the left-most `t` bytes of `M`.
 
-More recently, other forms of MACs have been standardized, called the _cipher-based MAC_ (*CMAC*) <<FIPS800-38B>> and *GMAC* <<NIST800-38D>>. Instead of using a cryptographic hash function such as HMAC, these use a block cipher such as AES or 3DES. CMAC is envisioned for use in environments where it is more convenient or efficient to use a block cipher in place of a hash function.
+More recently, other forms of MACs have been standardized, called the *_cipher-based MAC_* (*CMAC*) <<FIPS800-38B>> and *GMAC* <<NIST800-38D>>.
+
+* Instead of using a cryptographic hash function such as HMAC, these use a block cipher such as AES or 3DES.
+* CMAC is envisioned for use in environments where it is more convenient or efficient to use a block cipher in place of a hash function.
 
 === Cryptographic Suites and Cipher Suites
 
@@ -491,7 +494,7 @@ The concept of a cryptographic suite evolved in the context of Internet security
 
 * Protocols tend to make use of the components of a cryptographic suite in a standard way, so an appropriate cryptographic suite can be “snapped in” when deemed appropriate.
 
-=== OpenSSL: Cryptography and SSL/TLS Toolkit
+== OpenSSL: Cryptography and SSL/TLS Toolkit
 
 The https://www.openssl.org/[OpenSSL Project] develops and maintains the OpenSSL software - a robust, commercial-grade, full-featured toolkit for general-purpose cryptography and secure communication. <<OPENSSL>>
 
@@ -509,7 +512,20 @@ OpenSSL 3.0.9 30 May 2023 (Library: OpenSSL 3.0.9 30 May 2023)
 
 [source,console]
 ----
-$ # Generate a private and public key pair for Alice
+$ echo "Hello, 世界"  > plaintext.txt 
+
+$ # Encrypt a message using a passphrase, a randomly generated salt, and a key derived with PBKDF2:
+$ openssl enc -aes-256-cbc -pbkdf2 -salt -in plaintext.txt -out ciphertext.txt -pass pass:123456
+
+$ # Decrypt the encrypted message with the encrypted key derived with PBKDF2 from the same passphrase
+$ openssl enc -aes-256-cbc -pbkdf2 -d -in ciphertext.txt -out message.txt -pass pass:123456
+$ cat message.txt 
+Hello, 世界
+----
+
+[source,console]
+----
+$ # Generate a private and public key pair for Alice (RSA)
 $ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out alice.key -quiet 
 $ openssl rsa -in alice.key -pubout -out alice.pub
 writing RSA key
@@ -527,8 +543,11 @@ MIIJQQIBADANBgkqhkiG9w0BAQEFAASCCSswggknAgEAAoICAQDD4ET03oHazPgx
 ...
 Fb4D3jFp0r9UrlYIM1mtEI3wZbvg
 -----END PRIVATE KEY-----
+----
 
-$ # Generate a private and public key pair for Bob (EC key)
+[source,console]
+----
+$ # Generate a private and public key pair for Bob (ECC)
 $ openssl genpkey -algorithm EC -out bob.key -pkeyopt ec_paramgen_curve:secp384r1 -pkeyopt ec_param_enc:named_curve
 $ openssl pkey -in bob.key -pubout -out bob.pub 
 
@@ -551,17 +570,17 @@ alice.key  alice.pub  bob.key  bob.pub
 
 [source,console]
 ----
-$ # Encrypt the input data using a public key.
+$ # Encrypt a message using a public key.
 $ openssl pkeyutl -encrypt -pubin -inkey alice.pub -in message.txt -out ciper.txt
 
-$ # Decrypt the input data using a private key.
+$ # Decrypt the encrypted data using a private key.
 $ openssl pkeyutl -decrypt -inkey alice.key -in ciper.txt 
 Hello, 世界
 ----
 
 [source,console]
 ----
-$ # Sign some data using a private key
+$ # Sign a message using a private key
 $ openssl pkeyutl -sign -inkey alice.key -in message.txt -out sig.txt
 
 $ # Verify the signature (e.g. a DSA key)
@@ -601,6 +620,16 @@ $ openssl asn1parse -in bob.pub
     4:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
    13:d=2  hl=2 l=   5 prim: OBJECT            :secp384r1
    20:d=1  hl=2 l=  98 prim: BIT STRING        
+----
+
+[source,console]
+----
+$ echo "Hello, 世界" > message.txt
+$ openssl rand -hex 16 | tee key.txt
+40921c47c8086ad7a10059c94b35eb3d
+$ # Create a hex-encoded (two hex digits per byte) HMAC-SHA256 MAC of a file and write to stdout
+$ openssl mac -digest sha256 -macopt hexkey:$(cat key.txt) -in message.txt HMAC
+7508EA0525F0F40CDF263089D5B4826D23342AAAE97EA77DAB44A325DE83AAE1
 ----
 
 == Certificates, Certificate Authorities (CAs), and PKIs
@@ -881,6 +910,68 @@ In this case, it indicates a URI used to determine if the certificate has been r
 +
 In this case, the signature itself is a 256-byte value, corresponding to the 2048-bit modulus used for this use of RSA.
 --
+
+=== Create, Issue and Verify Certificate
+
+[source,console]
+----
+$ # Create a self-signed CA root certificate
+$ openssl req -x509 \
+    -subj "/CN=996.icu" \
+    -addext "subjectAltName=DNS:996.icu,DNS:*.996.icu" \
+    -addext "keyUsage=digitalSignature,cRLSign,keyCertSign" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -days 365 \
+    -nodes -newkey rsa:2048 \
+    -keyout 996.icu.key \
+    -out 996.icu.crt \
+    > /dev/null 2>&1
+$ openssl x509 -in 996.icu.crt -noout -ext keyUsage,extendedKeyUsage,basicConstraints 
+X509v3 Basic Constraints: critical
+    CA:TRUE
+X509v3 Key Usage: 
+    Digital Signature, Certificate Sign, CRL Sign
+X509v3 Extended Key Usage: 
+    TLS Web Server Authentication, TLS Web Client Authentication
+----
+
+[source,console]
+----
+$ # Create a Certificate Signing Request (CSR)
+$ openssl req -subj "/CN=955.wlb" \
+    -addext "subjectAltName=DNS:955.wlb,DNS:*.955.wlb" \
+    -addext "basicConstraints=CA:false" \
+    -addext "keyUsage=digitalSignature,keyEncipherment" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -nodes -newkey rsa:2048 \
+    -keyout 955.wlb.key \
+    -out 955.wlb.csr \
+    2>/dev/null
+$ # Sign a certificate signing request with a root certificate
+$ openssl x509 -req \
+    -CA 996.icu.crt -CAkey 996.icu.key -CAcreateserial \
+    -days 180 \
+    -in 955.wlb.csr \
+    -copy_extensions copy \
+    -out 955.wlb.crt \
+    2>/dev/null
+$ openssl x509 -in 955.wlb.crt -noout -ext keyUsage,extendedKeyUsage,basicConstraints
+X509v3 Basic Constraints: 
+    CA:FALSE
+X509v3 Key Usage: 
+    Digital Signature, Key Encipherment
+X509v3 Extended Key Usage: 
+    TLS Web Server Authentication, TLS Web Client Authentication
+----
+
+[source,console]
+----
+$ # Verify a certificate using the root certificate
+$ openssl verify -CAfile 996.icu.crt 955.wlb.crt 
+955.wlb.crt: OK
+----
+
+Remember that the `openssl verify` command checks the trust chain up to the provided root certificate, so ensure that the certificate you are trying to verify is indeed signed by the provided root certificate. If there are intermediate certificates involved, you may need to include them in the command as well, using the `-untrusted` option.
 
 === Validating and Revoking Certificates
 
