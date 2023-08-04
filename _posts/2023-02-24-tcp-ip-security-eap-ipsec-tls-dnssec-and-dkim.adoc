@@ -279,7 +279,7 @@ The best-known example is the way passwords used to be handled in the UNIX syste
 
 At the time, the encryption method (DES) was well known and there was concern that a hardware-based *_dictionary attack_* would be possible whereby many words from a dictionary were encrypted with DES ahead of time (forming a *_rainbow table_*) and compared against the password file. A pseudorandom 12-bit salt was added to perturb the DES algorithm in one of 4096 (nonstandard) ways for each password in an effort to thwart this attack. Ultimately, the 12-bit salt was determined to be insufficient with improved computers (that could guess more values) and was expanded.
 
-NOTE: However, there are limitations in the protections that a salt can provide. If the attacker is hitting an online service with a credential stuffing attack, a subset of the brute force attack category, salts won't help at all because the legitimate server is doing the salting+hashing for you. <<auth0-salt-hasing>>
+NOTE: However, there are limitations in the protections that a salt can provide. If the attacker is hitting an online service with a credential stuffing attack, a subset of the brute force attack category, salts won't help at all because the legitimate server is doing the salting+hashing for you. https://auth0.com/blog/adding-salt-to-hashing-a-better-way-to-store-passwords/[[auth0-salt-hasing]]
 
 === Cryptographic Hash Functions and Message Digests
 
@@ -493,144 +493,6 @@ The concept of a cryptographic suite evolved in the context of Internet security
 * As a result, the choice of a cryptographic suite can now be made separately from the communication protocol details and depends on factors such as convenience, performance, and security.
 
 * Protocols tend to make use of the components of a cryptographic suite in a standard way, so an appropriate cryptographic suite can be “snapped in” when deemed appropriate.
-
-== OpenSSL: Cryptography and SSL/TLS Toolkit
-
-The https://www.openssl.org/[OpenSSL Project] develops and maintains the OpenSSL software - a robust, commercial-grade, full-featured toolkit for general-purpose cryptography and secure communication. <<OPENSSL>>
-
-A good starting point for understanding some of the key concepts in OpenSSL 3.0 is the libcrypto https://www.openssl.org/docs/man3.0/man7/crypto.html[manual page]. Information and notes about migrating existing applications to OpenSSL 3.0 are available in the https://www.openssl.org/docs/man3.0/man7/migration_guide.html[OpenSSL 3.0 Migration Guide]. The https://www.openssl.org/docs/faq.html[frequently-asked questions (FAQ)] page is available.
-
-> The OpenSSL crypto library ("libcrypto") implements a wide range of cryptographic algorithms used in various Internet standards. The services provided by this library are used by the OpenSSL implementations of TLS and CMS, and they have also been used to implement many other third party products and protocols.
->
-> The functionality includes symmetric encryption, public key cryptography, key agreement, certificate handling, cryptographic hash functions, cryptographic pseudo-random number generators, message authentication codes (MACs), key derivation functions (KDFs), and various utilities.
-
-[source,console]
-----
-$ openssl version 
-OpenSSL 3.0.9 30 May 2023 (Library: OpenSSL 3.0.9 30 May 2023)
-----
-
-[source,console]
-----
-$ echo "Hello, 世界"  > plaintext.txt 
-
-$ # Encrypt a message using a passphrase, a randomly generated salt, and a key derived with PBKDF2:
-$ openssl enc -aes-256-cbc -pbkdf2 -salt -in plaintext.txt -out ciphertext.txt -pass pass:123456
-
-$ # Decrypt the encrypted message with the encrypted key derived with PBKDF2 from the same passphrase
-$ openssl enc -aes-256-cbc -pbkdf2 -d -in ciphertext.txt -out message.txt -pass pass:123456
-$ cat message.txt 
-Hello, 世界
-----
-
-[source,console]
-----
-$ # Generate a private and public key pair for Alice (RSA)
-$ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out alice.key -quiet 
-$ openssl rsa -in alice.key -pubout -out alice.pub
-writing RSA key
-
-$ cat alice.pub 
------BEGIN PUBLIC KEY-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAw+BE9N6B2sz4MaM0aOZe
-...
-DwCtw8HP1vA5BEsOcogjCV8CAwEAAQ==
------END PUBLIC KEY-----
-
-$ cat alice.key 
------BEGIN PRIVATE KEY-----
-MIIJQQIBADANBgkqhkiG9w0BAQEFAASCCSswggknAgEAAoICAQDD4ET03oHazPgx
-...
-Fb4D3jFp0r9UrlYIM1mtEI3wZbvg
------END PRIVATE KEY-----
-----
-
-[source,console]
-----
-$ # Generate a private and public key pair for Bob (ECC)
-$ openssl genpkey -algorithm EC -out bob.key -pkeyopt ec_paramgen_curve:secp384r1 -pkeyopt ec_param_enc:named_curve
-$ openssl pkey -in bob.key -pubout -out bob.pub 
-
-$ cat bob.key 
------BEGIN PRIVATE KEY-----
-MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDCnOkyORJs4ESXkkdIM
-...
-3c7TzHSDQLACE8hp4slbh6BeatQMyuzZlSY+ajIfPyiiHhsaD3a5qC0=
------END PRIVATE KEY-----
-$ cat bob.pub 
------BEGIN PUBLIC KEY-----
-MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEEFQE3OsITjygGFvfg0qjwK1SZJJXUOZM
-...
-XmrUDMrs2ZUmPmoyHz8ooh4bGg92uagt
------END PUBLIC KEY-----
-
-$ ls
-alice.key  alice.pub  bob.key  bob.pub
-----
-
-[source,console]
-----
-$ # Encrypt a message using a public key.
-$ openssl pkeyutl -encrypt -pubin -inkey alice.pub -in message.txt -out ciper.txt
-
-$ # Decrypt the encrypted data using a private key.
-$ openssl pkeyutl -decrypt -inkey alice.key -in ciper.txt 
-Hello, 世界
-----
-
-[source,console]
-----
-$ # Sign a message using a private key
-$ openssl pkeyutl -sign -inkey alice.key -in message.txt -out sig.txt
-
-$ # Verify the signature (e.g. a DSA key)
-$ openssl pkeyutl -verify -inkey alice.pub -pubin -sigfile sig.txt -in message.txt 
-Signature Verified Successfully
-----
-
-[source,console]
-----
-$ # The digest functions output the message digest of a supplied file or files in hexadecimal.
-$ openssl dgst -sha256 -hex -out dgst.txt message.txt 
-$ cat dgst.txt 
-SHA2-256(message.txt)= a281e84c7f61393db702630c2a6807e871cd3b6896c9e56e22982d125696575c
-$ cat message.txt | sha256sum 
-a281e84c7f61393db702630c2a6807e871cd3b6896c9e56e22982d125696575c  -
-
-$ # The digest functions also generate and verify digital signatures using message digests.
-$ openssl dgst -sha256 -sign alice.key -out sig.txt.0 message.txt 
-$ openssl dgst -sha256 -verify alice.pub -signature sig.txt.0 message.txt 
-Verified OK
-----
-
-[source,console,highlight="5,13"]
-----
-$ # When signing a file, dgst will automatically determine the algorithm (RSA, ECC, etc) to use for signing \
-$ # based on the private key's ASN.1 info. 
-$ openssl asn1parse -in alice.pub 
-    0:d=0  hl=4 l= 546 cons: SEQUENCE          
-    4:d=1  hl=2 l=  13 cons: SEQUENCE          
-    6:d=2  hl=2 l=   9 prim: OBJECT            :rsaEncryption
-   17:d=2  hl=2 l=   0 prim: NULL              
-   19:d=1  hl=4 l= 527 prim: BIT STRING        
-
-$ openssl asn1parse -in bob.pub 
-    0:d=0  hl=2 l= 118 cons: SEQUENCE          
-    2:d=1  hl=2 l=  16 cons: SEQUENCE          
-    4:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
-   13:d=2  hl=2 l=   5 prim: OBJECT            :secp384r1
-   20:d=1  hl=2 l=  98 prim: BIT STRING        
-----
-
-[source,console]
-----
-$ echo "Hello, 世界" > message.txt
-$ openssl rand -hex 16 | tee key.txt
-40921c47c8086ad7a10059c94b35eb3d
-$ # Create a hex-encoded (two hex digits per byte) HMAC-SHA256 MAC of a file and write to stdout
-$ openssl mac -digest sha256 -macopt hexkey:$(cat key.txt) -in message.txt HMAC
-7508EA0525F0F40CDF263089D5B4826D23342AAAE97EA77DAB44A325DE83AAE1
-----
 
 == Certificates, Certificate Authorities (CAs), and PKIs
 
@@ -911,89 +773,6 @@ In this case, it indicates a URI used to determine if the certificate has been r
 In this case, the signature itself is a 256-byte value, corresponding to the 2048-bit modulus used for this use of RSA.
 --
 
-=== Create, Issue and Verify Certificate
-
-[source,console]
-----
-$ # Create a self-signed CA root certificate
-$ openssl req -x509 \
-    -subj "/CN=996.icu" \
-    -addext "subjectAltName=DNS:996.icu,DNS:*.996.icu" \
-    -addext "keyUsage=digitalSignature,cRLSign,keyCertSign" \
-    -addext "extendedKeyUsage=serverAuth,clientAuth" \
-    -days 365 \
-    -nodes -newkey rsa:2048 \
-    -keyout 996.icu.key \
-    -out 996.icu.crt \
-    > /dev/null 2>&1
-$ openssl x509 -in 996.icu.crt -noout -ext keyUsage,extendedKeyUsage,basicConstraints 
-X509v3 Basic Constraints: critical
-    CA:TRUE
-X509v3 Key Usage: 
-    Digital Signature, Certificate Sign, CRL Sign
-X509v3 Extended Key Usage: 
-    TLS Web Server Authentication, TLS Web Client Authentication
-----
-
-[source,console]
-----
-$ # Create a Certificate Signing Request (CSR)
-$ openssl req -subj "/CN=955.wlb" \
-    -addext "subjectAltName=DNS:955.wlb,DNS:*.955.wlb" \
-    -addext "basicConstraints=CA:false" \
-    -addext "keyUsage=digitalSignature,keyEncipherment" \
-    -addext "extendedKeyUsage=serverAuth,clientAuth" \
-    -nodes -newkey rsa:2048 \
-    -keyout 955.wlb.key \
-    -out 955.wlb.csr \
-    2>/dev/null
-$ # Sign a certificate signing request with a root certificate
-$ openssl x509 -req \
-    -CA 996.icu.crt -CAkey 996.icu.key -CAcreateserial \
-    -days 180 \
-    -in 955.wlb.csr \
-    -copy_extensions copy \
-    -out 955.wlb.crt \
-    2>/dev/null
-$ openssl x509 -in 955.wlb.crt -noout -ext keyUsage,extendedKeyUsage,basicConstraints
-X509v3 Basic Constraints: 
-    CA:FALSE
-X509v3 Key Usage: 
-    Digital Signature, Key Encipherment
-X509v3 Extended Key Usage: 
-    TLS Web Server Authentication, TLS Web Client Authentication
-----
-
-[source,console]
-----
-$ # Verify a certificate using the root certificate
-$ openssl verify -CAfile 996.icu.crt 955.wlb.crt 
-955.wlb.crt: OK
-----
-
-Remember that the `openssl verify` command checks the trust chain up to the provided root certificate, so ensure that the certificate you are trying to verify is indeed signed by the provided root certificate. If there are intermediate certificates involved, you may need to include them in the command as well, using the `-untrusted` option.
-
-[source,console]
-----
-$ # Verify the signature in a CSR
-$ openssl req -in 955.wlb.csr -noout -verify 
-Certificate request self-signature verify OK
-$ openssl req -in 955.wlb.csr -noout -text | grep 'Signature Algorithm' -A 5
-    Signature Algorithm: sha256WithRSAEncryption
-    Signature Value:
-        86:8e:d0:59:e4:19:7a:fa:88:bd:f9:df:33:c2:89:0d:0d:9b:
-        2b:fe:e7:72:04:c6:53:67:69:5e:51:2e:36:01:6d:5d:94:24:
-        b3:92:e8:7e:73:a2:02:07:23:a9:ad:31:8e:12:15:34:9e:97:
-        a3:9e:a4:96:d9:16:9f:a5:56:cf:c3:6a:cd:95:9c:00:c2:eb:
-$ openssl req -in 955.wlb.csr -outform DER | openssl dgst -sha256 -binary -out 955.wlb.dgst
-$ xxd -p 955.wlb.dgst | tr -d '\n'
-2230daf3595f1e9e55b20309e6b24add18412af648cdbcad03ee9a03ddb1dd65
-$ openssl pkeyutl -sign -inkey 955.wlb.key -in 955.wlb.dgst -out 955.wlb.sig
-$ openssl req -in 955.wlb.csr -pubkey -noout > 955.wlb.pub
-$ openssl pkeyutl -verify -pubin -inkey 955.wlb.pub -in 955.wlb.dgst -sigfile 955.wlb.sig 
-Signature Verified Successfully
-----
-
 === Validating and Revoking Certificates
 
 Within the IETF, <<RFC5280>> defines the use of X.509 version 3 certificates with X.509 version 2 CRLs for the Internet that a certificate may have to be revoked and possibly replaced with a freshly issued certificate.
@@ -1140,6 +919,9 @@ In addition to public key certificates (PKCs) used to bind names to public keys,
 
 * ACs contain other structures similar to PKCs, including extensions and AC policies.
 
+== TCP/IP Security Protocols and Layering
+//TODO
+
 [appendix]
 == FAQs
 
@@ -1235,6 +1017,144 @@ However, it is possible to use other IV sizes with AES-GCM, but this requires an
 In summary, the salt is used during the key derivation process to add randomness and prevent precomputed attacks, while the IV is used during encryption with specific block cipher modes of operation to ensure the uniqueness of the resulting ciphertexts. The IV size for AES-CBC is 128 bits (16 bytes), and for AES-GCM, the recommended size is 96 bits (12 bytes). Both salt and IV contribute to the overall security of AES encryption.
 
 NOTE: Using a unique and random IV for each encryption operation with the same key is essential for maintaining the security of the encryption scheme.
+
+=== OpenSSL: Cryptography and SSL/TLS Toolkit
+
+The https://www.openssl.org/[OpenSSL Project] develops and maintains the OpenSSL software - a robust, commercial-grade, full-featured toolkit for general-purpose cryptography and secure communication. <<OPENSSL>>
+
+A good starting point for understanding some of the key concepts in OpenSSL 3.0 is the libcrypto https://www.openssl.org/docs/man3.0/man7/crypto.html[manual page]. Information and notes about migrating existing applications to OpenSSL 3.0 are available in the https://www.openssl.org/docs/man3.0/man7/migration_guide.html[OpenSSL 3.0 Migration Guide]. The https://www.openssl.org/docs/faq.html[frequently-asked questions (FAQ)] page is available.
+
+> The OpenSSL crypto library ("libcrypto") implements a wide range of cryptographic algorithms used in various Internet standards. The services provided by this library are used by the OpenSSL implementations of TLS and CMS, and they have also been used to implement many other third party products and protocols.
+>
+> The functionality includes symmetric encryption, public key cryptography, key agreement, certificate handling, cryptographic hash functions, cryptographic pseudo-random number generators, message authentication codes (MACs), key derivation functions (KDFs), and various utilities.
+
+[source,console]
+----
+$ openssl version 
+OpenSSL 3.0.9 30 May 2023 (Library: OpenSSL 3.0.9 30 May 2023)
+----
+
+[source,console]
+----
+$ echo "Hello, 世界"  > plaintext.txt 
+
+$ # Encrypt a message using a passphrase, a randomly generated salt, and a key derived with PBKDF2:
+$ openssl enc -aes-256-cbc -pbkdf2 -salt -in plaintext.txt -out ciphertext.txt -pass pass:123456
+
+$ # Decrypt the encrypted message with the encrypted key derived with PBKDF2 from the same passphrase
+$ openssl enc -aes-256-cbc -pbkdf2 -d -in ciphertext.txt -out message.txt -pass pass:123456
+$ cat message.txt 
+Hello, 世界
+----
+
+[source,console]
+----
+$ # Generate a private and public key pair for Alice (RSA)
+$ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out alice.key -quiet 
+$ openssl rsa -in alice.key -pubout -out alice.pub
+writing RSA key
+
+$ cat alice.pub 
+-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAw+BE9N6B2sz4MaM0aOZe
+...
+DwCtw8HP1vA5BEsOcogjCV8CAwEAAQ==
+-----END PUBLIC KEY-----
+
+$ cat alice.key 
+-----BEGIN PRIVATE KEY-----
+MIIJQQIBADANBgkqhkiG9w0BAQEFAASCCSswggknAgEAAoICAQDD4ET03oHazPgx
+...
+Fb4D3jFp0r9UrlYIM1mtEI3wZbvg
+-----END PRIVATE KEY-----
+----
+
+[source,console]
+----
+$ # Generate a private and public key pair for Bob (ECC)
+$ openssl genpkey -algorithm EC -out bob.key -pkeyopt ec_paramgen_curve:secp384r1 -pkeyopt ec_param_enc:named_curve
+$ openssl pkey -in bob.key -pubout -out bob.pub 
+
+$ cat bob.key 
+-----BEGIN PRIVATE KEY-----
+MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDCnOkyORJs4ESXkkdIM
+...
+3c7TzHSDQLACE8hp4slbh6BeatQMyuzZlSY+ajIfPyiiHhsaD3a5qC0=
+-----END PRIVATE KEY-----
+$ cat bob.pub 
+-----BEGIN PUBLIC KEY-----
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEEFQE3OsITjygGFvfg0qjwK1SZJJXUOZM
+...
+XmrUDMrs2ZUmPmoyHz8ooh4bGg92uagt
+-----END PUBLIC KEY-----
+
+$ ls
+alice.key  alice.pub  bob.key  bob.pub
+----
+
+[source,console]
+----
+$ # Encrypt a message using a public key.
+$ openssl pkeyutl -encrypt -pubin -inkey alice.pub -in message.txt -out ciper.txt
+
+$ # Decrypt the encrypted data using a private key.
+$ openssl pkeyutl -decrypt -inkey alice.key -in ciper.txt 
+Hello, 世界
+----
+
+[source,console]
+----
+$ # Sign a message using a private key
+$ openssl pkeyutl -sign -inkey alice.key -in message.txt -out sig.txt
+
+$ # Verify the signature (e.g. a DSA key)
+$ openssl pkeyutl -verify -inkey alice.pub -pubin -sigfile sig.txt -in message.txt 
+Signature Verified Successfully
+----
+
+[source,console]
+----
+$ # The digest functions output the message digest of a supplied file or files in hexadecimal.
+$ openssl dgst -sha256 -hex -out dgst.txt message.txt 
+$ cat dgst.txt 
+SHA2-256(message.txt)= a281e84c7f61393db702630c2a6807e871cd3b6896c9e56e22982d125696575c
+$ cat message.txt | sha256sum 
+a281e84c7f61393db702630c2a6807e871cd3b6896c9e56e22982d125696575c  -
+
+$ # The digest functions also generate and verify digital signatures using message digests.
+$ openssl dgst -sha256 -sign alice.key -out sig.txt.0 message.txt 
+$ openssl dgst -sha256 -verify alice.pub -signature sig.txt.0 message.txt 
+Verified OK
+----
+
+[source,console,highlight="5,13"]
+----
+$ # When signing a file, dgst will automatically determine the algorithm (RSA, ECC, etc) to use for signing \
+$ # based on the private key's ASN.1 info. 
+$ openssl asn1parse -in alice.pub 
+    0:d=0  hl=4 l= 546 cons: SEQUENCE          
+    4:d=1  hl=2 l=  13 cons: SEQUENCE          
+    6:d=2  hl=2 l=   9 prim: OBJECT            :rsaEncryption
+   17:d=2  hl=2 l=   0 prim: NULL              
+   19:d=1  hl=4 l= 527 prim: BIT STRING        
+
+$ openssl asn1parse -in bob.pub 
+    0:d=0  hl=2 l= 118 cons: SEQUENCE          
+    2:d=1  hl=2 l=  16 cons: SEQUENCE          
+    4:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
+   13:d=2  hl=2 l=   5 prim: OBJECT            :secp384r1
+   20:d=1  hl=2 l=  98 prim: BIT STRING        
+----
+
+[source,console]
+----
+$ echo "Hello, 世界" > message.txt
+$ openssl rand -hex 16 | tee key.txt
+40921c47c8086ad7a10059c94b35eb3d
+$ # Create a hex-encoded (two hex digits per byte) HMAC-SHA256 MAC of a file and write to stdout
+$ openssl mac -digest sha256 -macopt hexkey:$(cat key.txt) -in message.txt HMAC
+7508EA0525F0F40CDF263089D5B4826D23342AAAE97EA77DAB44A325DE83AAE1
+----
 
 === What's the best way to generate an encrypted key for AES using OpenSSL?
 
@@ -1772,6 +1692,75 @@ $ openssl pkeyutl -verify -pubin -inkey 955.wlb.pub \
 Signature Verified Successfully
 ----
 
+=== How to create, issue and verify a certificate?
+
+[source,console]
+----
+$ # Create a self-signed CA root certificate
+$ openssl req -x509 \
+    -subj "/CN=996.icu" \
+    -addext "subjectAltName=DNS:996.icu,DNS:*.996.icu" \
+    -addext "keyUsage=digitalSignature,cRLSign,keyCertSign" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -days 365 \
+    -nodes -newkey rsa:2048 \
+    -keyout 996.icu.key \
+    -out 996.icu.crt \
+    > /dev/null 2>&1
+$ openssl x509 -in 996.icu.crt -noout -ext keyUsage,extendedKeyUsage,basicConstraints 
+X509v3 Basic Constraints: critical
+    CA:TRUE
+X509v3 Key Usage: 
+    Digital Signature, Certificate Sign, CRL Sign
+X509v3 Extended Key Usage: 
+    TLS Web Server Authentication, TLS Web Client Authentication
+----
+
+[source,console]
+----
+$ # Create a Certificate Signing Request (CSR)
+$ openssl req -subj "/CN=955.wlb" \
+    -addext "subjectAltName=DNS:955.wlb,DNS:*.955.wlb" \
+    -addext "basicConstraints=CA:false" \
+    -addext "keyUsage=digitalSignature,keyEncipherment" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -nodes -newkey rsa:2048 \
+    -keyout 955.wlb.key \
+    -out 955.wlb.csr \
+    2>/dev/null
+$ # Sign a certificate signing request with a root certificate
+$ openssl x509 -req \
+    -CA 996.icu.crt -CAkey 996.icu.key -CAcreateserial \
+    -days 180 \
+    -in 955.wlb.csr \
+    -copy_extensions copy \
+    -out 955.wlb.crt \
+    2>/dev/null
+$ openssl x509 -in 955.wlb.crt -noout -ext keyUsage,extendedKeyUsage,basicConstraints
+X509v3 Basic Constraints: 
+    CA:FALSE
+X509v3 Key Usage: 
+    Digital Signature, Key Encipherment
+X509v3 Extended Key Usage: 
+    TLS Web Server Authentication, TLS Web Client Authentication
+----
+
+[source,console]
+----
+$ # Verify a certificate using the root certificate
+$ openssl verify -CAfile 996.icu.crt 955.wlb.crt 
+955.wlb.crt: OK
+----
+
+[NOTE]
+====
+Remember that the `openssl verify` command checks the trust chain up to the provided root certificate, so ensure that the certificate you are trying to verify is indeed signed by the provided root certificate.
+
+If there are intermediate certificates involved, you may need to include them in the command as well, using the `-untrusted` option.
+
+$ openssl verify -CAfile 996.icu.crt 955.wlb.crt -untrusted
+====
+
 [appendix]
 == Extended Validation Certificate
 
@@ -1839,42 +1828,39 @@ Note that although EV certificates may provide higher assurance (e.g., for some 
 == References
 
 * [[[TCPIPV1,1]]] Kevin Fall, W. Stevens _TCP/IP Illustrated: The Protocols, Volume 1_. 2nd edition, Addison-Wesley Professional, 2011
-* [[[auth0-salt-hasing,2]]] https://auth0.com/blog/adding-salt-to-hashing-a-better-way-to-store-passwords/
+* [[[BOPSW09]]] R. Biddle et al., “Browser Interfaces and Extended Validation SSL Certificates: An Empirical Study,” Proc. ACM Cloud Security Workshop, Nov. 2009.
+* [[[CABF09]]] CA/Browser Forum, “Guidelines for the Issuance and Management of Extended Validation Certificates (v1.4.6),” 2009, https://cabforum.org/wp-content/uploads/EV-SSL-Certificate-Guidelines-Version-1.4.6.pdf
+* [[[CABFOID]]] https://cabforum.org/object-registry/
 * [[[CSWIKIPEDIA]]] https://en.wikipedia.org/wiki/Cipher_suite
+* [[[DIGICERTCPS]]] https://www.digicert.com/content/dam/digicert/pdfs/legal/DigiCert-CPS-V.5.6.pdf
+* [[[EVCWIKIPEDIA]]] _Extended Validation Certificate - Wikipedia_ [online]. https://en.wikipedia.org/wiki/Extended_Validation_Certificate
 * [[[FIPS186-3]]] National Institute for Standards and Technology, “Digital Signature Standard (DSS),” FIPS PUB 186-3, June 2009.
 * [[[FIPS198]]] National Institute for Standards and Technology, “The Keyed-Hash Message Authentication Code (HMAC),” FIPS PUB 198, Mar. 2002.
 * [[[FIPS800-38B]]] National Institute for Standards and Technology, “Recommendation for Block Cipher Modes of Operation: The CMAC Mode for Authentication,”NIST Special Publication 800-38B, May 2005.
+* [[[GLOBALSIGNCP]]] https://www.globalsign.com/en/repository/GlobalSign_CP_v6.6_final.pdf
+* [[[ITUOID]]] http://www.itu.int/ITU-T/asn1
+* [[[NAZ00]]] Network Associates and P. Zimmermann, Introduction to Cryptography, Part of PGP 7.0 Documentation, available from http://www.pgpi.org/doc/guide/7.0/en
 * [[[NIST800-38D]]] National Institute for Standards and Technology, “Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC,”NIST Special Publication 800-38D, Nov. 2005.
+* [[[OCSPWIKIPEDIA]]] https://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol
+* [[[OPENSSL]]] https://www.openssl.org/
 * [[[RFC1321]]] R. Rivest, “The MD5 Message-Digest Algorithm,”Internet RFC 1321 (informational), Apr. 1992.
 * [[[RFC2104]]] H. Krawczyk, M. Bellare, and R. Canetti, “HMAC: Keyed-Hashing for Message Authentication,”Internet RFC 2104 (informational), Feb. 1997.
-* [[[RFC2631]]] E. Rescorla, “Diffie-Hellman Key Agreement Method,” Internet RFC 2631, June 1999.
-* [[[RFC4086]]] D. Eastlake 3rd, J. Schiller, and S. Crocker, “Randomness Requirements for Security,”Internet RFC 4086/BCP 0106, June 2005.
-* [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),”Internet RFC 6234 (informational), May 2011.
 * [[[RFC2410]]] R. Glenn and S. Kent, “The NULL Encryption Algorithm and Its Use with IPsec,” Internet RFC 2410, Nov. 1998.
-* [[[RFC3713]]] M. Matsui, J. Nakajima, and S. Moriai, “A Description of the Camellia Encryption Algorithm,”Internet RFC 3713 (informational), Apr. 2004.
-* [[[RFC5116]]] D. McGrew, “An Interface and Algorithms for Authenticated Encryption,”Internet RFC 5116, Jan. 2008.
-* [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),” Internet RFC 6234 (informational), May 2011.
-* [[[RFC4615]]] J. Song, R. Poovendran, J. Lee, and T. Iwata, “The Advanced Encryption Standard-Cipher-Based Message Authentication Code-Pseudo-Random Function-128 (AES-CMAC-PRF-128) Algorithm for the Internet Key Exchange Protocol (IKE),” Internet RFC 4615, Aug. 2006.
-* [[[RFC4434]]] P. Hoffman, “The AES-XCBC-PRF-128 Algorithm for the Internet Key Exchange Protocol (IKE),” Internet RFC 4434, Feb. 2006.
-* [[[FIPS186-3]]] National Institute for Standards and Technology, “Digital Signature Standard (DSS),” FIPS PUB 186-3, June 2009.
-* [[[X9.62-2005]]] American National Standards Institute, “Public Key Cryptography for the Financial Services Industry: The Elliptic Curve Digital Signature Standard (ECDSA),” ANSI X9.62, 2005.
-* [[[RFC4880]]] J. Callas, L. Donnerhacke, H. Finney, D. Shaw, and R. Thayer, “Open-PGP Message Format,” Internet RFC 4880, Nov. 2007.
-* [[[NAZ00]]] Network Associates and P. Zimmermann, Introduction to Cryptography, Part of PGP 7.0 Documentation, available from http://www.pgpi.org/doc/guide/7.0/en
-* [[[RFC6024]]] R. Reddy and C. Wallace, “Trust Anchor Management Requirements,” Internet RFC 6024 (informational), Oct. 2010.
-* [[[]]RFC5280] D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and W. Polk, “Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile,” Internet RFC 5280, May 2008.
+* [[[RFC2631]]] E. Rescorla, “Diffie-Hellman Key Agreement Method,” Internet RFC 2631, June 1999.
 * [[[RFC3447]]] J. Jonsson and B. Kaliski, “Public-Key Cryptography Standards (PKCS) #1: RSA Cryptography Specifications Version 2.1,” Internet RFC 3447 (informational), Feb. 2003.
-* [[[RFC5652]]] R. Housley, “Cryptographic Message Syntax (CMS),” Internet RFC 5652/STD 0070, Sept. 2009.
-* [[[CABF09]]] CA/Browser Forum, “Guidelines for the Issuance and Management of Extended Validation Certificates (v1.4.6),” 2009, https://cabforum.org/wp-content/uploads/EV-SSL-Certificate-Guidelines-Version-1.4.6.pdf
-* [[[BOPSW09]]] R. Biddle et al., “Browser Interfaces and Extended Validation SSL Certificates: An Empirical Study,” Proc. ACM Cloud Security Workshop, Nov. 2009.
-* [[[RFC5280]]] D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and W. Polk, “Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile,” Internet RFC 5280, May 2008.
-* [[[EVCWIKIPEDIA]]] _Extended Validation Certificate - Wikipedia_ [online]. https://en.wikipedia.org/wiki/Extended_Validation_Certificate
-* [[[SSLGREENBAR]]] _Why the green bar is gone for good | SSLs.com Blog_ [online]. https://www.ssls.com/blog/why-the-green-bar-is-gone-for-good/
-* [[[SSLDVOVEV]]] _DV, OV, IV, and EV Certificates - SSL.com_ [online]. https://www.ssl.com/article/dv-ov-and-ev-certificates/
-* [[[ITUOID]]] http://www.itu.int/ITU-T/asn1
-* [[[CABFOID]]] https://cabforum.org/object-registry/
-* [[[DIGICERTCPS]]] https://www.digicert.com/content/dam/digicert/pdfs/legal/DigiCert-CPS-V.5.6.pdf
-* [[[GLOBALSIGNCP]]] https://www.globalsign.com/en/repository/GlobalSign_CP_v6.6_final.pdf
-* [[[OCSPWIKIPEDIA]]] https://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol
-* [[[RFC5755]]] S. Farrell, R. Housley, and S. Turner, “An Internet Attribute Certificate Profile for Authorization,” Internet RFC 5755, Jan. 2010.
+* [[[RFC3713]]] M. Matsui, J. Nakajima, and S. Moriai, “A Description of the Camellia Encryption Algorithm,”Internet RFC 3713 (informational), Apr. 2004.
+* [[[RFC4086]]] D. Eastlake 3rd, J. Schiller, and S. Crocker, “Randomness Requirements for Security,”Internet RFC 4086/BCP 0106, June 2005.
 * [[[RFC4309]]] R. Housley, “Using Advanced Encryption Standard (AES) CCM Mode with IPsec Encapsulating Security Payload (ESP),” Internet RFC 4309, Dec. 2005.
-* [[[OPENSSL]]] https://www.openssl.org/
+* [[[RFC4434]]] P. Hoffman, “The AES-XCBC-PRF-128 Algorithm for the Internet Key Exchange Protocol (IKE),” Internet RFC 4434, Feb. 2006.
+* [[[RFC4615]]] J. Song, R. Poovendran, J. Lee, and T. Iwata, “The Advanced Encryption Standard-Cipher-Based Message Authentication Code-Pseudo-Random Function-128 (AES-CMAC-PRF-128) Algorithm for the Internet Key Exchange Protocol (IKE),” Internet RFC 4615, Aug. 2006.
+* [[[RFC4880]]] J. Callas, L. Donnerhacke, H. Finney, D. Shaw, and R. Thayer, “Open-PGP Message Format,” Internet RFC 4880, Nov. 2007.
+* [[[RFC5116]]] D. McGrew, “An Interface and Algorithms for Authenticated Encryption,”Internet RFC 5116, Jan. 2008.
+* [[[RFC5280]]] D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and W. Polk, “Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile,” Internet RFC 5280, May 2008.
+* [[[RFC5652]]] R. Housley, “Cryptographic Message Syntax (CMS),” Internet RFC 5652/STD 0070, Sept. 2009.
+* [[[RFC5755]]] S. Farrell, R. Housley, and S. Turner, “An Internet Attribute Certificate Profile for Authorization,” Internet RFC 5755, Jan. 2010.
+* [[[RFC6024]]] R. Reddy and C. Wallace, “Trust Anchor Management Requirements,” Internet RFC 6024 (informational), Oct. 2010.
+* [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),” Internet RFC 6234 (informational), May 2011.
+* [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),”Internet RFC 6234 (informational), May 2011.
+* [[[SSLDVOVEV]]] _DV, OV, IV, and EV Certificates - SSL.com_ [online]. https://www.ssl.com/article/dv-ov-and-ev-certificates/
+* [[[SSLGREENBAR]]] _Why the green bar is gone for good | SSLs.com Blog_ [online]. https://www.ssls.com/blog/why-the-green-bar-is-gone-for-good/
+* [[[X9.62-2005]]] American National Standards Institute, “Public Key Cryptography for the Financial Services Industry: The Elliptic Curve Digital Signature Standard (ECDSA),” ANSI X9.62, 2005.
