@@ -965,9 +965,13 @@ image::/assets/tcp-ip/security/eap-protocol-stack.png["EAP Stack",75%,75%]
 
 *IPsec* is an architecture and collection of standards that provide data source authentication, integrity, confidentiality, and access control at the network layer for IPv4 and IPv6 [RFC4301], including Mobile IPv6 [RFC4877]. It also provides a way to exchange cryptographic keys between two communicating parties, a recommended set of cryptographic suites, and a method for signaling the use of compression.
 
-Each communicating party may be an individual host or a _security gateway_ (SG) that provides a boundary between a protected and an unprotected portion of a network.
+Each communicating party may be an individual host or a _security gateway_ (*SG*) that provides a boundary between a protected and an unprotected portion of a network.
 
 Thus, IPsec can be used in applications such as remote access to a corporate LAN (forming a *VPN*), to interconnect different portions of an enterprise securely across the open Internet, or to secure the communications of hosts or routers acting as hosts when exchanging routing information.
+
+A host implementation of IPsec may be integrated within the IP stack itself or may act as a driver sitting “below” the rest of the network stack (called the “Bump in the Stack” or *BITS* implementation).
+
+Alternatively, it may reside inside an inline SG, which is sometimes called the “Bump in the Wire” or *BITW* implementation approach. For BITW implementations, both host and SG functionality is generally required, as the device typically needs to be managed remotely.
 
 .IPsec is applicable to securing host-to-host communications, host-to-gateway communications, and gateway-to-gateway communications. It also supports multicast distribution and mobility.
 image::/assets/tcp-ip/security/ipsec-deployment.png[IPSec deployments,75%,75%]
@@ -984,10 +988,30 @@ Each of these IPsec components uses a cryptographic suite, and IPsec is designed
 
 A complete IPsec implementation includes the SA establishment protocol, AH (optionally), ESP, and a collection of appropriate cryptographic suites, configuration information, and setup tools [RFC6071].
 
-IPsec operates only selectively on certain packets based on policies set by administrators, contained in a _security policy database_ (SPD), logically resident with each IPsec implementation. IPsec also requires two additional databases called the _security association database_ (SAD) and _peer authorization database_ (PAD), which are consulted when determining how packets are to be handled.
+IPsec operates only selectively on certain packets based on policies set by administrators, contained in a _security policy database_ (SPD), logically resident with each IPsec implementation.
+
+IPsec also requires two additional databases called the _security association database_ (SAD) and _peer authorization database_ (PAD), which are consulted when determining how packets are to be handled.
 
 .In a security gateway, IPsec packet processing takes place at layer 3 in a logical entity separating a protected and an unprotected network. The security policy database dictates the disposition of packets: bypass, discard, or protect. Protection generally involves applying or validating integrity protection or encryption. An administrator configures the SPD to achieve desired security goals.
 image::/assets/tcp-ip/security/ipsec-packet-processing.png[IPsec packet processing,75%,75%]
+
+==== Internet Key Exchange (IKEv2) Protocol
+
+The first step in using IPsec is to establish an SA. An SA is a simplex (one-direction) authenticated association established between two communicating parties, or between a sender and multiple receivers if IPsec is supporting multicast. Most frequently, communication is bidirectional between two parties, so a pair of SAs is required to use IPsec effectively.
+
+A special protocol called the *Internet Key Exchange* (*IKE*) is used to accomplish this task automatically. The current version of the protocol is called IKEv2 [RFC5996]. We will refer to it simply as IKE.
+
+To establish an SA, IKE begins with a simple request/response message pair that includes a request to establish the following parameters: an _encryption algorithm_, an _integrity protection algorithm_, a _Diffie-Hellman group_, and a _PRF_ (pseudorandom function family) that gives a random-appearing output given any input bit string. In IKE, a PRF is used for generation of session keys. IKE first establishes an SA for itself (called an IKE_SA) and can subsequently establish SAs for either AH or ESP (called CHILD_SAs). IKE is also capable of negotiating the use of _IP Payload Compression_ (IPComp) [RFC3173] with each CHILD_SA, because applying compression at other layers after performing encryption is ineffective.
+
+IKE operates using pairs of messages called *_exchanges_* that are sent between an *_initiator_* and a *_responder_*. The first two exchanges, called IKE_SA_INIT and IKE_AUTH, establish an IKE_SA and a single CHILD_SA. Subsequently, CREATE_CHILD_SA exchanges, used to establish additional CHILD_SAs, and INFORMATIONAL exchanges, used to initiate changes in or gather status information about an SA, may occur. In most cases, a single IKE_SA_INIT and IKE_AUTH exchange (a total of four messages) is sufficient. Messages used in an exchange contain _payloads_ identified by type numbers that identify the type of information carried in each payload. Multiple payloads per message are common, and some long messages may require IP fragmentation.
+
+IKE messages are sent encapsulated in UDP using port number 500 or 4500. However, because IKE traffic may pass through a NAT where the port number is rewritten, an IKE receiver should be prepared to receive traffic originating from any port. Port 4500 is reserved for UDP-encapsulated ESP and IKE [RFC3948]. IKE messages appearing on port 4500 are required to have their initial 4 data bytes set to 0 (the “non-ESP marker”) to differentiate them from other (i.e., ESP or WESP) messages.
+
+IKE initiators perform timer-based retransmissions when IKE messages appear to have been lost. Responders perform retransmissions only when triggered by an incoming request. An exponentially increasing retransmission timer is used for retransmissions, but the total number of retransmissions is left unspecified. Both initiators and responders keep track of their last transmitted messages and corresponding sequence numbers. Sequence numbers are used to match requests with responses, and to identify message retransmissions. This makes IKE a window-based protocol with a maximum window size given by a responder that is initialized when an SA is first set up but can be increased later. The maximum window size limits the total number of outstanding requests.
+
+===== IKEv2 Message Formats
+
+IKE messages contain a header followed by zero or more IKE payloads.
 
 [appendix]
 == FAQs
