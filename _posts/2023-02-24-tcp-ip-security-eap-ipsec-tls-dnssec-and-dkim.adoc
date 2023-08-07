@@ -1011,7 +1011,152 @@ IKE initiators perform timer-based retransmissions when IKE messages appear to h
 
 ===== IKEv2 Message Formats
 
-IKE messages contain a header followed by zero or more IKE payloads.
+IKE messages contain a header followed by zero or more _IKE payloads_.
+
+.The IKE v2 header. All IKE messages contain a header followed by zero or more payloads. IKE uses 64-bit _Security Parameter Index_ (SPI) values. The _Exchange Type_ gives the purpose of the exchange and the payloads that may be expected in the message. The _Flags_ field indicates whether the message was sent from an initiator or a responder. The _Message ID_ associates requests with responses and is used for detecting replay attacks.
+image::/assets/tcp-ip/security/ikev2-header.png[IKEv2 header,75%,75%]
+
+
+* In the headers of IKE messages, the _Security Parameter Index_ (SPI) is a 64-bit number that identifies a particular IKE_SA (other IPsec protocols use a 32-bit SPI value).
++
+Both the initiator and the responder have an SA for their peer, so each provides the SPI it is using, and this pair of values, combined with the IP addresses of the endpoints, can be used to form an effective connection identifier.
+
+* The _Majoe Version_ and _Minor Version_ fields are set to 2 and 0, respectively, for this version of IKE.
++
+The major version number is changed when interoperability cannot be maintained between versions.
+
+* The _Exchange Type_ field gives the type of exchange of which the message is part: IKE_SA_INIT (34), IKE_AUTH (35), CREATE_CHILD_SA (36), INFORMATIONAL (37), and IKE_SESSION_RESUME (38; see [RFC5723]).
++
+Other values are reserved; the range 240–255 is reserved for private use.
+
+* Three bit fields are defined for the _Flags_ field (bits are labeled right to left, starting from 0): _I_ (_Initiator_, bit 3), _V_ (_Version_, bit 4), and _R_ (_Response_, bit 5).
++
+The _I_ bit field is set by the original initiator and cleared by the recipient for return messages.
++
+The _V_ bit field indicates that the sender supports a higher major version number of the protocol than is currently being used.
++
+The _R_ bit field indicates that the message is a response to a previous message using the same message ID.
+
+* The _Message ID_ field in IKE acts somewhat like the _Sequence Number_ field in TCP, except the message ID starts with 0 for the initiator and 1 for the responder.
++
+The field is incremented by 1 for each subsequent transmission, and responses use the same message ID as the requests. The _I_ and _R_ bit fields differentiate requests from responses.
++
+Message IDs are remembered when sent or received. Doing so allows each end to perform _replay detection_. Old message IDs are not processed. Wrapping of the Message ID field (possible, but not likely with 4 billion IKE messages) is handled by reinitiating the IKE_SA_INIT exchange.
+
+* The other fields (_Next Payload_ and _Length_) help describe what the IKE message contains.
++
+Each message contains zero or more payloads, and each payload has its own particular structure. The _Length_ field gives the size (in bytes) of the header plus all payloads in the message. The _Next Payload_ field gives the type of the following payload. At present, 16 nontrivial types are defined (value 0 indicates no next payload).
++
+.IKEv2 payload types. A value of 0 indicates no next payload. The ranges 1–32 and 49–255 are reserved; the range 128–255 is reserved for private use. Each IKE payload begins with an _IKE generic payload header_.
+[%header,cols="1,2,7,1,2,7"]
+|===
+|Value
+|Notation
+|Purpose
+|Value
+|Notation
+|Purpose
+
+|33
+|SA
+|Security association
+|41
+|N
+|Notify
+
+|34
+|KE
+|Key exchange
+|42
+|D
+|Delete
+
+|35
+|IDi
+|Identification (initiator)
+|43
+|V
+|Vendor ID
+
+|36
+|IDr
+|Identification (responder)
+|44
+|TSi
+|Traffic selector (initiator)
+
+|37
+|CERT
+|Certificate
+|45
+|TSr
+|Traffic selector (responder)
+
+|38
+|CERTREQ
+|Certificate request (indicates trust anchors)
+|46
+|SK { }
+|Encrypted and authenticated (contains other payloads)
+
+|39
+|AUTH
+|Authentication
+|47
+|CP
+|Configuration
+
+|40
+|Ni, Nr 
+|Nonces (initiator, responder)
+|48
+|EAP
+|Extensible authentication (EAP)
+|===
++
+.A “generic” IKEv2 payload header. Each payload begins with a header of this form.
+image::/assets/tcp-ip/security/ikev2-generic-palyload-header.png[IKEv2 generic payload header,75%,75%]
++
+--
+* The generic payload header is fixed at 32 bits, and the _Next Payload_ and _Payload Length_ fields provide for a “chain” of variable-size payloads (up to 65,535 bytes each, including the 4-byte payload header) to be present in a single IKE message. Each payload type has its own set of special headers.
+
+* The _C_ (critical) bit field indicates that the current payload (not the one identified by the _Next Payload_ field) is deemed “critical” for a successful IKE exchange.
++
+Receivers of critical payloads that do not understand the type code (provided in the previous payload’s _Next Payload_ field or in the IKE header’s _Next Payload_ field) must abort the IKE exchange.
+--
+
+===== The IKE_SA_INIT Exchange
+
+The first of two exchanges, IKE_SA_INIT and IKE_AUTH, constituting the “initial exchanges” of IKE, formerly known as Phase 1 in earlier versions of IKE. Other exchanges (CREATE_CHILD_SA and INFORMATIONAL) may be initiated by either party only after the initial exchanges have completed, and they are always secured (encrypted and integrity-protected) based on the parameters established using the first two exchanges.
+
+image::/assets/tcp-ip/security/IKE_SA_INIT_and_IKE_AUTH_exchanges.png[IKE_SA_INIT and IKE_AUTH exchange,55%,55%]
+
+As shown, IKE_SA_INIT negotiates the choice of cryptographic suite, exchanges nonces, and performs a DH key agreement. It may also include additional information, depending on the particular implementation and deployment scenario.
+
+* It begins when the initiator sends an IKE message containing its set of supported cryptographic suites, DH information, and nonce using three payloads (SA, KE, and Ni).
+
+* Upon receiving the first message, the responder becomes aware that an IKE transaction is requested by the initiator, the initiator’s supported cryptographic suites, and configuration parameters.
++
+The responder selects an acceptable cryptographic suite and expresses this in the SAr1 payload. It also provides its portion of the DH key agreement parameters in KEr, its nonce in Nr, and an optional request for the initiator’s certificate in the CERTREQ payload.
++
+CERTREQ payloads include an indication of CAs the responder finds acceptable for validating certificates that may be used in subsequent exchanges (i.e., it indicates the responder’s trust anchors).
++
+A message containing the responder’s IKE header and all of these payloads is then sent in response to the initiator, completing the IKE_SA_INIT exchange. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [appendix]
 == FAQs
