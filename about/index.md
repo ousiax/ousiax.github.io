@@ -19,4 +19,4 @@ All content provided on this blog is for informational purposes only. The owner 
 
 * * *
 
-mailto: <mailto:ousia.x@outlook.com>
+mailto: <mailto:ousiax@hotmail.com>
