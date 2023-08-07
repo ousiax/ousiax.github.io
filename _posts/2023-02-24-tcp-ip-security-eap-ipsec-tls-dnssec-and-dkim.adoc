@@ -1003,7 +1003,12 @@ A special protocol called the *Internet Key Exchange* (*IKE*) is used to accompl
 
 To establish an SA, IKE begins with a simple request/response message pair that includes a request to establish the following parameters: an _encryption algorithm_, an _integrity protection algorithm_, a _Diffie-Hellman group_, and a _PRF_ (pseudorandom function family) that gives a random-appearing output given any input bit string. In IKE, a PRF is used for generation of session keys. IKE first establishes an SA for itself (called an IKE_SA) and can subsequently establish SAs for either AH or ESP (called CHILD_SAs). IKE is also capable of negotiating the use of _IP Payload Compression_ (IPComp) [RFC3173] with each CHILD_SA, because applying compression at other layers after performing encryption is ineffective.
 
-IKE operates using pairs of messages called *_exchanges_* that are sent between an *_initiator_* and a *_responder_*. The first two exchanges, called IKE_SA_INIT and IKE_AUTH, establish an IKE_SA and a single CHILD_SA. Subsequently, CREATE_CHILD_SA exchanges, used to establish additional CHILD_SAs, and INFORMATIONAL exchanges, used to initiate changes in or gather status information about an SA, may occur. In most cases, a single IKE_SA_INIT and IKE_AUTH exchange (a total of four messages) is sufficient. Messages used in an exchange contain _payloads_ identified by type numbers that identify the type of information carried in each payload. Multiple payloads per message are common, and some long messages may require IP fragmentation.
+IKE operates using pairs of messages called *_exchanges_* that are sent between an *_initiator_* and a *_responder_*.
+
+* The first two exchanges, called IKE_SA_INIT and IKE_AUTH, establish an IKE_SA and a single CHILD_SA.
+* Subsequently, CREATE_CHILD_SA exchanges, used to establish additional CHILD_SAs, and INFORMATIONAL exchanges, used to initiate changes in or gather status information about an SA, may occur.
+
+In most cases, a single IKE_SA_INIT and IKE_AUTH exchange (a total of four messages) is sufficient. Messages used in an exchange contain _payloads_ identified by type numbers that identify the type of information carried in each payload. Multiple payloads per message are common, and some long messages may require IP fragmentation.
 
 IKE messages are sent encapsulated in UDP using port number 500 or 4500. However, because IKE traffic may pass through a NAT where the port number is rewritten, an IKE receiver should be prepared to receive traffic originating from any port. Port 4500 is reserved for UDP-encapsulated ESP and IKE [RFC3948]. IKE messages appearing on port 4500 are required to have their initial 4 data bytes set to 0 (the “non-ESP marker”) to differentiate them from other (i.e., ESP or WESP) messages.
 
@@ -1161,21 +1166,86 @@ In addition to SA payloads, IKE_SA_INIT messages include a KE (Key Exchange) and
 
 The KE payload contains the DH group number and key exchange data representing the public numbers used in forming an ephemeral Diffie-Hellman key (initial shared secret). The DH group number gives the group in which the public value was computed. The Nonce payload contains a recently generated nonce between 16 and 256 bytes in length. It is used in generating key material to ensure freshness and protect against replay attacks.
 
-Once the DH exchange completes, each side can compute its SKEYSEED value, which is used for all subsequent key generation associated with the IKE_SA (unless a key-generating EAP method is used for this purpose), a total of seven secret values: SK_d, SK_ai, SK_ar, SK_ei, SK_er, SK_pi, and SK_pr.
+Once the DH exchange completes, each side can compute its *SKEYSEED* value, which is used for all subsequent key generation associated with the IKE_SA (unless a key-generating EAP method is used for this purpose), a total of seven secret values: SK_d, SK_ai, SK_ar, SK_ei, SK_er, SK_pi, and SK_pr.
 
 The SK_d key is used for deriving keys for CHILD_SAs. The SK_a and SK_e keys are for authentication and encryption, respectively. The SK_p keys are used in generating AUTH payloads during the IKE_AUTH exchange.
 
+===== Notification (N) and Configuration (CP) Payloads
+
+The N payload is a Notification or Notify payload. It can be used for conveying error messages and indications of various processing capabilities with most of the IKE exchange types. It contains a variable-length SPI field and a 16-bit field to indicate the notification type. Values below 8192 are used for standard errors, and values above 16383 are used for status indicators.
+
+For example, when requesting the creation of a transport mode SA instead of the default tunnel mode, a Notify payload containing the USE_ TRANSPORT_MODE value (16391) is used. If IP compression [RFC3173] is supported, this fact can be indicated by the IPCOMP_SUPPORTED value (16387). Notify payloads may contain a variable-length data portion whose content depends on the notification type.
+
+A CP or Configuration payload also contains additional information like a Notify payload but is used primarily for initial system configuration. For example, obtaining information that might ordinarily be conveyed using DHCP can be carried over IKE using a CP.
+
+===== The IKE_AUTH Exchange
+
+As mentioned earlier, the SKEYSEED value is used to derive encryption and authentication keys that are in turn used to secure payloads during the IKE_AUTH exchange. These keys are called SK_e and SK_a, respectively. The notation SK{P1, P2, ..., PN} indicates that payloads P1, ..., PN are encrypted and integrityprotected using these keys.
+
+The primary purpose of the IKE_AUTH exchange is to provide identity validation for each peer. It also exchanges sufficient information to establish the first CHILD_SA.
+
+To begin the IKE_AUTH exchange, the initiator sends the payload SK{IDi, AUTH, SAi2, TSi, TSr}. Given the proper decryption key, it provides the initiator’s identity, authentication information validating the initiator’s identity, another SA payload for the first CHILD_SA called SAi2, and a pair of traffic selectors (payloads TSi and TSr). The initiator may also include its certificate in a CERT payload, a certificate request in a CERTREQ payload that identifies its trust anchors, and identification of the responder in the IDr payload. Sending the responder’s identity is useful in the case where the responder has multiple identities associated with the same IP address and needs to ensure that the proper SA is set up. Several different identity types are supported for ID payloads, including IP address, FQDN, e-mail address, and distinguished name (to be used with X.509 certificates).
+
+The final message of the exchange includes the responder’s identity (IDr), authentication material to prove the responder’s identity (AUTH), the other SA constituting the CHILD_SA (SAr2), and a set of traffic selectors (TSi and TSr), which may be subsets of the original TSi and TSr values. All payloads in the IKE_AUTH exchange are encrypted and integrity-protected. A certificate payload (CERT) containing one or more certificates may also be sent at this point. If so, any public key required to validate the AUTH payload appears first in the certificate list. The specific contents vary depending on the cryptographic suite selected. During the exchanges, both sides must check all applicable signatures in order to be safe from compromise, including MITM attacks.
+
+===== Traffic Selectors and TS Payloads
+
+Traffic selectors indicate the fields and corresponding values of an IP datagram that cause it to be "selected" for IPsec processing. They are used in combination with an IPsec SPD to determine whether the containing datagram should be protected using IPsec.
+
+The contents of a TS payload may include IPv4 or IPv6 address ranges, port number ranges, and an IPv4 protocol ID or IPv6 header value. Ranges are sometimes denoted with wildcard notation.
+
+> For example, the notation `192.0.2.*` or `192.0.2.0/24` would represent the range `192.0.2.0–192.0.2.255`.
+
+Traffic selectors can be used to help implement policies such as which cryptographic suite is required to establish an SA to a particular host or port range. Most of these details are handled in the management interface to the SPD.
+
+During an IKE_AUTH exchange, each party specifies a TSi and TSr payload containing TS values. When one range is smaller than another, the smaller range is selected for use in a process called “narrowing.”
+
+===== EAP and IKE
+
+Although IKE includes its own authentication methods (see Section 2.15 of [RFC5996]), it can also make use of EAP (see Sections 2.16 and 3.16 of [RFC5996]). With EAP, a wide array of authentication methods can be used beyond the relatively limited set of pre-shared keys or public key certificates otherwise required by IKE.
+
+===== Better-than-Nothing Security (BTNS)
+
+A relatively recent development with IKE and IPsec is called _better-than-nothing security_ (*BTNS*, pronounced “buttons”). BTNS aims to address some of the usability and ease of deployment issues with IPsec, especially the need to establish a PKI or other deployed authentication system [RFC5387] to use certificates.
+
+Technically, BTNS is essentially unauthenticated IPsec [RFC5386], and it can be supported when IKE is used to establish an SA. With BTNS, public keys are used, but their containing certificates are not checked against a chain or root certificate. Consequently, an SA can ensure that the same entity is communicating over time but cannot ensure that any particular, validated entity established the SA. This form of authentication is called _continuity of association_ and is weaker than the _data origin authentication_ present in ordinary IPsec.
+
+_BTNS makes no other substantive changes to IPsec; the formats of IKE, AH, and ESP messages remain the same._
+
+===== The CREATE_CHILD_SA Exchange
+
+The CREATE_CHILD_SA exchange is used to create CHILD_SAs for ESP or AH, or to rekey existing SAs (either IKE_SAs or CHILD_SAs) once the initial exchanges have completed.
+
+It uses a single exchange of packets and may be initiated by either side of the IKE_SA established during the initial exchanges. There are two variants, depending on whether a CHILD_SA or IKE_SA is being modified.
+
+.The CREATE_CHILD_SA exchange can be used to create or rekey a CHILD_SA, or to rekey an IKE_SA. A Notification payload is used when modifying a CHILD_SA to indicate the SPI of the SA to modify.
+image::/assets/tcp-ip/security/CREATE_CHILD_SA-exchange.png[CREATE_CHILD_SA exchange,50%,50%]
+
+* The first exchange depicts a CREATE_CHILD_SA used to create a new CHILD_SA or rekey an existing one.
++
+Rekeying is indicated by the presence of an N(REKEY_SA) Notification payload sent by the initiator. To complete the rekey operation, a new SA is first created, and the old one is subsequently deleted. The new SA and traffic selector (TS) information allows most of the connection parameters to be altered.
++
+If desired, new DH values can also be exchanged at this point using KE payloads. This provides better _forward secrecy_ for the new SA.
+
+* Rekeying an IKE_SA uses a similar exchange, except the KE payloads are required and the TS payloads are not used, as shown in the second part.
+
+===== The INFORMATIONAL Exchange
+
+The INFORMATIONAL exchange is used for conveying status and error information, usually using Notify (N) payloads. It is also used for deleting SAs using a Delete (D) payload and therefore constitutes one portion of the SA rekeying procedure.
+
+An INFORMATIONAL exchange can take place only after successful completion of the initial exchanges. It includes an optional set of notifications, Delete (D) payloads that specify SAs to delete by SPI value, and Configuration (CP) payloads.
+
+Some response is always required for any message received from an initiator, even if it is an empty IKE message (i.e., contains only a header). Otherwise, the initiator would retransmit its message unnecessarily.
+
+In unusual cases, INFORMATIONAL messages may be sent outside the context of an INFORMATIONAL exchange, usually to signal the receipt of an IPsec message containing an unrecognized SPI value or unsupported IKE major version number.
+
+.The INFORMATIONAL exchange is used to convey status information and delete SAs. It makes use of Notification (N), Delete (D), and Configuration (CP) payloads.
+image::/assets/tcp-ip/security/INFORMATIONAL-exchange.png[INFORMATIONAL exchange,50%,50%] 
 
 
+===== Mobile IKE (MOBIKE)
 
-
-
-
-
-
-
-
-
+Once the IKE_SA has been established, it is ordinarily used until no longer required. However, when IPsec operates in an environment where IP addresses may change because of mobility or interface failure, a variant of IKE has been specified in [RFC4555] called MOBIKE. MOBIKE augments the basic IKEv2 protocol to include additional “address change” options available in INFORMATIONAL exchanges. MOBIKE specifies what to do when the changed addresses are known. It does not address the discovery problem of how to determine these addresses.
 
 [appendix]
 == FAQs
