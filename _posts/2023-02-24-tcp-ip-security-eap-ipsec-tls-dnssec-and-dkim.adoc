@@ -1178,6 +1178,133 @@ For example, when requesting the creation of a transport mode SA instead of the 
 
 A CP or Configuration payload also contains additional information like a Notify payload but is used primarily for initial system configuration. For example, obtaining information that might ordinarily be conveyed using DHCP can be carried over IKE using a CP.
 
+===== Algorithm Selection and Application
+
+IKE divides the set of transforms forming a cryptographic suite into four types: _encryption (type 1, used with IKE and ESP)_, _PRF (type 2, used with IKE)_, _integrity protection (type 3, used with IKE and AH and optional in ESP)_, and _DH group (type 4, used with IKE and optional in AH and ESP)_.
+
+.Mandatory-to-implement algorithms for use with IKEv2, grouped by type number. [RFC4307]
+[%header,cols="1,1,1,1,1"]
+|===
+|Purpose
+|Name
+|Number
+|Status
+|Original Defining RFC/Reference
+
+|IKE Transform
+
+Type 1 (encryption)
+
+|ENCR_3DES
+
+ENCR_NULL
+
+ENCR_AES_CBC
+
+ENCR_AES_CTR
+
+|3
+
+11
+
+12
+
+13
+
+|Required
+
+Optional
+
+Recommended
+
+Recommended
+
+|[RFC2451]
+
+[RFC2410]
+
+[RFC3602]
+
+[RFC3686]
+
+|IKE Transform
+
+Type 2 (for PRFs)
+
+|PRF_HMAC_MD5
+
+PRF_HMAC_SHA1
+
+PRF_AES128_CBC
+
+|1
+
+2
+
+4
+
+|Optional
+
+Required
+
+Recommended
+
+|[RFC2104]
+
+[RFC2104]
+
+[RFC4434]
+
+|IKE Transform
+
+Type 3 (integrity)
+
+|AUTH_HMAC_MD5_96
+
+AUTH_HMAC_SHA1_96
+
+AUTH_AES_XCBC_96
+
+|1
+
+2
+
+5
+
+|Optional
+
+Required
+
+Recommended
+
+|[RFC2403]
+
+[RFC2404]
+
+[RFC3566]
+
+| IKE Transform
+
+Type 4 (DH groups)
+
+|1024 MODP (Group 2)
+
+2048 MODP (Group 14)
+
+|2
+
+14
+
+|Required
+
+Recommended
+
+|[RFC2409]
+
+[RFC3526]
+
+|===
+
 ===== The IKE_AUTH Exchange
 
 As mentioned earlier, the SKEYSEED value is used to derive encryption and authentication keys that are in turn used to secure payloads during the IKE_AUTH exchange. These keys are called SK_e and SK_a, respectively. The notation SK{P1, P2, ..., PN} indicates that payloads P1, ..., PN are encrypted and integrityprotected using these keys.
@@ -1246,6 +1373,89 @@ image::/assets/tcp-ip/security/INFORMATIONAL-exchange.png[INFORMATIONAL exchange
 ===== Mobile IKE (MOBIKE)
 
 Once the IKE_SA has been established, it is ordinarily used until no longer required. However, when IPsec operates in an environment where IP addresses may change because of mobility or interface failure, a variant of IKE has been specified in [RFC4555] called MOBIKE. MOBIKE augments the basic IKEv2 protocol to include additional “address change” options available in INFORMATIONAL exchanges. MOBIKE specifies what to do when the changed addresses are known. It does not address the discovery problem of how to determine these addresses.
+
+==== Authentication Header (AH)
+
+Defined in [RFC4302], the IP *Authentication Header* (*AH*), one of the three major components of IPsec, is an optional portion of the IPsec protocol suite that provides a method for achieving origin authentication and integrity (but not confidentiality) of IP datagrams. By providing only integrity and not confidentiality (and not working with NAT), AH is the (far) less popular of the two primary IPsec data-securing protocols.
+
+In transport mode, AH uses a header placed between the layer 3 (IPv4, IPv6 base, or IPv6 extension) header and the following protocol header (e.g., UDP, TCP, ICMP). With IPv6, AH may appear immediately before a _Destination Options_ extension header, if present.
+
+In tunnel mode, the “inner” IP header carries the original IP datagram, containing the ultimate IP source and destination information, and a newly created “outer” IP header contains information describing the IPsec peers. In this mode, AH protects the entire inner IP datagram.
+
+Generally speaking, transport mode is used between end hosts that are directly connected, and tunnel mode is used between SGs or between a single host and an SG (e.g., for supporting a VPN).
+
+.The IPsec Authentication Header is used to provide authentication and integrity protection for IPv4 and IPv6 datagrams. In transport mode (depicted here with TCP), a conventional IP datagram is modified to include the AH.
+image::/assets/tcp-ip/security/ipsec-ah-header-transport-mode.png[IPSec Authentication Header (transport mode),75%,75%]
+
+In the figure, the IPv4 encapsulation uses a special IPv4 protocol number (51). For IPv6, the AH is placed between the destination and other options. In either case, the resulting datagram has a mutable portion of its header and an immutable portion of its header.
+
+* The _mutable_ portion is changed as the datagram moves through the network. Modifications include changing the IPv4 TTL or IPv6 Hop Limit field, IPv6 Flow Label field, DS Field, and ECN bits.
+
+* The _immutable_ portion, containing the source and destination IP addresses, is not changed by the network and is integrity-protected using fields in the AH. This prevents transport mode AH datagrams from being rewritten by NATs, a potential problem for many deployments.
+
+* Transport mode cannot be used with fragments (IPv4 or IPv6).
+
+.The IPsec tunnel mode AH encapsulations provide authentication and integrity protection for IPv4 and IPv6 datagrams. In tunnel mode (depicted here carrying TCP), a conventional IP datagram is encapsulated inside a new “outside” IP datagram that carries the original datagram.
+image::/assets/tcp-ip/security/ipsec-ah-header-tunnel-mode.png[IPSec Authentication Header (tunnel mode),75%,75%]
+
+In tunnel mode, the entire original IP datagram is untouched, encapsulated and protected with the AH. The “inner” header is unmodified, and the “outer” header is created using the source and destination IP addresses associated with an SG or host.
+
+In such cases, AH protects all of the original datagram, plus some portions of the new header (which prevents it being modified by a NAT).
+
+.The IPsec AH is used to provide authentication and integrity protection for IPv4 and IPv6 datagrams in either transport or tunnel mode. The SPI value indicates which SA the AH belongs to. The Sequence Number field is used for countering replay attacks. The ICV provides a form of MAC over the immutable portions of the payload.
+image::/assets/tcp-ip/security/ipsec-ah-header.png[IPsec Authentication Header,75%,75%]
+
+Both modes of AH use the same AH, and identifies the datagram length and associated SA and includes integrity check information.
+
+* The _Payload Length_ specifies the length of the AH in 32-bit-word units minus 2.
+
+* The _Security Parameters Index_ (SPI) field contains a 32-bit identifier of an SA at the receiver that contains SA-derived information relating to the association.  For multicast SAs, the SPI value is handled in a special way.
+
+* The _Sequence Number_ is a 32-bit field that increments by 1 for each packet sent on the SA.
++
+This field is used for replay protection if enabled by the receiver (but it is always included by the sender, even if not checked by the receiver).
++
+An _extended sequence number_ (ESN) operating mode is also defined and recommended and is negotiated during the IKE_SA_INIT exchange. If enabled, the sequence number is calculated using 64 bits, but only the lower-order 32 bits are included in the _Sequence Number_ field.
+
+* The length of the _Integrity Check Value_ (ICV) field is variable and depends on the cryptographic suite used. This field is always an integral multiple of 32 bits in length.
++
+The algorithm used for integrity protection is specified in the corresponding SA as a type 3 transform and can be established manually or by using some automatic method such as IKE.
++
+The optional, recommended, and mandatory algorithms for AH (and ESP, later) are provided in [RFC4835] and include HMACMD5-96 (optional), AES-XCBC-MAC-96 (recommended), and HMAC-SHA1-96 (mandatory).
++
+The integrity check is computed over the following portions of the datagram: header fields before the AH that are either immutable in transit or predictable in value when arriving at the destination AH SA endpoint, the AH, everything after the AH, high-order bits of the ESN (if employed, even though they are not sent), plus any padding.
+
+==== Encapsulating Security Payload (ESP)
+
+The ESP protocol of IPsec, defined in [RFC4303] (where it is called ESP (v3) even though ESP provides no formal version numbers), provides a selectable combination of confidentiality, integrity, origin authentication, and anti-replay protection for IP datagrams.
+
+It can employ a NULL encryption method [RFC2410], which is mandatory to support, if only integrity is to be used. Conversely, encryption can be used for confidentiality without integrity protection, although this combination is effective only against passive attacks and is highly discouraged.
+
+In the context of ESP, integrity includes data origin authentication. Given its flexibility and feature set, ESP is (far) more popular than AH.
+
+===== Transport and Tunnel Modes
+
+Like AH, ESP has transport and tunnel modes. In tunnel mode, an “outer” IP packet includes an “inner” IP packet that may be entirely encrypted. This provides for a limited form of _traffic flow confidentiality_ (TFC) because the “inner”datagram’s size and contents can be hidden using encryption.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [appendix]
 == FAQs
@@ -2181,10 +2391,9 @@ Note that although EV certificates may provide higher assurance (e.g., for some 
 * [[[RFC4880]]] J. Callas, L. Donnerhacke, H. Finney, D. Shaw, and R. Thayer, “Open-PGP Message Format,” Internet RFC 4880, Nov. 2007.
 * [[[RFC5116]]] D. McGrew, “An Interface and Algorithms for Authenticated Encryption,”Internet RFC 5116, Jan. 2008.
 * [[[RFC5280]]] D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and W. Polk, “Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile,” Internet RFC 5280, May 2008.
-* [[[RFC5652]]] R. Housley, “Cryptographic Message Syntax (CMS),” Internet RFC 5652/STD 0070, Sept. 2009.
-* [[[RFC5755]]] S. Farrell, R. Housley, and S. Turner, “An Internet Attribute Certificate Profile for Authorization,” Internet RFC 5755, Jan. 2010.
+* [[[RFC5652]]] R. Housley, “Cryptographic Message Syntax (CMS),”Internet RFC 5652/STD 0070, Sept. 2009.
+* [[[RFC5755]]] S. Farrell, R. Housley, and S. Turner, “An Internet Attribute Certificate Profile for Authorization,”Internet RFC 5755, Jan. 2010.
 * [[[RFC6024]]] R. Reddy and C. Wallace, “Trust Anchor Management Requirements,” Internet RFC 6024 (informational), Oct. 2010.
-* [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),” Internet RFC 6234 (informational), May 2011.
 * [[[RFC6234]]] D. Eastlake 3rd and T. Hansen, “US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF),”Internet RFC 6234 (informational), May 2011.
 * [[[SSLDVOVEV]]] _DV, OV, IV, and EV Certificates - SSL.com_ [online]. https://www.ssl.com/article/dv-ov-and-ev-certificates/
 * [[[SSLGREENBAR]]] _Why the green bar is gone for good | SSLs.com Blog_ [online]. https://www.ssls.com/blog/why-the-green-bar-is-gone-for-good/
