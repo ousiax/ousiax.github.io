@@ -1437,10 +1437,59 @@ In the context of ESP, integrity includes data origin authentication. Given its 
 
 Like AH, ESP has transport and tunnel modes. In tunnel mode, an “outer” IP packet includes an “inner” IP packet that may be entirely encrypted. This provides for a limited form of _traffic flow confidentiality_ (TFC) because the “inner”datagram’s size and contents can be hidden using encryption.
 
+ESP may be used in combination with AH, if desired, and supports both IPv4 and IPv6. Using ESP in “integrity-only” mode may be preferable to AH in some cases for performance reasons (ESP may be more amenable to pipelining) and is a required configuration option for IPsec implementations.
 
+.The IPsec ESP is used to provide confidentiality (encryption), authentication, and integrity protection for IPv4 and IPv6 datagrams. In transport mode (depicted here with TCP), a conventional IP datagram is modified to include the ESP head er. ESP in transport mode allows the transport payload to be encrypted, authenticated, and integrity-protected.
+image::/assets/tcp-ip/security/IPsec-ESP-transport-mode.png[IPsec ESP transport mode,75%,75%]
 
+.In tunnel mode (depicted here with TCP), ESP encapsulates a conventional IP datagram inside a new “outside” IP datagram that carries the original datagram. ESP allows the outer datagram to be modified (e.g., for NAT traversal) while the inner datagram remains intact. ESP is more popular than AH for most applications.
+image::/assets/tcp-ip/security/IPsec-ESP-tunnel-mode.png[IPsec ESP tunnel mode,75%,75%]
 
+The transport mode structure is similar to AH transport mode, except ESP trailer structures are used in support of ESP’s encryption and integrity protection methods. As with AH, ESP transport mode cannot be used with fragments. The tunnel mode encapsulations for ESP, similar to those for AH.
 
+.The ESP message structure includes the encrypted payload in the middle. The _SPI_ and _Sequence Number_ constitute the ESP header, and the combination of the _Pad_, _Pad Length_, and _Next Header_ fields constitutes the ESP trailer. An optional ESP ICV trailer is also used when integrity protection is employed.
+image::/assets/tcp-ip/security/ESP-messate-structure.png[IPsec ESP message structure,75%,75%]
+
+ESP does not use a strict header in the same way AH does. Instead, there is an overall ESP structure that includes a header and trailer portion. There is an optional (second) trailer structure if ESP is used with an integrity protection mechanism that requires space for additional check bits (labeled ESP ICV).
+
+ESP-encapsulated IP datagrams use the value 50 in the _Protocol_ (IPv4) or _Next Header_ (IPv6) header fields. The ESP payload structure, includes the _SPI_ and _sequence numbers_, used in the same way as with AH. The primary difference is in the payload area. This area may be confidentiality-protected (encrypted) and can include a variable-length pad portion required by some encryption algorithms.
+
+The payload is required to end on a 32-bit boundary (64 for IPv6) and have the last two 8-bit fields identify the _Pad Length_ and _Next Header (Protocol)_ field values. The _Pad_, _Pad Length_, and _Next Header_ fields constitute the ESP trailer.
+
+Certain cryptographic algorithms may employ an IV. If present, the IV appears at the beginning of the payload area (not shown). Additional padding for TFC purposes (called _TFC padding_) is permitted to appear within the payload area in front of the ESP trailer. It is used to disguise the length of the datagram to help resist traffic analysis attacks, although this features does not appear to be widely used.
+
+The _Next Header_ field contains values chosen from the same space used in the IPv4 Protocol field or IPv6 _Next Header_ field (e.g., 4 for IPv4, 41 for IPv6). It may contain the value 59, indicating “no next header,” when carrying a dummy packet that is to be discarded. Dummy packets are another method sometimes used for resisting traffic analysis attacks.
+
+The ESP ICV is a variable-length trailer used if integrity support is enabled and required by the integrity-checking algorithm. It is computed over the ESP header, payload, and ESP trailer. Implicit values (e.g., high-order ESN bits) are also included. The length of the ICV is known as a consequence of selecting the particular integrity-checking method. It is therefore established at the time the corresponding SA is set up and not changed as long as the SA exists.
+
+Anti-replay is supported provided integrity protection is enabled. This is accomplished using a sequence number derived from a running counter. The counter is initialized to 0 when an SA is first set up and incremented before being copied into each datagram sent on the SA. When anti-replay is enabled (the normal default), the sender checks to see that the counter has not wrapped and creates a new SA if wrapping is about to occur. The receiver implementing anti-replay keeps a valid window of sequence numbers (similar in some ways to the TCP receiver’s window). Datagrams containing out-of-window sequence numbers are dropped.
+
+For systems that implement auditing, ESP processing can result in one or more _auditable events_. These events include the following: no valid SA exists for a session, the datagram given to ESP for processing is a fragment, the anti-replay counter is about to wrap, a received packet was out of the valid anti-replay window, the
+integrity check failed.
+
+Auditable events are recorded in a logging system. These events include metadata such as the SPI value, current date and time, source and destination IP addresses, sequence number, and IPv6 flow ID (if present).
+
+===== ESP-NULL, Wrapped ESP (WESP), and Traffic Visibility
+
+ESP ordinarily provides privacy using encryption, but it can also operate in an integrity-only mode using the NULL encryption algorithm.
+
+Integrity-only mode (also called ESP-NULL) may be desirable in some circumstances, especially in enterprise environments where sophisticated packet inspection takes place within the network and confidentiality may be addressed in other ways.
+
+For example, some network infrastructure devices inspect packets for unwanted content (e.g., malware signatures) and are capable of providing alerts or shutting down network access when policy is violated. Such devices are essentially disabled if ESP is used with encryption in an end-to-end fashion (i.e., the way it was designed). Said another way, unless they have _traffic visibility_, they cannot do their jobs.
+
+When a packet inspection device is faced with ESP traffic, it needs to make a decision about whether the traffic is encrypted (i.e., whether NULL encryption is being used or not). Given that the negotiation of an IPsec cryptographic suite is handled outside ESP (e.g., manually or using a protocol such as IKE), there are two current methods for doing so.
+
+The first is simply to use a set of nonstandard heuristics to make a guess [RFC5879].
+
+Use of these has the benefit of not requiring any modification to ESP for supporting traffic visibility.
+
+The other method is to add a special description to ESP to indicate whether encryption is used.
+
+Wrapped ESP (WESP) [RFC5840], a standards-track RFC, defines a header that is placed ahead of the ESP packet structure. WESP uses a different protocol number (141) from ESP and can be negotiated with IKE using the USE_WESP_MODE (value 16415) Notify payload.
+
+The variable-length WESP header includes fields to indicate the location of payload information, along with a Flags field (maintained by the IANA [IWESP]) containing a bit indicating whether ESP-NULL is being used.
+
+Although WESP makes the job of determining whether ESP-NULL is being used or not easier for network infrastructure, its utility also depends on end hosts using the WESP header appropriately. Given that WESP is relatively new, this is not yet
 
 
 
