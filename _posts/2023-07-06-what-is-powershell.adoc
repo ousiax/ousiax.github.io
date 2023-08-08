@@ -1731,6 +1731,135 @@ To silently disconnect without a confirmation prompt, run the following command:
 Disconnect-ExchangeOnline -Confirm:$false
 ----
 
+==== AutoDiscover of Outlook, Exchange, and Exchange Online (EXO)
+
+Autodiscover is a feature that simplifies the configuration process for email clients like Outlook by automatically discovering the required settings for connecting to Exchange mailboxes, whether they are hosted on-premises (Exchange Server) or in the cloud (Exchange Online).
+
+Here's a summary of Autodiscover for Outlook, Exchange, and Exchange Online (EXO):
+
+. *Outlook*: When configuring an email account in Outlook, it uses the Autodiscover process to find the appropriate settings for the user's mailbox. Outlook first attempts to connect to Exchange Online by querying the default Office 365 Autodiscover endpoint. If it fails to find an Exchange Online mailbox, Outlook will try to discover settings for an on-premises Exchange mailbox using various methods, such as querying custom Autodiscover URLs or performing an SCP (Service Connection Point) lookup in Active Directory.
+
+. *Exchange (On-premises)*: For on-premises Exchange environments, the Autodiscover service is hosted on the Exchange server. You need to configure Autodiscover DNS records (such as an "A" or "CNAME" record for `autodiscover.yourdomain.com`) that point to your Exchange server's IP address or hostname. This will enable Outlook to discover the on-premises mailbox settings automatically when it fails to find an Exchange Online mailbox.
+
+. *Exchange Online (EXO)*: In Office 365, the Autodiscover service is automatically configured for Exchange Online. Outlook can discover Exchange Online mailboxes using the default Office 365 Autodiscover endpoint. However, it's a good practice to configure the recommended DNS records for your domain, including the Autodiscover CNAME record that points to `autodiscover.outlook.com`. This ensures optimal performance, compatibility, and helps avoid potential issues in the future.
++
+If you haven't configured an Autodiscover DNS record for your domain, but Outlook still connects to Exchange Online (EXO) automatically, it's likely due to Outlook's built-in capability to find the Exchange Online mailbox using the default Office 365 Autodiscover service.
++
+Outlook has a pre-defined list of endpoints it checks during the Autodiscover process. If Outlook is unable to find a custom Autodiscover DNS record for your domain, it will try the default Office 365 Autodiscover endpoint at `https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml`.
++
+Since Exchange Online is part of Office 365, its Autodiscover information is already available at this default endpoint. When Outlook queries this URL, it will receive the necessary configuration settings to connect to the Exchange Online mailbox automatically.
+
+By properly configuring Autodiscover for both on-premises Exchange and Exchange Online environments, you can ensure a seamless user experience and simplify the process of connecting to mailboxes using Outlook and other email clients.
+
+Here's the order of the Autodiscover process in Outlook:
+
+. Outlook first checks for an Office 365 mailbox (Exchange Online) by querying the Office 365 Autodiscover service at "`https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml`".
+
+. the mailbox is not found in Office 365, Outlook will then try to discover the mailbox settings from the on-premises Exchange server using the following methods:
++
+--
+. Querying the "`https://autodiscover.yourdomain.com/autodiscover/autodiscover.xml`" URL, where "yourdomain.com" is the user's email domain.
+
+. Performing an SCP (Service Connection Point) lookup in Active Directory (only applicable for domain-joined computers in the same AD forest as the Exchange server).
+
+. Querying the "`https://yourdomain.com/autodiscover/autodiscover.xml`" URL.
+--
+
+. If the on-premises Exchange server is discovered and the mailbox settings are retrieved, Outlook will connect to the on-premises Exchange server.
+
+It is important to ensure that your organization's Autodiscover DNS records and configuration are set up correctly for both Exchange Online and on-premises Exchange server. This will allow Outlook to discover the correct mailbox settings and ensure a seamless user experience.
+
+
+==== How to bypass the Autodiscover process in Outlook
+
+Disabling Autodiscover in Office 365 (Microsoft 365) Exchange Online is not recommended, as it is an essential service for automatically configuring email clients and maintaining connections with Exchange Online mailboxes. However, if you want to prevent Outlook from automatically connecting to Exchange Online, you can use a registry modification on the client-side to bypass the Autodiscover process.
+
+Please note that modifying the registry can cause issues if not done correctly, so proceed with caution and create a backup of your registry before making any changes.
+
+To bypass the Autodiscover process in Outlook:
+
+. Press `Win + R` to open the Run dialog box, type regedit, and press Enter.
+
+. Navigate to the following registry key, depending on your version of Outlook:
++
+--
+* Outlook 2016, 2019, or Outlook for Office 365:
++
+[source,text]
+----
+HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\Outlook\AutoDiscover  
+----
+
+* Outlook 2013:
++
+[source,text]
+----
+HKEY_CURRENT_USER\Software\Microsoft\Office\15.0\Outlook\AutoDiscover  
+----
+--
++
+If the `AutoDiscover` key does not exist, you can create it by right-clicking on the `Outlook` key, selecting "New" > "Key," and naming it "AutoDiscover."
+
+. Right-click on the `AutoDiscover` key, choose "New" > "DWORD (32-bit) Value," and name it "ExcludeExplicitO365Endpoint."
+
+. Double-click the "ExcludeExplicitO365Endpoint" value, set the "Value data" to 1, and click "OK."
+
+. Close the Registry Editor and restart Outlook.
+
+This registry modification tells Outlook to bypass the Office 365 Autodiscover process, allowing you to manually configure your email clients to connect to other Exchange servers, such as on-premises deployments.
+
+Please keep in mind that this method disables the Autodiscover process for Office 365 on the client-side and may lead to issues with email client configuration and connectivity. Use this approach only if you understand the risks and potential consequences.
+
+Here's a PowerShell script and a batch script that will automatically detect the operating system version, Outlook version, and add or update the necessary registry key to bypass the Office 365 Autodiscover process.
+
+.PowerShell Script (AutodiscoverBypass.ps1):
+[source,powershell]
+----
+# Detect the Outlook version  
+$OutlookVersion = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Office\ClickToRun\Configuration" -Name "ClientVersionToReport" -ErrorAction SilentlyContinue) -replace '[^\d\.]'  
+if (-not $OutlookVersion) { $OutlookVersion = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Office\16.0\Common\InstallRoot" -Name "Path" -ErrorAction SilentlyContinue) }  
+if (-not $OutlookVersion) { $OutlookVersion = (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Office\15.0\Common\InstallRoot" -Name "Path" -ErrorAction SilentlyContinue) }  
+  
+# Set the registry key based on the Outlook version  
+if ($OutlookVersion) {  
+    $AutoDiscoverPath = "HKCU:\Software\Microsoft\Office\$($OutlookVersion.Split('.')[0]).0\Outlook\AutoDiscover"  
+    if (-not (Test-Path $AutoDiscoverPath)) { New-Item -Path $AutoDiscoverPath -Force }  
+    Set-ItemProperty -Path $AutoDiscoverPath -Name "ExcludeExplicitO365Endpoint" -Value 1 -Type DWord  
+}  
+----
+
+To run the PowerShell script:
+
+. Save the script as `AutodiscoverBypass.ps1`.
+. Open PowerShell as Administrator.
+. Execute the script: `.\AutodiscoverBypass.ps1`
+
+.Batch Script (AutodiscoverBypass.bat):
+[source,bat]
+----
+@echo off  
+setlocal enabledelayedexpansion  
+  
+rem Detect the Outlook version  
+for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" /v "ClientVersionToReport" 2^>nul') do set OutlookVersion=%%b  
+if not defined OutlookVersion for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Office\16.0\Common\InstallRoot" /v "Path" 2^>nul') do set OutlookVersion=16  
+if not defined OutlookVersion for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Office\15.0\Common\InstallRoot" /v "Path" 2^>nul') do set OutlookVersion=15  
+  
+rem Set the registry key based on the Outlook version  
+if defined OutlookVersion (  
+    set MajorVersion=!OutlookVersion:~0,2!  
+    reg add "HKCU\Software\Microsoft\Office\!MajorVersion!.0\Outlook\AutoDiscover" /v "ExcludeExplicitO365Endpoint" /t REG_DWORD /d 1 /f  
+)  
+----
+
+To run the batch script:
+
+. Save the script as `AutodiscoverBypass.bat`.
+. Right-click the file and select "Run as Administrator".
+
+Both scripts will detect the operating system and Outlook version, and then add or update the `ExcludeExplicitO365Endpoint` registry key accordingly.
+
+
 == Azure PowerShell
 
 Azure PowerShell is a set of cmdlets for managing Azure resources directly from PowerShell. Azure PowerShell is designed to make it easy to learn and get started with, but provides powerful features for automation. <<azps>>
