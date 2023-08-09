@@ -1664,15 +1664,85 @@ There are three subprotocols to TLS, which perform tasks roughly equivalent to t
 .The normal TLS connection initiation exchange consists of several messages that may be pipelined. Required messages have solid arrows and are shown in boldface type. An abbreviated exchange takes place if a previously existing connection can be restarted. This avoids endpoint authentication, which can be costly for systems with limited processing capabilities.
 image::/assets/tcp-ip/security/TLS-connection-init-exchange.png[TLS connection initiation exchange,25%,25%]
 
-Figure 18-30 shows the messages required.
-The handshake shown in Figure 18-30 begins with Hello messages. The ClientHello message is usually the first message sent from client to server. It contains
-a session ID, proposals for the cryptographic suite number (CS in Figure
-18-30), and a set of acceptable compression algorithms (which are usually just
-NULL, although [RFC3749] also defines DEFLATE). TLS supports in excess of 250
-cipher suite options [TLSPARAMS].
-The ClientHello message also contains the TLS version number and a random
-number called ClientHello.random. Upon receiving the ClientHello message,
-the server checks to see if the session ID is present in its cache. If so, the server
+* The _ClientHello message_ is usually the first message sent from client to server, that contains a _session ID_, proposals for the _cryptographic suite_ number (CS), and a set of acceptable _compression algorithms_, also contains the _TLS version_ number and a _random number_ called `ClientHello.random`.
+
+* Upon receiving the _ClientHello message_, the server checks to see if the _session ID_ is present in its cache, and may agree to continue a previously existing connection (called a “resume”) by performing an _abbreviated handshake_.
++
+The _abbreviated handshake_ is key to TLS performance and avoids having to repeatedly verify the authenticity of each endpoint, but it does require synchronization with respect to the cipher specification.
+
+** The _ServerHello message_ completes the first part of the exchange by carrying the server’s random number (`ServerHello.random`) to the client.
+
+** The _ServerHello message_ also contains a _session ID_ value.
++
+--
+** If the _session ID_ value is the same as that provided by the client, it indicates the server’s willingness to resume.
+
+** If not, it has the value `0` and a full handshake is required.
+--
+
+** If a full (non-abbreviated) handshake is executed, the exchange of _Hello messages_ results in each end becoming aware of the _cipher suites_, _compression algorithms_, and _random values_ of its peer.
++
+--
+** The server selects among the cryptographic suites specified by the client and may be required to provide its certificate chain in a _Certificate message_ if it is to be authenticated (which is the typical case for secure Web traffic or HTTPS).
+
+** The server may also send a _ServerKeyExchange message_ if its certificate is not valid for signing, it has no certificate, or a temporary or ephemeral key is to be used to generate session keys.
++
+[NOTE]
+====
+The _ServerKeyExchange message_ is used only in cases where the Certificate (server) message does not contain enough information to establish a premaster secret.
+
+Such cases include anonymous or ephemeral DH key agreement (i.e., cipher suites starting with TLS_DHE_anon, TLS_DHE_DSS, TLS_ DHE_RSA).
+
+The _ServerKeyExchange message_ is not used for other suites, including those starting with TLS_RSA, TLS_DH_DSS, or TLS_DH_RSA.
+====
+--
+
+** At this point, the server may require _client authentication_. If so, it generates a _CertificateRequest message_.
+
+** Once this message is sent, the server completes the second portion of the exchange by sending the mandatory _ServerHelloDone message_.
+
+* Upon receiving this (possibly pipelined) message from the server, the client may be required to prove its identity (i.e., knowledge of an appropriate private key corresponding to a certificate).
+
+** If so, it first sends its certificate using a _Certificate message_ in the same format used by the server.
+
+** It then sends the mandatory _ClientKeyExchange message_. 
++
+The contents of this message depend on the cryptographic suite used, but it generally contains either an RSA-encrypted key or Diffie-Hellman parameters that may be used to create a type of seed for creating new keys (called the _premaster secret_).
+
+** Finally, it sends a _CertificateVerify message_ to demonstrate that it possesses the private key corresponding to the previously provided certificate, if the server requested _client authentication_.
++
+This message contains a signature on the hash of all of the handshake messages the client has received and sent up to this point.
+
+* The final portion of the exchange includes a _ChangeCipherSpec message_, which is an independent TLS protocol content type (i.e., technically not a Handshake protocol message).
++
+However, the mandatory Handshake protocol _Finished messages_ can be exchanged only after a successful exchange of _ChangeCipherSpec messages_.
+
+* The _Finished messages_ are the first ones to be protected using the parameters exchanged up to this point, and contain “verify data,” which consists of the following value:
++
+[.text-center,subs="+qutoes"]
+----
+verify_data = PRF(master_secret, finished_label, Hash(handshake_messages))
+----
+
+** where _finished_label_ has the value “client finished” for the client and “server finished” for the server.
+
+** The particular hash function _Hash_ is associated with the selection of the PRF made during the initial Hello exchange.
+
+** The 48-byte _master_secret_ value is computed as follows, where `+` is the concatenation operator
++
+[.text-center,subs="+qutoes"]
+----
+master_secret = PRF(premaster secret, “master secret”, ClientHello.random + ServerHello.random)
+----
++
+The _Finished message_ is important because it can be used to know with a high degree of certainty that the Handshake protocol has completed successfully and subsequent data exchange can take place.
+
+
+
+
+
+
+
 
 [appendix]
 == FAQs
