@@ -1983,7 +1983,7 @@ $ openssl mac -digest sha256 -macopt hexkey:$(cat key.txt) -in message.txt HMAC
 7508EA0525F0F40CDF263089D5B4826D23342AAAE97EA77DAB44A325DE83AAE1
 ----
 
-=== What's the best way to generate an encrypted key for AES using OpenSSL?
+=== How to generate an encrypted key for AES using OpenSSL?
 
 The best way to generate an encrypted key for AES using OpenSSL involves creating a strong, random symmetric key and then securely storing it.
 
@@ -2288,6 +2288,70 @@ RSA, DH, and ECDH are cryptographic algorithms that serve different purposes and
 . ECDH (Elliptic Curve Diffie-Hellman): ECDH is a key exchange algorithm that is based on elliptic curve cryptography. It is the elliptic curve counterpart of the Diffie-Hellman algorithm. ECDH allows two parties to establish a shared secret using elliptic curve operations instead of modular exponentiation. Like DH, both parties generate their own private keys and public keys, exchange the public keys, and perform calculations to derive the shared secret. The security relies on the difficulty of solving the Elliptic Curve Discrete Logarithm Problem (ECDLP). ECDH provides the same key exchange functionality as DH but with smaller key sizes and better performance.
 
 In summary, RSA is an asymmetric cryptographic algorithm used for encryption, decryption, and digital signatures, while DH and ECDH are key exchange algorithms that allow parties to establish a shared secret securely. DH is based on modular exponentiation, while ECDH uses elliptic curve cryptography.
+
+=== Digital signatures and public key encryption/decryption
+
+Digital signatures and public key encryption/decryption are both concepts that rely on public key cryptography (also known as asymmetric cryptography). They serve different purposes and have distinct properties:
+
+*Digital Signatures*:
+
+* Purpose: Digital signatures are used to verify the authenticity, integrity, and non-repudiation of a message or document. They confirm that the message has not been altered during transmission and that it comes from a specific sender.
+
+* Process: The sender generates a digital signature by applying a cryptographic hash function to the message and then _encrypting the hash using their private key_. The recipient verifies the signature by decrypting the hash using the sender's public key, and then independently hashing the message and comparing the two hashes. If they match, the signature is considered valid.
+
+* Properties: Digital signatures provide message integrity, authentication, and non-repudiation.
+
+*Public Key Encryption/Decryption*:
+
+* Purpose: Public key encryption is used to ensure the confidentiality of a message or document. It ensures that only the intended recipient can read the message.
+
+* Process: The sender _encrypts the message using the recipient's public key_. The encrypted message can only be decrypted by the recipient using their private key, ensuring that the message remains confidential.
+
+* Properties: Public key encryption provides message confidentiality.
+
+In summary, digital signatures are used for verifying the authenticity and integrity of a message, while public key encryption is used for ensuring the confidentiality of a message. Both concepts rely on public key cryptography, where each user has a pair of keys: a public key for encryption or signature verification, and a private key for decryption or signature generation.
+
+=== Is it possible to encrypt a message with a private key and decrypt it with the corresponding public key, or vice versa?
+
+In theory, it is possible to encrypt a message with a private key and decrypt it with the corresponding public key, or vice versa, depending on the specific public key cryptosystem being used. However, this approach is not recommended for ensuring confidentiality, as it has different security implications.
+
+* Encrypting a message with a private key and decrypting it with a public key is essentially the concept behind digital signatures.
++
+When you sign a message with your private key, anyone with your public key can verify the signature, effectively decrypting the encrypted hash. This process is used to provide authentication and integrity, not confidentiality.
+
+* Encrypting a message with a public key and decrypting it with a private key is the standard method for ensuring confidentiality in public key cryptography.
++
+This method ensures that only the intended recipient, who possesses the private key, can decrypt and read the message.
+
+In summary, while it is technically possible to encrypt a message with a private key and decrypt it with a public key or vice versa, it is not the recommended approach for ensuring confidentiality. Instead, use the standard method of encrypting with a public key and decrypting with the corresponding private key for secure communication.
+
+[source,console]
+----
+$ echo "Hello, 世界" > message.txt
+
+$ openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048 -quiet
+$ openssl rsa -in private_key.pem -pubout -out public_key.pem 
+writing RSA key
+$ # Encrypt a message using the public ke
+$ openssl pkeyutl -encrypt -in message.txt -out encrypted_message.bin -pubin -inkey public_key.pem
+$ # Decrypt the encrypted message using the private key
+$ openssl pkeyutl -decrypt -in encrypted_message.bin -out decrypted_message.txt -inkey private_key.pem  
+$ cat decrypted_message.txt 
+Hello, 世界
+$ openssl dgst -sha256 -sign private_key.pem -out signature.bin message.txt  
+$ openssl dgst -sha256 -verify public_key.pem -signature signature.bin message.txt  
+Verified OK
+----
+
+=== It seems that the text length of private key is larger than public key in PEM?
+
+Yes, that is correct. The text length of a private key in PEM format is generally larger than the public key. This is because the private key contains more information than the public key.
+
+In the case of RSA, for example, the private key includes the following components: modulus (n), public exponent (e), private exponent (d), prime1 (p), prime2 (q), exponent1 (d mod (p-1)), exponent2 (d mod (q-1)), and coefficient (q^-1 mod p). The public key, on the other hand, contains only the modulus (n) and the public exponent (e).
+
+Similarly, in the case of ECC, the private key includes the curve parameters and the private scalar, while the public key only includes the curve parameters and the public point.
+
+When represented in PEM format, these additional components in the private key result in a larger text length compared to the public key. However, it's important to note that the actual key lengths (e.g., 256-bit for ECC or 2048-bit for RSA) refer to the mathematical properties of the keys and not their text representations.
 
 === How does OpenSSL determine the algorithm (RSA or ECC)?
 
