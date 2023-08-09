@@ -2514,6 +2514,160 @@ $ openssl verify -CAfile 996.icu.crt 955.wlb.crt -untrusted
 ====
 
 [appendix]
+== FQAs: IPsec
+
+=== IKEv2 (Internet Key Exchange version 2)
+
+IKEv2 (Internet Key Exchange version 2) is a protocol used for negotiating and authenticating IPsec (Internet Protocol Security) connections. It is used to establish secure communication between two devices before the actual data exchange takes place. IKEv2 is responsible for setting up the encryption keys, authentication keys, and other security parameters needed for the IPsec connection.
+
+IKEv2 uses a series of messages to perform the negotiation and authentication process. The messages are exchanged between the two devices in a defined sequence. The first message is the IKE_SA_INIT message, which initiates the negotiation process. The second message is the IKE_AUTH message, which is used for authentication.
+
+During the negotiation process, the two devices exchange information about their security capabilities and agree on a set of encryption algorithms, authentication methods, and other security parameters. Once the negotiation process is complete, the devices exchange the actual data packets using the agreed-upon encryption and authentication methods.
+
+To terminate the session, either one of the devices can send an IKE_DELETE message to the other device. This message instructs the other device to delete the IPsec security association and end the connection.
+
+The IKEv2 protocol uses a variety of packet types and formats to perform the negotiation and authentication process. Some of the most important packet types include:
+
+. IKE_SA_INIT: This is the initial packet sent by the initiator to start the negotiation process.
+. IKE_AUTH: This packet is used for authentication and exchange of keying material.
+. CREATE_CHILD_SA: This packet is used to create a new child security association within an existing IKEv2 security association.
+. INFORMATIONAL: This packet is used to exchange information about the status of the connection, such as when terminating the session.
+
+Overall, IKEv2 is a critical component of IPsec security. It is responsible for setting up the secure connection between two devices, establishing the encryption and authentication methods to be used, and maintaining the security association during the data exchange.
+
+=== Transport mode and tunnel mode in IPsec
+
+In IPsec, data exchange is encapsulated in IP datagrams to provide confidentiality, integrity, and authenticity of the data being transmitted. IPsec operates in two modes: transport mode and tunnel mode.
+
+Transport mode is used when both the source and destination hosts are using IPsec. In this mode, only the payload (data) of the IP datagram is encrypted and authenticated, while the IP header remains untouched.
+
+Tunnel mode is used when at least one of the hosts does not support IPsec. In this mode, the entire IP datagram, including the IP header and payload, is encapsulated within another IP datagram. The outer IP header is used for routing while the inner IP header is used to establish the security association and provides the necessary security services.
+
+The packet format for IPsec depends on the mode being used. In transport mode, the original IP datagram remains unchanged, except for the addition of an Authentication Header (AH) or Encapsulating Security Payload (ESP) header. The AH header provides data integrity and authenticity, while the ESP header provides confidentiality, integrity, and authenticity.
+
+The packet format for transport mode IPsec is as follows:
+
+[.text-center,subs="+quotes"]
+----
+_Original IP Header | ESP/AH Header | Payload_
+----
+
+In tunnel mode, the original IP datagram is encapsulated within another IP datagram. The outer IP header is used for routing, while the inner IP header is used to establish the security association. The ESP or AH header is added after the new outer IP header and before the original IP header. The ESP or AH header provides the necessary security services.
+
+The packet format for tunnel mode IPsec is as follows:
+
+[.text-center,subs="+quotes"]
+----
+_New Outer IP Header | ESP/AH Header | Original IP Header | Payload_
+----
+
+Overall, IPsec provides secure communication over IP networks by encapsulating IP datagrams with additional headers that provide confidentiality, integrity, and authenticity. The choice of transport mode or tunnel mode depends on the specific requirements of the network and the devices being used.
+
+=== Tunnel mode in IPsec as an overlay network
+
+Tunnel mode in IPsec can be considered as an overlay network, as it creates a virtual secure tunnel between two security gateways (such as VPN gateways, firewalls, or routers) over an existing IP network, allowing the secure transmission of data between two networks or between a host and a network.
+
+Tunnel mode can bypass some network firewalls and restrictions because it encapsulates the entire original IP packet (including the original IP header and payload) within a new IP packet. The new outer IP header is used for routing between the security gateways, and the inner IP header (along with the encrypted payload) is protected by IPsec. Since the original IP packet is hidden inside the encrypted payload, firewalls and other security devices may not be able to inspect the contents of the packet and apply filtering rules based on the original IP addresses or protocols.
+
+This feature of tunnel mode is beneficial in scenarios where secure communication is needed across restrictive networks or when establishing VPN connections for remote access to corporate resources. However, it's important to note that some firewalls and security devices can still detect and block IPsec tunnel mode traffic by inspecting the outer IP header, identifying the use of IPsec protocols, or employing deep packet inspection techniques.
+
+=== AH (Authentication Header) and ESP (Encapsulating Security Payload) headers
+
+Not all IPsec packets in IP datagrams require both the AH (Authentication Header) and ESP (Encapsulating Security Payload) headers. Depending on the security requirements, one of these headers can be used.
+
+* If only data integrity and authentication are needed, the AH header can be used. In this case, the payload remains unencrypted, but its integrity and authenticity are ensured.
+
+* If confidentiality is also required, the ESP header should be used. With ESP, the payload is encrypted, ensuring confidentiality, and the ESP header provides data integrity and authentication.
+
+* In transport mode, the IPsec packet format will have the original IP header, followed by the AH/ESP header, and then the payload. The payload will be encrypted if ESP is used:
+
+[.text-center,subs="+quotes"]
+----
+_Original IP Header | AH/ESP Header | (Encrypted) Payload_
+----
+
+* In tunnel mode, the IPsec packet format will have a new outer IP header, followed by the AH/ESP header, the original IP header, and the payload. The payload, along with the original IP header, will be encrypted if ESP is used:
+
+[.text-center,subs="+quotes"]
+----
+_New Outer IP Header | AH/ESP Header | (Encrypted) Original IP Header | (Encrypted) Payload_
+----
+
+In both cases, if confidentiality is required, the payload will be encrypted. The choice of using AH or ESP depends on the specific security requirements of the network and the devices being used.
+
+=== The scenarios where using IPsec without confidentiality (i.e., without encryption) 
+
+There are scenarios where using IPsec without confidentiality (i.e., without encryption) can still be useful. In these cases, IPsec can provide data integrity and authentication, ensuring that the data has not been tampered with and that it comes from a trusted source. This can be achieved using the Authentication Header (AH) protocol.
+
+Some scenarios where IPsec without confidentiality can be employed include:
+
+. *Network management and monitoring*: In situations where data confidentiality is not crucial, but ensuring data integrity and authenticity is essential, IPsec with AH can be used. This is common in network management and monitoring systems, where administrators need to trust the information coming from devices without necessarily requiring the data to be encrypted.
+
+. *Environments with strict data privacy regulations*: In certain industries or countries, data privacy regulations might restrict the use of encryption. In such cases, IPsec with AH can be used to provide data integrity and authentication while complying with the regulations.
+
+. *Performance-sensitive applications*: Encrypting and decrypting data can add processing overhead and latency to network communications. In performance-sensitive applications where the data being transmitted is not sensitive, but data integrity and authentication are still required, IPsec with AH can be a suitable choice.
+
+. *Interoperability with legacy systems*: Some older systems might not support encryption due to hardware limitations or outdated software. In these cases, IPsec with AH can provide a measure of security by ensuring data integrity and authentication.
+
+It is important to note that using IPsec without confidentiality does not protect the data from eavesdropping or unauthorized access. It only ensures that the data has not been tampered with and that it comes from a trusted source. In scenarios where data confidentiality is crucial, using IPsec with the Encapsulating Security Payload (ESP) protocol is recommended, as it provides encryption in addition to data integrity and authentication.
+
+=== IPsec (Internet Protocol Security) and TLS (Transport Layer Security)
+
+While both IPsec and TLS (Transport Layer Security) provide secure communication over networks, they operate at different layers of the networking stack and have some differences in their use cases, implementation, and features.
+
+. *Layer of operation*: IPsec operates at the network layer (Layer 3) of the OSI model, while TLS operates at the transport layer (Layer 4). This means IPsec secures the entire IP packet, whereas TLS secures the data within a specific transport layer protocol, such as TCP.
+
+. *Applicability*: IPsec can secure any protocol that uses IP, whereas TLS is limited to securing TCP-based protocols, such as HTTP, SMTP, and IMAP.
+
+. *Connection setup*: IPsec sets up a security association (SA) between two hosts or networks to ensure secure communication, while TLS establishes a secure connection between a client and server using a handshake process.
+
+. *Modes of operation*: IPsec can operate in two modes, transport mode (securing end-to-end communication between hosts) and tunnel mode (securing communication between networks or between a host and a network). TLS does not have different modes of operation but secures communication between a client and a server.
+
+. *Implementation*: IPsec is typically implemented within the operating system or as part of network hardware (routers, firewalls), while TLS is typically implemented within applications or as part of application-level libraries.
+
+. *Granularity of control*: IPsec provides more fine-grained control over security policies and can be applied to a wide range of traffic types. TLS is more focused on securing specific application-level protocols.
+
+In summary, while both IPsec and TLS provide secure communication, they operate at different layers and have some differences in use cases, implementation, and features. IPsec is more versatile in securing a wider range of network traffic, while TLS is mainly used for securing specific application-level protocols over TCP.
+
+=== How to identify the type of an IP datagram, that contains normal IPsec data, an IKEv2 message, or something else?
+
+To identify the type of an IP datagram, you can examine the "Protocol" field in the IP header. The _Protocol_ field is an 8-bit field that indicates the type of payload carried by the IP datagram. Here's how you can identify if the IP datagram contains normal IPsec data, an IKEv2 message, or something else:
+
+. Normal IPsec data: IPsec uses two main protocols for securing data: _Authentication Header (AH)_ and _Encapsulating Security Payload (ESP)_. In the _Protocol_ field of the IP header, the value `51` represents AH, and the value `50` represents ESP.
+
+. IKEv2 message: IKEv2 (Internet Key Exchange version 2) is used for negotiating and establishing Security Associations (SAs) for IPsec. IKEv2 uses the User Datagram Protocol (UDP) for communication. In the Protocol field of the IP header, the value `17` represents UDP. To further confirm that the UDP payload contains an IKEv2 message, you need to check the UDP source or destination port. The standard port for IKEv2 is 500 or 4500 (when using NAT-Traversal).
+
+. Something else: If the Protocol field in the IP header contains a value other than the ones mentioned above, it represents a different protocol. For example, the values `6` and `17` represent TCP and UDP, respectively.
+
+To summarize, you can identify the type of an IP datagram by checking the Protocol field in the IP header. If the value is 50 (ESP) or 51 (AH), it is an IPsec data packet. If the value is 17 (UDP) and the source or destination port is 500 or 4500, it is likely an IKEv2 message. If the value is different from these, it is something else, such as a non-IPsec packet for another protocol.
+
+While it is true that IKEv2 typically uses UDP ports `500` and `4500`, there can be other non-IKEv2 traffic on the same ports in rare cases.
+
+To be more certain about the identification of an IKEv2 message within a UDP packet, you can inspect the payload of the UDP packet for the specific structure of an IKEv2 message. IKEv2 messages have a well-defined format, starting with an IKE header, followed by one or more IKE payloads.
+
+An IKEv2 header has the following structure:
+
+. Initiator's SPI (64 bits): Security Parameter Index (SPI) of the initiator.
+. Responder's SPI (64 bits): Security Parameter Index (SPI) of the responder.
+. Next Payload (8 bits): Indicates the type of the first payload in the message.
+. Major Version (4 bits): Indicates the major version of the IKE protocol (for IKEv2, it is 2).
+. Minor Version (4 bits): Indicates the minor version of the IKE protocol (for IKEv2, it is 0).
+. Exchange Type (8 bits): Indicates the type of the IKE exchange (e.g., IKE_SA_INIT, IKE_AUTH, CREATE_CHILD_SA, etc.).
+. Flags (8 bits): Contains various flags, such as initiator/response flag and higher-order bits reserved for future use.
+. Message ID (32 bits): Used to identify and match request and response pairs.
+. Length (32 bits): Indicates the total length of the IKE message, including the header and all the payloads.
+
+By examining the contents of the UDP payload and looking for the specific structure of an IKEv2 message, you can more accurately determine whether a UDP packet contains an IKEv2 message for IPsec.
+
+In IPsec, the Internet Key Exchange (IKE) protocol is used to negotiate and establish security parameters between two parties. IKE typically uses UDP datagrams for its communication, with the standard ports being 500 and 4500 (when using NAT-Traversal).
+
+During the IKE negotiation process, the two parties exchange IKE messages to establish a secure channel called the IKE Security Association (SA). Once the IKE SA is established, the parties negotiate IPsec Security Associations (SAs) for the actual data exchange. These IPsec SAs define the cryptographic algorithms, keys, and other security parameters to be used for data protection.
+
+The data exchange in IPsec uses normal IP datagrams with either the Authentication Header (AH) or Encapsulating Security Payload (ESP) header, depending on the chosen mode of operation. AH provides data integrity and authentication, while ESP provides confidentiality, data integrity, and authentication.
+
+In summary, IKE is responsible for negotiating and establishing security parameters using UDP datagrams, while the actual data exchange in IPsec uses normal IP datagrams with AH or ESP headers to provide the desired security services.
+
+[appendix]
 == Extended Validation Certificate
 
 An *Extended Validation Certificate* (*EV*) is a certificate conforming to X.509 that proves the legal entity of the owner and is signed by a certificate authority key that can issue EV certificates. EV certificates can be used in the same manner as any other X.509 certificates, including securing web communications with HTTPS and signing software and documents. Unlike _domain-validated certificates_ and _organization-validation certificates_, EV certificates can be issued only by a subset of certificate authorities (CAs) and require verification of the requesting entity's legal identity before certificate issuance. <<EVCWIKIPEDIA>> 
