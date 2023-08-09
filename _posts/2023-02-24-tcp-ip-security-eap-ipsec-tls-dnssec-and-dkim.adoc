@@ -1745,8 +1745,172 @@ The baseline specification for TLS 1.2 [RFC5246] includes a _signature algorithm
 
 > MD5, SHA-1, SHA-224, SHA-256, SHA-384, SHA-512 for hashes and RSA, DSA, ECDSA for digital signatures.
 
+==== Renegotiation
 
+TLS supports the ability to renegotiate cryptographic connection parameters while maintaining the same connection. This can be initiated by either the server or the client. If the server wishes to renegotiate the connection parameters, it generates a _HelloRequest message_, and the client responds with a new _ClientHello message_, which begins the renegotiation procedure. The client is also able to generate such a _ClientHello message_ spontaneously, without prompting from the server.
 
+==== Example
+
+[source,sh]
+----
+# Create a self-signed CA cetrifacate
+openssl req -x509 \
+    -subj "/CN=work.icu" \
+    -addext "subjectAltName=DNS:work.icu,DNS:*.work.icu" \
+    -addext "keyUsage=digitalSignature,cRLSign,keyCertSign" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -days 365 \
+    -nodes -newkey rsa:2048 \
+    -keyout work.icu.key \
+    -out work.icu.crt \
+    > /dev/null 2>&1
+
+# Create a sever/client certificate and sign it by CA
+openssl req -subj "/CN=996.icu" \
+    -addext "subjectAltName=DNS:996.icu,DNS:*.996.icu" \
+    -addext "basicConstraints=CA:false" \
+    -addext "keyUsage=digitalSignature,keyEncipherment" \
+    -addext "extendedKeyUsage=serverAuth,clientAuth" \
+    -nodes -newkey rsa:2048 \
+    -x509 \
+    -CA work.icu.crt -CAkey work.icu.key \
+    -copy_extensions copy \
+    -keyout 996.icu.key \
+    -out 996.icu.crt \
+    > /dev/null 2>&1
+
+# Install the root CA ceretificate into local trust store
+sudo cp work.icu.crt /usr/local/share/ca-certificates/extra/
+sudo update-ca-certificates 
+----
+
+[source,console]
+----
+$ # Create a server for 996.icu
+$ cat /etc/nginx/sites-enabled/996.icu 
+server {
+	listen 80;
+	listen [::]:80;
+
+    server_name  *.996.icu;
+
+    return 308 https://$host:443$request_uri;
+}
+
+server {
+	listen 443 ssl;
+	listen [::]:443 ssl;
+
+    server_name  *.996.icu;
+
+    ssl_certificate     996.icu.crt;
+    ssl_certificate_key 996.icu.key;
+	
+	root /var/www/html;
+
+	# Add index.php to the list if you are using PHP
+	index index.html index.htm index.nginx-debian.html;
+
+	server_name _;
+
+	location / {
+		try_files $uri $uri/ =404;
+	}
+}
+
+$ # Test and reload Nginx
+$ sudo nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+$ sudo nginx -s reload
+2023/08/09 17:44:53 [notice] 142427#142427: signal process started
+
+$ # Test the configuration
+$ curl -iIL localhost -H 'Host: 996.icu'
+HTTP/1.1 308 Permanent Redirect
+Server: nginx/1.22.1
+Date: Wed, 09 Aug 2023 09:46:48 GMT
+Content-Type: text/html
+Content-Length: 171
+Connection: keep-alive
+Location: https://996.icu:443/
+
+HTTP/1.1 200 OK
+Server: nginx/1.22.1
+Date: Wed, 09 Aug 2023 09:46:48 GMT
+Content-Type: text/html
+Content-Length: 612
+Last-Modified: Fri, 25 Oct 2019 06:07:47 GMT
+Connection: keep-alive
+ETag: "5db29133-264"
+Accept-Ranges: bytes
+----
+
+[source,sh]
+----
+# Use `tcpdump` to capture HTTPS traffic on local lookback interface
+sudo tcpdump -i lo port 443 -w 996.v1.2.icu.pcap
+----
+
+[source,console]
+----
+$ curl -v --tlsv1.2 --tls-max 1.2 -iI https://996.icu --resolve 996.icu:443:127.0.0.1
+* Added 996.icu:443:127.0.0.1 to DNS cache
+* Hostname 996.icu was found in DNS cache
+*   Trying 127.0.0.1:443...
+* Connected to 996.icu (127.0.0.1) port 443 (#0)
+* ALPN: offers h2,http/1.1
+* TLSv1.2 (OUT), TLS handshake, Client hello (1):
+*  CAfile: /etc/ssl/certs/ca-certificates.crt
+*  CApath: /etc/ssl/certs
+* TLSv1.2 (IN), TLS handshake, Server hello (2):
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384
+* ALPN: server accepted http/1.1
+* Server certificate:
+*  subject: CN=996.icu
+*  start date: Aug  9 09:06:00 2023 GMT
+*  expire date: Aug  8 09:06:00 2024 GMT
+*  subjectAltName: host "996.icu" matched cert's "996.icu"
+*  issuer: CN=996.icu
+*  SSL certificate verify ok.
+* using HTTP/1.1
+> HEAD / HTTP/1.1
+> Host: 996.icu
+> User-Agent: curl/7.88.1
+> Accept: */*
+> 
+< HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+< Server: nginx/1.22.1
+Server: nginx/1.22.1
+< Date: Wed, 09 Aug 2023 10:51:30 GMT
+Date: Wed, 09 Aug 2023 10:51:30 GMT
+< Content-Type: text/html
+Content-Type: text/html
+< Content-Length: 612
+Content-Length: 612
+< Last-Modified: Fri, 25 Oct 2019 06:07:47 GMT
+Last-Modified: Fri, 25 Oct 2019 06:07:47 GMT
+< Connection: keep-alive
+Connection: keep-alive
+< ETag: "5db29133-264"
+ETag: "5db29133-264"
+< Accept-Ranges: bytes
+Accept-Ranges: bytes
+
+< 
+* Connection #0 to host 996.icu left intact
+----
+
+.A ClientHello message in TLS 1.2 contains version information, supported cipher suites and compression algorithms, random data, and a number of extensions.
+image::/assets/tcp-ip/security/wirshark-tlsv1.2-client-hello.png[A ClientHello message in TLS 1.2,100%,100%]
 
 
 [appendix]
