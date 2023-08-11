@@ -456,6 +456,33 @@ func (file *File) Write(b []byte) (n int, err error)
 === Defer
 
 * Go's `defer` statement schedules a function call (the _deferred_ function) to be run immediately before the function executing the `defer` returns.
+
+* The arguments to the deferred function (which include the receiver if the function is a method) are evaluated when the _defer_ executes, not when the _call_ executes.
++
+[source,go]
+----
+func main() {
+	v := 10
+	defer fmt.Println(3 * v) // 30
+
+	defer func() {
+		fmt.Println(v) // 20
+	}()
+
+	defer func(x int) {
+		fmt.Println(x) // 10
+	}(v)
+
+	v = 20
+	_ = v
+}
+
+// Output:
+// 10
+// 20
+// 30
+----
+
 * It's an unusual but effective way to deal with situations such as resources that must be released regardless of which path a function takes to return.
 +
 [source,go]
@@ -470,7 +497,6 @@ func ReadFile(filename string) ([]byte, error) {
 }
 ----
 
-* The arguments to the deferred function (which include the receiver if the function is a method) are evaluated when the _defer_ executes, not when the _call_ executes.
 * Deferred functions are executed in LIFO order (stacking style).
 +
 [source,go]
@@ -633,11 +659,9 @@ func main() {
 
 * The type `[n]T` is an array of `n` values of type `T`.
 
-* Arrays are values.
+* Arrays are values. Assigning one array to another copies all the elements.
 +
-Assigning one array to another copies all the elements.
-
-* In particular, if you pass an array to a function, it will receive a copy of the array, not a pointer to it.
+In particular, if you pass an array to a function, it will receive a copy of the array, not a pointer to it.
 
 * The size of an array is part of its type.
 +
@@ -656,27 +680,32 @@ primes := [6]int{2, 3, 5, 7, 11, 13}
 === Slices
 
 * A slice, on the other hand, is a dynamically-sized, flexible view into the elements of an array.
+
 * The type `[]T` is a slice with elements of type `T`.
+
 * A slice is formed by specifying two indices, a low and high bound, separated by a colon:
 +
 [,go]
 ----
-  // This selects a half-open range which includes the first element, but excludes the last one.
-  a[low : high]
+// This selects a half-open range which includes the first element, but excludes the last one.
+a[low : high]
 ----
 
-* The following expression creates a slice which includes elements 1 through 3 of a:
+* The following expression creates a slice which includes elements 1 through 3 of `a`:
 +
 [,go]
 ----
-  a[1:4]
+a[1:4]
 ----
 
 *Slices are like references to arrays*
 
 * A slice does not store any data, it just describes a section of an underlying array.
+
 * A slice hold references to an underlying array, and if you assign one slice to another, both refer to the same array.
+
 * Changing the elements of a slice modifies the corresponding elements of its underlying array.
+
 * Other slices that share the same underlying array will see those changes.
 
 *Slice literals*
@@ -685,7 +714,7 @@ primes := [6]int{2, 3, 5, 7, 11, 13}
 +
 [,go]
 ----
-  []bool{true, true, false}
+[]bool{true, true, false}
 ----
 
 *Slice defaults*
@@ -707,9 +736,13 @@ a[:]
 *Slice length and capacity*
 
 * A slice has both a _length_ and a _capacity_.
+
 * The length of a slice is the number of elements it contains.
+
 * The capacity of a slice is the number of elements in the underlying array, counting from the first element in the slice.
-* The length and capacity of `a` slice s can be obtained using the expressions `len(s)` and `cap(s)`.
+
+* The length and capacity of a slice `s` can be obtained using the expressions `len(s)` and `cap(s)`.
+
 * You can extend a slice's length by re-slicing it, provided it has sufficient capacity.
 
 *Nil slices*
@@ -747,7 +780,12 @@ a[:]
 
 * Maps are a convenient and powerful built-in data structure that associate values of one type (the key) with values of another type (the element or value).
 
-* The key can be of any type for which the equality operator is defined, such as integers, floating point and complex numbers, strings, pointers, interfaces (as long as the dynamic type supports equality), structs and arrays.
+* The *key* can be of any type that is _comparable_ for which the _equality operator_ is defined.
++
+The language spec defines the https://go.dev/ref/spec#Comparison_operators[Comparison operators] precisely, in short, _comparable_ types are boolean, numeric, string, pointer, channel, and interface types, and structs or arrays that contain only those types.<<BLOGMAPS>>
++
+Notably absent from the list are slices, maps, and functions; these types cannot be compared using `==`, and may not be used as map keys.
+
 * Slices cannot be used as map keys, because equality is not defined on them.
 
 * Like slices, maps hold references to an underlying data structure.
