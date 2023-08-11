@@ -2034,9 +2034,110 @@ Azure contexts are PowerShell objects representing your active subscription to r
 
 * A reference to a _token cache_, a stored authentication token for accessing an Azure cloud. Where this token is stored and how long it persists for is determined by the https://learn.microsoft.com/en-us/powershell/azure/context-persistence?view=azps-10.1.0#save-azure-contexts-across-powershell-sessions[context autosave settings].
 
+.Get Azure contexts
+[source,powershell]
+----
+# List the available contexts
+Get-AzContext -ListAvailable
 
+# Or get a context by name
+Get-AzContext -Name 'mycontext'
+----
 
+===== Change the active Azure context
 
+Both `Set-AzContext` and `Select-AzContext` can be used to change the active Azure context.
+
+`Set-AzContext` creates a new Azure context for a subscription if one doesn't exist, and then switches the active context to that one.
+
+`Select-AzContext` is meant to be used only with existing Azure contexts and works similarly to using `Set-AzContext -Context`, but is designed for use with piping:
+
+[source,powershell]
+----
+Set-AzContext -Context $(Get-AzContext -Name 'mycontext') # Set a context with an inline Azure context object
+Get-AzContext -Name 'mycontext' | Select-AzContext # Set a context with a piped Azure context object
+----
+
+Like many other account and context management commands in Azure PowerShell, `Set-AzContext` and `Select-AzContext` support the *Scope* parameter so that you can control how long the context is active. *Scope* lets you change a single session's active context without changing your default:
+
+[source,powershell]
+----
+Get-AzContext -Name 'mycontext' | Select-AzContext -Scope Process
+----
+
+To avoid switching contexts for a whole PowerShell session, Azure PowerShell commands with an *AzContext* parameter can be run against a given context:
+
+[source,powershell]
+----
+$context = Get-AzContext -Name "mycontext"
+New-AzVM -Name ExampleVM -AzContext $context
+----
+
+In order to change subscriptions associated with your current Azure session, you use the `Set-AzContext` cmdlet to change the current context.
+
+[source,powershell]
+----
+Set-AzContext -Subscription <subscription name or id>
+----
+
+You can use the `Get-AzSubscription` cmdlet to retrieve a list of your Azure subscriptions.
+
+===== Save Azure contexts across PowerShell sessions
+
+By default, Azure contexts are saved for use between PowerShell sessions. You change this behavior in the following ways:
+
+* Sign in using -Scope Process with Connect-AzAccount.
++
+[source,powershell]
+----
+Connect-AzAccount -Scope Process
+----
++
+The Azure context returned as part of this sign in is valid for the current session only and won't be saved automatically, regardless of the Azure PowerShell context autosave setting.
+
+* Disable context autosave in Azure PowerShell with the `Disable-AzContextAutosave` cmdlet. Disabling context autosave doesn't clear any stored tokens.
++
+NOTE: To remove stored information, use the `Clear-AzContext` cmdlet.
+
+* Explicitly enable Azure context autosave can be enabled with the `Enable-AzContextAutosave` cmdlet. With autosave enabled, a user's contexts are stored locally for later PowerShell sessions.
+
+* Manually save contexts with `Save-AzContext` to be used in future PowerShell sessions, where they can be loaded with `Import-AzContext`:
++
+[source,powershell]
+----
+Save-AzContext -Path current-context.json # Save the current context
+Save-AzContext -Profile $profileObject -Path other-context.json # Save a context object
+Import-AzContext -Path other-context.json # Load the context from a file and set it to the current context
+----
+
+===== Remove Azure contexts and stored credentials
+
+To clear Azure contexts and credentials:
+
+* Sign out of an account with `Disconnect-AzAccount`. You can sign out of any account either by account or context:
++
+[source,powershell]
+----
+Disconnect-AzAccount # Disconnect active account
+Disconnect-AzAccount -Username 'user@contoso.com' # Disconnect by account name
+
+Disconnect-AzAccount -ContextName 'subscription2' # Disconnect by context name
+Disconnect-AzAccount -AzureContext $contextObject # Disconnect using context object information
+----
++
+Disconnecting always removes stored authentication tokens and clears saved contexts associated with the disconnected user or context.
+
+* Use `Clear-AzContext`. This cmdlet always removes stored contexts, authentication tokens, and signs you out.
+
+* Remove a context with `Remove-AzContext`:
++
+[source,powershell]
+----
+Remove-AzContext -Name 'mycontext' # Remove by name
+Get-AzContext -Name 'mycontext' | Remove-AzContext # Remove by piping Azure context object
+----
++
+If you remove the active context, you'll be disconnected from Azure and need to reauthenticate with `Connect-AzAccount`.
 
 
 === Find commands
