@@ -356,11 +356,11 @@ func main() {
 
 === Break, Continue and Goto
 
-A `break` statement terminates execution of the _innermost_ `for`, `switch`, or `select` statement within the same function.
+A `break` statement terminates execution of the *innermost* `for`, `switch`, or `select` statement within the same function.
 
-A `continue` statement begins the next iteration of the _innermost_ `for` loop at its post statement within the same function. 
+A `continue` statement begins the next iteration of the *innermost* `for` loop at its post statement within the same function. 
 
-A `goto` statement transfers control to the statement with the corresponding _label_ within the same function. 
+A `goto` statement transfers control to the statement with the corresponding *label* within the same function. 
 
 [source,go]
 ----
@@ -392,24 +392,49 @@ A `fallthrough` statement transfers control to the first statement of the next c
 
 [source,go]
 ----
-func main() {
-	switch {
-	case 10 > 11:
-		fmt.Println("10 > 11")
-	case 1 < 5:
-		fallthrough
-	case 1 > 10:
-		fmt.Println("1 > 10")
-	}
+switch {
+case 10 > 11:
+	fmt.Println("10 > 11")
+case 1 < 5:
+	fmt.Println("1 < 5")
+	fallthrough
+case 1 > 10:
+	fmt.Println("1 > 10 ?")
 }
-
 // Output:
-// 1 > 10
+// 1 < 5
+// 1 > 10 ?
 ----
 
 === Defer
 
 A `defer` statement invokes a function whose execution is deferred to the moment the surrounding function returns, either because the surrounding function executed a return statement, reached the end of its function body, or because the corresponding goroutine is panicking. 
+
+[source,go]
+----
+defer func() {
+	e := recover()
+	fmt.Printf("%s\n", e)
+}()
+
+defer func() {
+	fmt.Println(". . .")
+}()
+
+panic(fmt.Sprintf("Oops, I'm NOT myself."))
+// Output:
+// . . .
+// Oops, I'm NOT myself.
+----
+
+[source,go]
+----
+godir, err := os.Open("/usr/local/go")
+if err != nil {
+	log.Printf("%s\n", err)
+	defer godir.Close()
+}
+----
 
 == Functions
 
@@ -423,79 +448,80 @@ func (file *File) Write(b []byte) (n int, err error)
 === Named result parameters
 
 * The return or result "parameters" of a Go function can be given names and used as regular variables, just like the incoming parameters.
+
 * When named, they are initialized to the zero values for their types when the function begins;
-* if the function executes a return statement with no arguments, the current values of the result parameters are used as the returned values.
+
+* if the function executes a `return` statement with no arguments, the current values of the result parameters are used as the returned values.
 
 === Defer
 
 * Go's `defer` statement schedules a function call (the _deferred_ function) to be run immediately before the function executing the `defer` returns.
 * It's an unusual but effective way to deal with situations such as resources that must be released regardless of which path a function takes to return.
 +
-[,go]
+[source,go]
 ----
-  func ReadFile(filename string) ([]byte, error) {
-      f, err := os.Open(filename)
-      if err != nil {
-          return nil, err
-      }
-      defer f.Close()
-      return ReadAll(f)
-  }
+func ReadFile(filename string) ([]byte, error) {
+    f, err := os.Open(filename)
+    if err != nil {
+        return nil, err
+    }
+    defer f.Close()
+    return ReadAll(f)
+}
 ----
 
 * The arguments to the deferred function (which include the receiver if the function is a method) are evaluated when the _defer_ executes, not when the _call_ executes.
 * Deferred functions are executed in LIFO order (stacking style).
 +
-[,go]
+[source,go]
 ----
-  for i := 0; i < 5; i++ {
-  	defer fmt.Printf("%d ", i)
-  }
-
-  // Output:
-  // 4 3 2 1 0
-----
-+
-[,go]
-----
-  // All function values created by this loop "capture"
-  // and share the same variable—an addressable storage location,
-  // not its value at that particular moment.
-  for i := 0; i < 5; i++ {
-      defer func() {
-          fmt.Print(i, " ")
-      }()
-  }
-
-  // Output:
-  // 5 5 5 5 5
+for i := 0; i < 5; i++ {
+	defer fmt.Printf("%d ", i)
+}
+// Output:
+// 4 3 2 1 0
 ----
 +
-[,go]
+[source,go]
 ----
-  for i := 0; i < 5; i++ {
-      // declares inner i, intialized to outer i
-      i := i
-      defer func() {
-          fmt.Print(i, " ")
-      }()
-  }
-
-  // Output:
-  // 4 3 2 1 0
+// All function values created by this loop "capture"
+// and share the same variable—an addressable storage location,
+// not its value at that particular moment.
+for i := 0; i < 5; i++ {
+    defer func() {
+        fmt.Print(i, " ")
+    }()
+}
+// Output:
+// 5 5 5 5 5
+----
++
+[source,go]
+----
+for i := 0; i < 5; i++ {
+    // declares inner i, intialized to outer i
+    i := i
+    defer func() {
+        fmt.Print(i, " ")
+    }()
+}
+// Output:
+// 4 3 2 1 0
 ----
 
 == Data types
 
-[,go]
+[source,go]
 ----
 // any is an alias for interface{} and is equivalent to interface{} in all ways.
+// (go1.18)
 any
 
 // comparable is an interface that is implemented by all comparable types
 // (booleans, numbers, strings, pointers, channels, arrays of comparable types,
 // structs whose fields are all comparable types). The comparable interface may
 // only be used as a type parameter constraint, not as the type of a variable.
+// (go1.18)
 comparable
 
 bool // true false
@@ -529,33 +555,29 @@ pointers structs array slices maps functions interfaces channels
 
 [,go]
 ----
-func main() {
-	const nihongo = "日本語"
-	for _, runeValue := range nihongo {
-		fmt.Printf("%#U ", runeValue)
-	}
-	fmt.Println()
-
-	for index := 0; index < len(nihongo); index++ {
-		fmt.Printf("%x ", nihongo[index])
-	}
-	fmt.Println()
-
-	for index := 0; index < len(nihongo); index++ {
-		fmt.Printf("%q ", nihongo[index])
-	}
-	fmt.Println()
-
-	for index := 0; index < len(nihongo); index++ {
-		fmt.Printf("%+q ", nihongo[index])
-	}
-	fmt.Println()
+const nihongo = "日本語"
+for _, runeValue := range nihongo {
+	fmt.Printf("%#U ", runeValue)
 }
-
-// Output:
+fmt.Println()
 // U+65E5 '日' U+672C '本' U+8A9E '語'
+
+for index := 0; index < len(nihongo); index++ {
+	fmt.Printf("%x ", nihongo[index])
+}
+fmt.Println()
 // e6 97 a5 e6 9c ac e8 aa 9e
+
+for index := 0; index < len(nihongo); index++ {
+	fmt.Printf("%q ", nihongo[index])
+}
+fmt.Println()
 // 'æ' '\u0097' '¥' 'æ' '\u009c' '¬' 'è' 'ª' '\u009e'
+
+for index := 0; index < len(nihongo); index++ {
+	fmt.Printf("%+q ", nihongo[index])
+}
+fmt.Println()
 // '\u00e6' '\u0097' '\u00a5' '\u00e6' '\u009c' '\u00ac' '\u00e8' '\u00aa' '\u009e'
 ----
 
@@ -1427,179 +1449,6 @@ func main() {
 }
 ----
 
-== fmt.Printf
-
-Package `fmt` implements formatted I/O with functions analogous to C's printf and scanf. The format 'verbs' are derived from C's but are simpler. 
-
-* The Printing *verbs*
-+
-._General_:
-[,txt]
-----
-%v	the value in a default format
-	when printing structs, the plus flag (%+v) adds field names
-%#v	a Go-syntax representation of the value
-%T	a Go-syntax representation of the type of the value
-%%	a literal percent sign; consumes no value
-----
-+
-._Boolean_:
-[,txt]
-----
-%t	the word true or false
-----
-+
-._Integer_:
-[,txt]
-----
-%b	base 2
-%c	the character represented by the corresponding Unicode code point
-%d	base 10
-%o	base 8
-%O	base 8 with 0o prefix
-%q	a single-quoted character literal safely escaped with Go syntax.
-%x	base 16, with lower-case letters for a-f
-%X	base 16, with upper-case letters for A-F
-%U	Unicode format: U+1234; same as "U+%04X"
-----
-+
-._Floating-point and complex constituents_:
-[,txt]
-----
-%b	decimalless scientific notation with exponent a power of two,
-	in the manner of strconv.FormatFloat with the 'b' format,
-	e.g. -123456p-78
-%e	scientific notation, e.g. -1.234456e+78
-%E	scientific notation, e.g. -1.234456E+78
-%f	decimal point but no exponent, e.g. 123.456
-%F	synonym for %f
-%g	%e for large exponents, %f otherwise. Precision is discussed below.
-%G	%E for large exponents, %F otherwise
-%x	hexadecimal notation (with decimal power of two exponent), e.g. -0x1.23abcp+20
-%X	upper-case hexadecimal notation, e.g. -0X1.23ABCP+20
-----
-+
-._String and slice of bytes (treated equivalently with these verbs)_:
-[,txt]
-----
-%s	the uninterpreted bytes of the string or slice
-%q	a double-quoted string safely escaped with Go syntax
-%x	base 16, lower-case, two characters per byte
-%X	base 16, upper-case, two characters per byte
-----
-+
-._Slice_:
-[,txt]
-----
-%p	address of 0th element in base 16 notation, with leading 0x
-----
-+
-._Pointer_:
-[,txt]
-----
-%p	base 16 notation, with leading 0x
-The %b, %d, %o, %x and %X verbs also work with pointers,
-formatting the value exactly as if it were an integer.
-----
-+
-._The default format for %v is_:
-[,txt]
-----
-bool:                    %t
-int, int8 etc.:          %d
-uint, uint8 etc.:        %d, %#x if printed with %#v
-float32, complex64, etc: %g
-string:                  %s
-chan:                    %p
-pointer:                 %p
-----
-+
-._For compound objects, the elements are printed using these rules, recursively, laid out like this_:
-+
-[,txt]
-----
-struct:             {field0 field1 ...}
-array, slice:       [elem0 elem1 ...]
-maps:               map[key1:value1 key2:value2 ...]
-pointer to above:   &{}, &[], &map[]
-----
-+
-._Other flags_:
-[,txt]
-----
-'+'	always print a sign for numeric values;
-	guarantee ASCII-only output for %q (%+q)
-'-'	pad with spaces on the right rather than the left (left-justify the field)
-'#'	alternate format: add leading 0b for binary (%#b), 0 for octal (%#o),
-	0x or 0X for hex (%#x or %#X); suppress 0x for %p (%#p);
-	for %q, print a raw (backquoted) string if strconv.CanBackquote
-	returns true;
-	always print a decimal point for %e, %E, %f, %F, %g and %G;
-	do not remove trailing zeros for %g and %G;
-	write e.g. U+0078 'x' if the character is printable for %U (%#U).
-' '	(space) leave a space for elided sign in numbers (% d);
-	put spaces between bytes printing strings or slices in hex (% x, % X)
-'0'	pad with leading zeros rather than spaces;
-	for numbers, this moves the padding after the sign;
-	ignored for strings, byte slices and byte arrays
-----
-
-* *Width* and *Precision*
-+
-** *_Width_* is specified by an optional decimal number immediately preceding the verb.
-+
-If absent, the width is whatever is necessary to represent the value.
-+
-** *_Precision_* is specified after the (optional) width by a period followed by a decimal number.
-+
-If no period is present, a default precision is used. A period with no following number specifies a precision of zero.
-+
-[,txt]
-----
-%f     default width, default precision
-%9f    width 9, default precision
-%.2f   default width, precision 2
-%9.2f  width 9, precision 2
-%9.f   width 9, precision 0
-----
-
-* type *Stringer*
-+
-[,go]
-----
-type Stringer interface {
-	String() string
-}
-----
-+
-`Stringer` is implemented by any value that has a `String` method, which defines the "native" format for that value.
-+
-The `String` method is used to print values passed as an operand to any format that accepts a string or to an unformatted printer such as `Print`. 
-+
-[,go]
-----
-// Animal has a Name and an Age to represent an animal.
-type Animal struct {
-	Name string
-	Age  uint
-}
-
-// String makes Animal satisfy the Stringer interface.
-func (a Animal) String() string {
-	return fmt.Sprintf("%v (%d)", a.Name, a.Age)
-}
-
-func main() {
-	a := Animal{
-		Name: "Gopher",
-		Age:  2,
-	}
-	fmt.Println(a)
-	// Output:
-	// Gopher (2)
-}
-----
-
 == Initialization
 
 === Constants
@@ -2252,30 +2101,291 @@ $ go env GOPROXY # https://goproxy.cn,direct
 $ go help gopath
 ----
 
+== Printf
+
+Package `fmt` implements formatted I/O with functions analogous to C's _printf_ and _scanf_.<<PKGFMT>>
+
+=== The Printing verbs
+
+._General_:
+[source,txt]
+----
+%v	the value in a default format
+	when printing structs, the plus flag (%+v) adds field names
+%#v	a Go-syntax representation of the value
+%T	a Go-syntax representation of the type of the value
+%%	a literal percent sign; consumes no value
+----
+
+[source,go]
+----
+type Pointer struct {
+	X int
+	Y int
+}
+
+func main() {
+	p := Pointer{3, 4}
+	fmt.Printf("%%v: %v\n", p)
+	fmt.Printf("%%+v: %+v\n", p)
+	fmt.Printf("%%#v: %#v\n", p)
+	fmt.Printf("%%T: %T\n", p)
+}
+
+// Output:
+// %v: {3 4}
+// %+v: {X:3 Y:4}
+// %#v: main.Pointer{X:3, Y:4}
+// %T: main.Pointer
+----
+
+._Boolean_:
+[source,txt]
+----
+%t	the word true or false
+----
+
+
+
+._Integer_:
+[,txt]
+----
+%b	base 2
+%c	the character represented by the corresponding Unicode code point
+%d	base 10
+%o	base 8
+%O	base 8 with 0o prefix
+%q	a single-quoted character literal safely escaped with Go syntax.
+%x	base 16, with lower-case letters for a-f
+%X	base 16, with upper-case letters for A-F
+%U	Unicode format: U+1234; same as "U+%04X"
+----
+
+[source,go]
+----
+func main() {
+	n := 1234
+	fmt.Printf("%%b: %b\n", n)
+	fmt.Printf("%%c: %c\n", n)
+	fmt.Printf("%%d: %d\n", n)
+	fmt.Printf("%%o: %o\n", n)
+	fmt.Printf("%%O: %O\n", n)
+	fmt.Printf("%%q: %q\n", n)
+	fmt.Printf("%%x: %x\n", n)
+	fmt.Printf("%%X: %X\n", n)
+	fmt.Printf("%%U: %U\n", n)
+}
+
+// Output:
+// %b: 10011010010
+// %c: Ӓ
+// %d: 1234
+// %o: 2322
+// %O: 0o2322
+// %q: 'Ӓ'
+// %x: 4d2
+// %X: 4D2
+// %U: U+04D2
+----
+
+._Floating-point and complex constituents_:
+[,subs="+quotes"]
+----
+%b	decimalless scientific notation with exponent a power of two,
+	in the manner of _strconv.FormatFloat_ with the 'b' format,
+	e.g. -123456p-78
+%e	scientific notation, e.g. -1.234456e+78
+%E	scientific notation, e.g. -1.234456E+78
+%f	decimal point but no exponent, e.g. 123.456
+%F	synonym for %f
+%g	%e for large exponents, %f otherwise. Precision is discussed below.
+%G	%E for large exponents, %F otherwise
+%x	hexadecimal notation (with decimal power of two exponent), e.g. -0x1.23abcp+20
+%X	upper-case hexadecimal notation, e.g. -0X1.23ABCP+20
+----
+
+[source,go]
+----
+func main() {
+	n := -123456.789
+	fmt.Printf("%%b: %b\n", n)
+	fmt.Printf("%%e: %e\n", n)
+	fmt.Printf("%%E: %E\n", n)
+	fmt.Printf("%%f: %f\n", n)
+	fmt.Printf("%%F: %F\n", n)
+	fmt.Printf("%%g: %g\n", n)
+	fmt.Printf("%%G: %G\n", n)
+	fmt.Printf("%%x: %x\n", n)
+	fmt.Printf("%%X: %X\n", n)
+}
+
+// Output:
+// %b: -8483885939586761p-36
+// %e: -1.234568e+05
+// %E: -1.234568E+05
+// %f: -123456.789000
+// %F: -123456.789000
+// %g: -123456.789
+// %G: -123456.789
+// %x: -0x1.e240c9fbe76c9p+16
+// %X: -0X1.E240C9FBE76C9P+16
+----
+
+._String and slice of bytes (treated equivalently with these verbs)_:
+[,txt]
+----
+%s	the uninterpreted bytes of the string or slice
+%q	a double-quoted string safely escaped with Go syntax
+%x	base 16, lower-case, two characters per byte
+%X	base 16, upper-case, two characters per byte
+----
+
+._Slice_:
+[,txt]
+----
+%p	address of 0th element in base 16 notation, with leading 0x
+----
+
+._Pointer_:
+[,txt]
+----
+%p	base 16 notation, with leading 0x
+The %b, %d, %o, %x and %X verbs also work with pointers,
+formatting the value exactly as if it were an integer.
+----
+
+._The default format for `%v` is_:
+[,txt]
+----
+bool:                    %t
+int, int8 etc.:          %d
+uint, uint8 etc.:        %d, %#x if printed with %#v
+float32, complex64, etc: %g
+string:                  %s
+chan:                    %p
+pointer:                 %p
+----
+
+._For compound objects, the elements are printed using these rules, recursively, laid out like this_:
+[,txt]
+----
+struct:             {field0 field1 ...}
+array, slice:       [elem0 elem1 ...]
+maps:               map[key1:value1 key2:value2 ...]
+pointer to above:   &{}, &[], &map[]
+----
+
+._Other flags_:
+[,txt]
+----
+'+'	always print a sign for numeric values;
+	guarantee ASCII-only output for %q (%+q)
+'-'	pad with spaces on the right rather than the left (left-justify the field)
+'#'	alternate format: add leading 0b for binary (%#b), 0 for octal (%#o),
+	0x or 0X for hex (%#x or %#X); suppress 0x for %p (%#p);
+	for %q, print a raw (backquoted) string if strconv.CanBackquote
+	returns true;
+	always print a decimal point for %e, %E, %f, %F, %g and %G;
+	do not remove trailing zeros for %g and %G;
+	write e.g. U+0078 'x' if the character is printable for %U (%#U).
+' '	(space) leave a space for elided sign in numbers (% d);
+	put spaces between bytes printing strings or slices in hex (% x, % X)
+'0'	pad with leading zeros rather than spaces;
+	for numbers, this moves the padding after the sign;
+	ignored for strings, byte slices and byte arrays
+----
+
+[source,go]
+----
+func main() {
+	n := 123
+	fmt.Printf("%+06d\n", n)
+}
+
+// Output:
+// +00123
+----
+
+=== Width and Precision
+
+** *_Width_* is specified by an optional decimal number immediately preceding the verb.
++
+If absent, the width is whatever is necessary to represent the value.
++
+** *_Precision_* is specified after the (optional) width by a period followed by a decimal number.
++
+If no period is present, a default precision is used. A period with no following number specifies a precision of zero.
++
+[,txt]
+----
+%f     default width, default precision
+%9f    width 9, default precision
+%.2f   default width, precision 2
+%9.2f  width 9, precision 2
+%9.f   width 9, precision 0
+----
+
+=== Stringer
+
+[source,go]
+----
+type Stringer interface {
+	String() string
+}
+----
+
+`Stringer` is implemented by any value that has a `String` method, which defines the "native" format for that value.
+
+The `String` method is used to print values passed as an operand to any format that accepts a string or to an unformatted printer such as `Print`. 
+
+[source,go]
+----
+// Animal has a Name and an Age to represent an animal.
+type Animal struct {
+	Name string
+	Age  uint
+}
+
+// String makes Animal satisfy the Stringer interface.
+func (a Animal) String() string {
+	return fmt.Sprintf("%v (%d)", a.Name, a.Age)
+}
+
+func main() {
+	a := Animal{
+		Name: "Gopher",
+		Age:  2,
+	}
+	fmt.Println(a)
+	// Output:
+	// Gopher (2)
+}
+----
+
+[bibliography]
 == References
 
-. https://github.com/golang/go/wiki/Iota
-. https://go.dev/ref/spec#Iota
-. https://stackoverflow.com/questions/24790175/when-is-the-init-function-run
-. https://go.dev/doc/effective_go.html
-. https://go.dev/blog/strings
-. https://go.dev/blog/maps
-. https://go.dev/tour/generics/1
-. https://pkg.go.dev/fmt
-. https://go.dev/ref/mem
-. https://talks.golang.org/2012/concurrency.slide
-. https://groups.google.com/g/golang-nuts/c/pZwdYRGxCIk/m/qpbHxRRPJdUJ
-. link:/2017/05/15/capturing-iteration-variables-in-go-language/[Capturing Iteration Variables in Go Language]
-. link:/2017/05/15/errors-in-go-language/[Errors in Go language]
-. link:/2017/05/21/object-oriented-programming-in-go-language/[Object-oriented Programming in Go Language]
-. link:/2017/06/11/goroutines-and-channels-in-go-lanugage/[Goroutines and Channels in Go Lanugage]
-. link:/2017/06/17/concurrency-with-shared-variables-in-go-language/[Concurrency with Shared Variables in Go Language]
-. link:/2017/07/01/testing-in-go-language/[Testing in Go Language]
-. https://research.swtch.com/vgo-import
-. https://semver.org/
-. https://research.swtch.com/vgo-import
-. https://research.swtch.com/vgo-module
-. https://research.swtch.com/vgo-mvs
-. https://github.com/golang/go/wiki/Modules
-. https://medium.com/@adiach3nko/package-management-with-go-modules-the-pragmatic-guide-c831b4eaaf31
-. https://dave.cheney.net/practical-go/presentations/qcon-china.html[Practical Go: Real world advice for writing maintainable Go programs]
+* [[[WIKIIOTA]]] https://github.com/golang/go/wiki/Iota
+* [[[SPECIOTA]]] https://go.dev/ref/spec#Iota
+* [[[INITSO]]] https://stackoverflow.com/questions/24790175/when-is-the-init-function-run
+* [[[EFFECTIVEGO]]] https://go.dev/doc/effective_go.html
+* [[[BLOGSTRINGS]]] https://go.dev/blog/strings
+* [[[BLOGMAPS]]] https://go.dev/blog/maps
+* [[[TOURGENERICS]]] https://go.dev/tour/generics/1
+* [[[PKGFMT]]] https://pkg.go.dev/fmt
+* [[[REFMEM]]] https://go.dev/ref/mem
+* [[[TALKSCONCURRENCY]]] https://talks.golang.org/2012/concurrency.slide
+* [[[CHANNELCLOSING]]] https://groups.google.com/g/golang-nuts/c/pZwdYRGxCIk/m/qpbHxRRPJdUJ
+* [[[CAPITERVAR]]] link:/2017/05/15/capturing-iteration-variables-in-go-language/[Capturing Iteration Variables in Go Language]
+* [[[ERRORS]]] link:/2017/05/15/errors-in-go-language/[Errors in Go language]
+* [[[GOOOP]]] link:/2017/05/21/object-oriented-programming-in-go-language/[Object-oriented Programming in Go Language]
+* [[[GOCHANNELS]]] link:/2017/06/11/goroutines-and-channels-in-go-lanugage/[Goroutines and Channels in Go Lanugage]
+* [[[SHAREDVAR]]] link:/2017/06/17/concurrency-with-shared-variables-in-go-language/[Concurrency with Shared Variables in Go Language]
+* [[[GOTESTING]]] link:/2017/07/01/testing-in-go-language/[Testing in Go Language]
+* [[[SEMVER]]] https://semver.org/
+* [[[VGOIMPORT]]] https://research.swtch.com/vgo-import
+* [[[VGOMODULE]]] https://research.swtch.com/vgo-module
+* [[[VGOMVS]]] https://research.swtch.com/vgo-mvs
+* [[[WIKIMODULES]]] https://github.com/golang/go/wiki/Modules
+* [[[MEDIUMGOMODULES]]] https://medium.com/@adiach3nko/package-management-with-go-modules-the-pragmatic-guide-c831b4eaaf31
+* [[[DAVEPRACTICALGO]]] https://dave.cheney.net/practical-go/presentations/qcon-china.html[Practical Go: Real world advice for writing maintainable Go programs]
