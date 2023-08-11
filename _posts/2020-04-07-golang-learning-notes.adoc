@@ -915,27 +915,21 @@ func (b *Writer) Write(p []byte) (nn int, err error)
 
 === Interfaces
 
-An interface type defines a _type set_.
+An interface type defines a *type set*.
 
-* A variable of interface type can store a value of any type that is in the type set of the interface.
-
-* Such a type is said to _implement the interface_.
+* A variable of interface type can store a value of any type that is in the type set of the interface. Such a type is said to _implement the interface_.
 
 * The value of an uninitialized variable of interface type is `nil`.
 
-An interface type is specified by a list of _interface elements_.
+* An interface type is specified by a list of *interface elements*.
++
+An interface element is either a *method* or a *type* element, where a type element is a union of one or more type terms. A type term is either a single type or a single underlying type. 
 
-* An interface element is either a _method_ or a _type element_, where a type element is a union of one or more type terms.
-
-* A _type term_ is either a single type or a single _underlying type_. 
-
-Interfaces in Go provide a way to specify the behavior of an object: if something can do _this_, then it can be used _here_.
+Interfaces in Go provide a way to specify the behavior of an object: _if something can do this, then it can be used here_.
 
 *Interfaces are implemented implicitly*
 
-* A type implements an interface by implementing its methods.
-+
-There is no explicit declaration of intent, no "implements" keyword.
+* A type implements an interface by implementing its methods. There is no explicit declaration of intent, no "implements" keyword.
 
 * Implicit interfaces decouple the definition of an interface from its implementation, which could then appear in any package without prearrangement.
 
@@ -943,21 +937,24 @@ There is no explicit declaration of intent, no "implements" keyword.
 
 * Under the hood, interface values can be thought of as a tuple of a value and a concrete type:
 +
+An interface value holds a value of a specific underlying concrete type.
++
 [,subs="+quotes"]
 ----
 _(value, type)_
 ----
 
-* An interface value holds a value of a specific underlying concrete type.
 * Calling a method on an interface value executes the method of the same name on its underlying type.
 
 *Interface values with nil underlying values*
 
-* If the concrete value inside the interface itself is nil, the method will be called with a nil receiver.
+* If the concrete value inside the interface itself is nil, the method will be called with a *nil receiver*.
+
 * In some languages this would trigger a null pointer exception, but in Go it is common to write methods that gracefully handle being called with a nil receiver.
+
 * Note that an interface value that holds a nil concrete value is itself non-nil.
 +
-[,go]
+[source,go]
 ----
 type I interface {
 	M()
@@ -967,27 +964,28 @@ type T struct{}
 
 func (t *T) M() {
 	if t == nil {
-		fmt.Println("<nil>")
+		fmt.Println("<nil receiver>")
 		return
 	}
 }
 
 func main() {
-	var i I
+	var i I // `i` is nil
+	// i.M() // runtime error: invalid memory address or nil pointer dereference
 	var t *T
-	i = t
+	i = t // `i` is not nil, but the concrete type `t` is nil
 	i.M()
-	fmt.Printf("(%v, %T)\n", i, i)
+	fmt.Printf("%v, %T\n", i, i)
 
-	i = &T{}
+	i = &T{} // the concrete type `t` is not nil
 	i.M()
-	fmt.Printf("(%v, %T)\n", i, i)
-
-	// Output:
-	// <nil>
-	// (<nil>, *main.T)
-	// (&{}, *main.T)
+	fmt.Printf("%v, %T\n", i, i)
 }
+
+// Output:
+// <nil receiver>
+// <nil>, *main.T
+// &{}, *main.T
 ----
 
 *Nil interface values*
@@ -1025,41 +1023,152 @@ package builtin // import "builtin"
 type any = interface{}
     any is an alias for interface{} and is equivalent to interface{} in all
     ways.
+----
 
-func recover() any
+*Basic interfaces*
+
+* Interfaces whose type sets can be defined entirely by a list of methods are called *basic interfaces*.
++
+[source,go]
+----
+// A simple File interface.
+interface {
+	Read([]byte) (int, error)
+	Write([]byte) (int, error)
+	Close() error
+}
+----
+
+*Embedded interfaces*
+
+* In a slightly more general form an interface T may use a (possibly qualified) interface type name E as an interface element, which is called *embedding* interface E in T.
+
+* The type set of T is the *intersection* of the type sets defined by T's explicitly declared methods and the type sets of T’s embedded interfaces.
++
+In other words, the type set of T is the set of all types that implement all the explicitly declared methods of T and also all the methods of E. 
++
+[source,go]
+----
+type Reader interface {
+	Read(p []byte) (n int, err error)
+	Close() error
+}
+
+type Writer interface {
+	Write(p []byte) (n int, err error)
+	Close() error
+}
+
+// ReadWriter's methods are Read, Write, and Close.
+type ReadWriter interface {
+	Reader  // includes methods of Reader in ReadWriter's method set
+	Writer  // includes methods of Writer in ReadWriter's method set
+}
+----
+
+*  When embedding interfaces, methods with the same names must have identical signatures.
++
+[source,go]
+----
+type ReadCloser interface {
+	Reader   // includes methods of Reader in ReadCloser's method set
+	Close()  // illegal: signatures of Reader.Close and Close are different
+}
 ----
 
 *General interfaces*
 
-* In their most general form, an interface element may also be an arbitrary type term `T`, or a term of the form `~T` specifying the underlying type `T`, or a union of terms `t1|t2|…|tn`.
+> Azure AI | ChatGPT 4
+>
+> In Go, *general interfaces* are used to define *type constraints* for *type parameters* in *generic* functions and data structures. [ChatGpt4]
+>
+> [source,go]
+> ----
+> // Comparable is an interface that defines a type constraint using
+> // a union of types (int, float64, and string). This means that a
+> // type parameter satisfying the Comparable constraint must be one
+> // of these types.
+> type Comparable interface {
+> 	int | float64 | string
+> }
+> 
+> // The Max function is defined as a generic function using the type
+> // parameter T. The type parameter is specified within square brackets
+> // ([T Comparable]). It means that the function can work with any type
+> // T that satisfies the Comparable constraint.
+> func Max[T Comparable](a, b T) T {
+> 	if a > b {
+> 		return a
+> 	}
+> 	return b
+> }
+> 
+> // The Max function is called with different types of arguments (int,
+> // float64, and string). The type parameter T is replaced with the actual
+> // type of the arguments at each call, allowing the function to work with
+> // different types while maintaining type safety.
+> func main() {
+> 	fmt.Println(Max(3, 4))           // int
+> 	fmt.Println(Max(2.5, 3.7))       // float64
+> 	fmt.Println(Max("apple", "cat")) // string
+> }
+> ----
+>
+> In summary, while you can't assign a concrete type to a general interface, general interfaces are used to specify what types can be used with a generic function or data structure.
+>
+> These type constraints allow you to create flexible and reusable generic code while maintaining type safety.
+
+* In their most general form, an interface element may also be an arbitrary type term `T`, or a term of the form `~T` specifying the *underlying type* `T`, or a union of terms `t1|t2|…|tn`.
+
 * By construction, an interface's type set never contains an interface type.
 +
 [,go]
 ----
 // An interface representing only the type int.
-type I0 interface {
+interface {
 	int
 }
 
 // An interface representing all types with underlying type int.
-type I1 interface {
+interface {
 	~int
 }
 
 // An interface representing all types with underlying type int that implement the String method.
-type I2 interface {
+interface {
 	~int
 	String() string
 }
 
 // An interface representing an empty type set: there is no type that is both an int and a string.
-type I3 interface {
+//
+// This code defines an interface that no concrete type satisfies because there is no type that is
+// both an int and a string. It is not the same as an empty interface (interface{}), which any type
+// can satisfy. This code snippet is used to illustrate the concept of an unsatisfiable interface
+// in the Go language specification. (Azure AI | ChatGPT 4)
+// 
+// While this interface can be compiled, it cannot be used in practical terms because no type can
+// satisfy the constraints. It's a theoretical construct to show the capabilities and limitations of
+// the type constraint system in Go. (Azure AI | ChatGPT 4)
+interface {
 	int
 	string
 }
 ----
 
 * In a term of the form `~T`, the underlying type of `T` must be itself, and `T` cannot be an interface.
++
+--
+> Azure AI | ChatGPT 4
+>
+> The tilde symbol `~` defines a type set constraint that includes the underlying type of T as well as any other types whose underlying type is the same as T.
+>
+> In this context, "underlying type" refers to the actual type without any type aliases or defined types based on it.
+>
+> * "The underlying type of T must be itself": This means that when defining a type set constraint using `~T`, the type T must not be a type alias or a defined type based on another type. Instead, T must be a "base" type, such as int, float64, or a struct type.
+>
+> * "T cannot be an interface": This condition states that the type T in a type set constraint using ~T should not be an interface type. This is because interface types don't have a specific underlying type that can be used in the type set definition.
+--
 +
 [,go]
 ----
@@ -1087,8 +1196,11 @@ type Float interface {
 *Generality*
 
 * If a type exists only to implement an interface and will never have exported methods beyond that interface, there is no need to export the type itself.
+
 * Exporting just the interface makes it clear the value has no interesting behavior beyond what is described in the interface.
+
 * It also avoids the need to repeat the documentation on every instance of a common method.
+
 * In such cases, the constructor should return an interface value rather than the implementing type.
 
 *Interface conversions and type assertions*
@@ -1104,7 +1216,7 @@ This statement asserts that the interface value `i` holds the concrete type `T` 
 +
 If `i` does not hold a `T`, the statement will trigger a panic.
 
-* To _test_ whether an interface value holds a specific type, a type assertion can return two values: the underlying value and a boolean value that reports whether the assertion succeeded.
+* To test whether an interface value holds a specific type, a type assertion can return two values: the underlying value and a boolean value that reports whether the assertion succeeded.
 +
 [,go]
 ----
@@ -1385,7 +1497,7 @@ f := float64(i)
 u := uint(f)
 ----
 
-=== Type parameters and Generics
+=== Type parameters and generics
 
 Go functions can be written to work on multiple types using type parameters. The type parameters of a function appear between brackets, before the function's arguments.
 
@@ -1497,6 +1609,12 @@ func main() {
 	// max: 60
 }
 ----
+
+=== Type declarations
+
+A type declaration binds an identifier, the type name, to a type. Type declarations come in two forms: alias declarations and type definitions. 
+
+// TODO
 
 == Initialization
 
