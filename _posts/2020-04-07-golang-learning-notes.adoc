@@ -2,7 +2,7 @@
 :page-categories: ["go"]
 :page-date: 2020-04-07 09:24:39 +0800
 :page-layout: post
-:page-revdate: 2022-06-13 08:49:20 +0800
+:page-revdate: Mon Aug 14 06:25:34 PM CST 2023
 :page-tags: ["go"]
 :toc:
 :toclevels: 5
@@ -1905,26 +1905,47 @@ The zero value is:
 === Race Conditions
 
 * A *race condition* is a situation in which the program does not give the correct result for some interleaving of the operations of multiple goroutines.
-* A *data race*, that is, a particular kind of race condition, occurs whenever two goroutines access the same variable concurrently and at least one of the accesses is a write.
+
+* A *data race*, that is, a particular kind of race condition, occurs whenever two goroutines access the same variable concurrently and at least one of the accesses is a write. It follows from this definition that there are three ways to avoid a data race.
 +
-It follows from this definition that there are three ways to avoid a data race.
+--
+> Azure Open AI | ChatGPT4
+>
+> Other race conditions include deadlocks, livelocks, and starvation.
+> 
+> *Deadlocks* occur when two or more processes are waiting for each other to release resources that they need to continue executing.
+> 
+> *Livelocks* occur when two or more processes are constantly changing their state in response to the actions of the other process, without making any progress towards their goal.
+> 
+> A livelock is a situation where two or more processes or threads are actively trying to resolve a conflict but end up repeatedly yielding to each other, resulting in no progress being made. Livelocks are similar to deadlocks in that they both involve processes being stuck, but livelocks involve active, ongoing attempts to resolve the problem, whereas deadlocks involve processes waiting for resources.
+> 
+> Here's an example of a livelock:
+> 
+> Imagine two people, Alice and Bob, walking in a narrow corridor towards each other. When they meet in the middle, they both step aside to let the other person pass. However, they both step in the same direction. Realizing this, they both step back to their original positions and try again, but they continue to step in the same direction each time. This results in a livelock, as they are both actively trying to resolve the situation but end up yielding to each other without making progress.
+> 
+> *Starvation* occurs when a process is prevented from accessing the resources it needs to execute, either because other processes are monopolizing those resources or because the system is not allocating resources fairly.
+--
 
 ** The first way is not to write the variable.
+
 ** The second way (_channels: share memory by communication_) to avoid a data race is to avoid accessing the variable from multiple goroutines.
+
 ** The third way (_mutual exclusion_: `sync.Mutex`, `sync.RWMutex`) to avoid a data race is to allow many goroutines to access the variable, but only one at a time.
 
 * Synchronization is about more than just the order of execution of multiple goroutines; synchronization also affets memory.
 
 === Race Detector
 
-* The race detector (just add the `-race` flag to your `go build`, `go run`, or `go test` command) studies this steam of events, looking for cases in which one goroutine reads or writes a shared variables that was most recently written by a different goroutine without an intervening synchronization operation.
-* The race detector reports all data races that wre actually executed. However, it can only detect race conditions that occur during a run; it cannot prove that none will ever occur.
+* The *race detector* (just add the `-race` flag to your `go build`, `go run`, or `go test` command) studies this steam of events, looking for cases in which one goroutine reads or writes a shared variables that was most recently written by a different goroutine without an intervening synchronization operation.
+
+* The race detector reports all data races that wre actually executed.
 +
-[,go]
+NOTE: However, it can only detect race conditions that occur during a run; it cannot prove that none will ever occur.
++
+[source,go,linenums,start=8]
 ----
 func main() {
 	var wg sync.WaitGroup
-
 	var x, y int
 
 	wg.Add(1)
@@ -1945,54 +1966,78 @@ func main() {
 }
 ----
 +
-[,sh]
+[source,console,highlight="5,9,16,20"]
 ----
 $ go run -race race.go
-----
-+
-[,console,highlight="4,8,22,26"]
-----
 x = 0
 ==================
 WARNING: DATA RACE
-Write at 0x00c0000a6020 by goroutine 7:
+Write at 0x00c0000160c8 by goroutine 7:
   main.main.func1()
-      /tmp/race.go:16 +0x8a
+      /home/x/learn/go/race.go:15 +0xaa
 
-Previous read at 0x00c0000a6020 by goroutine 8:
+Previous read at 0x00c0000160c8 by goroutine 8:
   main.main.func2()
-      /tmp/race.go:24 +0xaa
-
-Goroutine 7 (running) created at:
-  main.main()
-      /tmp/race.go:14 +0x119
-
-Goroutine 8 (finished) created at:
-  main.main()
-      /tmp/race.go:21 +0x166
+      /home/x/learn/go/race.go:23 +0xcf
+...
 ==================
 ==================
 WARNING: DATA RACE
-Read at 0x00c0000a6028 by goroutine 7:
+Read at 0x00c0000160d8 by goroutine 7:
   main.main.func1()
-      /tmp/race.go:17 +0xaa
+      /home/x/learn/go/race.go:16 +0xcf
 
-Previous write at 0x00c0000a6028 by goroutine 8:
+Previous write at 0x00c0000160d8 by goroutine 8:
   main.main.func2()
-      /tmp/race.go:23 +0x8a
-
-Goroutine 7 (running) created at:
-  main.main()
-      /tmp/race.go:14 +0x119
-
-Goroutine 8 (finished) created at:
-  main.main()
-      /tmp/race.go:21 +0x166
+      /home/x/learn/go/race.go:22 +0xaa
 ==================
 y = 1
 Found 2 data race(s)
 exit status 66
 ----
+
+
+.Azure Open AI | ChatGPT4
+[NOTE]
+====
+When you run a Go program with the `-race` flag, the Go race detector instruments the code to monitor concurrent access to shared variables. If it detects a race condition, it generates a report with detailed information about the issue. The output of the `-race` flag typically consists of the following parts:
+
+. A summary of the data race, indicating that it is a "DATA RACE."
+. A description of the current operation (read or write) that caused the race, including the memory address, the source code file, and the line number.
+. The current goroutine involved in the race, including its number and the stack trace.
+. A description of the previous conflicting operation (read or write) on the same memory address, including the source code file and the line number.
+. The previous goroutine involved in the race, including its number and the stack trace.
+
+For example, consider the following output:
+
+[source,console]
+----
+WARNING: DATA RACE  
+Write at 0x00c0000160c8 by goroutine 7:  
+  main.main.func1()  
+      /path/to/your/code/main.go:16 +0x6a  
+  
+Previous read at 0x00c0000160c8 by goroutine 8:  
+  main.main.func2()  
+      /path/to/your/code/main.go:22 +0x3e  
+----
+
+ 
+This output can be interpreted as follows:
+
+. The race detector has identified a data race.
+
+. A write operation occurred at memory address `0x00c0000160c8` by goroutine 7. The operation happened in the function `main.main.func1()` in the source code file main.go at line 16.
+
+. The current goroutine 7 is shown along with the stack trace.
+
+. A previous read operation occurred at the same memory address `0x00c0000160c8` by goroutine 8. The operation happened in the function `main.main.func2()` in the source code file main.go at line 22.
+
+. The previous goroutine 8 is shown along with the stack trace.
+
+Using this information, you can identify the source code lines and goroutines involved in the race condition and take appropriate action to fix the issue, such as adding proper synchronization mechanisms like mutexes or channels.
+====
+
 
 === Happen before
 
@@ -2004,17 +2049,17 @@ exit status 66
 +
 For example, if one goroutine executes `a = 1; b = 2`;, another might observe the updated value of `b` before the updated value of `a`.
 
-* To specify the requirements of reads and writes, we define *_happens before_*, a partial order on the execution of memory operations in a Go program.
+* To specify the requirements of reads and writes, we define *happens before*, a _partial order_ on the execution of memory operations in a Go program.
 +
 If event _e1_ happens before event _e2_, then we say that _e2_ happens after _e1_.
 +
-Also, if _e1_ does not happen before _e2_ and does not happen after _e2_, then we say that _e1_ and _e2_ *_happen concurrently_*.
+Also, if _e1_ does not happen before _e2_ and does not happen after _e2_, then we say that _e1_ and _e2_ *happen concurrently*.
 
 * Within a single goroutine, the happens-before order is the order expressed by the program.
 
 * Programs that modify data being simultaneously accessed by multiple goroutines must serialize such access.
-+
-To serialize access, protect the data with *_channel operations_* or other *_synchronization primitives_* such as those in the `sync` and `sync/atomic` packages.
+
+* To serialize access, protect the data with *channel operations* or other *synchronization primitives* such as those in the `sync` and `sync/atomic` packages.
 
 === Share by communicating
 
@@ -2029,32 +2074,26 @@ To serialize access, protect the data with *_channel operations_* or other *_syn
 ** Now run another such instance; it too needs no synchronization.
 ** Now let those two communicate; if the communication is the synchronizer, there's still no need for other synchronization.
 ** Unix pipelines, for example, fit this model perfectly.
-** Although Go's approach to concurrency originates in Hoare's _Communicating Sequential Processes_ (CSP), it can also be seen as a type-safe generalization of Unix pipes.
+** Although Go's approach to concurrency originates in Hoare's *Communicating Sequential Processes* (CSP), it can also be seen as a type-safe generalization of Unix pipes.
 
 === Goroutines
 
-ref: https://talks.golang.org/2012/concurrency.slide
-
 * A goroutine has a simple model: it is a function executing concurrently with other goroutines in the same address space.
 
-** It is lightweight, costing little more than the allocation of stack space.
+** It is lightweight, costing little more than the allocation of stack space. <<TALKSCONCURRENCY>>
+
 ** And the stacks start small, so they are cheap, and grow by allocating (and freeing) heap storage as required.
 
 * Goroutines are multiplexed onto multiple OS threads so if one should block, such as while waiting for I/O, others continue to run.
 
 ** Their design hides many of the complexities of thread creation and management.
+
 ** Prefix a function or method call with the `go` keyword to run the call in a new goroutine. When the call completes, the goroutine exits, silently.
+
 ** The evaluation of `f`, `x`, `y`, and `z` of `go f(x, y, z)` happens in the current goroutine and the execution of `f` happens in the new goroutine.
 +
-[,go]
+[source,go]
 ----
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
 func main() {
 	// All function values created by this loop “capture”
 	// and share the same variable—an addressable storage location,
@@ -2064,9 +2103,7 @@ func main() {
 			fmt.Print(i, " ")
 		}()
 	}
-
 	time.Sleep(time.Millisecond)
-
 	fmt.Println()
 
 	for i := 0; i < 5; i++ {
@@ -2075,7 +2112,6 @@ func main() {
 			fmt.Print(i, " ")
 		}()
 	}
-
 	time.Sleep(time.Millisecond)
 
 	// Output:
@@ -2084,14 +2120,31 @@ func main() {
 }
 ----
 
+*Best number of goroutines in a process*
+
+There is no one-size-fits-all answer to the best number of goroutines in a process, as it depends on various factors such as the nature of your application, the resources available on your system, and the level of parallelism your program can achieve. However, here are some general guidelines to help you determine the optimal number of goroutines: <<Azure Open AI | ChatGPT4>>
+
+* I/O-bound tasks: If your application performs tasks that are primarily I/O-bound, such as reading from or writing to disk, network, or other external resources, you can benefit from a higher number of goroutines. Since I/O-bound tasks often involve waiting for external resources, having more goroutines can help keep your application busy and utilize available CPU resources effectively. In this case, the optimal number of goroutines might be several times the number of available CPU cores.
+
+* CPU-bound tasks: If your application performs tasks that are primarily CPU-bound, such as complex calculations or data processing, you may not benefit from a higher number of goroutines than the number of available CPU cores. Having more goroutines than CPU cores can lead to frequent context switching, which can hurt performance. In this case, the optimal number of goroutines might be close to the number of available CPU cores.
+
+* Workload characteristics: The best number of goroutines also depends on the specific characteristics of your application's workload. For example, if your application has a mix of I/O-bound and CPU-bound tasks, or if it has varying resource requirements over time, you might need to experiment with different numbers of goroutines to find the optimal balance.
+
+* Resource availability: The optimal number of goroutines also depends on the resources available on your system, such as CPU, memory, and I/O capacity. If your system is constrained in terms of resources, you may need to limit the number of goroutines to avoid exhausting system resources and causing performance issues.
+
+When there are many Go processes running on the same operating system, it is essential to consider the overall resource usage of the entire system. Running multiple Go processes with a large number of goroutines can lead to contention for system resources, such as CPU, memory, and I/O capacity. In this case, it might be necessary to limit the number of goroutines per process or to distribute the processes across multiple machines to ensure optimal performance.
+
+Ultimately, the best way to determine the optimal number of goroutines for your application is through benchmarking, monitoring, and profiling. By measuring the performance of your application under different conditions and configurations, you can make informed decisions about the appropriate number of goroutines and resource allocation.
+
 === Channels
 
 * Like maps, channels are allocated with `make`, and the resulting value acts as a reference to an underlying data structure.
 
 ** If an optional integer parameter is provided, it sets the buffer size for the channel.
+
 ** The default is zero, for an unbuffered or synchronous channel.
 +
-[,go]
+[source,go]
 ----
 ci := make(chan int)            // unbuffered channel of integers
 cj := make(chan int, 0)         // unbuffered channel of integers
@@ -2099,16 +2152,17 @@ cs := make(chan *os.File, 100)  // buffered channel of pointers to Files
 ----
 
 * Receivers always block until there is data to receive.
+
 * The sender blocks only until the value has been copied to the buffer;
+
 * A buffered channel can be used like a semaphore, for instance to limit throughput.
+
 * The assembly line metaphor (pipeline) is useful one for channels and goroutines.
 +
 ._ref http://golang.org/s/prime-sieve_
-[,go]
+[source,go]
 ----
 // A concurrent prime sieve
-
-package main
 
 // Send the sequence 2, 3, 4, ... to channel 'ch'.
 func Generate(ch chan<- int) {
@@ -2144,10 +2198,12 @@ func main() {
 
 === Parallelization
 
-* Be sure not to confuse the ideas of concurrency--structuring a program as independently executing components--and parallelism--executing calculations in parallel for efficiency on multiple CPUs.
-* Although the concurrency features of Go can make some problems easy to structure as parallel computations, Go is a concurrent language, not a parallel one, and not all parallelization problems fit Go's model.
-+
-[,console]
+Be sure not to confuse the ideas of concurrency--structuring a program as independently executing components--and parallelism--executing calculations in parallel for efficiency on multiple CPUs.
+
+Although the concurrency features of Go can make some problems easy to structure as parallel computations, Go is a concurrent language, not a parallel one, and not all parallelization problems fit Go's model.
+
+
+[source,console]
 ----
 package runtime // import "runtime"
 
@@ -2166,11 +2222,247 @@ func GOMAXPROCS(n int) int
     improves.
 ----
 
+=== Synchronization 
+
+In Go, synchronization is essential for ensuring safe concurrent execution of code and coordinating the activities of multiple goroutines. Go provides various synchronization primitives and constructs to facilitate communication between goroutines, protect access to shared resources, and manage concurrent execution. Here's a comprehensive introduction to synchronization in Go: <<Azure Open AI | ChatGPT4>>
+
+==== Channels
+
+Channels are the primary synchronization mechanism in Go and are used for communication between goroutines. They allow goroutines to send and receive values, which can be used for signaling or passing data. Channels provide a way to synchronize the execution of goroutines and ensure that data is safely shared without race conditions.
+
+[source,go]
+----
+// Creating a channel  
+ch := make(chan int)  
+  
+// Sending a value to a channel  
+ch <- 42  
+  
+// Receiving a value from a channel  
+value := <-ch  
+----
+
+* *Semaphores in Go?*
++
+Go does not provid semaphores as a dedicated primitive like `sync.Mutex` . Instead, they can be implemented using buffered channels.
++
+Semaphores are used to control access to a limited number of resources or to limit the degree of concurrency for a group of goroutines.
++
+Here's an example of how to implement a semaphore using a buffered channel in Go:
++
+[source,go]
+----
+const maxConcurrent = 3
+
+func main() {
+	var wg sync.WaitGroup
+	// Create a buffered channel to act as a semaphore
+	semaphore := make(chan struct{}, maxConcurrent)
+	// Simulate 10 tasks that need to be executed concurrently
+	for i := 1; i <= 10; i++ {
+		wg.Add(1)
+		go func(taskID int) {
+			defer wg.Done()
+			// Acquire the semaphore
+			semaphore <- struct{}{}
+			// Execute the task
+			fmt.Printf("Task %d started\n", taskID)
+			time.Sleep(1 * time.Second)
+			fmt.Printf("Task %d completed\n", taskID)
+			// Release the semaphore
+			<-semaphore
+		}(i)
+	}
+	wg.Wait()
+}
+----
+
+
+==== sync.Mutex
+
+A Mutex (short for "mutual exclusion",  /ˈmjuːtɛks/) is a synchronization primitive used to protect access to shared resources and ensure that only one goroutine can access the resource at a time.
+
+Mutexes help prevent race conditions when multiple goroutines attempt to modify shared state concurrently.
+
+[source,console]
+----
+// Defining a Mutex  
+var mu sync.Mutex  
+  
+// Locking and unlocking a Mutex  
+mu.Lock()  
+// access shared resource  
+mu.Unlock()  
+----
+
+==== sync.RWMutex
+
+An RWMutex (short for "read-write mutex") is similar to a Mutex but allows multiple readers to access a shared resource simultaneously, as long as no writer is accessing it.
+
+It provides two separate locks: a read lock and a write lock. Multiple goroutines can acquire read locks at the same time, but only one can acquire a write lock, and it must wait for all read locks to be released.
+
+[source,go]
+----
+// Defining an RWMutex  
+var rwMu sync.RWMutex  
+  
+// Locking and unlocking for reading  
+rwMu.RLock()  
+// read shared resource  
+rwMu.RUnlock()  
+  
+// Locking and unlocking for writing  
+rwMu.Lock()  
+// write to shared resource  
+rwMu.Unlock()  
+----
+
+==== sync.WaitGroup
+
+A WaitGroup is a synchronization construct used to wait for a collection of goroutines to finish execution, that is often used when you start multiple goroutines to perform tasks concurrently and need to wait for all of them to complete before proceeding.
+
+[source,go]
+----
+// Defining a WaitGroup  
+var wg sync.WaitGroup  
+  
+// Incrementing the WaitGroup counter  
+wg.Add(1)  
+  
+// Decrementing the WaitGroup counter (usually in a goroutine)  
+wg.Done()  
+  
+// Waiting for all goroutines to finish  
+wg.Wait()  
+----
+
+==== sync.Cond
+
+A Cond (short for "condition") is a synchronization primitive used to wait for or signal conditions.
+
+It is useful when one or more goroutines need to wait for a specific condition to be met before they can proceed.
+
+Conds are often used with a Mutex or RWMutex to protect access to the shared state being tested in the condition.
+
+[source,go]
+----
+// Defining a Cond with a Mutex  
+c := sync.NewCond(&sync.Mutex{})  
+  
+// Waiting for a condition  
+c.L.Lock()  
+// check condition  
+c.Wait()  
+c.L.Unlock()  
+  
+// Signaling a single waiting goroutine that the condition has been met  
+c.Signal()  
+  
+// Broadcasting to all waiting goroutines that the condition has been met  
+c.Broadcast()  
+----
+
+[source,go]
+----
+type Queue struct {
+	data []int
+	cond *sync.Cond
+}
+
+func NewQueue() *Queue {
+	return &Queue{
+		data: make([]int, 0),
+		cond: sync.NewCond(&sync.Mutex{}),
+	}
+}
+
+func (q *Queue) Enqueue(item int) {
+	q.cond.L.Lock()
+	q.data = append(q.data, item)
+	q.cond.L.Unlock()
+
+	q.cond.Signal() // Signal that an item has been added to the queue
+}
+
+func (q *Queue) Dequeue() int {
+	q.cond.L.Lock()
+	for len(q.data) == 0 {
+		q.cond.Wait() // Wait for an item to be added to the queue
+	}
+
+	item := q.data[0]
+	q.data = q.data[1:]
+	q.cond.L.Unlock()
+
+	return item
+}
+----
+
+==== sync.Once
+
+A Once is a synchronization construct used to ensure that a function is only executed once, regardless of how many goroutines attempt to call it, that is useful for initializing shared resources, such as global variables or singletons, in a concurrent environment.
+
+[source,go]
+----
+// Defining a Once  
+var once sync.Once  
+  
+// Executing a function only once, regardless of how many goroutines call it  
+once.Do(func() {  
+    // initialize shared resource  
+})  
+----
+
+==== sync.Map
+
+A Map is a concurrent, thread-safe map implementation provided by the `sync` package. It is designed for cases where the number of keys is large and their lifetimes are mostly unknown.
+
+Unlike the built-in map type, `sync.Map` provides safe concurrent access without requiring an additional synchronization mechanism like a Mutex.
+
+[source,go]
+----
+// Defining a sync.Map
+var m sync.Map
+
+// Storing a value in sync.Map
+m.Store("key", "value")
+
+// Loading a value from sync.Map
+value, ok := m.Load("key")
+
+// Deleting a value from sync.Map
+m.Delete("key")
+
+// Iterating over sync.Map
+m.Range(func(key, value interface{}) bool {  
+    fmt.Printf("key: %v, value: %v\n", key, value)  
+    return true  
+})
+----
+
+==== sync/atomic
+
+[source,txt]
+----
+package atomic // import "sync/atomic"
+
+Package atomic provides low-level atomic memory primitives useful for
+implementing synchronization algorithms.
+
+These functions require great care to be used correctly. Except for special,
+low-level applications, synchronization is better done with channels or the
+facilities of the sync package. Share memory by communicating; don't
+communicate by sharing memory.
+----
+
 == Errors
 
 * Library routines must often return some sort of error indication to the caller.
-* Go's multivalue return makes it easy to return a detailed error description alongside the normal return value.
+
+* Go's multi-value return makes it easy to return a detailed error description alongside the normal return value.
+
 * It is good style to use this feature to provide detailed error information.
+
 * By convention, errors have type `error`, a simple built-in interface.
 +
 [,go]
@@ -2221,8 +2513,8 @@ func panic(v interface{})
 
 * However, it is possible to use the built-in function `recover` to regain control of the goroutine and resume normal execution.
 * A call to `recover` stops the unwinding and returns the argument passed to panic.
-
-** Because the only code that runs while unwinding is inside deferred functions, recover is only useful inside deferred functions.
++
+Because the only code that runs while unwinding is inside deferred functions, recover is only useful inside deferred functions.
 +
 [,go]
 ----
@@ -2254,7 +2546,7 @@ func panic(v interface{})
 
 * In a package directory, files whose names end with `_test.go` are not part of the package ordinarily built by `go build` but are a part of it when built by `go test`.
 
-* Within _*_test.go_ files, four kinds of functions are treated specially: _tests_, _fuzzs_, _benchmarks_, and _examples_.
+* Within _+++*_test.go+++_ files, four kinds of functions are treated specially: _tests_, _fuzzs_, _benchmarks_, and _examples_.
 +
 --
 ** A *test function*, which is a function whose name begins with *_Test_*, exercises some program logic for correct behavior; `go test` calls the test function and report the result, which is either *_PASS_* or *_FAIL_*.
