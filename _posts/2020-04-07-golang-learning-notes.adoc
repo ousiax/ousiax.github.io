@@ -1326,19 +1326,70 @@ func main() {
 	// Read
 }
 ----
+
 * Embedding types introduces the problem of name conflicts but the rules to resolve them are simple.
+
 ** First, a field or method `X` hides any other item `X` in a more deeply nested part of the type.
+
 ** Second, if the same name appears at the same nesting level, it is usually an error.
 +
 However, if the duplicate name is never mentioned in the program outside the type definition, it is OK.
 +
 This qualification provides some protection against changes made to types embedded from outside; there is no problem if a field is added that conflicts with another field in another subtype if neither field is ever used.
 
+* Embedding and Composing (Not Embeeding)
++
+--
+*Embedding*:
+
+* Provides an "**is-a**" relationship where the outer struct or interface directly inherits the fields and methods of the embedded struct or interface.
+
+* Allows for easier and more direct access to the fields and methods of the embedded struct or interface, as they become part of the outer struct or interface.
+
+* Enhances code reuse and polymorphism by making the fields and methods of the embedded struct or interface available directly in the outer struct or interface.
+
+*Not Embedding* (*Composing*):
+
+* Provides a "**has-a**" relationship where the outer struct or interface holds instances of other structs or interfaces as separate fields.
+
+* Requires explicitly accessing the fields and methods of the inner structs or interfaces through the composed fields.
+
+* Keeps a clear separation between the fields and methods of the outer struct or interface and the inner structs or interfaces it holds.
++
+[source,go]
+----
+type Reader struct {
+}
+
+func (r *Reader) Read() {
+	fmt.Printf("Read.\n")
+}
+
+type Writer struct {
+}
+
+func Write() {
+	fmt.Printf("Write.\n")
+}
+
+type ReadWriter struct {
+	reader *Reader
+	writer *Writer
+}
+
+func main() {
+	rw := &ReadWriter{&Reader{}, &Writer{}}
+	rw.reader.Read() // Output: Read.
+	rw.Read()        // Compiler error: rw.Read undefined (type *ReadWriter has no field or method Read)
+}
+----
+--
+
 === Channels
 
 * Channels are a typed conduit through which you can send and receive values with the channel operator, `+<-+`.
 +
-[,go]
+[source,go]
 ----
 ch <- v    // Send v to channel ch.
 v := <-ch  // Receive from ch, and assign value to v.
@@ -1348,7 +1399,7 @@ v := <-ch  // Receive from ch, and assign value to v.
 
 * Like maps and slices, channels must be created before use:
 +
-[,go]
+[source,go]
 ----
 // By default, sends and receives block until the other side is ready.
 // This allows goroutines to synchronize without explicit locks or condition variables.
@@ -1367,7 +1418,7 @@ bufChan := make(chan int, 100)
 
 ** The multi-valued assignment form of the receive operator reports whether a received value was sent before the channel was closed.
 +
-[,go]
+[source,go]
 ----
 // ok is false if there are no more values to receive and the channel is closed.
 v, ok := <-ch
@@ -1389,7 +1440,7 @@ Closing is only necessary when the receiver must be told there are no more value
 
 * A channel may be constrained only to send or only to receive by assignment or explicit conversion.
 +
-[,go]
+[source,go]
 ----
 func main() {
 	var (
@@ -1423,7 +1474,7 @@ func main() {
 }
 ----
 +
-[,go]
+[source,go]
 ----
 func main() {
 	ch1 := make(chan int)
@@ -1482,80 +1533,60 @@ func main() {
 
 The expression `T(v)` converts the value `v` to the type `T`.
 
-[,go]
+[source,go]
 ----
 // Some numeric conversions:
-
 var i int = 42
 var f float64 = float64(i)
 var u uint = uint(f)
 
 // Or, put more simply:
-
 i := 42
 f := float64(i)
 u := uint(f)
 ----
 
-=== Type parameters and generics
+=== Generics
 
-Go functions can be written to work on multiple types using type parameters. The type parameters of a function appear between brackets, before the function's arguments.
-
-[,go]
+* Go _functions_ can be written to work on multiple types using _type parameters_.
++
+The type parameters of a function appear between brackets, before the function's arguments.
++
+[source,go]
 ----
 func Index[T comparable](s []T, x T) int
 ----
-
++
 This declaration means that `s` is a slice of any type `T` that fulfills the built-in constraint `comparable`. `x` is also a value of the same type.
-
++
+[NOTE]
+====
 `comparable` is a useful constraint that makes it possible to use the `==` and `!=` operators on values of the type.
 
-[,go]
+[source,console]
 ----
-func main() {
-	si := []int{10, 20, 15, -10}
-	fmt.Println(Index(si, 15))
+package builtin // import "builtin"
 
-	ss := []string{"foo", "bar", "baz"}
-	fmt.Println(Index(ss, "buz"))
-}
-// Output:
-// 2
-// -1
-
-// Index returns the index of x in s, or -1 if not found.
-func Index[T comparable](s []T, x T) int {
-	for i, v := range s {
-		// v and x are type T, which has the comparable
-		// constraint, so we can use == here.
-		if x == v {
-			return i
-		}
-	}
-	return -1
-}
+type comparable interface{ comparable }
+    comparable is an interface that is implemented by all comparable types
+    (booleans, numbers, strings, pointers, channels, arrays of comparable types,
+    structs whose fields are all comparable types). The comparable interface may
+    only be used as a type parameter constraint, not as the type of a variable.
 ----
+====
 
-In addition to _generic functions_, Go also supports generic types. A type can be parameterized with a type parameter, which could be useful for implementing _generic data structures_.
-
-[,go]
+* In addition to generic functions, Go also supports generic _types_.
++
+A type can be parameterized with a type parameter, which could be useful for implementing _generic data structures_.
++
+[source,go]
 ----
-package main
-
-import (
-	"fmt"
-	"strings"
-
-	"golang.org/x/exp/constraints"
-)
-
 type ComparableOrdered interface {
 	comparable
-	constraints.Ordered
+	constraints.Ordered // "golang.org/x/exp/constraints"
 }
 
-// List represents a singly-linked list that holds
-// values of `ComparableOrdered` type.
+// List represents a singly-linked list that holds values of `ComparableOrdered` type.
 type List[T ComparableOrdered] struct {
 	next *List[T]
 	val  T
@@ -1573,6 +1604,7 @@ func (head *List[T]) append(vals ...T) {
 		a(val)
 	}
 }
+
 func (head *List[T]) max() T {
 	max := head.val
 	node := head.next
@@ -1610,23 +1642,90 @@ func main() {
 }
 ----
 
-=== Type declarations
+* Type constraint and type parameter
++
+** A *type constraint* is an *interface* that defines the set of permissible _type arguments_ for the respective _type parameter_ and controls the operations supported by values of that type parameter.
++
+** If the constraint is an _interface literal_ of the form `interface{E}` where `E` is an embedded type element (not a method), in a type parameter list the enclosing `interface{ … }` may be omitted for convenience:
++
+[source,go]
+----
+[T []P]                      // = [T interface{[]P}]
+[T ~int]                     // = [T interface{~int}]
+[T int|string]               // = [T interface{int|string}]
+type Constraint ~int         // illegal: ~int is not in a type parameter list
+----
++
+** A type argument `T` satisfies a type constraint `C` if `T` is an element of the _type set_ defined by `C`; i.e., if `T` implements `C`.
++
+As an exception, a strictly `comparable` type constraint may also be satisfied by a comparable (not necessarily strictly comparable) type argument. More precisely:  A type `T` satisfies a constraint `C` if
++
+--
+* `T` implements `C`; or
+* `C` can be written in the form `interface{ comparable; E }`, where `E` is a _basic interface_ and `T` is _comparable_ and implements `E`.
 
-A type declaration binds an identifier, the type name, to a type. Type declarations come in two forms: alias declarations and type definitions. 
+[source,go]
+----
+type argument      type constraint                // constraint satisfaction
 
-// TODO
+int                interface{ ~int }              // satisfied: int implements interface{ ~int }
+string             comparable                     // satisfied: string implements comparable (string is strictly comparable)
+[]byte             comparable                     // not satisfied: slices are not comparable
+any                interface{ comparable; int }   // not satisfied: any does not implement interface{ int }
+any                comparable                     // satisfied: any is comparable and implements the basic interface any
+struct{f any}      comparable                     // satisfied: struct{f any} is comparable and implements the basic interface any
+any                interface{ comparable; m() }   // not satisfied: any does not implement the basic interface interface{ m() }
+interface{ m() }   interface{ comparable; m() }   // satisfied: interface{ m() } is comparable and implements the basic interface interface{ m() }
+----
+
+Because of the exception in the constraint satisfaction rule, comparing operands of type parameter type may panic at run-time (even though comparable type parameters are always strictly comparable). 
+--
+
+** A *type parameter* list declares the type parameters of a generic function or type declaration.
++
+The type parameter list looks like an ordinary function parameter list except that the type parameter names must all be present and the list is enclosed in square brackets rather than parentheses.
++
+[source,console]
+----
+TypeParameters  = "[" TypeParamList [ "," ] "]" .
+TypeParamList   = TypeParamDecl { "," TypeParamDecl } .
+TypeParamDecl   = IdentifierList TypeConstraint .
+----
+
+** All non-blank names in the type parameter list must be unique.
++
+--
+** Each name declares a type parameter, which is a new and different named type that acts as a placeholder for an (as of yet) unknown type in the declaration.
++
+** The type parameter is replaced with a _type argument_ upon instantiation of the generic function or type.
++
+[source,go]
+----
+[P any]
+[S interface{ ~[]byte|string }]
+[S ~[]E, E any]
+[P Constraint[int]]
+[_ any]
+----
+--
++
+** As the ordinary function parameter has a parameter type, the type parameter has a (meta-)type which is called its _type constraint_. 
 
 == Initialization
 
 === Constants
 
 * Constants are declared like variables, but with the `const` keyword.
+
 * Constants cannot be declared using the `:=` syntax.
+
 * Constants are created at compile time, even when defined as locals in functions, and can only be numbers, characters (runes), strings or booleans.
+
 * Because of the compile-time restriction, the expressions that define them must be constant expressions, evaluatable by the compiler.
+
 * In Go, enumerated constants are created using the `iota` enumerator.
 +
-[,go]
+[source,go]
 ----
 type Weekday int
 
@@ -1661,28 +1760,61 @@ ref: https://www.oxfordlearnersdictionaries.com/us/definition/english/iota
 === Allocation with *new* and *make*
 
 * Go has two allocation primitives, the built-in functions `new` and `make`.
-+
-They do different things and apply to different types, which can be confusing, but the rules are simple.
 
 * `new` is a built-in function that allocates memory, but unlike its namesakes in some other languages it does not initialize the memory, it only zeros it.
 +
-That is, `new(T)` allocates zeroed storage for a new item of type `T` and returns its address, a value of type `*T`.
-+
-In Go terminology, it returns a pointer to a newly allocated zero value of type `T`.
-+
-Since the memory returned by `new` is zeroed, it's helpful to arrange when designing your data structures that the zero value of each type can be used without further initialization.
-+
-This means a user of the data structure can create one with `new` and get right to work.
+[source,console]
+----
+package builtin // import "builtin"
+
+func new(Type) *Type
+    The new built-in function allocates memory. The first argument is a type,
+    not a value, and the value returned is a pointer to a newly allocated zero
+    value of that type.
+----
+
+** That is, `new(T)` allocates zeroed storage for a new item of type `T` and returns its address, a value of type `*T`.
+
+** In Go terminology, it returns a pointer to a newly allocated zero value of type `T`.
+
+** Since the memory returned by `new` is zeroed, it's helpful to arrange when designing your data structures that the zero value of each type can be used without further initialization. This means a user of the data structure can create one with `new` and get right to work.
 +
 For example, the documentation for `bytes.Buffer` states that "the zero value for Buffer is an empty buffer ready to use."
 
 * The built-in function `make(T, args)` serves a purpose different from `new(T)`.
 +
-It creates slices, maps, and channels only, and it returns an initialized (not zeroed) value of type `T` (not `*T`).
+[source,console]
+----
+package builtin // import "builtin"
+
+func make(t Type, size ...IntegerType) Type
+    The make built-in function allocates and initializes an object of type
+    slice, map, or chan (only). Like new, the first argument is a type, not a
+    value. Unlike new, make's return type is the same as the type of its
+    argument, not a pointer to it. The specification of the result depends on
+    the type:
+
+        Slice: The size specifies the length. The capacity of the slice is
+        equal to its length. A second integer argument may be provided to
+        specify a different capacity; it must be no smaller than the
+        length. For example, make([]int, 0, 10) allocates an underlying array
+        of size 10 and returns a slice of length 0 and capacity 10 that is
+        backed by this underlying array.
+
+        Map: An empty map is allocated with enough space to hold the
+        specified number of elements. The size may be omitted, in which case
+        a small starting size is allocated.
+
+        Channel: The channel's buffer is initialized with the specified
+        buffer capacity. If zero, or the size is omitted, the channel is
+        unbuffered.
+----
+
+** It creates slices, maps, and channels only, and it returns an initialized (not zeroed) value of type `T` (not `*T`).
+
+** The reason for the distinction is that these three types represent, under the covers, references to data structures that must be initialized before use.
 +
-The reason for the distinction is that these three types represent, under the covers, references to data structures that must be initialized before use.
-+
-[,go]
+[source,go]
 ----
 var p *[]int = new([]int)       // allocates slice structure; *p == nil; rarely useful
 var v  []int = make([]int, 100) // the slice v now refers to a new array of 100 ints
