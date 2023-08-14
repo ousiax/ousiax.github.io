@@ -120,24 +120,24 @@ type Point struct{ X, Y float64 }
 
 type ColoredPoint struct {
 	Point
-	Color clor.RGBA
+	Color color.RGBA
 }
 ```
 
 We could have defined `ColoredPoint` as a struct of three fields, but instead we ***embedded*** a `Point` to provide the `X` and `Y` fields. A similar mechanism applies to the *methods* of `Point`. We can call methods of the embedded `Point` field using a receiver of type `ColoredPoint`, even though `ColoredPoint` has no declared methods:
 
 ```go
-	red := color.RGBA{255, 0, 0, 255}
-	blue := color.RGBA{0, 0, 255, 255}
-	var p = ColoredPoint{Point{1, 1}, red}
-	var q = ColoredPoint{Point{5, 4}, blue}
-	fmt.Println(p.Distance(q.Point)) // "5"
-	p.ScaleBy(2)
-	q.ScaleBy(2)
-	fmt.Println(p.Distance(q.Point)) // "10"
+red := color.RGBA{255, 0, 0, 255}
+blue := color.RGBA{0, 0, 255, 255}
+var p = ColoredPoint{Point{1, 1}, red}
+var q = ColoredPoint{Point{5, 4}, blue}
+fmt.Println(p.Distance(q.Point)) // "5"
+p.ScaleBy(2)
+q.ScaleBy(2)
+fmt.Println(p.Distance(q.Point)) // "10"
 ```
 
-The methods of `Point` have been ***prometed*** to `ColoredPoint`.
+The methods of `Point` have been **promoted** to `ColoredPoint`.
 
 Notice the calls to `Distance` above. `Distance` has a parameter of type `Point`, and `q` is not a `Point`, so although `q` does have an embedded field of that type, we must explicitly select it. Attempting to pass `q` would be an error:
 
