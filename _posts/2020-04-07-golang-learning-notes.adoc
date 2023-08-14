@@ -1757,13 +1757,13 @@ iota (noun)
 ref: https://www.oxfordlearnersdictionaries.com/us/definition/english/iota
 ----
 
-=== Allocation with *new* and *make*
+=== Allocation with new and make
 
 * Go has two allocation primitives, the built-in functions `new` and `make`.
 
 * `new` is a built-in function that allocates memory, but unlike its namesakes in some other languages it does not initialize the memory, it only zeros it.
 +
-[source,console]
+[source,txt]
 ----
 package builtin // import "builtin"
 
@@ -1783,7 +1783,7 @@ For example, the documentation for `bytes.Buffer` states that "the zero value fo
 
 * The built-in function `make(T, args)` serves a purpose different from `new(T)`.
 +
-[source,console]
+[source,txt]
 ----
 package builtin // import "builtin"
 
@@ -1827,58 +1827,66 @@ var p *[]int = new([]int)
 v := make([]int, 100)
 ----
 
-=== The *init* function
+=== The init function
 
 * Each source file can define its own niladic `init` function to set up whatever state is required.
-* Actually each file can have multiple init functions.
-* `init` is called after all the variable declarations in the package have evaluated their initializers, and those are evaluated only after all the imported packages have been initialized.
 
-[,go]
+* Actually each file can have multiple init functions, which called in the order they appear in the source.
+
+* `init` is called after all the variable declarations in the package have evaluated their initializers, and those are evaluated only after all the imported packages have been initialized.
++
+[source,console]
 ----
+$ tree
+.
+├── go.mod
+├── hello
+│   └── hello.go
+├── init.go
+└── world
+    └── world.go
+
+3 directories, 4 files
+$ cat go.mod 
+module hello.world/init
+
+go 1.18
+$ cat hello/hello.go 
 package hello
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func init() {
-	fmt.Print("hello ")
+	fmt.Printf("Hello")
 }
-----
-
-[,go]
-----
+$ cat world/world.go 
 package world
 
-import (
-	"fmt"
-	_ "hello"
-)
+import "fmt"
 
 func init() {
-	fmt.Print("world")
+	fmt.Printf(", ")
 }
-----
 
-[,go]
-----
+func init() {
+	fmt.Printf("世界")
+}
+
+func init() {
+	fmt.Printf("!\n")
+}
+$ cat init.go 
 package main
 
 import (
-	"fmt"
-	_ "world"
+	_ "hello.world/init/hello"
+	_ "hello.world/init/world"
 )
 
-const mark = "!"
-
-func init() {
-	fmt.Print(mark)
-}
-
 func main() {
-    // Output:
-    // hello world!
 }
+$ go run init.go 
+Hello, 世界!
 ----
 
 === Zero values
@@ -2331,6 +2339,10 @@ ok  	_/tmp/learn-notes	0.605s
 
 == Modules
 
+Go 1.11 and 1.12 include preliminary https://go.dev/doc/go1.11#modules[support for modules], Go’s new https://blog.golang.org/versioning-proposal[dependency management system] that makes dependency version information explicit and easier to manage.<<BLOGSMODULES>>
+
+NOTE: Note: For documentation on managing dependencies with modules, see https://go.dev/doc/modules/managing-dependencies[Managing dependencies].
+
 [,go]
 ----
 // In Go, if an old package and a new package have the same import path,
@@ -2345,19 +2357,33 @@ ok  	_/tmp/learn-notes	0.605s
 ----
 
 * A _module_ is a collection of related Go packages that are versioned together as a single unit.
+
 * Modules record precise dependency requirements and create reproducible builds.
+
 * Most often, a version control repository contains exactly one module defined in the repository root.
+
 * Summarizing the relationship between repositories, modules, and packages:
- ** A repository contains one or more Go modules.
- ** Each module contains one or more Go packages.
- ** Each package consists of one or more Go source files in a single directory.
+
+** A repository contains one or more Go modules.
+
+** Each module contains one or more Go packages.
+
+** Each package consists of one or more Go source files in a single directory.
+
 * Modules must be semantically versioned according to https://semver.org/[semver], usually in the form `v(major).(minor).(patch)`, such as `v0.1.0`, `v1.2.3`, or `v1.5.0-rc.1`.
- ** The leading `v` is required.
- ** If using Git, tag released commits with their versions.
+
+** The leading `v` is required.
+
+** If using Git, tag released commits with their versions.
+
 * A module is defined by a tree of Go source files with a `go.mod` file in the tree's root directory.
-* A module declares its identity in its `go.mod` via the `module` directive, which provides the _module path_.
- ** The import paths for all packages in a module share the module path as a common prefix.
- ** The module path and the relative path from the `go.mod` to a package's directory together determine a package's import path.
+
+* A module declares its identity in its `go.mod` via the `module` directive, which provides the *module path*.
+
+** The import paths for all packages in a module share the module path as a common prefix.
+
+** The module path and the relative path from the `go.mod` to a package's directory together determine a package's import path.
+
 * In Go source code, packages are imported using the full path including the module path.
 
 [,sh]
@@ -2664,27 +2690,27 @@ func main() {
 [bibliography]
 == References
 
-* [[[WIKIIOTA]]] https://github.com/golang/go/wiki/Iota
-* [[[SPECIOTA]]] https://go.dev/ref/spec#Iota
-* [[[INITSO]]] https://stackoverflow.com/questions/24790175/when-is-the-init-function-run
-* [[[EFFECTIVEGO]]] https://go.dev/doc/effective_go.html
-* [[[BLOGSTRINGS]]] https://go.dev/blog/strings
 * [[[BLOGMAPS]]] https://go.dev/blog/maps
-* [[[TOURGENERICS]]] https://go.dev/tour/generics/1
+* [[[BLOGSMODULES]]] https://go.dev/blog/using-go-modules
+* [[[BLOGSTRINGS]]] https://go.dev/blog/strings
+* [[[CAPITERVAR]]] link:/2017/05/15/capturing-iteration-variables-in-go-language/[Capturing Iteration Variables in Go Language]
+* [[[CHANNELCLOSING]]] https://groups.google.com/g/golang-nuts/c/pZwdYRGxCIk/m/qpbHxRRPJdUJ
+* [[[DAVEPRACTICALGO]]] https://dave.cheney.net/practical-go/presentations/qcon-china.html[Practical Go: Real world advice for writing maintainable Go programs]
+* [[[EFFECTIVEGO]]] https://go.dev/doc/effective_go.html
+* [[[ERRORS]]] link:/2017/05/15/errors-in-go-language/[Errors in Go language]
+* [[[GOCHANNELS]]] link:/2017/06/11/goroutines-and-channels-in-go-lanugage/[Goroutines and Channels in Go Lanugage]
+* [[[GOOOP]]] link:/2017/05/21/object-oriented-programming-in-go-language/[Object-oriented Programming in Go Language]
+* [[[GOTESTING]]] link:/2017/07/01/testing-in-go-language/[Testing in Go Language]2686 * [[[SEMVER]]] https://semver.org/
+* [[[INITSO]]] https://stackoverflow.com/questions/24790175/when-is-the-init-function-run
+* [[[MEDIUMGOMODULES]]] https://medium.com/@adiach3nko/package-management-with-go-modules-the-pragmatic-guide-c831b4eaaf31
 * [[[PKGFMT]]] https://pkg.go.dev/fmt
 * [[[REFMEM]]] https://go.dev/ref/mem
-* [[[TALKSCONCURRENCY]]] https://talks.golang.org/2012/concurrency.slide
-* [[[CHANNELCLOSING]]] https://groups.google.com/g/golang-nuts/c/pZwdYRGxCIk/m/qpbHxRRPJdUJ
-* [[[CAPITERVAR]]] link:/2017/05/15/capturing-iteration-variables-in-go-language/[Capturing Iteration Variables in Go Language]
-* [[[ERRORS]]] link:/2017/05/15/errors-in-go-language/[Errors in Go language]
-* [[[GOOOP]]] link:/2017/05/21/object-oriented-programming-in-go-language/[Object-oriented Programming in Go Language]
-* [[[GOCHANNELS]]] link:/2017/06/11/goroutines-and-channels-in-go-lanugage/[Goroutines and Channels in Go Lanugage]
 * [[[SHAREDVAR]]] link:/2017/06/17/concurrency-with-shared-variables-in-go-language/[Concurrency with Shared Variables in Go Language]
-* [[[GOTESTING]]] link:/2017/07/01/testing-in-go-language/[Testing in Go Language]
-* [[[SEMVER]]] https://semver.org/
+* [[[SPECIOTA]]] https://go.dev/ref/spec#Iota
+* [[[TALKSCONCURRENCY]]] https://talks.golang.org/2012/concurrency.slide
+* [[[TOURGENERICS]]] https://go.dev/tour/generics/1
 * [[[VGOIMPORT]]] https://research.swtch.com/vgo-import
 * [[[VGOMODULE]]] https://research.swtch.com/vgo-module
 * [[[VGOMVS]]] https://research.swtch.com/vgo-mvs
+* [[[WIKIIOTA]]] https://github.com/golang/go/wiki/Iota
 * [[[WIKIMODULES]]] https://github.com/golang/go/wiki/Modules
-* [[[MEDIUMGOMODULES]]] https://medium.com/@adiach3nko/package-management-with-go-modules-the-pragmatic-guide-c831b4eaaf31
-* [[[DAVEPRACTICALGO]]] https://dave.cheney.net/practical-go/presentations/qcon-china.html[Practical Go: Real world advice for writing maintainable Go programs]
