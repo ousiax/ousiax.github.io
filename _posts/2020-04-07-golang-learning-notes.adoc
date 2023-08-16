@@ -408,25 +408,10 @@ case 1 > 10:
 
 === Defer
 
-A `defer` statement invokes a function whose execution is deferred to the moment the surrounding function returns, either because the surrounding function executed a return statement, reached the end of its function body, or because the corresponding goroutine is panicking. 
+A `defer` statement invokes a function whose execution is deferred to the moment the surrounding function returns,
 
-[source,go]
-----
-defer func() {
-	e := recover()
-	fmt.Printf("%s\n", e)
-}()
-
-defer func() {
-	fmt.Println(". . .")
-}()
-
-panic(fmt.Sprintf("Oops, I'm NOT myself."))
-// Output:
-// . . .
-// Oops, I'm NOT myself.
-----
-
+* either because the surrounding function executed a return statement, reached the end of its function body,
++
 [source,go]
 ----
 godir, err := os.Open("/usr/local/go")
@@ -436,31 +421,31 @@ if err != nil {
 }
 ----
 
-== Functions
-
-=== Multiple return values
-
-[,go]
-----
-func (file *File) Write(b []byte) (n int, err error)
-----
-
-=== Named result parameters
-
-* The return or result "parameters" of a Go function can be given names and used as regular variables, just like the incoming parameters.
-
-* When named, they are initialized to the zero values for their types when the function begins;
-
-* if the function executes a `return` statement with no arguments, the current values of the result parameters are used as the returned values.
-
-=== Defer
-
-* Go's `defer` statement schedules a function call (the _deferred_ function) to be run immediately before the function executing the `defer` returns.
-
-* The arguments to the deferred function (which include the receiver if the function is a method) are evaluated when the _defer_ executes, not when the _call_ executes.
+* or because the corresponding goroutine is panicking. 
 +
 [source,go]
 ----
+	defer func() {
+		e := recover()
+		fmt.Printf("recover: %s\n", e)
+	}()
+
+	defer func() {
+		fmt.Println(". . .")
+	}()
+
+	panic(fmt.Sprintf("Oops, I'm NOT myself."))
+	// Output:
+	// . . .
+	// recover: Oops, I'm NOT myself.
+----
+
+* Go's `defer` statement schedules a function call (the _deferred_ function) to be run immediately before the function executing the `defer` returns.
++
+[source,go]
+----
+// The arguments to the deferred function (which include the receiver if the function is a method)
+// are evaluated when the _defer_ executes, not when the _call_ executes.
 func main() {
 	v := 10
 	defer fmt.Println(3 * v) // 30
@@ -831,15 +816,20 @@ v, ok := m["Answer"]
 
 === Functions
 
-* Functions are values too. They can be passed around just like other values.
+* A function can return any number of results.
++
+[source,go]
+----
+func (file *File) Write(b []byte) (n int, err error)
+----
 
-* Function values may be used as function arguments and return values.
+* The return or result "parameters" of a Go function can be given names and used as regular variables, just like the incoming parameters.
++
+When named, they are initialized to the zero values for their types when the function begins; if the function executes a `return` statement with no arguments, the current values of the result parameters are used as the returned values.
 
-* Go functions may be closures.
+* Functions are values too. They can be passed around just like other values. Function values may be used as function arguments and return values.
 
-** A closure is a function value that references variables from outside its body.
-
-** The function may access and assign to the referenced variables; in this sense the function is "bound" to the variables.
+* Go functions may be closures, that is a function value that references (i.e. bounds to) variables from outside its body.
 +
 [source,go]
 ----
@@ -868,17 +858,50 @@ func main() {
 // +6, -6
 ----
 
+* A function literal represents an anonymous function and cannot declare type parameters, and it can be assigned to a variable or invoked directly.
+
+* Function literals are closures: they may refer to variables defined in a surrounding function, which are then shared between the surrounding function and the function literal, and they survive as long as they are accessible. 
++
+[source,go]
+----
+func main() {
+	var sum int
+	var add = func() {
+		sum += 1
+	}
+	add()
+	fmt.Printf("%d\n", sum)
+}
+
+// Output:
+// 1
+----
+
 === Methods
 
-* Go does not have classes.
-+
-However, you can define methods on any _named type_ (except a pointer or an interface).
+A method is a function with a special receiver argument, defined on any *named type* (except a pointer or an interface) in the same package.
 
-* A method is a function with a special receiver argument.
-+
-The receiver appears in its own argument list between the `func` keyword and the method name.
-+
-You can only declare a method with a receiver whose type is defined in the same package as the method.
+[source,go]
+----
+type MyInt int
+
+func (mi *MyInt) String() string {
+	return fmt.Sprintf("Hi %d!", *mi)
+}
+
+func (mi *MyInt) Add(delta int) {
+	*mi = *mi + MyInt(delta)
+}
+
+func main() {
+	var mi MyInt = 1_024
+	mi.Add(1_024)
+	fmt.Println(&mi)
+}
+
+// Output:
+// Hi 2048!
+----
 
 *Choosing a value or pointer receiver*
 
@@ -886,32 +909,30 @@ You can only declare a method with a receiver whose type is defined in the same 
 
 ** The first is so that the method can modify the value that its receiver points to.
 
-** The second is to avoid copying the value on each method call.
-+
-This can be more efficient if the receiver is a large struct, for example.
+** The second is to avoid copying the value on each method call, that can be more efficient if the receiver is a large struct, for example.
 
 * In general, all methods on a given type should have either value or pointer receivers, but not a mixture of both.
 
 * The rule about pointers vs. values for receivers is that value methods can be invoked on pointers and values, but pointer methods can only be invoked on pointers.
 +
-This rule arises because pointer methods can modify the receiver; invoking them on a value would cause the method to receive a copy of the value, so any modifications would be discarded. The language therefore disallows this mistake.
-+
-There is a handy exception, though. When the value is addressable, the language takes care of the common case of invoking a pointer method on a value by inserting the address operator automatically.
-+
-[,go]
-----
-package bufio // import "bufio"
-
-func (b *Reader) Read(p []byte) (n int, err error)
-
-func (b *Writer) Write(p []byte) (nn int, err error)
-----
+NOTE: When the value is addressable, the language takes care of the common case of invoking a pointer method on a value by inserting the address operator (`&`) automatically.
 
 *Nil is a valid receiver value*
 
 * Just as some functions allow nil pointers as arguments, so do some methods for their receiver, especially if `nil` is a meaningful zero value of the type, as with maps and slices.
 
 * When you define a type whose methods allow `nil` as a receiver value, it's worth pointing this out explicitly in its documentation comment.
++
+[source,console]
+----
+package bytes // import "bytes"
+
+type Buffer struct {
+	// Has unexported fields.
+}
+    A Buffer is a variable-sized buffer of bytes with Read and Write methods.
+    The zero value for Buffer is an empty buffer ready to use.
+----
 
 === Interfaces
 
@@ -1247,56 +1268,54 @@ default:
 
 * Go does not provide the typical, type-driven notion of subclassing, but it does have the ability to "`borrow`" pieces of an implementation by embedding types within a struct or interface.
 +
-[,go]
+[source,go]
 ----
-  package io // import "io"
+package io // import "io"
 
-  type Reader interface {
-      Read(p []byte) (n int, err error)
-  }
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
 
-  type Writer interface {
-      Write(p []byte) (n int, err error)
-  }
+type Writer interface {
+    Write(p []byte) (n int, err error)
+}
 
-  // ReadWriter is the interface that combines the Reader and Writer interfaces.
-  type ReadWriter interface {
-      Reader
-      Writer
-  }
+// ReadWriter is the interface that combines the Reader and Writer interfaces.
+type ReadWriter interface {
+    Reader
+    Writer
+}
 ----
 +
-[,go]
+[source,go]
 ----
-  package bufio // import "bufio"
+package bufio // import "bufio"
 
-  type Reader struct {
-      // Has unexported fields.
-  }
+type Reader struct {
+    // Has unexported fields.
+}
 
-  func (b *Reader) Read(p []byte) (n int, err error)
+func (b *Reader) Read(p []byte) (n int, err error)
 
-  type Writer struct {
-      // Has unexported fields.
-  }
+type Writer struct {
+    // Has unexported fields.
+}
 
-  func (b *Writer) Write(p []byte) (nn int, err error)
+func (b *Writer) Write(p []byte) (nn int, err error)
 
-  // ReadWriter stores pointers to a Reader and a Writer.
-  // It implements io.ReadWriter.
-  type ReadWriter struct {
-      *Reader
-      *Writer
-  }
+// ReadWriter stores pointers to a Reader and a Writer.
+// It implements io.ReadWriter.
+type ReadWriter struct {
+    *Reader
+    *Writer
+}
 ----
 
-* There's an important way in which embedding differs from subclassing.
-
-** When we embed a type, the methods of that type become methods of the outer type, but when they are invoked the receiver of the method is the inner type, not the outer one.
+* For the embedded type, the methods of that type become methods of the outer type, but when they are invoked the receiver of the method is the inner type, not the outer one.
 +
-For example, when the `Read` method of a `bufio.ReadWriter` is invoked, the receiver is the `reader` field of the `ReadWriter`, not the `ReadWriter` itself.
+For example, when the `Read` method of a `bufio.ReadWriter` is invoked, the receiver is the `Reader` field of the `ReadWriter`, not the `ReadWriter` itself.
 +
-[,go]
+[source,go]
 ----
 type Reader struct {
 }
@@ -1320,9 +1339,7 @@ type ReadWriter struct {
 func main() {
 	rw := ReadWriter{}
 	rw.Read() // same as rw.Reader.Read()
-	rw.Reader.Read()
 	// Output:
-	// Read
 	// Read
 }
 ----
@@ -1334,19 +1351,16 @@ func main() {
 ** Second, if the same name appears at the same nesting level, it is usually an error.
 +
 However, if the duplicate name is never mentioned in the program outside the type definition, it is OK.
-+
-This qualification provides some protection against changes made to types embedded from outside; there is no problem if a field is added that conflicts with another field in another subtype if neither field is ever used.
 
-* Embedding and Composing (Not Embeeding)
-+
---
 *Embedding*:
 
+--
 * Provides an "**is-a**" relationship where the outer struct or interface directly inherits the fields and methods of the embedded struct or interface.
 
 * Allows for easier and more direct access to the fields and methods of the embedded struct or interface, as they become part of the outer struct or interface.
 
 * Enhances code reuse and polymorphism by making the fields and methods of the embedded struct or interface available directly in the outer struct or interface.
+--
 
 *Not Embedding* (*Composing*):
 
@@ -1383,7 +1397,6 @@ func main() {
 	rw.Read()        // Compiler error: rw.Read undefined (type *ReadWriter has no field or method Read)
 }
 ----
---
 
 === Channels
 
@@ -2652,6 +2665,14 @@ NOTE: In Go, if an old package and a new package have the same import path, the 
 
 NOTE: There is certainly a cost to needing to introduce a new name for each backwards-incompatible API change, but as the semver FAQ says, that cost should encourage authors to more clearly consider the impact of such changes and whether they are truly necessary.
 
+[NOTE]
+====
+A *module path* is the canonical name for a module, declared with the module directive in the module’s `go.mod` file. A module’s path is the prefix for package paths within the module.
+
+A module path should describe both what the module does and where to find it. Typically, a module path consists of a repository root path, a directory within the repository (usually empty), and a major version suffix (only for major version 2 or higher). <<REFMOD>>
+====
+
+
 * A *module* is a collection of related Go packages that are versioned together as a single unit.
 
 * Modules record precise dependency requirements and create reproducible builds.
@@ -2957,12 +2978,94 @@ func main() {
 }
 ----
 
+[appendix]
+== Common and practical commands in Go
+
+The Go toolchain provides various commands to manage, build, and test Go projects. Here's a summary of common and practical commands:
+
+. `go mod init`: Initializes a new Go module by creating a `go.mod` file in the current directory. This file contains module metadata, such as its path, version, and dependencies.
++
+[source,sh]
+----
+go mod init example.com/my-module  
+----
+ 
+. `go build`: Compiles your Go code and produces an executable binary for the main package in the current directory. The binary will have the same name as the package folder, unless specified with the `-o` flag.
++
+[source,sh]
+----
+go build  
+----
+
+. `go run`: Compiles and runs your Go code directly. It's useful for quickly testing or running a Go program without creating a binary.
++
+[source,sh]
+----
+go run main.go  
+----
+ 
+. `go test`: Runs tests for the packages specified. If no package is specified, it runs tests for the current package. You can also use flags like `-v` for verbose output and `-bench` for benchmarking.
++
+[source,sh]
+----
+go test  
+go test -v ./...  
+go test -bench .  
+----
+ 
+. `go get`: Downloads and installs a specified package or updates an existing one. It also updates the `go.mod` and `go.sum` files accordingly.
++
+[source,sh]
+----
+go get github.com/user/package  
+go get -u github.com/user/package  
+----
+ 
+. `go list`: Lists the packages or modules used in your project. It can be used with various flags like `-m` to list modules or `-u` to show available updates.
++
+[source,sh]
+----
+go list -m  
+go list -u -m all  
+----
+ 
+. `go mod tidy`: Cleans up your module's dependencies by adding missing dependencies and removing unused ones from the `go.mod` and `go.sum` files.
++
+[source,sh]
+----
+go mod tidy  
+----
+
+. `go fmt`: Formats your Go source code by applying the standard Go formatting rules. It's useful for maintaining consistent code style across your project.
++
+[source,sh]
+----
+go fmt ./...  
+----
+
+. `go doc`: Displays documentation for the specified package, function, type, or other symbol. It's helpful for quickly looking up documentation without leaving the command line.
++
+[source,sh]
+----
+go doc fmt.Println  
+----
+ 
+. `go env`: Shows the Go environment variables, such as `GOPATH`, `GOROOT`, and `GOOS`. It can be helpful for diagnosing issues related to the Go environment.
++
+[source,sh]
+----
+go env
+----
+
+These commands are commonly used in everyday Go development, allowing you to manage modules, build and run code, test packages, and maintain a consistent and efficient development environment. <<Azure OpenAI | ChatGPT4>> 
+
 [bibliography]
 == References
 
 * [[[BLOGMAPS]]] https://go.dev/blog/maps
 * [[[BLOGSMODULES]]] https://go.dev/blog/using-go-modules
 * [[[BLOGSTRINGS]]] https://go.dev/blog/strings
+* [[[REFMOD]]] https://go.dev/ref/mod
 * [[[CAPITERVAR]]] link:/2017/05/15/capturing-iteration-variables-in-go-language/[Capturing Iteration Variables in Go Language]
 * [[[CHANNELCLOSING]]] https://groups.google.com/g/golang-nuts/c/pZwdYRGxCIk/m/qpbHxRRPJdUJ
 * [[[DAVEPRACTICALGO]]] https://dave.cheney.net/practical-go/presentations/qcon-china.html[Practical Go: Real world advice for writing maintainable Go programs]
