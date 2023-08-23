@@ -3,7 +3,7 @@
 :page-categories: ['container']
 :page-tags: ['container', 'cri', 'runc', 'docker']
 :page-date: 2021-11-25 11:03:28 +0800
-:page-revdate: 2021-11-25 11:03:28 +0800
+:page-revdate: Tue Aug 22 06:21:29 PM CST 2023
 :sectnums:
 :toc:
 
@@ -63,65 +63,33 @@ USAGE:
    runc [global options] command [command options] [arguments...]
 
 VERSION:
-   1.0.2
-commit: v1.0.2-0-g52b36a2
-spec: 1.0.2-dev
-go: go1.16.8
-libseccomp: 2.5.1
-
-COMMANDS:
-   checkpoint  checkpoint a running container
-   create      create a container
-   delete      delete any resources held by the container often used with detached container
-   events      display container events such as OOM notifications, cpu, memory, and IO usage statistics
-   exec        execute new process inside the container
-   init        initialize the namespaces and launch the process (do not call it outside of runc)
-   kill        kill sends the specified signal (default: SIGTERM) to the container's init process
-   list        lists containers started by runc with the given root
-   pause       pause suspends all processes inside the container
-   ps          ps displays the processes running inside a container
-   restore     restore a container from a previous checkpoint
-   resume      resumes all processes that have been previously paused
-   run         create and run a container
-   spec        create a new specification file
-   start       executes the user defined process in a created container
-   state       output the state of a container
-   update      update container resource constraints
-   help, h     Shows a list of commands or help for one command
-
-GLOBAL OPTIONS:
-   --debug             enable debug output for logging
-   --log value         set the log file path where internal debug information is written
-   --log-format value  set the format used by logs ('text' (default), or 'json') (default: "text")
-   --root value        root directory for storage of container state (this should be located in tmpfs) (default: "/run/user/1000/runc")
-   --criu value        path to the criu binary used for checkpoint and restore (default: "criu")
-   --systemd-cgroup    enable systemd cgroup support, expects cgroupsPath to be of form "slice:prefix:name" for e.g. "system.slice:runc:434234"
-   --rootless value    ignore cgroup permission errors ('true', 'false', or 'auto') (default: "auto")
-   --help, -h          show help
-   --version, -v       print the version
+   1.1.8
+commit: v1.1.8-0-g82f18fe
+. . .
 ----
 
-[source,console,highlight="3,6"]
+.Lists containers started by runc using Docker with the given root (default "/var/run/docker")
+[source,console,highlight="2"]
 ----
-$ dockerd --help | grep root
-      --data-root string                        Root directory of persistent Docker state (default "/var/lib/docker")
+$ dockerd --help | grep exec-root
       --exec-root string                        Root directory for execution state files (default "/var/run/docker")
-      --rootless                                Enable rootless mode; typically used with RootlessKit
-
+$ # --root value        root directory for storage of container state (this should be located in tmpfs) (default: "/run/runc")
 $ sudo runc --root /var/run/docker/runtime-runc/moby list
 ID                                                                 PID         STATUS      BUNDLE                                                                                                                CREATED                          OWNER
 011d6fd316e09fc8a5ff3b226d35b9394cd93c57604c91aa52573559368a822c   940971      running     /run/containerd/io.containerd.runtime.v2.task/moby/011d6fd316e09fc8a5ff3b226d35b9394cd93c57604c91aa52573559368a822c   2021-11-25T04:10:25.216394136Z   root
-...
+. . .
 ----
 
+.Lists containers started by runc using Kubernetes with the given root (default "/run/containerd/runc/k8s.io")
 [source,console]
 ----
-$ sudo runc --root /var/run/containerd/runc/k8s.io list
+$ containerd config dump | grep '^state'
+state = "/run/containerd"
+$ sudo runc --root /run/containerd/runc/k8s.io list
 ID                                                                 PID         STATUS      BUNDLE                                                                                                                  CREATED                          OWNER
 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704   1191        running     /run/containerd/io.containerd.runtime.v2.task/k8s.io/14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704   2021-12-08T12:55:21.616268255Z   root
-...
-
-$ sudo runc --root /var/run/containerd/runc/k8s.io state 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704
+. . .
+$ sudo runc --root /run/containerd/runc/k8s.io state 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704
 {
   "ociVersion": "1.0.2-dev",
   "id": "14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704",
@@ -140,8 +108,7 @@ $ sudo runc --root /var/run/containerd/runc/k8s.io state 14542e5b60446f87af20e20
   },
   "owner": ""
 }
-
-$ sudo runc --root /var/run/containerd/runc/k8s.io ps 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704
+$ sudo runc --root /run/containerd/runc/k8s.io ps 14542e5b60446f87af20e200e019a15d1ad1509eb506a2068266b9f98694c704
 UID         PID   PPID  C STIME TTY          TIME CMD
 root       1191    806  0 Dec08 ?        00:00:25 /opt/bin/flanneld --ip-masq --kube-subnet-mgr
 ----
@@ -216,6 +183,40 @@ GLOBAL OPTIONS:
    --version, -v                print the version
 ----
 
+.Save image from Docker and import to containerd
+[source,console]
+----
+$ docker save nginx:1.25 | xz -zv -T0 > nginx.1.25.tar.xz
+  100 %        41.9 MiB / 182.0 MiB = 0.230   8.0 MiB/s       0:22
+$ xz -dk nginx.1.25.tar.xz
+$ ls
+nginx.1.25.tar  nginx.1.25.tar.xz
+$ sudo ctr i import nginx.1.25.tar # import to the default namespace
+unpacking docker.io/library/nginx:1.25 (sha256:7477fb7aa691ad976bdd0f12afd00c094e8bef473051e5125591f532efd21022)...done
+$ sudo ctr ns ls
+NAME    LABELS
+default
+k8s.io
+moby
+$ sudo ctr i ls # same as `sudo ctr -n default i ls`
+REF                          TYPE                                                 DIGEST                                                                  SIZE      PLATFORMS   LABELS
+docker.io/library/nginx:1.25 application/vnd.docker.distribution.manifest.v2+json sha256:7477fb7aa691ad976bdd0f12afd00c094e8bef473051e5125591f532efd21022 182.0 MiB linux/amd64 -
+----
+
+.Show the information about containerd plugins
+[source,console]
+----
+$ sudo ctr plugin ls
+TYPE                                  ID                       PLATFORMS      STATUS
+io.containerd.content.v1              content                  -              ok
+. . .
+io.containerd.snapshotter.v1          overlayfs                linux/amd64    ok
+io.containerd.snapshotter.v1          zfs                      linux/amd64    skip
+io.containerd.metadata.v1             bolt                     -              ok
+. . .
+io.containerd.grpc.v1                 cri                      linux/amd64    ok
+----
+
 === containerd config
 
 :containerd-ops: https://github.com/containerd/containerd/blob/main/docs/ops.md
@@ -228,14 +229,8 @@ GLOBAL OPTIONS:
 $ containerd help
 NAME:
    containerd - 
-                    __        _                     __
-  _________  ____  / /_____ _(_)___  ___  _________/ /
- / ___/ __ \/ __ \/ __/ __ `/ / __ \/ _ \/ ___/ __  /
-/ /__/ /_/ / / / / /_/ /_/ / / / / /  __/ /  / /_/ /
-\___/\____/_/ /_/\__/\__,_/_/_/ /_/\___/_/   \__,_/
 
-high performance container runtime
-
+. . .
 
 USAGE:
    containerd [global options] command [command options] [arguments...]
@@ -276,11 +271,18 @@ While a few daemon level options can be set from CLI flags, the majority of cont
 
 In the containerd config file you will find settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.
 
-* *persistent data*
+[source,console]
+----
+$ sudo containerd config dump # See the output of the final main config
+. . .
+root = "/var/lib/containerd"
+state = "/run/containerd"
+. . .
+----
+
+* *root* will be used to store any type of persistent data for containerd. Snapshots, content, metadata for containers and image, as well as any plugin data will be kept in this location.
 +
-`root` will be used to store any type of persistent data for containerd. Snapshots, content, metadata for containers and image, as well as any plugin data will be kept in this location.
-+
-The root is also `namespaced for plugins` that containerd loads. Each plugin will have its own directory where it stores data. containerd itself does not actually have any persistent data that it needs to store, its functionality comes from the plugins that are loaded.
+The root is also *namespaced* for plugins that containerd loads. Each plugin will have its own directory where it stores data. containerd itself does not actually have any persistent data that it needs to store, its functionality comes from the plugins that are loaded.
 +
 [source,console]
 ----
@@ -299,9 +301,7 @@ The root is also `namespaced for plugins` that containerd loads. Each plugin wil
 └── tmpmounts
 ----
 
-* *runtime state*
-+
-`state` will be used to store any type of ephemeral data. Sockets, pids, runtime state, mount points, and other plugin data that must not persist between reboots are stored in this location.
+* *state* will be used to store any type of ephemeral data. Sockets, pids, runtime state, mount points, and other plugin data that must not persist between reboots are stored in this location.
 +
 [source,console]
 ----
@@ -393,6 +393,7 @@ Plugins are configured using the `[plugins]` section of containerd's config. Eve
 [source,toml,highlight="3,6-7,15"]
 ----
 [plugins]
+  # indentation (tabs and/or spaces) is allowed but not required
   [plugins."io.containerd.grpc.v1.cri"]
     sandbox_image = "k8s.gcr.io/pause:3.5"
     # <other paramters>
@@ -417,17 +418,49 @@ Plugins are configured using the `[plugins]` section of containerd's config. Eve
 
 {containerd-cri}[*cri*] is a containerd built-in plugin implementation of {cri-api}[Kubernetes container runtime interface (CRI)].
 
-While OCI specs defines a single container, CRI (container runtime interface) describes containers as workload(s) in a shared sandbox environment called a pod. Pods can contain one or more container workloads.
+While OCI specs defines a single *container*, CRI (container runtime interface) describes containers as workload(s) in a shared sandbox environment called a *pod*. Pods can contain one or more container workloads.
 
 With it, you could run Kubernetes using containerd as the container runtime. 
 
 image::/assets/kubernetes/containerd/cri.png[,55%,55%]
 
+[NOTE]
+====
+*crictl* is a command-line interface for CRI-compatible container runtimes.
+
+[source,console]
+----
+$ sudo crictl pods
+POD ID              CREATED             STATE               NAME                             NAMESPACE           ATTEMPT             RUNTIME
+f69d876947d10       About an hour ago   Ready               coredns-5dd5756b68-6zhnn         kube-system         0                   (default)
+5b182c180224e       About an hour ago   Ready               coredns-5dd5756b68-979lp         kube-system         0                   (default)
+a61a8b645eca4       About an hour ago   Ready               kube-flannel-ds-fstxv            kube-flannel        0                   (default)
+b9a8397f4d1ec       About an hour ago   Ready               kube-proxy-tlrsr                 kube-system         0                   (default)
+f5c97e2b1dca3       About an hour ago   Ready               kube-controller-manager-node-1   kube-system         0                   (default)
+05b17a7b61b01       About an hour ago   Ready               kube-apiserver-node-1            kube-system         0                   (default)
+56a45a81d9c3a       About an hour ago   Ready               kube-scheduler-node-1            kube-system         0                   (default)
+5da873ac2515e       About an hour ago   Ready               etcd-node-1                      kube-system         0                   (default)
+$ sudo crictl inspectp f69d876947d10 | head
+{
+  "status": {
+    "id": "f69d876947d103f23b41ca677e498468aaef6a9d35e287c6dcd999cf62e40dbd",
+    "metadata": {
+      "attempt": 0,
+      "name": "coredns-5dd5756b68-6zhnn",
+      "namespace": "kube-system",
+      "uid": "f364d6dd-ba20-4ab6-8ebb-0053ac1b43e0"
+    },
+    "state": "SANDBOX_READY",
+----
+====
+
 === containerd/namespaces
 
 :containerd-namespaces: https://github.com/containerd/containerd/blob/main/docs/namespaces.md
 
-containerd offers a fully {containerd-namespaces}[namespaced API] so multiple consumers can all use a single containerd instance without conflicting with one another. Namespaces allow *multi-tenancy* within a single daemon.
+containerd offers a fully {containerd-namespaces}[namespaced API] so multiple consumers can all use a single containerd instance without conflicting with one another.
+
+NOTE: Namespaces allow *multi-tenancy* within a single daemon.
 
 Consumers are able to have containers with the same names but with settings and/or configurations that vary drastically. For example, system or infrastructure level containers can be hidden in one namespace while user level containers are kept in another. Underlying image content is still shared via content addresses but image names and metadata are separate per namespace.
 
@@ -435,60 +468,42 @@ Namespaces allow various features, most notably, the ability for one client to c
 
 When a client queries for a resource, they only see the resources that are part of their namespace. 
 
-.`ctr -n alice image`
-[source,console,highlight=12]
-----
-$ sudo ctr -n alice image pull docker.io/library/nginx:latest
-docker.io/library/nginx:latest:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
-index-sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e:    done           |++++++++++++++++++++++++++++++++++++++| 
-manifest-sha256:2f14a471f2c2819a3faf88b72f56a0372ff5af4cb42ec45aab00c03ca5c9989f: done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:266f639b35ad602ee76c3b4d4cf88285a50adf8f561d8d96d331db732fe16982:    done           |++++++++++++++++++++++++++++++++++++++| 
-config-sha256:ea335eea17ab984571cd4a3bcf90a0413773b559c75ef4cda07d0ce952b00291:   done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:eff15d958d664f0874d16aee393cc44387031ee0a68ef8542d0056c747f378e8:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:1e5351450a593c3a3d7a5104f93c8b80d8dc00c827158cb3a5bf985916ea3f75:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:2df63e6ce2be0b3cefd3e659558e92b8085f032db96828343ec9cf0b7d4409fe:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:9171c7ae368c6ca24dae913fce356801f624f656360c78ca956a92c3f0fe0ec7:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:020f975acd28936c7ff43827238aed4771d14235dc983389ec149811f7e0b7cf:    done           |++++++++++++++++++++++++++++++++++++++| 
-elapsed: 55.1s                                                                    total:  53.2 M (988.4 KiB/s)                                     
-unpacking linux/amd64 sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e...
-done
-
-$ sudo ctr -n alice image ls
-REF                            TYPE                                                      DIGEST                                                                  SIZE     PLATFORMS                                                                                               LABELS 
-docker.io/library/nginx:latest application/vnd.docker.distribution.manifest.list.v2+json sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e 54.1 MiB linux/386,linux/amd64,linux/arm/v5,linux/arm/v7,linux/arm64/v8,linux/mips64le,linux/ppc64le,linux/s390x -  
-----
-
-.`ctr -n bob image`
-[source,console,highlight=15]
-----
-$ sudo ctr -n bob image ls
-REF TYPE DIGEST SIZE PLATFORMS LABELS 
-
-$ sudo ctr -n bob image pull docker.io/library/nginx:latest
-docker.io/library/nginx:latest:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
-index-sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e:    done           |++++++++++++++++++++++++++++++++++++++| 
-manifest-sha256:2f14a471f2c2819a3faf88b72f56a0372ff5af4cb42ec45aab00c03ca5c9989f: done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:266f639b35ad602ee76c3b4d4cf88285a50adf8f561d8d96d331db732fe16982:    done           |++++++++++++++++++++++++++++++++++++++| 
-config-sha256:ea335eea17ab984571cd4a3bcf90a0413773b559c75ef4cda07d0ce952b00291:   done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:eff15d958d664f0874d16aee393cc44387031ee0a68ef8542d0056c747f378e8:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:1e5351450a593c3a3d7a5104f93c8b80d8dc00c827158cb3a5bf985916ea3f75:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:2df63e6ce2be0b3cefd3e659558e92b8085f032db96828343ec9cf0b7d4409fe:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:9171c7ae368c6ca24dae913fce356801f624f656360c78ca956a92c3f0fe0ec7:    done           |++++++++++++++++++++++++++++++++++++++| 
-layer-sha256:020f975acd28936c7ff43827238aed4771d14235dc983389ec149811f7e0b7cf:    done           |++++++++++++++++++++++++++++++++++++++| 
-elapsed: 2.5 s                                                                    total:   0.0 B (0.0 B/s)                                         
-unpacking linux/amd64 sha256:097c3a0913d7e3a5b01b6c685a60c03632fc7a2b50bc8e35bcaa3691d788226e...
-done
-----
-
-.list namepscaes
 [source,console]
 ----
+$ sudo ctr ns ls # list namespaces
+NAME    LABELS
+default
+k8s.io
+moby
+$ # pull image to namespace alice (create it if not existed)
+$ sudo ctr -n alice image pull docker.io/library/nginx:1.25
+docker.io/library/nginx:1.25:                                                     resolved       |++++++++++++++++++++++++++++++++++++++|
+index-sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c:    done           |++++++++++++++++++++++++++++++++++++++|
+manifest-sha256:48a84a0728cab8ac558f48796f901f6d31d287101bc8b317683678125e0d2d35: done           |++++++++++++++++++++++++++++++++++++++|
+layer-sha256:da761d9a302b21dc50767b67d46f737f5072fb4490c525b4a7ae6f18e1dbbf75:    done           |++++++++++++++++++++++++++++++++++++++|
+config-sha256:eea7b3dcba7ee47c0d16a60cc85d2b977d166be3960541991f3e6294d795ed24:   done           |++++++++++++++++++++++++++++++++++++++|
+. . .
+elapsed: 65.9s                                                                    total:  66.8 M (1.0 MiB/s)
+unpacking linux/amd64 sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c...
+done: 2.224968944s
+$ # pull image to namespace bob (create it if not existed)
+$ sudo ctr -n bob image pull docker.io/library/nginx:1.25
+docker.io/library/nginx:1.25:                                                     resolved       |++++++++++++++++++++++++++++++++++++++|
+index-sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c:    done           |++++++++++++++++++++++++++++++++++++++|
+manifest-sha256:48a84a0728cab8ac558f48796f901f6d31d287101bc8b317683678125e0d2d35: done           |++++++++++++++++++++++++++++++++++++++|
+layer-sha256:da761d9a302b21dc50767b67d46f737f5072fb4490c525b4a7ae6f18e1dbbf75:    done           |++++++++++++++++++++++++++++++++++++++|
+config-sha256:eea7b3dcba7ee47c0d16a60cc85d2b977d166be3960541991f3e6294d795ed24:   done           |++++++++++++++++++++++++++++++++++++++|
+. . .
+elapsed: 2.2 s                                                                    total:   0.0 B (0.0 B/s)
+unpacking linux/amd64 sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c...
+done: 2.453252148s
 $ sudo ctr ns ls
-NAME   LABELS 
-alice         
-bob           
-k8s.io        
-moby          
+NAME    LABELS 
+alice          
+bob            
+default        
+k8s.io         
+moby           
 ----
 
 As we see, there are namespaces `alice` and `bob`, but what are `moby` and `k8s.io` ?
@@ -502,99 +517,70 @@ As we see, there are namespaces `alice` and `bob`, but what are `moby` and `k8s.
 ----
 $ dockerd --help | grep containerd-namespace
       --containerd-namespace string             Containerd namespace to use (default "moby")
-
 $ kubelet --help | grep containerd-namespace
       --containerd-namespace string                              containerd namespace (default "k8s.io") (DEPRECATED: This is a cadvisor flag that was mistakenly registered with the Kubelet. Due to legacy concerns, it will follow the standard CLI deprecation timeline before being removed.)
 ----
 
-.`ctr -n alice run`
+*Manage container*
+
 [source,console]
 ----
-$ sudo ctr -n alice run --null-io -d docker.io/library/nginx:latest nginx-a
-
-$ sudo ctr -n alice container ls
-CONTAINER    IMAGE                             RUNTIME                  
-nginx-a      docker.io/library/nginx:latest    io.containerd.runc.v2    
-
+$ # run a container named `nginx-a`
+$ sudo ctr -n alice run --null-io -d docker.io/library/nginx:1.25 nginx-a
+$ # list containers
+$ sudo ctr -n alice c ls
+CONTAINER    IMAGE                           RUNTIME
+nginx-a      docker.io/library/nginx:1.25    io.containerd.runc.v2
+$ # list tasks
 $ sudo ctr -n alice t ls
-TASK       PID       STATUS    
-nginx-a    967104    RUNNING
-----
+TASK       PID      STATUS
+nginx-a    43776    RUNNING
 
-.`ctr -n bob run`
-[source,console]
-----
 $ sudo ctr -n bob container ls
 CONTAINER    IMAGE    RUNTIME    
-
 $ sudo ctr -n bob task ls
 TASK    PID    STATUS    
-
 $ sudo ctr -n bob run --null-io -d docker.io/library/nginx:latest nginx-b
-
 $ sudo ctr -n bob t ls
 TASK       PID       STATUS    
 nginx-b    967330    RUNNING
-----
 
-.`nsenter`
-[source,console]
-----
 $ sudo ctr -n alice t ls
-TASK       PID       STATUS    
-nginx-a    967104    RUNNING
-
-$ sudo ctr -n bob t ls
-TASK       PID       STATUS    
-nginx-b    967330    RUNNING
-
-$ sudo nsenter -t 967104 -a lsns
+TASK       PID      STATUS
+nginx-a    43776    RUNNING
+$ sudo nsenter -t 43776 -a lsns
         NS TYPE   NPROCS PID USER COMMAND
-4026531834 time        4   1 root nginx: master process nginx -g daemon off;
-4026531835 cgroup      4   1 root nginx: master process nginx -g daemon off;
-4026531837 user        4   1 root nginx: master process nginx -g daemon off;
-4026532553 mnt         4   1 root nginx: master process nginx -g daemon off;
-4026532554 uts         4   1 root nginx: master process nginx -g daemon off;
-4026532555 ipc         4   1 root nginx: master process nginx -g daemon off;
-4026532556 pid         4   1 root nginx: master process nginx -g daemon off;
-4026532558 net         4   1 root nginx: master process nginx -g daemon off;
-
-$ sudo nsenter -t 967330 -a lsns
-        NS TYPE   NPROCS PID USER COMMAND
-4026531834 time        4   1 root nginx: master process nginx -g daemon off;
-4026531835 cgroup      4   1 root nginx: master process nginx -g daemon off;
-4026531837 user        4   1 root nginx: master process nginx -g daemon off;
-4026532632 mnt         4   1 root nginx: master process nginx -g daemon off;
-4026532633 uts         4   1 root nginx: master process nginx -g daemon off;
-4026532634 ipc         4   1 root nginx: master process nginx -g daemon off;
-4026532635 pid         4   1 root nginx: master process nginx -g daemon off;
-4026532637 net         4   1 root nginx: master process nginx -g daemon off;
-
-$ sudo nsenter -t 967330 -a curl -iI 127.0.0.1
+4026531835 cgroup      3   1 root nginx: master process nginx -g daemon off;
+4026531837 user        3   1 root nginx: master process nginx -g daemon off;
+4026532706 mnt         3   1 root nginx: master process nginx -g daemon off;
+4026532707 uts         3   1 root nginx: master process nginx -g daemon off;
+4026532708 ipc         3   1 root nginx: master process nginx -g daemon off;
+4026532709 pid         3   1 root nginx: master process nginx -g daemon off;
+4026532711 net         3   1 root nginx: master process nginx -g daemon off;
+$ sudo nsenter -t 43776 -a curl -iI localhost
 HTTP/1.1 200 OK
-Server: nginx/1.21.4
-Date: Thu, 25 Nov 2021 07:52:48 GMT
+Server: nginx/1.25.2
+Date: Tue, 22 Aug 2023 09:44:58 GMT
 Content-Type: text/html
 Content-Length: 615
-Last-Modified: Tue, 02 Nov 2021 14:49:22 GMT
+Last-Modified: Tue, 15 Aug 2023 17:03:04 GMT
 Connection: keep-alive
-ETag: "61814ff2-267"
+ETag: "64dbafc8-267"
 Accept-Ranges: bytes
-
 ----
 
-=== contianerd/http_proxy
+=== contianerd/proxy
 
 The *contianerd* daemon uses the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environmental variables in its start-up environment to configure HTTP or HTTPS proxy behavior.
 
-* Create a systemd drop-in directory for the containerd service:
+. Create a systemd drop-in directory for the containerd service:
 +
 [source,console]
 ----
 $ sudo mkdir -p /etc/systemd/system/containerd.service.d
 ----
 
-* Create a file called `http-proxy.conf` at the above directory that adds the `HTTP_PROXY` environment variable:
+. Create a file called `http-proxy.conf` at the above directory that adds the `HTTP_PROXY` environment variable:
 +
 [source,systemd]
 ----
@@ -637,21 +623,21 @@ ref: https://www.gnu.org/software/emacs/manual/html_node/url/Proxies.html
 +
 NOTE: You can also use the `systemctl edit containerd` to edit `override.conf` at `/etc/systemd/system/containrd.service.d` for the containerd service.
 
-* Flush changes:
+. Flush changes:
 +
 [source,sh]
 ----
 $ sudo systemctl daemon-reload
 ----
 
-* Restart containerd:
+. Restart containerd:
 +
 [source,console]
 ----
 $ sudo systemctl restart containerd
 ----
 
-* Verify that the configuration has been loaded:
+. Verify that the configuration has been loaded:
 +
 [source,console]
 ----
@@ -699,7 +685,8 @@ IMAGE               TAG                 IMAGE ID            SIZE
 see also: https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/#general-usage
 ====
 
-.`crictl image list = ctr -n=k8s.io image list`
+*`crictl image list` = `ctr -n=k8s.io image list`*
+
 [source,console]
 ----
 $ sudo ctr -n k8s.io i ls
@@ -716,7 +703,9 @@ docker.io/library/busybox   latest              7138284460ffa       1.46MB
 k8s.gcr.io/pause            3.2                 80d28bedfe5de       686kB
 ----
 
-.container-config.json
+*create a pod sandbox and run a container*
+
+._container-config.json_
 [source,json]
 ----
 {
@@ -735,7 +724,7 @@ k8s.gcr.io/pause            3.2                 80d28bedfe5de       686kB
 }
 ----
 
-.pod-config.json
+._pod-config.json_
 [source,json]
 ----
 {
@@ -751,7 +740,6 @@ k8s.gcr.io/pause            3.2                 80d28bedfe5de       686kB
 }
 ----
 
-.create a pod sandbox and run a container
 [source,console]
 ----
 $ sudo crictl run container-config.json pod-config.json
@@ -760,14 +748,11 @@ b08ad7b8517d0e37853f3a7211fbc7ba283a7b34cff5bd0ae108e9d956034a24
 $ sudo crictl pods
 POD ID              CREATED             STATE               NAME                NAMESPACE           ATTEMPT             RUNTIME
 91ff0a7d5e81a       15 seconds ago      Ready               nginx-sandbox       default             1                   (default)
-
 $ sudo crictl ps
 CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
 b08ad7b8517d0       busybox             15 seconds ago      Running             busybox             0                   91ff0a7d5e81a
-
 $ sudo crictl stopp 91ff0a7d5e81a
 Stopped sandbox 91ff0a7d5e81a
-
 $ sudo crictl rmp 91ff0a7d5e81a
 Removed sandbox 91ff0a7d5e81a
 ----
@@ -785,6 +770,54 @@ image::{cri-containerd-png}[,75%,75%]
 [NOTE]
 ====
 > Docker support in the kubelet is now deprecated and will be removed in a future release. The kubelet uses a module called "dockershim" which implements CRI support for Docker and it has seen maintenance issues in the Kubernetes community.
+====
+
+:docker-ce-24-release-notes: https://docs.docker.com/engine/release-notes/24.0/#2400
+
+NOTE: Introduce experimental support for containerd as the content store (replacing the existing storage drivers) of the {docker-ce-24-release-notes}[Docker 24.0].
+
+.https://docs.docker.com/storage/containerd/[Enable containerd image store on Docker Engine]
+[NOTE]
+====
+Switching to containerd snapshotters causes you to temporarily lose images and containers created using the classic storage drivers. Those resources still exist on your filesystem, and you can retrieve them by turning off the containerd snapshotters feature.
+
+The following steps explain how to enable the containerd snapshotters feature.
+
+. Add the following configuration to your `/etc/docker/daemon.json` configuration file:
++
+[source,json]
+----
+{
+  "features": {
+    "containerd-snapshotter": true
+  }
+}
+----
+
+. Restart the daemon for the changes to take effect.
++
+[source,sh]
+----
+sudo systemctl restart docker
+----
+
+. After restarting the daemon, running `docker info` shows that you’re using containerd snapshotter storage drivers.
++
+[source,sh]
+----
+docker info -f '{{ .DriverStatus }}'
+----
+
+Docker Engine uses the *overlayfs* containerd snapshotter by default.
+
+[source,console]
+----
+$ sudo ctr plugin ls
+TYPE                                  ID                       PLATFORMS      STATUS
+. . .
+io.containerd.snapshotter.v1          overlayfs                linux/amd64    ok
+. . .
+----
 ====
 
 Developers can still use the Docker platform to build, share, and run containers on Kubernetes!
@@ -808,9 +841,12 @@ If you're using Docker, you'll find that the `cri` plugin was disabled at `/etc/
 
 [source,console]
 ----
+$ containerd config dump | grep 'disabled_plugins'
+disabled_plugins = ["cri"]
+$ # OR
 $ grep cri /etc/containerd/config.toml 
 disabled_plugins = ["cri"]
-
+$ # OR
 $ sudo ctr plugin ls | grep cri
 ----
 
@@ -854,7 +890,7 @@ When using `kubeadm`, manually configure the {kubeadm-configure-cgroup-driver}[c
   # ...
   [plugins."io.containerd.grpc.v1.cri"]
     # ...
-    sandbox_image = "k8s.gcr.io/pause:3.5"
+    sandbox_image = "k8s.gcr.io/pause:3.5" # consider to keep same as the `--pod-infra-container-image` of kubelet
 ----
 
 .Use `kubeadm` to init a single node cluster with `containerd`
@@ -892,6 +928,53 @@ $ systemctl status kubelet.service --no-page --full
            └─38090 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --pod-infra-container-image=k8s.gcr.io/pause:3.5
 ----
 
+[NOTE]
+====
+It is recommended to keep the `sandbox_image` of containerd consistent with the `pod-infra-container-image` (also known as the *pause* container image) of the kubelet. <<Azure OpenAI | ChatGPT4>>
+
+Both images are used to create the pause container, which serves as the "parent container" for all other containers in a Kubernetes pod. Ensuring that these images match helps maintain consistency and avoid potential issues within your Kubernetes environment.
+
+The pause container holds the network namespace and other shared resources for all containers within a pod.
+
+Having a consistent pause container image ensures that all components of your Kubernetes cluster use the same image, reducing the likelihood of conflicts and maintaining a unified environment.
+
+To make sure both configurations are using the same image, follow these steps:
+
+. Configure the `sandbox_image` in containerd's configuration file, usually located at `/etc/containerd/config.toml`. For example:
++
+[source,toml]
+----
+[plugins."io.containerd.grpc.v1.cri".containerd.default_runtime]
+  ...
+  sandbox_image = "k8s.gcr.io/pause:3.6"
+  ...
+----
+
+. Configure the `pod-infra-container-image` in the kubelet's configuration file or command-line flags. For example, add the following flag to the kubelet's command-line options:
++
+[source,sh]
+----
+--pod-infra-container-image=k8s.gcr.io/pause:3.6
+----
++
+[source,console]
+----
+$ sudo cat /var/lib/kubelet/kubeadm-flags.env
+KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9"
+----
++
+or set the `pod-infra-container-image` in the kubelet's configuration file (usually `/var/lib/kubelet/config.yaml`):
++
+[source,yml]
+----
+pod-infra-container-image: "k8s.gcr.io/pause:3.6"
+----
+
+After making these changes, restart the containerd and kubelet services to apply the new configurations.
+
+By keeping the `sandbox_image` and `pod-infra-container-image` consistent, you can ensure that your Kubernetes cluster operates smoothly and avoids potential issues related to using different pause container images.
+====
+
 == References
 
 * https://www.docker.com/blog/runc/
@@ -905,3 +988,4 @@ $ systemctl status kubelet.service --no-page --full
 * https://kubernetes.io/blog/2018/05/24/kubernetes-containerd-integration-goes-ga/
 * https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 * https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
+* https://docs.docker.com/storage/containerd/
