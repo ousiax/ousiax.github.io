@@ -818,6 +818,56 @@ TYPE                                  ID                       PLATFORMS      ST
 io.containerd.snapshotter.v1          overlayfs                linux/amd64    ok
 . . .
 ----
+
+._``moby`` is default namespace for dockerd and `k8s.io` is default namespace for kubelet, i.e. Kubernetes._
+[source,console]
+----
+$ sudo docker info -f '{{.DriverStatus}}'
+[[driver-type io.containerd.snapshotter.v1]]
+$ sudo docker image ls
+REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
+$ sudo ctr ns ls
+NAME LABELS 
+moby        
+$ sudo ctr -n moby content ls
+DIGEST	SIZE	AGE	LABELS
+$ sudo ctr -n moby image pull docker.io/library/nginx:1.25.2
+docker.io/library/nginx:1.25.2:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
+index-sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c:    done           |++++++++++++++++++++++++++++++++++++++| 
+manifest-sha256:48a84a0728cab8ac558f48796f901f6d31d287101bc8b317683678125e0d2d35: done           |++++++++++++++++++++++++++++++++++++++| 
+config-sha256:eea7b3dcba7ee47c0d16a60cc85d2b977d166be3960541991f3e6294d795ed24:   done           |++++++++++++++++++++++++++++++++++++++| 
+. . .
+layer-sha256:e3b6889c89547ec9ba653ab44ed32a99370940d51df956968c0d578dd61ab665:    done           |++++++++++++++++++++++++++++++++++++++| 
+elapsed: 65.9s                                                                    total:  66.8 M (1.0 MiB/s)                                       
+unpacking linux/amd64 sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c...
+done: 1.641277314s	
+$ docker image ls
+REPOSITORY   TAG       IMAGE ID       CREATED         SIZE
+nginx        1.25.2    104c7c5c54f2   7 seconds ago   272MB
+$ docker pull nginx:1.25.2
+104c7c5c54f2: Already exists 
+48a84a0728ca: Already exists 
+eea7b3dcba7e: Already exists 
+docker.io/library/nginx:1.25.2
+$ docker image ls
+REPOSITORY   TAG       IMAGE ID       CREATED              SIZE
+nginx        1.25.2    104c7c5c54f2   About a minute ago   272MB
+$ sudo ctr -n k8s.io i pull docker.io/library/nginx:1.25.2
+docker.io/library/nginx:1.25.2:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
+index-sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c:    done           |++++++++++++++++++++++++++++++++++++++| 
+manifest-sha256:48a84a0728cab8ac558f48796f901f6d31d287101bc8b317683678125e0d2d35: done           |++++++++++++++++++++++++++++++++++++++| 
+. . .
+layer-sha256:a7c4092be9044bd4eef78f27c95785ef3a9f345d01fd4512bc94ddaaefc359f4:    done           |++++++++++++++++++++++++++++++++++++++| 
+config-sha256:eea7b3dcba7ee47c0d16a60cc85d2b977d166be3960541991f3e6294d795ed24:   done           |++++++++++++++++++++++++++++++++++++++| 
+. . .
+layer-sha256:52d2b7f179e32b4cbd579ee3c4958027988f9a8274850ab0c7c24661e3adaac5:    done           |++++++++++++++++++++++++++++++++++++++| 
+elapsed: 2.3 s                                                                    total:   0.0 B (0.0 B/s)                                         
+unpacking linux/amd64 sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c...
+done: 3.058695129s	
+$ kubectl get nodes -owide
+NAME     STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION   CONTAINER-RUNTIME
+node-0   Ready    control-plane   50m   v1.28.0   192.168.91.128   <none>        Debian GNU/Linux 12 (bookworm)   6.1.0-9-amd64    containerd://1.6.22
+----
 ====
 
 Developers can still use the Docker platform to build, share, and run containers on Kubernetes!
@@ -928,9 +978,10 @@ $ systemctl status kubelet.service --no-page --full
            └─38090 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --pod-infra-container-image=k8s.gcr.io/pause:3.5
 ----
 
+.<<Azure OpenAI | ChatGPT4>>
 [NOTE]
 ====
-It is recommended to keep the `sandbox_image` of containerd consistent with the `pod-infra-container-image` (also known as the *pause* container image) of the kubelet. <<Azure OpenAI | ChatGPT4>>
+It is recommended to keep the `sandbox_image` of containerd consistent with the `pod-infra-container-image` (also known as the *pause* container image) of the kubelet.
 
 Both images are used to create the pause container, which serves as the "parent container" for all other containers in a Kubernetes pod. Ensuring that these images match helps maintain consistency and avoid potential issues within your Kubernetes environment.
 
