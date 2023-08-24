@@ -102,8 +102,108 @@ sorted order.
 The key operation of the merge sort algorithm is the merging of two sorted sequences in the “combine” step.
 
 * It's merged by calling an auxiliary procedure `MERGE(A, p, q, r)`, where `A` is an array and `p`, `q`, and `r` are indices into the array such that `p +++<=+++  q < r`.
-* The procedure assumes that the subarrays `A[p ... q]` and `A[q + 1 ... r]` are in sorted order. It merges them to form a single sorted subarray that replaces the current subarray `A[p ... r]`.
+* The procedure assumes that the subarrays `A[p ... q]` and `A[q + 1 ... r]` are in sorted order. It *merges* them to form a single sorted subarray that replaces the current subarray `A[p ... r]`.
++
+[.text-left,subs="+quotes"]
+----
+MERGE(A, p, q, r) // merge the subarrays A[p:q] and A[q+1:r]
+1   n~1~ = q - p + 1 // calculate the length of subarray
+2   n~2~ = r - q
+3   let L[1 : n~1~ + 1] and R[1 : n~2~ + 1] be new arrays
+4   for i = 1 to n~1~ // copy the subarray A[p:q] to L[1:n~1~]
+5     L[i] = A[p + i - 1]
+6   for j = 1 to n~2~ // copy the subarray A[q + 1: r] to R[1:n~2~]
+7     R[j] = A[q + j] 
+8   L[n~1~ + 1] = ∞ // use ∞ as the sentinel value to check whether the subarray is empty
+9   R[n~2~ + 1 = ∞
+10  i = 1 // i is the index of L
+11  j = 1 // j is the index of R
+12  for k = p to r // k is the index of the loop invariant A[p:r]
+13    if L[i] <=  R[j]
+14       A[k] = L[i]
+15       i = i + 1
+16    else A[k] = R[j] 
+17       j = j + 1
+----
 
+* The procedure `MERGE-SORT(A, p, r)` sorts the elements in the subarray `A[p:r]`. If `p >= r`, the subarray has at most one element and is therefore already sorted. Otherwise, the divide step simply computes an index `q` that partitions `A[p:r]` into two subarrays: `A[p:q]` and `A[q + 1 : r]`.
++
+[.text-left,subs="+quotes"]
+----
+MERGE-SORT(A, p, r)
+1   if p < r
+2     q = math.floor[(p + r) / 2]
+3     MERGE-SORT(A, p, q)
+4     MERGE-SORT(A, q + 1, r)
+5     MERGE(A, p, q, r)
+----
++
+._Here is the *recursion tree* that describes the operation of merge sort on the array `A = [5, 2, 4, 7, 1, 3, 2, 6]`. The lengths of the sorted sequences being merged increase as the algorithm progresses from bottom to top._
+[source,txt]
+----
+                        (1, 2, 2, 3, 4, 5, 6, 7)
+                       /                        \
+        (2, 4, 5, 7)                        (1, 2, 3, 6)
+         /        \                         /        \
+    (2, 5)      (4, 7)                 (1, 3)      (2, 6)
+    /   \        /   \                 /   \        /   \
+  (5)   (2)    (4)   (7)             (1)   (3)    (2)   (6)
+----
+
+When an algorithm contains a recursive call to itself, it can be often described its running time by a *recurrence equation* or *recurrence*, which describes the overall running time on a problem of size `n` in terms of the running time on smaller inputs. It can be then used mathematical tools (i.e. *master theorem*) to solve the recurrence and provide bounds on the performance of the algorithm.
+
+A recurrence for the running time of a divide-and-conquer algorithm falls out from the three steps of the basic paradigm.
+
+. As before, we let `T(n)` be the running time on a problem of size `n`. If the problem size is small enough, say `n <= c` for some constant `c`, the straightforward solution takes constant time, wrote as `Θ(1)`.
+
+. Suppose that our division of the problem yields `a` subproblems, each of which is `1/b` the size of the original.
++
+For merge sort, both `a` and `b` are 2, but we shall see many divide-and-conquer algorithms in which a != b.
++
+It takes time `T(n/b)` to solve one subproblem of size `n/b`, and so it takes time `aT(n/b)` to solve `a` of them.
+
+. If it's token `D(n)` time to divide the problem into subproblems and `C(n)` time to combine the solutions to the subproblems into the solution to the original problem, the recurrence will be `Θ(1)` if `n +++<=+++ c`, otherwise, `aT(n/b) + D(n) + C(n)`, that is `Θ(~n~lg~n~)`.
+
+._Merge sort implemented with Go_
+[source,go]
+----
+// the initial call should be made with mergeSort(a, 0, len(a)), and r is the length of a.
+func mergeSort(a []int, p, r int) {
+	var q int
+	if p < r-1 { // for any subarray that has at least two elements
+		q = int((p + r) / 2)
+		mergeSort(a, p, q) // sort the subarray a[p:q]
+		mergeSort(a, q, r) // sort the subarray a[q:r]
+		merge(a, p, q, r)
+	}
+}
+
+func merge(a []int, p, q, r int) {
+	n1 := q - p
+	n2 := r - q
+	L := make([]int, n1+1)
+	R := make([]int, n2+1)
+	for i := 0; i < n1; i++ {
+		L[i] = a[p+i]
+	}
+	for i := 0; i < n2; i++ {
+		R[i] = a[q+i]
+	}
+	L[n1] = math.MaxInt // sentinel
+	R[n2] = math.MaxInt
+
+	i, j := 0, 0
+	for k := p; k < r; k++ {
+		if L[i] < R[j] {
+			a[k] = L[i]
+			i++
+		} else {
+			a[k] = R[j]
+			j++
+		}
+	}
+}
+----
 
 [appendix]
 == Pseudocode conventions
