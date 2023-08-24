@@ -1623,29 +1623,35 @@ The linux `free` command detects memory info from `/proc/meminfo` instead of `/s
 
 [source,console]
 ----
-$ free 
-              total        used        free      shared  buff/cache   available
-Mem:        4017728      726892     1148152        1212     2142684     3026308
-Swap:             0           0           0
-
-$ docker run --rm openjdk:8 free 
+$ free
                total        used        free      shared  buff/cache   available
-Mem:         4017728      814556     1408108        1284     1795064     2943488
+Mem:         8096728     3038492      219336        3208     5155612     5058236
 Swap:              0           0           0
-
-$ docker run --rm -m 512m openjdk:11 free
-WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+$ docker run --rm eclipse-temurin:17 free
                total        used        free      shared  buff/cache   available
-Mem:         4017728      816368     1383084        1292     1818276     2941724
+Mem:         8096728     2783748      157320        3232     5155660     4996244
 Swap:              0           0           0
-
-$ docker run --rm -m 512m openjdk:11 cat /sys/fs/cgroup/memory/memory.limit_in_bytes
-WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+$ docker run --rm -m 512m eclipse-temurin:17 free
+               total        used        free      shared  buff/cache   available
+Mem:         8096728     2770564      170104        3208     5156060     5009280
+Swap:              0           0           0
+$ # For Cgroup v1, use /sys/fs/cgroup/memory/memory.limit_in_bytes, instead of /sys/fs/cgroup/memory.max
+$ docker run --rm -m 512m eclipse-temurin:17 cat /sys/fs/cgroup/memory.max
 536870912
-
 $ echo $((536870912 / 1024 / 1024))m
 512m
 ----
+
+.Identify the cgroup version on Linux
+[NOTE]
+====
+The cgroup version depends on the Linux distribution being used and the default cgroup version configured on the OS. To check which cgroup version your distribution uses, run the `stat -fc %T /sys/fs/cgroup/` command on the node: <<k8scgroups>>
+
+For cgroup v2, the output is `cgroup2fs`.
+
+For cgroup v1, the output is `tmpfs`.
+
+====
 
 We will use the https://docs.oracle.com/en/java/javase/17/gctuning/parallel-collector1.html[parallel collector] to demostrate the java VM container support. Unless the initial and maximum heap sizes are specified on the command line, they're calculated based on the amount of memory on the machine. The default maximum heap size is one-fourth of the physical memory while the initial heap size is 1/64th of physical memory. The maximum amount of space allocated to the young generation is one third of the total heap size. <<parallel-gc>>
 
@@ -1654,12 +1660,12 @@ We will use the https://docs.oracle.com/en/java/javase/17/gctuning/parallel-coll
 # Run Java in virtual machine host
 $ java -XX:+UseParallelGC -XshowSettings:vm -version
 VM settings:
-    Max. Heap Size (Estimated): 873.00M
+    Max. Heap Size (Estimated): 1.72G
     Using VM: OpenJDK 64-Bit Server VM
 
-openjdk version "11.0.12" 2021-07-20
-OpenJDK Runtime Environment (build 11.0.12+7-post-Debian-2deb10u1)
-OpenJDK 64-Bit Server VM (build 11.0.12+7-post-Debian-2deb10u1, mixed mode, sharing)
+openjdk version "17.0.8" 2023-07-18
+OpenJDK Runtime Environment (build 17.0.8+7-Debian-1deb12u1)
+OpenJDK 64-Bit Server VM (build 17.0.8+7-Debian-1deb12u1, mixed mode, sharing)
 ----
 
 === Container detection support
@@ -1674,29 +1680,28 @@ As we can see, the default java VM maximum heap size is always same with the hos
 +
 [source,console,highlight='3']
 ----
-$ docker run --rm openjdk:11 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
+$ docker run --rm eclipse-temurin:17 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
 VM settings:
-    Max. Heap Size (Estimated): 873.00M
+    Max. Heap Size (Estimated): 1.72G
     Using VM: OpenJDK 64-Bit Server VM
 
-openjdk version "11.0.13" 2021-10-19
-OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
-OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+openjdk version "17.0.8" 2023-07-18
+OpenJDK Runtime Environment Temurin-17.0.8+7 (build 17.0.8+7)
+OpenJDK 64-Bit Server VM Temurin-17.0.8+7 (build 17.0.8+7, mixed mode, sharing)
 ----
 +
 ** Run Java in container with memory limit
 +
-[source,console,highlight='4']
+[source,console,highlight='3']
 ----
-$ docker run --rm -m 512m openjdk:11 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
-WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+$ docker run --rm -m 512m eclipse-temurin:17 java -XX:-UseContainerSupport -XX:+UseParallelGC -XshowSettings:vm -version
 VM settings:
-    Max. Heap Size (Estimated): 873.00M
+    Max. Heap Size (Estimated): 1.72G
     Using VM: OpenJDK 64-Bit Server VM
 
-openjdk version "11.0.13" 2021-10-19
-OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
-OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+openjdk version "17.0.8" 2023-07-18
+OpenJDK Runtime Environment Temurin-17.0.8+7 (build 17.0.8+7)
+OpenJDK 64-Bit Server VM Temurin-17.0.8+7 (build 17.0.8+7, mixed mode, sharing)
 ----
 
 * Use `-XX:+UseContainerSupport` to enable container support
@@ -1705,20 +1710,56 @@ The default value for this flag `-XX:+UseContainerSupport` is true, so we can ru
 +
 ** Run Java in container with memory limit 
 +
-[source,console,highlight='4']
+[source,console,highlight='3']
 ----
-$ docker run --rm -m 512m openjdk:11 java -XX:+UseParallelGC -XshowSettings:vm -version
-WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+$ docker run --rm -m 512m eclipse-temurin:17 java -XX:+UseParallelGC -XshowSettings:vm -version
 VM settings:
     Max. Heap Size (Estimated): 114.00M
     Using VM: OpenJDK 64-Bit Server VM
 
-openjdk version "11.0.13" 2021-10-19
-OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
-OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
+openjdk version "17.0.8" 2023-07-18
+OpenJDK Runtime Environment Temurin-17.0.8+7 (build 17.0.8+7)
+OpenJDK 64-Bit Server VM Temurin-17.0.8+7 (build 17.0.8+7, mixed mode, sharing)
 ----
 
 ** Use `-Xlog:os+container=trace` for maximum logging of container information.
++
+*** cgroup v2
++
+[source,console,highlight='4,8-9,13,15']
+----
+$ docker run --rm -m 512m eclipse-temurin:17 java -Xlog:os+container=trace -version
+[0.000s][trace][os,container] OSContainer::init: Initializing Container Support
+[0.000s][debug][os,container] Detected optional pids controller entry in /proc/cgroups
+[0.001s][debug][os,container] Detected cgroups v2 unified hierarchy
+[0.001s][trace][os,container] Path to /cpu.max is /sys/fs/cgroup/cpu.max
+[0.001s][trace][os,container] Raw value for CPU quota is: max
+[0.001s][trace][os,container] CPU Quota is: -1
+[0.001s][trace][os,container] Path to /cpu.max is /sys/fs/cgroup/cpu.max
+[0.001s][trace][os,container] CPU Period is: 100000
+[0.001s][trace][os,container] OSContainer::active_processor_count: 4
+[0.001s][trace][os,container] CgroupSubsystem::active_processor_count (cached): 4
+[0.001s][trace][os,container] total physical memory: 8291049472
+[0.001s][trace][os,container] Path to /memory.max is /sys/fs/cgroup/memory.max
+[0.001s][trace][os,container] Raw value for memory limit is: 536870912
+[0.001s][trace][os,container] Memory Limit is: 536870912
+[0.002s][trace][os,container] CgroupSubsystem::active_processor_count (cached): 4
+[0.016s][trace][os,container] CgroupSubsystem::active_processor_count (cached): 4
+[0.024s][trace][os,container] total physical memory: 8291049472
+[0.025s][trace][os,container] Path to /memory.max is /sys/fs/cgroup/memory.max
+[0.025s][trace][os,container] Raw value for memory limit is: 536870912
+[0.025s][trace][os,container] Memory Limit is: 536870912
+[0.025s][trace][os,container] Path to /memory.current is /sys/fs/cgroup/memory.current
+[0.025s][trace][os,container] Memory Usage is: 18276352
+. . .
+openjdk version "17.0.8" 2023-07-18
+OpenJDK Runtime Environment Temurin-17.0.8+7 (build 17.0.8+7)
+[0.046s][trace][os,container] Path to /memory.current is /sys/fs/cgroup/memory.current
+OpenJDK 64-Bit Server VM Temurin-17.0.8+7 (build 17.0.8+7, mixed mode, sharing)
+[0.046s][trace][os,container] Memory Usage is: 19017728
+----
+
+*** cgroup v1
 +
 [source,console,highlight='4,6,9,11,13']
 ----
@@ -1750,9 +1791,7 @@ WARNING: Your kernel does not support swap limit capabilities or the cgroup is n
 [0.064s][trace][os,container] Memory Limit is: 536870912
 [0.064s][trace][os,container] Path to /memory.usage_in_bytes is /sys/fs/cgroup/memory/memory.usage_in_bytes
 [0.065s][trace][os,container] Memory Usage is: 10055680
-
-...
-
+. . .
 openjdk version "11.0.13" 2021-10-19
 OpenJDK Runtime Environment 18.9 (build 11.0.13+8)
 OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
@@ -1760,20 +1799,20 @@ OpenJDK 64-Bit Server VM 18.9 (build 11.0.13+8, mixed mode, sharing)
 
 === Spring Boot in Kubernetes
 
-. Create Spring MVC project with start.spring.io
+. Create Spring MVC project with https://start.spring.io/[start.spring.io]
 +
-[source,console]
-----
-$ curl -sS -o demo.zip "https://start.spring.io/starter.zip?type=maven-project&language=java&bootVersion=2.5.6&baseDir=demo&groupId=com.example&artifactId=demo&name=demo&description=Demo%20project%20for%20Spring%20Boot&packageName=com.example.demo&packaging=jar&javaVersion=11&dependencies=web,devtools,actuator"
-$ unzip demo.zip && cd demo
-----
+Use https://start.spring.io/[start.spring.io] to create a "web" project. In the "Dependencies" dialog search for and add the "web", "devtools", and "actuator" dependencies as shown in the screenshot, and select "Project" as "Maven", "Packaging" as "Jar", "Java" as "17".
++
+Hit the "Generate" button, download the zip, and unpack it into a folder on your computer.
++
+image::/assets/compile-and-run-java-in-container/start.spring.io.png[,75%,75%]
 
 . Build OCI image with `Dockerfile`
 +
 [source,dockerfile]
 ----
 # Dockerfile
-FROM openjdk:11
+FROM eclipse-temurin:17
 WORKDIR /app
 COPY ./target/*.jar /app/app.jar
 CMD ["java", "-jar", "/app/app.jar"]
@@ -1781,52 +1820,50 @@ CMD ["java", "-jar", "/app/app.jar"]
 +
 [source,console]
 ----
-$ mvn package && docker build . -t demo:0.0.1-SNAPSHOT 
+$ mvn package && docker build . -t demo:0.0.1-SNAPSHOT
 [INFO] Scanning for projects...
-[INFO] 
-[INFO] --------------------------< com.example:demo >--------------------------
-[INFO] Building demo 0.0.1-SNAPSHOT
-[INFO] --------------------------------[ jar ]---------------------------------
-
 . . .
-
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  14.242 s
-[INFO] Finished at: 2021-11-02T17:49:38+08:00
+[INFO] Total time:  6.251 s
+[INFO] Finished at: 2023-08-24T19:17:59+08:00
 [INFO] ------------------------------------------------------------------------
-Sending build context to Docker daemon  19.66MB
-Step 1/4 : FROM openjdk:11
- ---> 40eccaa4f420
-Step 2/4 : WORKDIR /app
- ---> Running in 69e8c68d3924
-Removing intermediate container 69e8c68d3924
- ---> c2ce7e058438
-Step 3/4 : COPY ./target/*.jar /app/app.jar
- ---> 8b4c2e01ea26
-Step 4/4 : CMD ["java", "-jar", "/app/app.jar"]
- ---> Running in e4cf2f54f7ba
-Removing intermediate container e4cf2f54f7ba
- ---> d244def82917
-Successfully built d244def82917
-Successfully tagged demo:0.0.1-SNAPSHOT
+[+] Building 1.0s (8/8) FINISHED                                  docker:default
+ => [internal] load build definition from Dockerfile                        0.0s
+ => => transferring dockerfile: 157B                                        0.0s
+ => [internal] load .dockerignore                                           0.0s
+ => => transferring context: 2B                                             0.0s
+ => [internal] load metadata for docker.io/library/eclipse-temurin:17       0.9s
+ => [1/3] FROM docker.io/library/eclipse-temurin:17@sha256:80c017af9fdd791  0.0s
+ => => resolve docker.io/library/eclipse-temurin:17@sha256:80c017af9fdd791  0.0s
+ => [internal] load build context                                           0.0s
+ => => transferring context: 80B                                            0.0s
+ => CACHED [2/3] WORKDIR /app                                               0.0s
+ => CACHED [3/3] COPY ./target/*.jar /app/app.jar                           0.0s
+ => exporting to image                                                      0.0s
+ => => exporting layers                                                     0.0s
+ => => exporting manifest sha256:e4a012ec0d765e96c790f0d38013b5921ed06ba71  0.0s
+ => => exporting config sha256:fca9cba8c7dda76c92f2165b135af18e0059ea8f2db  0.0s
+ => => exporting attestation manifest sha256:1230a2e4c5f1f369ee7ee1e57d5a3  0.0s
+ => => exporting manifest list sha256:3d33699c48a6990ffe8cbc2cecc868508ca3  0.0s
+ => => naming to docker.io/library/demo:0.0.1-SNAPSHOT                      0.0s
+ => => unpacking to docker.io/library/demo:0.0.1-SNAPSHOT                   0.0s
 ----
 +
 [source,console]
 ----
-$ docker run --rm --name demo -d -p 8088:8080 demo:0.0.1-SNAPSHOT 
-d16f5962bbf5ce64eee87ca37b0e94613dcc22a93069ef95dc678dc82fb4962e
-
-$ curl -i localhost:8088/actuator/health
-HTTP/1.1 200 
+$ docker run --rm --name demo -^Cp 8088:8080 demo:0.0.1-SNAPSHOT
+$ docker ps
+CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS          PORTS                                       NAMES
+3c25db97db8b   demo:0.0.1-SNAPSHOT   "/__cacert_entrypoin…"   21 seconds ago   Up 19 seconds   0.0.0.0:8088->8080/tcp, :::8088->8080/tcp   demo
+$ curl -iI localhost:8088/actuator/health
+HTTP/1.1 200
 Content-Type: application/vnd.spring-boot.actuator.v3+json
 Transfer-Encoding: chunked
-Date: Tue, 02 Nov 2021 09:51:11 GMT
+Date: Thu, 24 Aug 2023 11:11:37 GMT
 
-{"status":"UP"}
-
-$ docker stop  demo0
+$ docker stop demo
 demo
 ----
 
@@ -1872,13 +1909,13 @@ This layering is designed to separate code based on how likely it is to change b
 +
 [source,dockerfile]
 ----
-# Dockerfile.layers 
-FROM openjdk:11 as builder
+# Dockerfile.layers
+FROM eclipse-temurin:17 as builder
 WORKDIR /app
 COPY target/*.jar app.jar
 RUN java -Djarmode=layertools -jar app.jar extract
 
-FROM openjdk:11
+FROM eclipse-temurin:17
 WORKDIR /app
 COPY --from=builder /app/dependencies/ ./
 COPY --from=builder /app/spring-boot-loader/ ./
@@ -1890,56 +1927,46 @@ CMD ["java", "org.springframework.boot.loader.JarLauncher"]
 +
 [source,console]
 ----
-$ docker build . -t demo:0.0.1-SNAPSHOT -f Dockerfile.layers 
-Sending build context to Docker daemon  19.66MB
-Step 1/11 : FROM openjdk:11 as builder
- ---> 40eccaa4f420
-Step 2/11 : WORKDIR /app
- ---> Running in e25debcc04d8
-Removing intermediate container e25debcc04d8
- ---> 7fbb05a599db
-Step 3/11 : COPY target/*.jar app.jar
- ---> 2a9ae411237d
-Step 4/11 : RUN java -Djarmode=layertools -jar app.jar extract
- ---> Running in a47dcec36428
-Removing intermediate container a47dcec36428
- ---> 5eb010818830
-Step 5/11 : FROM openjdk:11
- ---> 40eccaa4f420
-Step 6/11 : WORKDIR /app
- ---> Using cache
- ---> 7fbb05a599db
-Step 7/11 : COPY --from=builder /app/dependencies/ ./
- ---> 829945939519
-Step 8/11 : COPY --from=builder /app/spring-boot-loader/ ./
- ---> cc00e84c914e
-Step 9/11 : COPY --from=builder /app/snapshot-dependencies/ ./
- ---> d2171d6819c6
-Step 10/11 : COPY --from=builder /app/application/ ./
- ---> 31ff9f69f026
-Step 11/11 : CMD ["java", "org.springframework.boot.loader.JarLauncher"]
- ---> Running in 897e8650809c
-Removing intermediate container 897e8650809c
- ---> 49fa23a24b42
-Successfully built 49fa23a24b42
-Successfully tagged demo:0.0.1-SNAPSHOT
+$ docker build . --no-cache -t demo:0.0.2-SNAPSHOT -f Dockerfile.layers
+[+] Building 3.0s (13/13) FINISHED                                docker:default
+ => [internal] load build definition from Dockerfile.layers                 0.0s
+ => => transferring dockerfile: 472B                                        0.0s
+ => [internal] load .dockerignore                                           0.0s
+ => => transferring context: 2B                                             0.0s
+ => [internal] load metadata for docker.io/library/eclipse-temurin:17       0.9s
+ => [builder 1/4] FROM docker.io/library/eclipse-temurin:17@sha256:80c017a  0.0s
+ => => resolve docker.io/library/eclipse-temurin:17@sha256:80c017af9fdd791  0.0s
+ => [internal] load build context                                           0.0s
+ => => transferring context: 80B                                            0.0s
+ => CACHED [builder 2/4] WORKDIR /app                                       0.0s
+ => [builder 3/4] COPY target/*.jar app.jar                                 0.1s
+ => [builder 4/4] RUN java -Djarmode=layertools -jar app.jar extract        0.7s
+ => [stage-1 3/6] COPY --from=builder /app/dependencies/ ./                 0.1s
+ => [stage-1 4/6] COPY --from=builder /app/spring-boot-loader/ ./           0.0s
+ => [stage-1 5/6] COPY --from=builder /app/snapshot-dependencies/ ./        0.0s
+ => [stage-1 6/6] COPY --from=builder /app/application/ ./                  0.1s
+ => exporting to image                                                      1.0s
+ => => exporting layers                                                     0.7s
+ => => exporting manifest sha256:1a91d5a8cc8375daa315d4c5cb805abf4bcc093ad  0.0s
+ => => exporting config sha256:2279f2bdfba548c53026f7f906bf46d596b86c3d380  0.0s
+ => => exporting attestation manifest sha256:0d7aa2da9d689d08e3209b2ac922e  0.0s
+ => => exporting manifest list sha256:874e4bcc01e000241869369b16107740548d  0.0s
+ => => naming to docker.io/library/demo:0.0.2-SNAPSHOT                      0.0s
+ => => unpacking to docker.io/library/demo:0.0.2-SNAPSHOT                   0.2s
 ----
 +
 [source,console]
 ----
-$ docker run --rm --name demo -d -p 8088:8080 demo:0.0.1-SNAPSHOT
-4c6a0c6e90d0d74632a7a76e028ae1b85d0ab693903b046dfe535615f0908b43
-
-$ curl -i localhost:8088/actuator/health
-HTTP/1.1 200 
+$ docker run --rm --name demo2 -d -p 8088:8080 demo:0.0.2-SNAPSHOT
+d1abf1fb78010bc1c2e5253657e3952ecb626abcac6a71c2a6752e7d8065481f
+$ curl -iI localhost:8088/actuator/health
+HTTP/1.1 200
 Content-Type: application/vnd.spring-boot.actuator.v3+json
 Transfer-Encoding: chunked
-Date: Tue, 02 Nov 2021 10:03:57 GMT
+Date: Thu, 24 Aug 2023 11:25:45 GMT
 
-{"status":"UP"}
-
-$ docker stop demo
-demo
+$ docker stop demo2
+demo2
 ----
 
 . Build OCI image with `mvn spring-boot:build-image`
@@ -1948,13 +1975,7 @@ demo
 ----
 $ mvn spring-boot:build-image
 [INFO] Scanning for projects...
-[INFO] 
-[INFO] --------------------------< com.example:demo >--------------------------
-[INFO] Building demo 0.0.1-SNAPSHOT
-[INFO] --------------------------------[ jar ]---------------------------------
-
-...
-
+. . .
 [INFO]     [creator]     Paketo BellSoft Liberica Buildpack 8.9.0
 [INFO]     [creator]       https://github.com/paketo-buildpacks/bellsoft-liberica
 [INFO]     [creator]       Build Configuration:
@@ -1975,9 +1996,7 @@ $ mvn spring-boot:build-image
 [INFO]     [creator]         $BPL_JVM_LOADED_CLASS_COUNT  35% of classes  the number of loaded classes in memory calculation
 [INFO]     [creator]         $BPL_JVM_THREAD_COUNT        250             the number of threads in memory calculation
 [INFO]     [creator]         $JAVA_TOOL_OPTIONS                           the JVM launch flags
-
-...
-
+. . .
 [INFO]     [creator]     Saving docker.io/library/demo:0.0.1-SNAPSHOT...
 [INFO]     [creator]     *** Images (702b824ba18f):
 [INFO]     [creator]           docker.io/library/demo:0.0.1-SNAPSHOT
@@ -2198,5 +2217,6 @@ Date: Tue, 02 Nov 2021 07:48:07 GMT
 * [[[mvndepplugin,9]]] https://maven.apache.org/plugins/maven-dependency-plugin/usage.html
 * [[[mvnlifecycle,10]]] https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
 * [[[idxspringboot,11]]] https://docs.spring.io/spring-boot/docs/2.5.x/reference/htmlsingle/#features.container-images.layering
-* [[[wikiopenjdk,1]]] https://en.wikipedia.org/wiki/OpenJDK
-* [[[whichjdk,2]]] https://whichjdk.com/
+* [[[wikiopenjdk,12]]] https://en.wikipedia.org/wiki/OpenJDK
+* [[[whichjdk,13]]] https://whichjdk.com/
+* [[[k8scgroups,14]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
