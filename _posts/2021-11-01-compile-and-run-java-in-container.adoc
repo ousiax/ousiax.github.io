@@ -1069,7 +1069,7 @@ Given the lifecycle phases above, this means that when the default lifecycle is 
 
 . then _deploy_ the installed package to a remote repository.
 
-=== A Build Phase is Made Up of Plugin Goals
+==== A Build Phase is Made Up of Plugin Goals
 
 However, even though a build phase is responsible for a specific step in the build lifecycle, the manner in which it carries out those responsibilities may vary. And this is done by declaring the plugin goals bound to those build phases.
 
@@ -1101,7 +1101,7 @@ If this were to be executed, the _clean_ phase will be executed first (meaning i
 * But if it has one or more goals bound to it, it will execute all those goals.
 --
 
-=== Setting Up Your Project to Use the Build Lifecycle
+==== Setting Up Your Project to Use the Build Lifecycle
 
 The build lifecycle is simple enough to use, but when you are constructing a Maven build for a project, how do you go about assigning tasks to each of those build phases?
 
@@ -1132,6 +1132,133 @@ The goals that are configured will be added to the goals already bound to the li
 +
 Note that you can use the *<executions>* element to gain more control over the order of particular goals.
 --
+
+=== POM
+
+A *Project Object Model* or *POM* is the fundamental unit of work in Maven.<<mvnpom>><<mvnintropom>><<baeldungmvnmultimod>>
+
+* It is an XML file that contains information about the project and configuration details used by Maven to build the project.
+* It contains default values for most projects.
++
+Examples for this is the build directory, which is `target`; the source directory, which is `src/main/java`; the test source directory, which is `src/test/java`; and so on.
++
+When executing a task or goal, Maven looks for the POM in the current directory. It reads the POM, gets the needed configuration information, then executes the goal.
+
+* Some of the configuration that can be specified in the POM are the project dependencies, the plugins or goals that can be executed, the build profiles, and so on.
+
+* Other information such as the project version, description, developers, mailing lists and such can also be specified.
+
+==== Super POM
+
+:mvnsuperpom: https://maven.apache.org/ref/3.6.3/maven-model-builder/super-pom.html
+
+The {mvnsuperpom}[Super POM] is Maven's default POM. All POMs extend the Super POM unless explicitly set, meaning the configuration specified in the Super POM is inherited by the POMs you created for your projects.
+
+==== Minimal POM
+
+The minimum requirement for a POM are the following:
+
+* `project` root
+* `modelVersion` - should be set to 4.0.0
+* `groupId` - the id of the project's group.
++
+*groupId* uniquely identifies your project across all projects. A group ID should follow https://docs.oracle.com/javase/specs/jls/se6/html/packages.html#7.7[Java's package name rules]. This means it starts with a reversed domain name you control. For example, `org.apache.maven`, `org.apache.commons`.
++
+Maven does not enforce this rule. There are many legacy projects that do not follow this convention and instead use single word group IDs. However, it will be difficult to get a new single word group ID approved for inclusion in the Maven Central repository.
++
+You can create as many subgroups as you want. A good way to determine the granularity of the `groupId` is to use the project structure. That is, if the current project is a multiple module project, it should append a new identifier to the parent's groupId. For example, `org.apache.maven`, `org.apache.maven.plugins`, `org.apache.maven.reporting`.
+
+* `artifactId` - the id of the artifact (project)
++
+*artifactId* is the name of the jar without version. If you created it, then you can choose whatever name you want with lowercase letters and no strange symbols. If it's a third party jar, you have to take the name of the jar as it's distributed. eg. `maven`, `commons-math`
+
+* `version` - the version of the artifact under the specified group
++
+*version* if you distribute it, then you can choose any typical version with numbers and dots (1.0, 1.1, 1.0.1, ...).
++
+NOTE: Don't use dates as they are usually associated with SNAPSHOT (nightly) builds.
++
+If it's a third party artifact, you have to use their version number whatever it is, and as strange as it can look. For example, `2.0`, `2.0.1`, `1.3.1`.
+
+Here's an example:
+
+[source,xml]
+----
+<project>
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.mycompany.app</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1</version>
+</project>
+----
+
+==== Project Inheritance vs Project Aggregation (or Multi-Module)
+
+One powerful addition that Maven brings to build management is the concept of project inheritance.
+
+[source,xml]
+----
+<project>
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>my-parent</artifactId>
+  <version>2.0</version>
+  <packaging>pom</packaging>
+</project>
+----
+
+The packaging type required to be `pom` for _parent and aggregation (multi-module) projects_. Most elements from the parent POM are inherited by its children, which are not inherited include: `artifactId`, `name`, `prerequisites`.
+
+[source,xml]
+----
+<project>
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.codehaus.mojo</groupId>
+    <artifactId>my-parent</artifactId>
+    <version>2.0</version>
+    <relativePath>../my-parent</relativePath>
+  </parent>
+
+  <artifactId>my-project</artifactId>
+</project>
+----
+
+NOTE: Notice the `relativePath` element. It is not required, but may be used as a signifier to Maven to first search the path given for this project's parent, before searching the local and then remote repositories.
+
+A project with modules is known as a *multi-module, or aggregator project*. Modules are projects that this POM lists, and are executed as a group. A `pom` packaged project may aggregate the build of a set of projects by listing them as modules, which are relative paths to the directories or the POM files of those projects.
+
+[source,xml]
+----
+<project>
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>my-parent</artifactId>
+  <version>2.0</version>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>my-project</module>
+    <module>another-project</module>
+    <module>third-project/pom-example.xml</module>
+  </modules>
+</project>
+----
+
+You do not need to consider the inter-module dependencies yourself when listing the modules; i.e. the ordering of the modules given by the POM is not important. Maven will topologically sort the modules such that dependencies are always build before dependent modules.
+
+.A final note on Inheritance v. Aggregation
+[NOTE]
+====
+Inheritance and aggregation create a nice dynamic to control builds through a single, high-level POM. You often see projects that are both parents and aggregators. 
+For example, the entire Maven core runs through a single base POM `org.apache.maven:maven`, so building the Maven project can be executed by a single command: `mvn compile`.
+
+However, an aggregator project and a parent project are both POM projects, they are not one and the same and should not be confused. A POM project may be inherited from - but does not necessarily have - any modules that it aggregates. Conversely, a POM project may aggregate projects that do not inherit from it.
+====
 
 === Standard Directory Layout
 
@@ -2448,14 +2575,16 @@ Date: Tue, 02 Nov 2021 07:48:07 GMT
 * [[[parallel-gc,3]]] https://docs.oracle.com/en/java/javase/17/gctuning/parallel-collector1.html
 * [[[mvn,4]]] https://maven.apache.org/index.html
 * [[[mvnpom,5]]] https://maven.apache.org/pom.html
-* [[[mvnsettings,6]]] https://maven.apache.org/settings.html
-* [[[mvnconfiguringplugins,7]]] https://maven.apache.org/guides/mini/guide-configuring-plugins.html
-* [[[mvnplugin,8]]] https://maven.apache.org/plugins/index.html
-* [[[mvndeppluginusage,9]]] https://maven.apache.org/plugins/maven-dependency-plugin/usage.html
-* [[[mvnplugindev,10]]] https://maven.apache.org/guides/plugin/guide-java-plugin-development.html
-* [[[mvnhelpplugin,11]]] https://maven.apache.org/plugins/maven-help-plugin/usage.html
-* [[[mvnlifecycle,12]]] https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
-* [[[idxspringboot,13]]] https://docs.spring.io/spring-boot/docs/2.5.x/reference/htmlsingle/#features.container-images.layering
-* [[[wikiopenjdk,14]]] https://en.wikipedia.org/wiki/OpenJDK
-* [[[whichjdk,15]]] https://whichjdk.com/
-* [[[k8scgroups,16]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
+* [[[mvnintropom,6]]] https://maven.apache.org/guides/introduction/introduction-to-the-pom.html
+* [[[baeldungmvnmultimod,7]]] https://www.baeldung.com/maven-multi-module
+* [[[mvnsettings,8]]] https://maven.apache.org/settings.html
+* [[[mvnconfiguringplugins,9]]] https://maven.apache.org/guides/mini/guide-configuring-plugins.html
+* [[[mvnplugin,10]]] https://maven.apache.org/plugins/index.html
+* [[[mvndeppluginusage,11]]] https://maven.apache.org/plugins/maven-dependency-plugin/usage.html
+* [[[mvnplugindev,12]]] https://maven.apache.org/guides/plugin/guide-java-plugin-development.html
+* [[[mvnhelpplugin,13]]] https://maven.apache.org/plugins/maven-help-plugin/usage.html
+* [[[mvnlifecycle,14]]] https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
+* [[[idxspringboot,15]]] https://docs.spring.io/spring-boot/docs/2.5.x/reference/htmlsingle/#features.container-images.layering
+* [[[wikiopenjdk,16]]] https://en.wikipedia.org/wiki/OpenJDK
+* [[[whichjdk,17]]] https://whichjdk.com/
+* [[[k8scgroups,18]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
