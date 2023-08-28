@@ -1183,12 +1183,118 @@ The next section documents the directory layout expected by Maven and the direct
 |Project's readme
 |===
 
-=== Using Mirrors for Repositories
+=== Repositories
 
 :mvn-repositories: https://maven.apache.org/guides/introduction/introduction-to-repositories.html
+:mvn-super-pom: https://maven.apache.org/guides/introduction/introduction-to-the-pom.html#Super_POM
 :mvn-multiple-repositories: https://maven.apache.org/guides/mini/guide-multiple-repositories.html
+:mvn-intro-profiles: https://maven.apache.org/guides/introduction/introduction-to-profiles.html
 :mvn-repository-management: https://maven.apache.org/repository-management.html
 :mvn-settings: https://maven.apache.org/maven-settings/settings.html
+
+A {mvn-repositories}[repository] in Maven holds build artifacts and dependencies of varying types.
+
+There are exactly two types of repositories: *local* and *remote:
+
+* the *local* repository is a directory on the computer where Maven runs. It caches remote downloads and contains temporary build artifacts that you have not yet released.
+
+* *remote* repositories refer to any other type of repository, accessed by a variety of protocols such as `file://` and `https://`.
++
+These repositories might be a truly remote repository set up by a third party to provide their artifacts for downloading (for example, repo.maven.apache.org). Other "remote" repositories may be internal repositories set up on a file or HTTP server within your company, used to share private artifacts between development teams and for releases.
+
+Local and remote repositories are structured the same way so that scripts can run on either side, or they can be synced for offline use. The layout of the repositories is completely transparent to the Maven user, however.
+
+==== Setting up Multiple Repositories
+
+There are two different ways that you can specify the use of multiple repositories. The first way is to specify in a POM which repositories you want to use. That is supported both inside and outside of build profiles:
+
+[source,xml]
+----
+<project>
+...
+  <repositories>
+    <repository>
+      <id>my-repo1</id>
+      <name>your custom repo</name>
+      <url>http://jarsm2.dyndns.dk</url>
+    </repository>
+    <repository>
+      <id>my-repo2</id>
+      <name>your custom repo</name>
+      <url>http://jarsm2.dyndns.dk</url>
+    </repository>
+  </repositories>
+...
+</project>
+----
+
+NOTE: NOTE: You will also get the standard set of repositories as defined in the {mvn-super-pom}[Super POM].
+
+The other way you can specify multiple repositories is by creating a profile in the `${user.home}/.m2/settings.xml` or `${maven.home}/conf/settings.xml` file like the following:
+
+[source,xml]
+----
+<settings>
+ ...
+ <profiles>
+   ...
+   <profile>
+     <id>myprofile</id>
+     <repositories>
+       <repository>
+         <id>my-repo2</id>
+         <name>your custom repo</name>
+         <url>http://jarsm2.dyndns.dk</url>
+       </repository>
+     </repositories>
+   </profile>
+   ...
+ </profiles>
+
+ <activeProfiles>
+   <activeProfile>myprofile</activeProfile>
+ </activeProfiles>
+ ...
+</settings>
+----
+
+If you specify repositories in profiles you must remember to activate that particular profile! As you can see above we do this by registering a profile to be active in the `activeProfiles` element.
+
+You could also activate this profile on the command like by executing the following command:
+
+[source,sh]
+----
+mvn -Pmyprofile ...
+----
+
+In fact the `-P` option will take a CSV list of profiles to activate if you wish to activate multiple profiles simultaneously.
+
+==== Repository Order
+
+Remote repository URLs are queried in the following order for artifacts until one returns a valid result:
+
+. effective settings:
++
+--
+.. Global `settings.xml`
+.. User `settings.xml`
+--
+. local effective build POM:
++
+--
+.. Local `pom.xml`
+.. Parent POMs, recursively
+.. Super POM
+--
+. effective POMs from dependency path to the artifact.
+
+For each of these locations, the repositories within the profiles are queried first in the order outlined at {mvn-intro-profiles}[Introduction to build profiles].
+
+Before downloading from a repository, https://maven.apache.org/guides/mini/guide-mirror-settings.html[mirrors configuration] is applied.
+
+Effective settings and local build POM, with profile taken into account, can easily be reviewed to see their repositories order with `mvn help:effective-settings` and `mvn help:effective-pom -Dverbose`.
+
+==== Using Mirrors for Repositories
 
 With {mvn-repositories}[Repositories] you specify from which locations you want to download certain artifacts, such as dependencies and maven-plugins. Repositories can be {mvn-multiple-repositories}[declared inside a project], which means that if you have your own custom repositories, those sharing your project easily get the right settings out of the box. However, you may want to use an alternative mirror for a particular repository without changing the project files.
 
@@ -1198,7 +1304,9 @@ Some reasons to use a mirror are:
 * You want to replace a particular repository with your own internal repository which you have greater control over
 * You want to run a {mvn-repository-management}[repository manager] to provide a local cache to a mirror and need to use its URL instead
 
-To configure a mirror of a given repository, you provide it in your settings file (`${user.home}/.m2/settings.xml`), giving the new repository its own `id` and `url`, and specify the `mirrorOf` setting that is the ID of the repository you are using a mirror of. For example, the ID of the main Maven Central repository included by default is `central`, so to use the different mirror instance, you would configure the following:
+To configure a mirror of a given repository, you provide it in your settings file (`${user.home}/.m2/settings.xml`), giving the new repository its own `id` and `url`, and specify the `mirrorOf` setting that is the ID of the repository you are using a mirror of.
+
+For example, the ID of the main Maven Central repository included by default is `central`, so to use the different mirror instance, you would configure the following:
 
 [source,xml]
 ----
@@ -1238,18 +1346,26 @@ The syntax:
 
 * an exclamation mark may be used in conjunction with one of the above wildcards to exclude a repository id
 
-Be careful not to include extra whitespace around identifiers or wildcards in comma separated lists. For example, a mirror with `<mirrorOf>` set to `!repo1, *` will not mirror anything while `!repo1,*` will mirror everything but `repo1`.
+Be careful not to include extra whitespace around identifiers or wildcards in comma separated lists. For example, a mirror with `<mirrorOf>` set to `+++!repo1, *+++` will not mirror anything while `!repo1,*` will mirror everything but `repo1`.
 
 The position of wildcards within a comma separated list of repository identifiers is not important as the wildcards defer to further processing and explicit includes or excludes stop the processing, overruling any wildcard match.
 
-When you use the advanced syntax and configure multiple mirrors, the declaration order matters. When Maven looks for a mirror of some repository, it first checks for a mirror whose `<mirrorOf>` exactly matches the repository identifier. If no direct match is found, Maven picks the first mirror declaration that matches according to the rules above (if any). Hence, you may influence match order by changing the order of the definitions in the `settings.xml`
+When you use the advanced syntax and configure multiple mirrors, the declaration order matters.
 
+* When Maven looks for a mirror of some repository, it first checks for a mirror whose `<mirrorOf>` exactly matches the repository identifier.
+
+* If no direct match is found, Maven picks the first mirror declaration that matches according to the rules above (if any).
+
+* Hence, you may influence match order by changing the order of the definitions in the `settings.xml`
++
 Examples:
-
++
+--
 * `*` = everything
 * `external:*` = everything not on the localhost and not file based.
 * `repo,repo1` = repo or repo1
 * `*,!repo1` = everything except repo1
+--
 
 :mvn-3-8-1-release-notes: https://maven.apache.org/docs/3.8.1/release-notes.html
 
