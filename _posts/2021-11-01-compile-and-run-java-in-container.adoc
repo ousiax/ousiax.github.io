@@ -1015,7 +1015,7 @@ There are three built-in build lifecycles:
 * the *clean* lifecycle handles project cleaning,
 * while the *site* lifecycle handles the creation of your project's web site.
 
-*A Build Lifecycle is Made Up of Phases*
+==== A Build Lifecycle is Made Up of Phases
 
 Each of these build lifecycles is defined by a different list of *build phases*, wherein a build phase represents a stage in the lifecycle.
 
@@ -1069,16 +1069,17 @@ Given the lifecycle phases above, this means that when the default lifecycle is 
 
 . then _deploy_ the installed package to a remote repository.
 
-*A Build Phase is Made Up of Plugin Goals*
+=== A Build Phase is Made Up of Plugin Goals
 
 However, even though a build phase is responsible for a specific step in the build lifecycle, the manner in which it carries out those responsibilities may vary. And this is done by declaring the plugin goals bound to those build phases.
 
-A *plugin goal* represents a specific task (finer than a build phase) which contributes to the building and managing of a project. It may be bound to zero or more build phases.
+* A *plugin goal* represents a specific task (finer than a build phase) which contributes to the building and managing of a project. It may be bound to zero or more build phases.
 
-A goal not bound to any build phase could be executed outside of the build lifecycle by direct invocation.
+* A goal not bound to any build phase could be executed outside of the build lifecycle by direct invocation.
 
-The order of execution depends on the order in which the goal(s) and the build phase(s) are invoked.
-
+* The order of execution depends on the order in which the goal(s) and the build phase(s) are invoked.
++
+--
 For example, consider the command below. The _clean_ and _package_ arguments are _build phases_, while the _dependency:copy-dependencies_ is a goal (of a plugin).
 
 [source,console]
@@ -1087,46 +1088,56 @@ mvn clean dependency:copy-dependencies package
 ----
 
 If this were to be executed, the _clean_ phase will be executed first (meaning it will run all preceding phases of the clean lifecycle, plus the _clean_ phase itself), and then the _dependency:copy-dependencies_ goal, before finally executing the _package_ phase (and all its preceding build phases of the default lifecycle).
+--
 
-Moreover, if a goal is bound to one or more build phases, that goal will be called in all those phases.
+* Moreover, if a goal is bound to one or more build phases, that goal will be called in all those phases.
 
-Furthermore, a build phase can also have zero or more goals bound to it.
+* Furthermore, a build phase can also have zero or more goals bound to it.
++
+--
 
-If a build phase has no goals bound to it, that build phase will not execute.
+* If a build phase has no goals bound to it, that build phase will not execute.
 
-But if it has one or more goals bound to it, it will execute all those goals.
+* But if it has one or more goals bound to it, it will execute all those goals.
+--
 
-*Setting Up Your Project to Use the Build Lifecycle*
+=== Setting Up Your Project to Use the Build Lifecycle
 
 The build lifecycle is simple enough to use, but when you are constructing a Maven build for a project, how do you go about assigning tasks to each of those build phases?
 
 * *Packaging*
 +
-Each packaging contains a list of goals to bind to a particular phase.
-+
-Some of the valid packaging values are *jar*, *war*, *ear* and *pom*.
-+
-If no packaging value has been specified, it will default to *jar*.
+--
+* Each packaging contains a list of goals to bind to a particular phase.
+
+* Some of the valid packaging values are *jar*, *war*, *ear* and *pom*.
+
+* If no packaging value has been specified, it will default to *jar*.
+--
 
 * *Plugins*
 +
-Plugins are artifacts that provide goals to Maven.
-+
-A plugin may have one or more goals wherein each goal represents a capability of that plugin.
+--
+* Plugins are artifacts that provide goals to Maven.
+
+* A plugin may have one or more goals wherein each goal represents a capability of that plugin.
 +
 For example, the Compiler plugin has two goals: compile and testCompile.
 +
 The former compiles the source code of your main code, while the latter compiles the source code of your test code.
 +
 The goals that are configured will be added to the goals already bound to the lifecycle from the *packaging* selected.
-+
-If more than one goal is bound to a particular phase, the order used is that those from the packaging are executed first, followed by those configured in the POM.
+
+* If more than one goal is bound to a particular phase, the order used is that those from the packaging are executed first, followed by those configured in the POM.
 +
 Note that you can use the *<executions>* element to gain more control over the order of particular goals.
+--
 
 === Standard Directory Layout
 
-Having a common directory layout allows users familiar with one Maven project to immediately feel at home in another Maven project. The advantages are analogous to adopting a site-wide look-and-feel.
+:mvn-standard-directory-layout: https://maven.apache.org/guides/introduction/introduction-to-the-standard-directory-layout.html
+
+Having a {mvn-standard-directory-layout}[common directory layout] allows users familiar with one Maven project to immediately feel at home in another Maven project. The advantages are analogous to adopting a site-wide look-and-feel.
 
 The next section documents the directory layout expected by Maven and the directory layout created by Maven. Try to conform to this structure as much as possible. However, if you can't, these settings can be overridden via the project descriptor.
 
@@ -1171,6 +1182,94 @@ The next section documents the directory layout expected by Maven and the direct
 |README.txt
 |Project's readme
 |===
+
+=== Using Mirrors for Repositories
+
+:mvn-repositories: https://maven.apache.org/guides/introduction/introduction-to-repositories.html
+:mvn-multiple-repositories: https://maven.apache.org/guides/mini/guide-multiple-repositories.html
+:mvn-repository-management: https://maven.apache.org/repository-management.html
+:mvn-settings: https://maven.apache.org/maven-settings/settings.html
+
+With {mvn-repositories}[Repositories] you specify from which locations you want to download certain artifacts, such as dependencies and maven-plugins. Repositories can be {mvn-multiple-repositories}[declared inside a project], which means that if you have your own custom repositories, those sharing your project easily get the right settings out of the box. However, you may want to use an alternative mirror for a particular repository without changing the project files.
+
+Some reasons to use a mirror are:
+
+* There is a synchronized mirror on the internet that is geographically closer and faster
+* You want to replace a particular repository with your own internal repository which you have greater control over
+* You want to run a {mvn-repository-management}[repository manager] to provide a local cache to a mirror and need to use its URL instead
+
+To configure a mirror of a given repository, you provide it in your settings file (`${user.home}/.m2/settings.xml`), giving the new repository its own `id` and `url`, and specify the `mirrorOf` setting that is the ID of the repository you are using a mirror of. For example, the ID of the main Maven Central repository included by default is `central`, so to use the different mirror instance, you would configure the following:
+
+[source,xml]
+----
+<settings>
+  ...
+  <mirrors>
+    <mirror>
+      <id>other-mirror</id>
+      <name>Other Mirror Repository</name>
+      <url>https://other-mirror.repo.other-company.com/maven2</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+  ...
+</settings>
+----
+
+Note that there can be at most one mirror for a given repository. In other words, you cannot map a single repository to a group of mirrors that all define the same `<mirrorOf>` value. Maven will not aggregate the mirrors but simply picks the first match. If you want to provide a combined view of several repositories, use a {mvn-repository-management}[repository manager] instead.
+
+The settings descriptor documentation can be found on the {mvn-settings}[Maven Local Settings Model Website].
+
+Note: The official Maven repository is at `https://repo.maven.apache.org/maven2` hosted by the Sonatype Company and is distributed worldwide via CDN.
+
+==== Advanced Mirror Specification
+
+A single mirror can handle multiple repositories. This is typically used in conjunction with a repository manager, that gives easy centralised configuration of the list of repositories behind.
+
+The syntax:
+
+* `*` matches all repo ids.
+
+* `external:*` matches all repositories except those using localhost or file based repositories. This is used when you want to exclude redirecting repositories that are defined for Integration Testing.
+
+* since Maven 3.8.0, `external:http:*` matches all repositories using HTTP except those using localhost.
+
+* multiple repositories may be specified using a comma as the delimiter
+
+* an exclamation mark may be used in conjunction with one of the above wildcards to exclude a repository id
+
+Be careful not to include extra whitespace around identifiers or wildcards in comma separated lists. For example, a mirror with `<mirrorOf>` set to `!repo1, *` will not mirror anything while `!repo1,*` will mirror everything but `repo1`.
+
+The position of wildcards within a comma separated list of repository identifiers is not important as the wildcards defer to further processing and explicit includes or excludes stop the processing, overruling any wildcard match.
+
+When you use the advanced syntax and configure multiple mirrors, the declaration order matters. When Maven looks for a mirror of some repository, it first checks for a mirror whose `<mirrorOf>` exactly matches the repository identifier. If no direct match is found, Maven picks the first mirror declaration that matches according to the rules above (if any). Hence, you may influence match order by changing the order of the definitions in the `settings.xml`
+
+Examples:
+
+* `*` = everything
+* `external:*` = everything not on the localhost and not file based.
+* `repo,repo1` = repo or repo1
+* `*,!repo1` = everything except repo1
+
+:mvn-3-8-1-release-notes: https://maven.apache.org/docs/3.8.1/release-notes.html
+
+.{mvn-3-8-1-release-notes}[Release Notes – Maven 3.8.1]: Possible Man-In-The-Middle-Attack due to custom repositories using HTTP
+[NOTE]
+====
+More and more repositories use HTTPS nowadays, but this hasn't always been the case. This means that Maven Central contains POMs with custom repositories that refer to a URL over HTTP. This makes downloads via such repository a target for a MITM attack. At the same time, developers are probably not aware that for some downloads an insecure URL is being used. Because uploaded POMs to Maven Central are immutable, a change for Maven was required. To solve this, we extended the mirror configuration with `<blocked>` parameter, and we added a new `external:http:*` mirror selector (like existing `external:*`), meaning “any external URL using HTTP”.
+The decision was made to block such external HTTP repositories by default: this is done by providing a mirror in the `conf/settings.xml` blocking insecure HTTP external URLs.
+
+[source,xml,highlight='6']
+----
+<mirror>
+  <id>maven-default-http-blocker</id>
+  <mirrorOf>external:http:*</mirrorOf>
+  <name>Pseudo repository to mirror external repositories initially using HTTP.</name>
+  <url>http://0.0.0.0/</url>
+  <blocked>true</blocked>
+</mirror>
+----
+====
 
 === Configuring Plug-ins
 
