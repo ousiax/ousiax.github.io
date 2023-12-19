@@ -112,6 +112,33 @@ The Berkeley sockets API supports half-close, if the application calls the `shut
 .With the TCP half-close operation, one direction of the connection can terminate while the other continues until it is closed. Few applications use this feature.
 image::/assets/tcp-ip/tcp-connection-management/tcp-half-close-operation.png[TCP half close,45%,45%]
 
+[TIP]
+====
+Both the `close()` and `shutdown()` system calls in TCP networking will trigger the sending of a FIN (Finish) TCP segment to the peer end. This part of the TCP process is known as "closing a connection" or "TCP teardown", signaling that the sender will send no further data.
+
+However, even though they both end up sending a FIN packet, there's a difference between the two:
+
+1. The `close()` call deallocates the socket right away. So any further operation on this socket is not possible. If there's any unread data in the socket's receive buffer, this data is discarded. Also, `close()` will immediately return whether the TCP FIN process completes or not.
+
+2. The `shutdown()` call, on the other hand, can be configured to shut down just sending, just receiving, or both sending and receiving on the socket (using `SHUT_RD`, `SHUT_WR`, or `SHUT_RDWR`). Use `shutdown()` when you want to inform the peer that you are done sending (or receiving), but still want to continue receiving (or sending) data that the peer had already sent.
++
+--
+* `shutdown(socket, SHUT_RD)` (or 0) - Further receives will be disallowed (this is a local operation and doesn't notify the peer), no FIN sent.
++
+The `shutdown()` function with the `SHUT_RD` argument disables further receive operations on the socket. This means that the application will not be able to read data from the kernel buffer associated with this socket.
++
+However, the peer end can still send data. The system (i.e., the TCP stack in the kernel) will acknowledge any received data to maintain the correctness of the TCP state, but the data will not be accessible via the shut-down socket. This data will essentially be discarded.
++
+So, calling `shutdown(socket, SHUT_RD)` doesn't inform the peer that it should stop sending data. It just tells your local system to stop delivering received data to the application.
+
+* `shutdown(socket, SHUT_WR)` (or 1) - Further sends will be disallowed and sends a FIN packet to the peer to initiate connection closure.
+
+* `shutdown(socket, SHUT_RDWR)` (or 2) - Further sends and receives will be disallowed and sends a FIN packet to the peer to initiate connection closure.
+
+* Remember, `SHUT_WR` and `SHUT_RDWR` are the only modes that initiate termination of the connection, which includes sending `FIN` to the peer.
+--
+====
+
 === Simultaneous Open and Close
 
 It is possible, although highly improbable unless specifically arranged, for two applications to perform an active open to each other at the same time. If this happens, it is called a *simultaneous open*.
