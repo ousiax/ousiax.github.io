@@ -1,0 +1,159 @@
+= What is HTTP/2
+:page-layout: post
+:page-categories: ['http']
+:page-tags: ['http']
+:page-date: 2023-12-20 20:23:11 +0800
+:page-revdate: 2023-12-20 20:23:11 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+> Why HTTP/2 is faster?
+
++++*+++ HTTP/2.0 introduces several features that improve the speed and performance of web communication as compared to HTTP/1.1. Here are the key enhancements that make HTTP/2 faster:
+
+1. **Multiplexing**: One of the biggest improvements in HTTP/2 is multiplexing, which allows multiple messages to be sent back-and-forth at the same time over a single TCP connection. This is a significant improvement over HTTP/1.1, which required each transfer to finish before the next begins.
+
+2. **Binary Protocol**: HTTP/2 uses a binary protocol, which is more efficient to parse, more compact and less error-prone, compared to the textual protocols used in HTTP/1.1.
+
+3. **Header Compression**: HTTP/2 uses the HPACK specification to compress headers. This reduces overhead as numerous requests often include identical headers.
+
+4. **Server Push**: With HTTP/2, a server can push resources to the client's cache in advance. So, when the client needs the data, it can be retrieved from the cache instead of making a new request. This reduces the amount of data exchanged between the client and server.
+
+5. **Stream Prioritization**: HTTP/2 allows requests to be assigned dependency levels that the server can use to deliver higher priority resources faster. This can improve page load times as higher priority resources are usually more critical for rendering the web page.
+
+6. **Flow Control**: HTTP/2 implements flow control at the individual stream level, allowing for more granular control of data transfer and not flooding the client with data it may not be ready to handle.
+
+By addressing known performance issues in HTTP/1.1, these new features help HTTP/2 provide faster, more efficient communication between clients and servers.
+
+> How to understand the HPACK and Flow Control?
+
++++*+++ HPACK and Flow Control are two of the significant features in HTTP/2 that enhance the performance of web communication.
+
+**HPACK**: Headers in HTTP requests and responses often carry a lot of redundant information or data that does not change between requests. HPACK is a compression format that is used to eliminate this redundancy, thereby reducing the amount of data that needs to be transmitted. It uses both Huffman encoding to compress individual headers and a dynamic table to store and index previously seen headers. The use of the dynamic table allows the transmission of just the index of previously transmitted data, rather than retransmitting the entire header, making the process more efficient and faster.
+
+An important aspect to note about HPACK is that it is designed to not be susceptible to security attacks (like CRIME and BREACH) that have affected other HTTP compression methods in the past.
+
+**Flow Control**: Flow Control in HTTP/2 handles how much data may be in transit between the client and the server. This is done to prevent a fast sender from overwhelming a slow receiver, or to prevent a sender from sending data faster than a receiver can consume. This mechanism helps in preventing resource starvation and is implemented at both the individual stream and connection level.
+
+In HTTP/2, a receiver (either client or server) advertises its capacity of handling data frames and updates this as data is processed. The initial flow-control window size is defined in the HTTP/2 settings frame that each peer sends at the start of a connection, and can be modified with a WINDOW_UPDATE frame. Any attempt to exceed the receiver's window size can be treated as a stream or connection error.
+
+Both HPACK and Flow Control present significant enhancements that make HTTP/2 more efficient and performant for web communication.
+
+> It seems that the Flow Control is similar to the TCP Flow Control, like Congestion Control?
+
++++*+++ Flow control in HTTP/2 and flow control in TCP do share the same basic concept - they are both designed to prevent a sender from overwhelming a receiver by sending more data than the receiver can handle. However, they operate on different levels and serve different purposes.
+
+**TCP Flow Control** is designed to control the flow of data at the transport layer (Layer 4 in the OSI model). It protects the receiver from being overwhelmed by the sender. It operates over the entire network path (all the routers, switches, and other devices the packets travel through) between sender and receiver. TCP uses a sliding window mechanism for this, where the receiver advertises window size – the amount of data that it is able to receive and process.
+
+On the other hand, **HTTP/2 Flow Control** takes place at the application layer (Layer 7 in the OSI model). It is designed for more than just preventing the receiver from being overloaded. It allows for more nuanced control of data transfer between the client and server because it operates on a per-stream basis. This means that a receiver can throttle back a sender for one specific stream without impacting other streams.
+
+TCP congestion control is a different mechanism which allows TCP to detect network congestion and reduce the transmission rate to alleviate it. This operates at the network level and is different from either type of flow control. Congestion control prevents a sender from overwhelming the network (especially the bottleneck link), while flow control prevents a sender from overwhelming the receiver.
+
+In summary, while all these methods share the same high level goal of maintaining efficient and stable network communication, they do so in different ways and at different layers of the network stack.
+
++++>+++ How to understand the 'Server Push'? How does the Client to handle the unrequested datagrams?
+
+* **Server Push** is one of the features introduced in HTTP/2. It's a mechanism that allows the server to anticipate the resources a client will likely need and "push" those resources to the client's cache before the client requests them. This can help reduce the latency and boost the overall performance of a web page.
+
+Here's a simplified look at how Server Push works:
+
+1. The client makes an HTTP GET request for index.html.
+2. The server processes this request and identifies other resources the client will likely need—for example, style.css and script.js.
+3. The server sends the client index.html along with 'PUSH_PROMISE' frames for style.css and script.js. These 'PUSH_PROMISE' frames signal that the server is going to push these resources to the client.
+4. The server then sends the contents of style.css and script.js to the client, which are cached by the client's browser.
+5. Now, when the browser comes across `link` or `script` tags requiring style.css or script.js while parsing index.html, they've already been cached by the client, resulting in faster page load times.
+
+A client must handle push responses by either accepting them and storing in cache, or by cancelling the pushed streams. If a client doesn’t want the pushed resources, it can immediately RST_STREAM (reset the stream) and no further data will be sent. The approach is up to the client and depends largely on its available cache space and its current implementation.
+
+It's also worth noting that multiple concurrently open connections are more efficient in HTTP/2, so a client won't have to refuse pushes because of any impact on current requests, as it might've had to in HTTP/1.1. All HTTP/2 responses, including pushes, are associated by multiplexed streams and will not interfere with each other.
+
+It should be mentioned that server push is a pure performance enhancement technique which doesn't affect any programmer-facing semantics. If a server is pushing a resource and there is a delay or error, the client can always make an explicit request for the resource at its discretion.
+
+
+> It seems that the Server is required to parse the response body, like a HTML including stylesheet, scripts, to make Server Push?
+
++++*+++ Not necessarily, the server doesn't need to parse the HTML response to decide which resources to push. It's often based on knowledge of which resources a client typically requests after requesting a given HTML document. This would generally be configured by the developer or might be managed by server-side frameworks or server configurations.
+
+However, the server-side could potentially use an HTML parser (maybe part of a more comprehensive framework or as a final step in generating a dynamic page) to find additional resources to push. But keep in mind that doing so introduces additional complexity and could potentially slow down the response time if not done optimally.
+
+Also, HTTP/2 Server Push should be used judiciously. Pushing resources that a client doesn't need, or already has cached, can waste bandwidth. For this reason, the decision about what to push might be based on broader application knowledge rather than just the content of a single page.
+
+To avoid pushing resources that the client already has in its cache, the server can use the 'Cache Digest' header which some clients support. The 'Cache Digest' provides a way for a client to inform the server about the state of its cache, allowing the server to avoid pushing resources that are already in the client's cache.
+
+> As you said, the make Server Push, it need a Web Master to preconfigure it?
+
++++*+++ Yes, to take full advantage of HTTP/2 Server Push, the server-side application or website must be configured appropriately to determine which assets (like CSS, JavaScript, or image files) should be pushed in response to specific requests. This generally involves some development work, and it's something that a webmaster, developer or site administrator would typically take care of.
+
+The server needs instructions to know which resources should be preloaded or pushed for each initial request. These instructions are generally provided in the server configuration or in the application code. For instance, in an Apache server, you can use the http2-push directive to specify resources to push.
+
+However, the approach differs between different web servers (like NGINX, Apache, etc.) and hosting environments, so it's important to refer to the relevant documentation or consult with a knowledgeable resource.
+
+It's also worth noting that Server Push is a performance optimization technique. It doesn't change the functionality of the website or application. If Server Push is not implemented, or if a client doesn't support it (like HTTP/1.x clients), the site will still work, but it may load more slowly.
+
+> As we known, the Nginx doesn't support HTTP/2 to connect upstream server, that is, even though the backend server (like Kestrel) configured the Server Push, the Server Push still willn't work?
+
++++*+++ Correct, as of now, Nginx does not support HTTP/2 when acting as a reverse proxy and connecting to upstream servers. That means if your server architecture involves Nginx sitting between clients and an upstream server (like the Kestrel server), HTTP/2 features, such as server push, wouldn't be functional.
+
+This limitation applies regardless of whether the upstream server supports HTTP/2 and server push or not. When Nginx communicates with the upstream server, it's done using HTTP/1.x not HTTP/2, which means it doesn't understand or forward HTTP/2-specific features like server push.
+
+Developers hoping to use HTTP/2 with Nginx and an upstream server have to keep this limitation in mind when architecting their applications.
+
+However, technologies and specifications are continually being updated, so it's possible HTTP/2 support for proxying to upstream servers could be added in future versions of Nginx. Always check the most recent documentation to make sure you have the latest information.
+
+
+> How to understand the Stream Prioritization? It looks like that backend server should obey the priorty of the requested resouces, and respone them by the priority in order?
+
++++*+++ Yes, you're correct. Stream Prioritization is a feature in HTTP/2 that allows clients to inform the server about how they would prefer to receive resources.
+
+In an HTTP/2 connection, multiple requests and responses can be active simultaneously. This is due to the protocol's multiplexing feature. All these requests and responses are divided into streams, each with a unique identifier, and these streams can then be broken down further into individual frames.
+
+Stream Prioritization uses this architecture to allow clients to assign priority to these streams. It gives the client the ability to guide the server on the order and speed at which it sends responses.
+
+Each stream has associated priority information, which includes:
+
+1. Weight: An integer between 1 and 256 that represents the individual priority of the stream. Larger numbers mean higher priority.
+
+2. Dependency: A stream identifier that the current stream depends on.
+
+3. Exclusivity: A flag that indicates whether the stream should be the sole stream dependent on its parent.
+
+The server uses these parameters to build a dependency tree of streams and attempts to allocate resources according to this tree. A 'parent' stream should be allocated resources before its 'dependent' streams.
+
+Keep in mind, however, that while a client can set priority, the server is not strictly bound to adhere to this. Prioritization is a suggestion from the client, and servers can use their discretion to prioritize resources as they see fit.
+
+Overall, Stream Prioritization is meant to optimize bandwidth usage and perceived performance on the client side by controlling the order and rate at which responses are sent from the server.
+
+
+> As we known, because the mutiplexing in HTTP/2, the HOL blocking in HTTP/1.1 could be eliminated. However, there is a HOL blocking
+underneath the TCP itself.
+
++++*+++ Absolutely correct. While HTTP/2 does a great job of eliminating the Head-Of-Line (HOL) blocking problem found in HTTP/1.1 at the HTTP layer, it can't completely eliminate the issue of TCP-level HOL blocking.
+
+Head-of-Line blocking occurs when a line of packets is held up by the first packet. In HTTP/1.1, if a client sends multiple requests to a server, they could be blocked while waiting for the first response due to the single in-order response stream. HTTP/2 ameliorates this by using multiple streams in a single TCP connection so that responses can be handled independently.
+
+However, underneath the HTTP layer, HOL blocking can still occur as you mentioned. This is due to the fact that TCP, the underlying transport protocol, guarantees in-order delivery of all packets. If a packet is lost in transmission, TCP holds all subsequent packets in the queue until the lost packet is retransmitted and arrives at the destination. This is what is referred to as TCP-level HOL blocking.
+
+Unfortunately, HTTP/2 can’t do much about this kind of HOL blocking. If a packet loss happens, even though the HTTP/2 streams are independent, the lost packet causes blocking on the TCP layer, which in turn blocks all HTTP/2 streams, not just the one in which the packet loss occurs.
+
+One answer to TCP's HOL blocking problem is QUIC (Quick UDP Internet Connections), a transport layer protocol developed by Google, which among other improvements, solves TCP-level HOL blocking by allowing for selective packet retransmission at the cost of reliable delivery. QUIC has been used as a basis for the HTTP/3 protocol to alleviate some of the TCP-related drawbacks found in HTTP/2.
+
+> It seems the practial features of HTTP/2 are Header Compression (HPACK), Binary Protocol and Mutiplexing.
+
++++*+++ Yes, you're right. HTTP/2 introduced several major improvements over HTTP/1.x let's review them:
+
+1. **Header Compression (HPACK):** HTTP/1.x sends headers in plain text, which can cause significant overhead, especially since some headers repeatedly appear across requests. HTTP/2 introduces HPACK, a header-specific compression format that significantly reduces the size of headers. It also uses a static table of common headers to further save bandwidth.
+
+2. **Binary Protocol:** Unlike HTTP/1.x, which is text-based, HTTP/2 is a binary protocol, meaning it communicates with the client and server via binary data. This simplifies parsing, reduces errors, and generally improves performance.
+
+3. **Multiplexing:** This allows multiple requests and responses to be handled simultaneously over the same TCP connection. In HTTP/1.x, responses must be delivered in order (FIFO), and any delay in processing a response can block (or queue) subsequent ones, this is known as "Head-of-Line blocking". Multiplexing in HTTP/2 breaks down an HTTP/2 connection into different, individual streams, each of which can carry a request-response pair, thereby eliminating head-of-line blocking.
+
+Other significant features include:
+
+4. **Server Push:** This lets the server send resources that the client hasn't even requested but are predicted to be needed. Essentially, a server can push necessary resources proactively rather than waiting for the client to request each one.
+
+5. **Stream Priority:** This allows clients to prioritize resources, providing the client with more control over how resources are sent over the network.
+
+All of these features are designed to make the web faster by optimizing the way the client and server communicate.
+
