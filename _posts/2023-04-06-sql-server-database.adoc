@@ -670,6 +670,96 @@ In the context of these utilities, `GO` signals the end of a batch of statements
 If you try to include the `GO` statement in your SQL strings in ADO.NET, you'll likely encounter a SQL Server error that 'GO' is not a recognized built-in function name. Instead, just end each of your SQL statements with a semicolon (`;`).
 ====
 
+== Collation and Unicode support
+
+:collation-and-unicode-support: https://learn.microsoft.com/en-us/sql/relational-databases/collations/collation-and-unicode-support?view=sql-server-ver16
+:sys-fn-helpcollations-transact-sql: https://learn.microsoft.com/en-us/sql/relational-databases/system-functions/sys-fn-helpcollations-transact-sql?view=sql-server-ver16
+
+{collation-and-unicode-support}[Collations] in SQL Server provide sorting rules, case, and accent sensitivity properties for your data. Collations that are used with character data types, such as char and varchar, dictate the code page and corresponding characters that can be represented for that data type.
+
+Whether you're installing a new instance of SQL Server, restoring a database backup, or connecting server to client databases, it's important to understand the locale requirements, sorting order, and case and accent sensitivity of the data that you're working with. To list the collations that are available on your instance of SQL Server, see {sys-fn-helpcollations-transact-sql}[sys.fn_helpcollations (Transact-SQL)].
+
+When you select a collation for your server, database, column, or expression, you're assigning certain characteristics to your data. These characteristics affect the results of many operations in the database. For example, when you construct a query by using `ORDER BY`, the sort order of your result set might depend on the collation that's applied to the database or dictated in a `COLLATE` clause at the expression level of the query.
+
+Setting collations are supported at the following levels of an instance of SQL Server:
+
+* Server-level collations
++
+The default server collation is determined during SQL Server setup, and it becomes the default collation of the system databases and all user databases.
++
+To query the server collation for an instance of SQL Server, use the SERVERPROPERTY function:
++
+[source,sql]
+----
+SELECT CONVERT(nvarchar(128), SERVERPROPERTY('collation'));
+-- SQL_Latin1_General_CP1_CI_AS
+----
++
+[TIP]
+====
++++*+++ `SQL_Latin1_General_CP1_CI_AS` is a collation setting in SQL Server. Here's what each part of it means:
+
+- `SQL` indicates that it is a SQL Server-defined collation.
+
+- `Latin1_General` is the base language and alphabet, which in this case is the Latin 1 (Western European) alphabet.
+
+- `CP1` stands for Code Page 1, which implies that the collation is using code page 1252. This page includes all ASCII characters and additional characters used in English and several other Western European languages.
+
+- `CI` stands for Case Insensitive. This means the collation doesn't recognize case differences. When CI is specified, 'a' is considered equal to 'A'.
+
+- `AS` stands for Accent Sensitive. This means the collation does recognize accent differences. When AS is specified, 'résumé' is not equal to 'resume'.
+====
++
+To query the server for all available collations, use the following fn_helpcollations() built-in function:
++
+[source,sql]
+----
+SELECT * FROM sys.fn_helpcollations();
+----
+
+* Database-level collations
++
+When you create or modify a database, you can use the `COLLATE` clause of the `CREATE DATABASE` or `ALTER DATABASE` statement to specify the default database collation. If no collation is specified, the database is assigned the server collation.
++
+You can retrieve the current collation of a database by using a statement similar to the following code sample:
++
+[source,sql]
+----
+SELECT CONVERT (nvarchar(128), DATABASEPROPERTYEX('database_name', 'collation'));
+----
+
+* Column-level collations
++
+When you create or alter a table, you can specify collations for each character-string column by using the `COLLATE` clause. If you don't specify a collation, the column is assigned the default collation of the database.
+
+* Expression-level collations
++
+Expression-level collations are set when a statement is run, and they affect the way a result set is returned. This enables `ORDER BY` sort results to be locale-specific. To implement expression-level collations, use a `COLLATE` clause such as the following code sample:
++
+[source,sql]
+----
+SELECT name FROM customer ORDER BY name COLLATE Latin1_General_CS_AI;
+----
+
+A *locale* is a set of information that's associated with a location or a culture. The information can include the name and identifier of the spoken language, the script that's used to write the language, and cultural conventions. Collations can be associated with one or more locales. For more information, see Locale IDs Assigned by Microsoft.
+
+A *code page* is an ordered set of characters of a given script in which a numeric index, or code point value, is associated with each character. A Windows code page is typically referred to as a character set or a charset. Code pages are used to provide support for the character sets and keyboard layouts that are used by different Windows system locales.
+
+*Sort order* specifies how data values are sorted. The order affects the results of data comparison. Data is sorted by using collations, and it can be optimized by using indexes.
+
+*Unicode* is a standard for mapping code points to characters. Because it's designed to cover all the characters of all the languages of the world, you don't need different code pages to handle different sets of characters.
+
+Storing data in multiple languages within one database is difficult to manage when you use only character data and code pages. It's also difficult to find one code page for the database that can store all the required language-specific characters. Additionally, it's difficult to guarantee the correct translation of special characters when they're being read or updated by a variety of clients that are running various code pages. Databases that support international clients should always use Unicode data types instead of non-Unicode data types.
+
+NOTE: The code pages that a client uses are determined by the operating system (OS) settings. To set client code pages on the Windows operating system, use Regional Settings in Control Panel.
+
+It would be difficult to select a code page for character data types that will support all the characters that are required by a worldwide audience. The easiest way to manage character data in international databases is to always use a data type that supports Unicode.
+
+If you store character data that reflects multiple languages in SQL Server (SQL Server 2005 (9.x) and later), use Unicode data types (`nchar`, `nvarchar`, and `ntext`) instead of non-Unicode data types (`char`, `varchar`, and `text`).
+
+:storage_differences-utf-8-16: https://learn.microsoft.com/en-us/sql/relational-databases/collations/collation-and-unicode-support?view=sql-server-ver16#storage_differences
+
+Alternatively, starting with SQL Server 2019 (15.x), if a UTF-8 enabled collation (`_UTF8`) is used, previously non-Unicode data types (`char` and `varchar`) become Unicode data types using UTF-8 encoding. SQL Server 2019 (15.x) doesn't change the behavior of previously existing Unicode data types (`nchar`, `nvarchar`, and `ntext`), which continue to use UCS-2 or UTF-16 encoding. For more information, see {storage_differences-utf-8-16}[Storage differences between UTF-8 and UTF-16].
 
 == Database identifiers
 
