@@ -178,7 +178,7 @@ QUIT
 
 == Databases
 
-A _database_ in _SQL Server_ is made up of a collection of _tables_ that stores a specific set of structured data. A tableontains a collection of _rows_, also referred to as _records_ or _tuples_, and _columns_, also referred to as _attributes_. Each column in the table is designed to store a certain type of information, for example, dates, names, dollar amounts, and numbers.
+A _database_ in _SQL Server_ is made up of a collection of _tables_ that stores a specific set of structured data. A table contains a collection of _rows_, also referred to as _records_ or _tuples_, and _columns_, also referred to as _attributes_. Each column in the table is designed to store a certain type of information, for example, dates, names, dollar amounts, and numbers.
 
 === Basic Information about Databases
 
@@ -188,11 +188,19 @@ A _database_ in _SQL Server_ is made up of a collection of _tables_ that stores 
 :sqldb-authn: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
 :ssms: https://learn.microsoft.com/en-us/sql/ssms/sql-server-management-studio-ssms?view=sql-server-ver16
 
+==== Servers, Databases, Schemas and Tables
+
 A computer can have one or more than one instance of _SQL Server_ installed. Each instance of SQL Server can contain one or many _databases_. Within a database, there are one or many object ownership groups called _schemas_. Within each schema there are database objects such as _tables_, _views_, and _stored procedures_. Some objects such as certificates and asymmetric keys are contained within the database, but are not contained within a schema. For more information about creating tables, see {sqldb-tables}[Tables].
 
-SQL Server databases are stored in the file system in _files_. Files can be grouped into _filegroups_. For more information about files and filegroups, see {sqldb-file-filegroups}[Database Files and Filegroups].
+==== Files and FileGroups
+
+SQL Server databases are stored in the file system in _files_. Files can be grouped into _filegroups_. For more information about files and filegroups, see {sqldb-files-filegroups}[Database Files and Filegroups].
+
+==== Logins and Database Users
 
 When people gain access to an instance of SQL Server they are identified as a _login_. When people gain access to a database they are identified as a _database user_. A database user can be based on a login. If _contained databases_ are enabled, a database user can be created that is not based on a login. For more information about users, see `CREATE USER` ({sqldb-tsql}[Transact-SQL]).
+
+==== Roles and Permissions
 
 A user that has access to a database can be given _permission_ to access the objects in the database. Though permissions can be granted to _individual users_, we recommend creating _database roles_, adding the database users to the roles, and then grant access permission to the roles. Granting permissions to roles instead of users makes it easier to keep permissions consistent and understandable as the number of users grow and continually change. For more information about roles permissions, see `CREATE ROLE` ({sqldb-tsql}[Transact-SQL]) and {sqldb-authn}[Principals (Database Engine)].
 
@@ -281,6 +289,13 @@ For example, a simple database named *Sales* has one primary file that contains 
 
 By default, the data and transaction logs are put on the same drive and path to handle single-disk systems. This choice may not be optimal for production environments. We recommend that you _put data and log files on separate disks_.
 
+[source,console]
+----
+$ ls /var/opt/mssql/data/
+Entropy.bin  Sales_log.ldf  mastlog.ldf  model_msdbdata.mdf  model_replicatedmaster.ldf  modellog.ldf  msdblog.ldf  tempdb2.ndf  tempdb4.ndf
+Sales.mdf    master.mdf     model.mdf	 model_msdblog.ldf   model_replicatedmaster.mdf  msdbdata.mdf  tempdb.mdf   tempdb3.ndf  templog.ldf
+----
+
 ==== Logical and Physical File Names
 
 :sqldb-file-locations: https://learn.microsoft.com/en-us/sql/sql-server/install/file-locations-for-default-and-named-instances-of-sql-server?view=sql-server-ver16
@@ -297,9 +312,55 @@ When multiple instances of SQL Server are running on a single computer, each ins
 
 _Permissions_ in the Database Engine are managed at the _server level_ through _logins_ and _server roles_, and at the _database level_ through _database users_ and _database roles_. The model for SQL Database exposes the same system within each database, but the server level permissions aren't available.
 
+=== Server-level roles
+
+:server-level-roles: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/server-level-roles?view=sql-server-ver16
+
+SQL Server provides {server-level-roles}[server-level roles] to help you manage the permissions on a server. These roles are security principals that group other principals. Server-level roles are server-wide in their permissions scope. 
+
+=== Database-level roles
+
+:database-level-roles: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/database-level-roles?view=sql-server-ver16
+
+{database-level-roles}[Database-level roles] are database-wide in their permissions scope.
+
+There are two types of database-level roles: fixed-database roles that are predefined in the database and user-defined database roles that you can create.
+
+Fixed-database roles are defined at the database level and exist in each database. Members of the `db_owner` database role can manage fixed-database role membership. There are also some special-purpose database roles in the `msdb` database.
+
+You can add any database account and other SQL Server roles into database-level roles.
+
+=== Contained database users: Make your database portable by using contained databases 
+
+:contained-database-users: https://learn.microsoft.com/en-us/sql/relational-databases/security/contained-database-users-making-your-database-portable?view=sql-server-ver16
+
+Use {contained-database-users}[contained database users] to authenticate SQL Server and Azure SQL Database connections at the database level. A contained database is a database that's isolated from other databases and from the instance of SQL Server or SQL Database (and the master database) that hosts the database.
+
+==== Traditional login and user model
+
+In the traditional connection model, Windows users or members of Windows groups connect to the Database Engine by providing user or group credentials authenticated by Windows. Or users can provide both a name and password and connect by using SQL Server authentication. In both cases, the master database must have a login that matches the connecting credentials.
+
+After the Database Engine confirms the Windows authentication credentials or authenticates the SQL Server authentication credentials, the connection typically attempts to connect to a user database. To connect to a user database, the login must be mapped to (that is, associated with) a database user in the user database. The connection string might also specify connecting to a specific database, which is optional in SQL Server but required in SQL Database.
+
+The important principle is that both the _login_ (in the `master` database) and the _user_ (in the user database) must exist and be related to each other. The connection to the user database has a dependency upon the login in the `master` database. This dependency limits the ability of the database to be moved to a different hosting SQL Server instance or Azure SQL Database server.
+
+If a connection to the `master` database is not available (for example, a failover is in progress), the overall connection time will increase, or the connection might time out. An unavailable connection might reduce connection scalability.
+
+==== Contained database user model
+
+In the contained database user model, the login in the `master` database is not present. Instead, the authentication process occurs at the user database. The database user in the user database doesn't have an associated login in the master database.
+
+The contained database user model supports both Windows authentication and SQL Server authentication. You can use it in both SQL Server and SQL Database.
+
+To connect as a contained database user, the connection string must always contain a parameter for the user database. The Database Engine uses this parameter to know which database is responsible for managing the authentication process.
+
+The activity of the contained database user is limited to the authenticating database. The database user account must be independently created in each database that the user needs. To change databases, SQL Database users must create a new connection. Contained database users in SQL Server can change databases if an identical user is present in another database.
+
 === Security principals
 
-_Security principal_ is the official name of the identities that use SQL Server and that can be assigned permission to take actions. They are usually people or groups of people, but can be other entities that pretend to be people.
+:principals-database-engine: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/principals-database-engine?view=sql-server-ver16
+
+{principals-database-engine}[_Security principal_] is the official name of the identities that use SQL Server and that can be assigned permission to take actions. They are usually people or groups of people, but can be other entities that pretend to be people.
 
 The security principals can be created and managed using the Transact-SQL listed, or by using SQL Server Management Studio.
 
