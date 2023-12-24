@@ -1,0 +1,493 @@
+= Parallel programming in .NET
+:page-layout: post
+:page-categories: ['dotnet']
+:page-tags: ['dotnet']
+:page-date: 2023-12-24 12:56:21 +0800
+:page-revdate: 2023-12-24 12:56:21 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+> "Concurrency is about dealing with lots of things at once. Parallelism is about doing lots of things at once." — Rob Pike
+
+== Threads and threading
+
+Multithreading allows you to increase the responsiveness of your application and, if your application runs on a multiprocessor or multi-core system, increase its throughput. <<threads-and-threading>>
+
+=== Processes and threads
+
+A _process_ is an executing program. An operating system uses processes to separate the applications that are being executed.
+
+A _thread_ is the basic unit to which an operating system allocates _processor time_. Each thread has a _scheduling priority_ and maintains a set of structures the system uses to save the _thread context_ when the thread's execution is paused.
+
+The thread context includes all the information the thread needs to seamlessly resume execution, including the thread's set of CPU registers and stack. Multiple threads can run in the context of a process. All threads of a process share its _virtual address space_. A thread can execute any part of the program code, including parts currently being executed by another thread.
+
+NOTE: .NET Framework provides a way to isolate applications within a process with the use of application domains. (Application domains are not available on .NET Core.)
+
+By default, a .NET program is started with a single thread, often called the _primary thread_. However, it can create additional threads to execute code in parallel or concurrently with the primary thread. These threads are often called _worker threads_.
+
+=== How to use multithreading in .NET
+
+:task-parallel-library-tpl: https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
+:introduction-to-plinq: https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/introduction-to-plinq
+:system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
+:system-threading-thread: https://learn.microsoft.com/en-us/dotnet/api/system.threading.thread
+
+Starting with .NET Framework 4, the recommended way to utilize multithreading is to use {task-parallel-library-tpl}[Task Parallel Library (TPL)] and {introduction-to-plinq}[Parallel LINQ (PLINQ)].
+
+Both TPL and PLINQ rely on the {system-threading-threadpool}[ThreadPool threads]. The `System.Threading.ThreadPool` class provides a .NET application with a pool of worker threads. You can also use thread pool threads.
+
+At last, you can use the {system-threading-thread}[System.Threading.Thread] class that represents a managed thread.
+
+=== Using threads and threading
+
+With .NET, you can write applications that perform multiple operations at the same time. Operations with the potential of holding up other operations can execute on separate threads, a process known as _multithreading_ or _free threading_. <<using-threads-and-threading>>
+
+Applications that use multithreading are more _responsive_ to user input because the user interface stays active as processor-intensive tasks execute on separate threads. Multithreading is also useful when you create _scalable_ applications because you can add threads as the workload increases.
+
+==== Create and start a new thread
+
+:system-threading-thread: https://learn.microsoft.com/en-us/dotnet/api/system.threading.thread
+
+You create a new thread by creating a new instance of the {system-threading-thread}[System.Threading.Thread] class. You provide the name of the method that you want to execute on the new thread to the constructor. To start a created thread, call the `Thread.Start` method. 
+
+[source,cs]
+----
+new Thread(() => Console.WriteLine("Hello Thread")).Start();
+----
+
+==== Stop a thread
+
+:system-threading-cancellationtoken: https://learn.microsoft.com/en-us/dotnet/api/system.threading.cancellationtoken
+
+To terminate the execution of a thread, use the {system-threading-cancellationtoken}[System.Threading.CancellationToken]. It provides a unified way to stop threads cooperatively.
+
+Sometimes it's not possible to stop a thread cooperatively because it runs third-party code not designed for cooperative cancellation. In this case, you might want to terminate its execution forcibly. To terminate the execution of a thread forcibly, in .NET Framework you can use the `Thread.Abort` method. That method raises a `ThreadAbortException` on the thread on which it's invoked.
+
+NOTE: The `Thread.Abort` method isn't supported in .NET Core. If you need to terminate the execution of third-party code forcibly in .NET Core, run it in the separate process and use the `Process.Kill` method.
+
+The `System.Threading.CancellationToken` isn't available before .NET Framework 4. To stop a thread in older .NET Framework versions, use the thread synchronization techniques to implement the cooperative cancellation manually. For example, you can create the `volatile boolean` field `shouldStop` and use it to request the code executed by the thread to stop.
+
+Use the `Thread.Join` method to make the calling thread wait for the termination of the thread being stopped.
+
+==== Pause or interrupt a thread
+
+You use the `Thread.Sleep` method to pause the current thread for a specified amount of time. You can interrupt a blocked thread by calling the `Thread.Interrupt` method.
+
+Calling the `Thread.Sleep` method causes the current thread to immediately block for the number of milliseconds or the time interval you pass to the method, and yields the remainder of its time slice to another thread. Once that interval elapses, the sleeping thread resumes execution. <<pausing-and-resuming-threads>>
+
+NOTE: One thread cannot call `Thread.Sleep` on another thread. `Thread.Sleep` is a static method that always causes the current thread to sleep.
+
+Calling `Thread.Sleep` with a value of `Timeout.Infinite` causes a thread to sleep until it is interrupted by another thread that calls the `Thread.Interrupt` method on the sleeping thread, or until it is terminated by a call to its `Thread.Abort` method.
+
+[TIP]
+====
++++>+++ What happens on Thread.Sleep(0) in .NET?
+
++++*+++ In .NET, `Thread.Sleep(0)` has a special meaning. It relinquishes the thread’s current time slice immediately, voluntarily handing over the CPU to other threads. The operating system could decide to immediately give the time slice back to the same thread if there are no other threads that need to run.
+
+It's effectively a way to signal to the operating system that the thread is willing to give up its slice of processor time, if there are other threads that are ready to run on the same processor.
+
+However, `Thread.Sleep(0)` does not lead to a context switch if there are no higher priority threads waiting.
+
+This can be useful to prevent a thread from consuming too much CPU time in a busy-wait scenario or when you might want to give other threads the chance to run.
+
+Remember that using `Thread.Sleep` is generally not the best practice because it blocks the thread and also it's not precise i.e. the thread might not awake exactly after specified time due to the way CPU scheduling works. Instead, using techniques such as `Task`, `async/await`, or the TPL's synchronization primitives (like `ManualResetEvent`, `Semaphore`, etc.) are typically better approaches for managing thread synchronization and timing.
+====
+
+You can interrupt a waiting thread by calling the `Thread.Interrupt` method on the blocked thread to throw a `ThreadInterruptedException`, which breaks the thread out of the blocking call. The thread should catch the `ThreadInterruptedException` and do whatever is appropriate to continue working. If the thread ignores the exception, the runtime catches the exception and stops the thread.
+
+[TIP]
+====
+[source,cs]
+----
+// Interrupts a thread that is in the WaitSleepJoin thread state.
+public void Interrupt ();
+----
+
+> WaitSleepJoin: The thread is blocked.
+>
+> This could be the result of calling `Sleep(Int32)` or `Join()`, of requesting a lock - for example, by calling `Enter(Object)` or `Wait(Object, Int32, Boolean)` - or of waiting on a thread synchronization object such as `ManualResetEvent`.
+====
+
+NOTE: If the target thread is not blocked when `Thread.Interrupt` is called, the thread is not interrupted until it blocks. If the thread never blocks, it could complete without ever being interrupted.
+
+If a wait is a managed wait, then `Thread.Interrupt` and `Thread.Abort` both wake the thread immediately. If a wait is an unmanaged wait (for example, a platform invoke call to the Win32 `WaitForSingleObject` function), neither `Thread.Interrupt` nor `Thread.Abort` can take control of the thread until it returns to or calls into managed code. In managed code, the behavior is as follows:
+
+* `Thread.Interrupt` wakes a thread out of any wait it might be in and causes a `ThreadInterruptedException` to be thrown in the destination thread.
+
+* .NET Framework only: `Thread.Abort` wakes a thread out of any wait it might be in and causes a `ThreadAbortException` to be thrown on the thread.
+
+[source,cs]
+----
+Thread sleepingThread = new Thread(() =>
+{
+    Console.WriteLine("Thread '{0}' about to sleep indefinitely.", Thread.CurrentThread.Name);
+    try
+    {
+        Thread.Sleep(Timeout.Infinite);
+    }
+    catch (ThreadInterruptedException)
+    {
+        Console.WriteLine("Thread '{0}' awoken.", Thread.CurrentThread.Name);
+    }
+    finally
+    {
+        Console.WriteLine("Thread '{0}' executing finally block.", Thread.CurrentThread.Name);
+    }
+    Console.WriteLine("Thread '{0} finishing normal execution.", Thread.CurrentThread.Name);
+});
+
+sleepingThread.Name = "Sleeping";
+sleepingThread.Start();
+Thread.Sleep(2000);
+sleepingThread.Interrupt();
+
+// Thread 'Sleeping' about to sleep indefinitely.
+// Thread 'Sleeping' awoken.
+// Thread 'Sleeping' executing finally block.
+// Thread 'Sleeping finishing normal execution.
+----
+
+=== Cancellation in Managed Threads
+
+Starting with .NET Framework 4, .NET uses a unified model for cooperative cancellation of asynchronous or long-running synchronous operations. This model is based on a lightweight object called a _cancellation token_. The object that invokes one or more cancelable operations, for example by creating new threads or tasks, passes the token to each operation. Individual operations can in turn pass copies of the token to other operations. At some later time, the object that created the token can use it to request that the operations stop what they are doing. Only the requesting object can issue the cancellation request, and each listener is responsible for noticing the request and responding to it in an appropriate and timely manner. <<cancellation-in-managed-threads>>
+
+The general pattern for implementing the cooperative cancellation model is:
+
+. Instantiate a `CancellationTokenSource` object, which manages and sends cancellation notification to the individual cancellation tokens.
+
+. Pass the token returned by the `CancellationTokenSource.Token` property to each task or thread that listens for cancellation.
+
+. Provide a mechanism for each task or thread to respond to cancellation.
+
+. Call the `CancellationTokenSource.Cancel` method to provide notification of cancellation.
+
+[source,cs]
+----
+// Create the token source.
+CancellationTokenSource cts = new CancellationTokenSource();
+
+// Pass the token to the cancelable operation.
+ThreadPool.QueueUserWorkItem(obj =>
+{
+    if (obj is CancellationToken token)
+    {
+        for (int i = 0; i < 100000; i++)
+        {
+            if (token.IsCancellationRequested)
+            {
+                Console.WriteLine("In iteration {0}, cancellation has been requested...", i + 1);
+                // Perform cleanup if necessary.
+                //...
+                // Terminate the operation.
+                break;
+            }
+            // Simulate some work.
+            Thread.SpinWait(500000);
+        }
+    }
+}, cts.Token);
+Thread.Sleep(2500);
+
+// Request cancellation.
+cts.Cancel();
+Console.WriteLine("Cancellation set in token source...");
+Thread.Sleep(2500);
+// Cancellation should have happened, so call Dispose.
+cts.Dispose();
+
+// The example displays output like the following:
+//       Cancellation set in token source...
+//       In iteration 1430, cancellation has been requested...
+----
+
+IMPORTANT: The `CancellationTokenSource` class implements the `IDisposable` interface. You should be sure to call the `CancellationTokenSource.Dispose` method when you have finished using the cancellation token source to free any unmanaged resources it holds.
+
+The following illustration shows the relationship between a token source and all the copies of its token.
+
+image::https://learn.microsoft.com/en-us/dotnet/standard/threading/media/vs-cancellationtoken.png[CancellationTokenSource and cancellation tokens,45%,45%]
+
+The cooperative cancellation model makes it easier to create cancellation-aware applications and libraries, and it supports the following features:
+
+* Cancellation is cooperative and is not forced on the listener. The listener determines how to gracefully terminate in response to a cancellation request.
+
+* Requesting is distinct from listening. An object that invokes a cancelable operation can control when (if ever) cancellation is requested.
+
+* The requesting object issues the cancellation request to all copies of the token by using just one method call.
+
+* A listener can listen to multiple tokens simultaneously by joining them into one _linked token_.
+
+* User code can notice and respond to cancellation requests from library code, and library code can notice and respond to cancellation requests from user code.
+
+* Listeners can be notified of cancellation requests by polling, callback registration, or waiting on wait handles.
+
+In more complex cases, it might be necessary for the user delegate to notify library code that cancellation has occurred. In such cases, the correct way to terminate the operation is for the delegate to call the `ThrowIfCancellationRequested`, method, which will cause an `OperationCanceledException` to be thrown. Library code can catch this exception on the user delegate thread and examine the exception's token to determine whether the exception indicates cooperative cancellation or some other exceptional situation.
+
+The `System.Threading.Tasks.Task` and `System.Threading.Tasks.Task<TResult>` classes support cancellation by using cancellation tokens. You can terminate the operation by using one of these options:
+
+* By returning from the delegate. In many scenarios, this option is sufficient. However, a task instance that's canceled in this way transitions to the `TaskStatus.RanToCompletion` state, not to the `TaskStatus.Canceled` state.
+
+* By throwing an `OperationCanceledException` and passing it the token on which cancellation was requested. The preferred way to perform is to use the `ThrowIfCancellationRequested` method. A task that's canceled in this way transitions to the `Canceled` state, which the calling code can use to verify that the task responded to its cancellation request.
+
+When a task instance observes an `OperationCanceledException` thrown by the user code, it compares the exception's token to its associated token (the one that was passed to the API that created the Task). If the tokens are same and the token's `IsCancellationRequested` property returns `true`, the task interprets this as acknowledging cancellation and transitions to the `Canceled` state. If you don't use a `Wait` or `WaitAll` method to wait for the task, then the task just sets its status to `Canceled`.
+
+If you're waiting on a Task that transitions to the `Canceled` state, a `System.Threading.Tasks.TaskCanceledException` exception (wrapped in an `AggregateException` exception) is thrown. This exception indicates successful cancellation instead of a faulty situation. Therefore, the task's `Exception` property returns `null`.
+
+[source,cs]
+----
+public class TaskCanceledException : OperationCanceledException
+----
+
+If the token's `IsCancellationRequested` property returns `false` or if the exception's token doesn't match the Task's token, the `OperationCanceledException` is treated like a normal exception, causing the Task to transition to the `Faulted` state. The presence of other exceptions will also cause the Task to transition to the `Faulted` state. You can get the status of the completed task in the `Status` property.
+
+It's possible that a task might continue to process some items after cancellation is requested.
+
+[TIP]
+====
+Please note that if you use `Task.Run(() =+++>+++ ..., cancellationToken)`, then cancellation before execution leads to a `Task` in `Canceled` status. Just ensure to pass the `CancellationToken` as an argument to the `Task.Run` method.
+
+[source,cs]
+----
+CancellationTokenSource cts = new CancellationTokenSource();
+CancellationToken ct = cts.Token;
+
+Task task = Task.Run(() =>
+{
+    for (int i = 0; i < 100000; i++)
+    {
+        ct.ThrowIfCancellationRequested();
+        Thread.SpinWait(500000);
+    }
+}, ct);
+
+Thread.Sleep(1000);
+cts.Cancel();
+----
+
+[source,cs]
+----
+try
+{
+    task.Wait();
+}
+catch (AggregateException ae)
+{
+    Console.WriteLine($"Task.Status: {task.Status}. Task.Exception: {task.Exception is null}."
+        + $" Catched: {ae.InnerException?.GetType().Name}.");
+    // Task.Status: Canceled. Task.Exception: True. Catched: TaskCanceledException.
+}
+----
+
+[source,cs]
+----
+try
+{
+    await task;
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine($"Task.Status: {task.Status}. Task.Exception: {task.Exception is null}.");
+    // Task.Status: Canceled. Task.Exception: True.
+}
+----
+====
+
+=== Foreground and background threads
+
+A managed thread is either a background thread or a foreground thread. Background threads are identical to foreground threads with one exception: a background thread does not keep the managed execution environment running. Once all foreground threads have been stopped in a managed process (where the .exe file is a managed assembly), the system stops all background threads and shuts down.
+
+Use the `Thread.IsBackground` property to determine whether a thread is a background or a foreground thread, or to change its status. A thread can be changed to a background thread at any time by setting its `IsBackground` property to `true`.
+
+Threads that belong to the managed thread pool (that is, threads whose `IsThreadPoolThread` property is `true`) are background threads. All threads that enter the managed execution environment from unmanaged code are marked as background threads. All threads generated by creating and starting a new Thread object are by default foreground threads.
+
+If you use a thread to monitor an activity, such as a socket connection, set its `IsBackground` property to `true` so that the thread does not prevent your process from terminating.
+
+[TIP]
+====
+[source,cs]
+----
+ThreadPool.QueueUserWorkItem(_ =>
+{
+    Thread.CurrentThread.IsBackground = false;
+    Console.WriteLine($"Thread.CurrentThread.IsBackground: {Thread.CurrentThread.IsBackground}");
+});
+----
+
++++*+++ In .NET, even though you can technically change the `IsBackground` property of a thread, it has no effect on `ThreadPool` threads.
+
+The `ThreadPool` has its own management system and controls thread life-cycles, where it always treats its threads as background threads. This means that those threads will not prevent a process from terminating. Even if you set `IsBackground` to `false`, the thread pool will ignore this setting.
+
+In the code you provided, you're attempting to change the `IsBackground` property of a `ThreadPool` thread. Although it may not raise an exception, it won't actually make any difference to the operation of the thread or to your application because the `ThreadPool` overrides this and controls its threads as being background threads.
+
+Always remember that `ThreadPool` threads are designed for short operations or independent tasks in a multithreaded application. When having longer tasks or when a need for a fine-grained control over thread background/foreground status arises, regular `Thread` objects may be a better choice.
+====
+
+=== The managed thread pool 
+
+:system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
+:timers: https://learn.microsoft.com/en-us/dotnet/standard/threading/timers
+
+The {system-threading-threadpool}[System.Threading.ThreadPool] class provides your application with a pool of worker threads that are managed by the system, allowing you to concentrate on application tasks rather than thread management. If you have *short tasks* that require background processing, the managed thread pool is an easy way to take advantage of multiple threads. Use of the thread pool is significantly easier in Framework 4 and later, since you can create `Task` and `Task<TResult>` objects that perform asynchronous tasks on thread pool threads. <<the-managed-thread-pool>>
+
+.NET uses thread pool threads for many purposes, including Task Parallel Library (TPL) operations, asynchronous I/O completion, {timers}[timer] callbacks, registered wait operations, asynchronous method calls using delegates, and System.Net socket connections.
+
+==== Thread pool characteristics
+
+Thread pool threads are background threads. Each thread uses the default stack size, runs at the default priority, and is in the multithreaded apartment. Once a thread in the thread pool completes its task, it's returned to a queue of waiting threads. From this moment it can be reused. This reuse enables applications to avoid the cost of creating a new thread for each task.
+
+NOTE: There is only one thread pool per process.
+
+==== Exceptions in thread pool threads
+
+Unhandled exceptions in thread pool threads terminate the process. There are three exceptions to this rule:
+
+* A `System.Threading.ThreadAbortException` is thrown in a thread pool thread because `Thread.Abort` was called.
+* A `System.AppDomainUnloadedException` is thrown in a thread pool thread because the application domain is being unloaded.
+* The common language runtime or a host process terminates the thread.
+
+==== Maximum number of thread pool threads
+
+The number of operations that can be queued to the thread pool is limited only by available memory. However, the thread pool limits the number of threads that can be active in the process simultaneously. If all thread pool threads are busy, additional work items are queued until threads to execute them become available. The default size of the thread pool for a process depends on several factors, such as the size of the virtual address space. A process can call the `ThreadPool.GetMaxThreads` method to determine the number of threads.
+
+You can control the maximum number of threads by using the `ThreadPool.GetMaxThreads` and `ThreadPool.SetMaxThreads` methods.
+
+==== Thread pool minimums
+
+The thread pool provides new worker threads or I/O completion threads on demand until it reaches a specified minimum for each category. You can use the `ThreadPool.GetMinThreads` method to obtain these minimum values.
+
+NOTE: When demand is low, the actual number of thread pool threads can fall below the minimum values.
+
+When a minimum is reached, the thread pool can create additional threads or wait until some tasks complete. The thread pool creates and destroys worker threads in order to optimize throughput, which is defined as the number of tasks that complete per unit of time. Too few threads might not make optimal use of available resources, whereas too many threads could increase resource contention.
+
+[WARNING]
+====
+You can use the `ThreadPool.SetMinThreads` method to increase the minimum number of idle threads. However, unnecessarily increasing these values can cause performance problems. If too many tasks start at the same time, all of them might appear to be slow. In most cases the thread pool will perform better with its own algorithm for allocating threads.
+====
+
+==== When not to use thread pool threads
+
+There are several scenarios in which it's appropriate to create and manage your own threads instead of using thread pool threads:
+
+* You require a foreground thread.
+* You require a thread to have a particular priority.
+* You have tasks that cause the thread to block for long periods of time. The thread pool has a maximum number of threads, so a large number of blocked thread pool threads might prevent tasks from starting.
+* You need to place threads into a single-threaded apartment. All ThreadPool threads are in the multithreaded apartment.
+* You need to have a stable identity associated with the thread, or to dedicate a thread to a task.
+
+==== Worker Threads and Completion Port Threads
+
+[source,cs]
+----
+//
+// Summary:
+//     Sets the number of requests to the thread pool that can be active concurrently.
+//     All requests above that number remain queued until thread pool threads become
+//     available.
+//
+// Parameters:
+//   workerThreads:
+//     The maximum number of worker threads in the thread pool.
+//
+//   completionPortThreads:
+//     The maximum number of asynchronous I/O threads in the thread pool.
+//
+// Returns:
+//     true if the change is successful; otherwise, false.
+public static bool SetMaxThreads(int workerThreads, int completionPortThreads);
+public static bool SetMinThreads(int workerThreads, int completionPortThreads);
+----
+
++++>+++ What's worker and completion port threads in SetMaxThreads(int workerThreads, int completionPortThreads)?
+
++++*+++ The `ThreadPool.SetMaxThreads(int workerThreads, int completionPortThreads)` method in .NET sets the number of requests to the thread pool that can be active concurrently. These two parameters define:
+
+1. `workerThreads`: This is the maximum number of worker threads in the ThreadPool. A worker thread is a thread where your work is actually getting done. It is a thread on which a task is performed. "Worker" threads are used for compute-bound operations, i.e., your average piece of synchronous work.
+
+2. `completionPortThreads`: This indicates maximum number of asynchronous I/O threads. Completion ports are used to execute callbacks after certain Async I/O operations have completed. "I/O completion" threads are used for I/O-bound operations (typically disk and network operations).
+
+The threadpool maintains two types of threads, worker threads for the most part handle compute operations and I/O threads handle as the name suggests handle I/O bound operations.
+
+Asynchronous I/O operations, which are operations that complete at some later point, often use callback methods to signal completion. When the system calls these callback methods, it does so using a thread from the ThreadPool.
+
+The `ThreadPool.SetMaxThreads` method is usually used to increase max number of concurrent threads if you have a lot of short tasks that are I/O bound.
+
+It's typically not necessary to change the ThreadPool size, because the ThreadPool already optimizes the number of threads it uses based on the number of CPUs and the types of tasks it's running. In most cases, ThreadPool is efficient in managing its threads. Its algorithm aims to efficiently use all available CPU resources while not overloading the system with too many threads at the same time. It tries to maintain a balance.
+
+'''
+
++++>+++ How does .NET identify I/O-bound or compute-bound operations?
+
++++*+++ The .NET runtime itself doesn't actively categorize tasks as I/O-bound or compute-bound. It's up to developers to ensure that appropriate APIs and techniques are used for I/O-bound and compute-bound tasks.
+
+For I/O-bound operations, which typically include file, database, and network operations, you should use asynchronous methods when they're available to avoid blocking (or tying up) a thread from the thread pool. When an I/O-bound operation is asynchronous, this generally means the operation is offloaded to the operating system, freeing up the .NET runtime thread to perform other work. I/O bound means the data is transferred between the CPU and the peripheral devices (disk, network, etc.), during which the CPU isn't doing much work.
+
+On the other hand, when a task is compute-bound, meaning it involves heavy computations and keeps the processor busy, developers should generally use synchronous methods and potentially multiple threads to utilize more cores and finish the computations faster. This kind of operation is typically done in parallel to split the work across multiple threads, where each thread uses synchronous code to do its part of the work.
+
+So, while .NET doesn't automatically distinguish between I/O-bound and compute-bound operations, it provides facilities (like asynchronous methods for I/O-bound tasks and parallel processing techniques such as the TPL for compute-bound tasks) for developers to write efficient code for both types of operations.
+
+'''
+
++++>+++ How to understand 'It's up to developers...'?
+
++++*+++ What "It's up to developers..." means is that the .NET runtime, or indeed any other runtime, cannot automatically discern if the operation you're performing is I/O-bound or compute-bound. It's the responsibility of the developer writing the code to understand what kind of operation they're performing and to use the correct method to handle it.
+
+For example,
+
+- If a developer is reading data from a file, database, or making a network call, these are typically I/O-bound operations. They should use asynchronous methods (`async/await`) provided by .NET to avoid blocking the thread while the data is being fetched.
+
+- If a developer is intending to perform an action that requires heavy computation, like sorting a large array or processing a complex algorithm, these operations are typically compute-bound. They would then use parallel programming constructs like `Parallel.For` or `Parallel.ForEach`, or manually creating multiple threads.
+
+The appropriate programming approach (asynchronous or multithreaded) is dictated by the nature of the operation. The developer must know their application, the tasks, and their nature, and then use the appropriate method. The .NET runtime will not do this discernment automatically.
+
+'''
+
++++>+++ How does CLR manage the number of threads (worker and I/O threads) in the ThreadPool?
+
++++*+++ The CLR, or Common Language Runtime, uses a set algorithm to manage the number of threads in its ThreadPool.
+
+Upon application startup, the ThreadPool possesses few threads. As requests come in, threads are added to fulfill those requests. The CLR considers several factors to make an adjustment, including the workload demand, number of processors, and the number of existing threads.
+
+For each pending task or work item, a check is performed to see if a thread is available. If not, and the current thread count is below the maximum limit, a new thread is created unless we've reached the maximum limit "rate". If a ThreadPool thread is idle for some time (around a minute), it gets terminated, which reduces resource usage.
+
+If the thread count reaches the max limit and the requests are still not fulfilled, they are queued. "Worker" threads are commonly used for executing synchronous and asynchronous managed code, and "I/O threads" are specifically designated for completing I/O-bound work.
+
+Both the maximum threads and "rate" are automatically set based on several factors like the size of virtual memory, number of processors available, etc.
+
+The thread injection rate (how often new threads are added) aids to prevent situations where rapidly creating too many threads would cause resource saturation and decrease performance.
+
+You can manually get and change the minimum and maximum number of threads in the ThreadPool by using `GetMinThreads`, `GetMaxThreads`, `SetMinThreads`, and `SetMaxThreads` methods.
+
+However, it's recommended to let the CLR manage the threading details because of its smart heuristics and tuning based on extensive research and testing. Custom changes should only be made after careful testing and analysis.
+
+'''
+
++++>+++ What's the algorithm of the thread pool in .NET?
+
++++*+++ According to .NET's official documentation, the CLR employs a hill-climbing algorithm for adjusting the number of ThreadPool threads that can run simultaneously. This heuristic algorithm is designed specifically to find the most efficient and effective number of threads for any given workload.
+
+Here's how the algorithm works:
+
+1. It starts with the minimum number of ThreadPool worker threads and regularly checks if there are pending tasks in the queue which are waiting for an available thread.
+
+2. If it finds tasks waiting in the queue, and it hasn't already created a new thread recently, it creates a new one, up to the maximum limit.
+
+3. If there are still tasks in the queue, but it just created a new thread, it waits a bit before creating another one. By waiting, it allows the currently running tasks to finish and free up some ThreadPool threads before deciding to create new ones.
+
+4. If threads are idle for more than a certain time (like a minute), these threads can be retired and removed from the pool.
+
+This algorithm works to maintain a balance between the number of threads and the amount of work that needs to be done. By ensuring threads are only created as needed, and cleaning up idle threads, it helps to optimize the system resources and performance.
+
+It's important to note that the .NET ThreadPool’s algorithm is intentionally not publicly documented in detail because it's subject to change as Microsoft fine-tunes it based on new findings and requirements.
+
+As always, it's recommended to let the CLR manage the ThreadPool for you, unless you have a specific reason and have done careful performance analysis.
+
+[bibliography]
+== References
+
+* [[[threads-and-threading,1]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/threads-and-threading
+* [[[using-threads-and-threading,2]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/using-threads-and-threading
+* [[[cancellation-in-managed-threads,3]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/cancellation-in-managed-threads
+* [[[pausing-and-resuming-threads,4]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/pausing-and-resuming-threads
+* [[[the-managed-thread-pool,5]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/the-managed-thread-pool
