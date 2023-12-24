@@ -483,6 +483,363 @@ It's important to note that the .NET ThreadPool’s algorithm is intentionally n
 
 As always, it's recommended to let the CLR manage the ThreadPool for you, unless you have a specific reason and have done careful performance analysis.
 
+=== Overview of synchronization primitives
+
++++.+++NET provides a range of types that you can use to synchronize access to a shared resource or coordinate thread interaction. <<overview-of-synchronization-primitives>>
+
+==== WaitHandle class and lightweight synchronization types
+
+:system-threading-waithandle: https://learn.microsoft.com/en-us/dotnet/api/system.threading.waithandle
+
+Multiple .NET synchronization primitives derive from the {system-threading-waithandle}[System.Threading.WaitHandle] class, which encapsulates a native operating system synchronization handle and uses a *signaling mechanism* for thread interaction. Those classes include:
+
+* `System.Threading.Mutex`, which grants exclusive access to a shared resource. The state of a mutex is signaled if no thread owns it.
+* `System.Threading.Semaphore`, which limits the number of threads that can access a shared resource or a pool of resources concurrently. The state of a semaphore is set to signaled when its count is greater than zero, and nonsignaled when its count is zero.
+* `System.Threading.EventWaitHandle`, which represents a thread synchronization event and can be either in a signaled or unsignaled state.
+* `System.Threading.AutoResetEvent`, which derives from `EventWaitHandle` and, when signaled, resets automatically to an unsignaled state after releasing a single waiting thread.
+* `System.Threading.ManualResetEvent`, which derives from `EventWaitHandle` and, when signaled, stays in a signaled state until the `Reset` method is called.
+
+In .NET Framework, because `WaitHandle` derives from `System.MarshalByRefObject`, these types can be used to synchronize the activities of threads across application domain boundaries.
+
+In .NET Framework, .NET Core, and .NET 5+, some of these types can represent named system synchronization handles, which are visible throughout the operating system and can be used for the inter-process synchronization:
+
+* Mutex
+* Semaphore (on Windows)
+* EventWaitHandle (on Windows)
+
+Lightweight synchronization types don't rely on underlying operating system handles and typically provide better performance. However, they cannot be used for the inter-process synchronization. Use those types for thread synchronization within one application.
+
+Some of those types are alternatives to the types derived from `WaitHandle`. For example, `SemaphoreSlim` is a lightweight alternative to `Semaphore`.
+
+[source,cs]
+----
+public class SemaphoreSlim : IDisposable
+public sealed class Semaphore : System.Threading.WaitHandle
+----
+
+=== Synchronization of access to a shared resource
+
++++.+++NET provides a range of synchronization primitives to control access to a shared resource by multiple threads.
+
+==== Monitor class
+
+:system-threading-monitor: https://learn.microsoft.com/en-us/dotnet/api/system.threading.monitor
+
+The {system-threading-monitor}[System.Threading.Monitor] class grants mutually exclusive access to a shared resource by acquiring or releasing a lock on the object that identifies the resource. While a lock is held, the thread that holds the lock can again acquire and release the lock. Any other thread is blocked from acquiring the lock and the `Monitor.Enter` method waits until the lock is released. The `Enter` method acquires a released lock. You can also use the `Monitor.TryEnter` method to specify the amount of time during which a thread attempts to acquire a lock. Because the Monitor class has thread affinity, the thread that acquired a lock must release the lock by calling the `Monitor.Exit` method.
+
+You can coordinate the interaction of threads that acquire a lock on the same object by using the `Monitor.Wait`, `Monitor.Pulse`, and `Monitor.PulseAll` methods.
+
+[NOTE]
+====
+Use the `lock` statement in C# and the `SyncLock` statement in Visual Basic to synchronize access to a shared resource instead of using the `Monitor` class directly. Those statements are implemented by using the `Enter` and `Exit` methods and a `try…finally` block to ensure that the acquired lock is always released.
+====
+
+[source,cs]
+----
+var ch = new BlockingChannel<object>();
+ThreadPool.QueueUserWorkItem(_ =>
+{
+    for (int i = 0; i < 10; i++)
+    {
+        ch.Add(i);
+    }
+    ch.Add(null!);
+});
+
+foreach (var v in ch)
+{
+    Console.Write($"{v} ");
+}
+
+class BlockingChannel<T> : IEnumerable<T> where T : class, new()
+{
+    private readonly object lockObj = new();
+    private bool _isEmpty = true;
+    private T? _val;
+
+    public void Add(T value)
+    {
+        Monitor.Enter(lockObj);
+        try
+        {
+            while (!_isEmpty)
+            {
+                Monitor.Wait(lockObj);
+            }
+            _isEmpty = false;
+            _val = value;
+            Monitor.Pulse(lockObj);
+        }
+        finally
+        {
+            Monitor.Exit(lockObj);
+        }
+    }
+
+    public T? Get()
+    {
+        Monitor.Enter(lockObj);
+        try
+        {
+            while (_isEmpty)
+            {
+                Monitor.Wait(lockObj);
+            }
+            _isEmpty = true;
+            Monitor.Pulse(lockObj);
+            return _val;
+        }
+        finally
+        {
+            Monitor.Exit(lockObj);
+        }
+    }
+
+    public IEnumerator<T> GetEnumerator()
+    {
+        while (true)
+        {
+            T? val = Get();
+            if (val == null) break;
+            yield return val;
+        }
+    }
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+}
+// $ dotnet run
+// 0 1 2 3 4 5 6 7 8 9
+----
+
+==== Mutex class
+
+:system-threading-mutex: https://learn.microsoft.com/en-us/dotnet/api/system.threading.mutex
+
+The {system-threading-mutex}[System.Threading.Mutex] class, like Monitor, grants exclusive access to a shared resource. Use one of the `Mutex.WaitOne` method overloads to request the ownership of a mutex. Like Monitor, Mutex has thread affinity and the thread that acquired a mutex must release it by calling the `Mutex.ReleaseMutex` method.
+
+Unlike `Monitor`, the `Mutex` class can be used for inter-process synchronization. To do that, use a _named mutex_, which is visible throughout the operating system. To create a named mutex instance, use a Mutex constructor that specifies a name. You can also call the `Mutex.OpenExisting` method to open an existing named system mutex.
+
+==== SpinLock structure
+
+:system-threading-spinlock: https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinlock
+
+The {system-threading-spinlock}[System.Threading.SpinLock] structure, like Monitor, grants exclusive access to a shared resource based on the availability of a lock. When SpinLock attempts to acquire a lock that is unavailable, it waits in a loop, repeatedly checking until the lock becomes available.
+
+[source,cs]
+----
+SpinLock sl = new SpinLock();
+StringBuilder sb = new StringBuilder();
+
+// Action taken by each parallel job.
+// Append to the StringBuilder 10000 times, protecting
+// access to sb with a SpinLock.
+Action action = () =>
+{
+    bool gotLock = false;
+    for (int i = 0; i < 10000; i++)
+    {
+        gotLock = false;
+        try
+        {
+            sl.Enter(ref gotLock);
+            sb.Append(i % 10);
+        }
+        finally
+        {
+            // Only give up the lock if you actually acquired it
+            if (gotLock) { sl.Exit(); }
+        }
+    }
+};
+
+// Invoke 3 concurrent instances of the action above
+Parallel.Invoke(action, action, action);
+
+// Check/Show the results
+Console.WriteLine("sb.Length = {0} (should be 30000)", sb.Length);
+Console.WriteLine("number of occurrences of '5' in sb: {0} (should be 3000)",
+    sb.ToString().Where(c => (c == '5')).Count());
+----
+
+==== ReaderWriterLockSlim class
+
+:system-threading-readerwriterlockslim: https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim
+
+The {system-threading-readerwriterlockslim}[System.Threading.ReaderWriterLockSlim] class grants exclusive access to a shared resource for writing and allows multiple threads to access the resource simultaneously for reading. You might want to use `ReaderWriterLockSlim` to synchronize access to a shared data structure that supports thread-safe read operations, but requires exclusive access to perform write operation. When a thread requests exclusive access (for example, by calling the `ReaderWriterLockSlim.EnterWriteLock` method), subsequent reader and writer requests block until all existing readers have exited the lock, and the writer has entered and exited the lock.
+
+[source,cs]
+----
+class SynchronizedDictionary<TKey, TValue> : IDisposable where TKey : notnull
+{
+    private readonly Dictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
+    private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+
+    public void Add(TKey key, TValue value)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            _dictionary.Add(key, value);
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    public void TryAddValue(TKey key, TValue value)
+    {
+        _lock.EnterUpgradeableReadLock();
+        try
+        {
+            if (_dictionary.TryGetValue(key, out var res) && res != null && res.Equals(value)) return;
+
+            _lock.EnterWriteLock();
+            try
+            {
+                _dictionary[key] = value;
+            }
+            finally { _lock.ExitWriteLock(); }
+        }
+        finally { _lock.ExitUpgradeableReadLock(); }
+    }
+
+    public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _dictionary.TryGetValue(key, out value);
+        }
+        finally { _lock.ExitReadLock(); }
+    }
+
+    private bool _disposed;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                // perform managed resource cleanup here
+                _lock.Dispose();
+            }
+
+            // perform unmanaged resource cleanup here
+            _disposed = true;
+        }
+    }
+
+    ~SynchronizedDictionary() => Dispose(disposing: false);
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+}
+----
+
+==== Semaphore and SemaphoreSlim classes
+
+:system-threading-semaphore: https://learn.microsoft.com/en-us/dotnet/api/system.threading.semaphore
+:system-threading-semaphoreslim: https://learn.microsoft.com/en-us/dotnet/api/system.threading.semaphoreslim
+
+The {system-threading-semaphore}[System.Threading.Semaphore] and {system-threading-semaphoreslim}[System.Threading.SemaphoreSlim] classes limit the number of threads that can access a shared resource or a pool of resources concurrently. Additional threads that request the resource wait until any thread releases the semaphore. Because the semaphore doesn't have thread affinity, a thread can acquire the semaphore and another one can release it.
+
+SemaphoreSlim is a lightweight alternative to Semaphore and can be used only for synchronization within a single process boundary.
+
+On Windows, you can use Semaphore for the inter-process synchronization. To do that, create a Semaphore instance that represents a named system semaphore by using one of the Semaphore constructors that specifies a name or the `Semaphore.OpenExisting` method. SemaphoreSlim doesn't support named system semaphores.
+
+=== Thread interaction, or signaling
+
+Thread interaction (or thread signaling) means that a thread must wait for notification, or a signal, from one or more threads in order to proceed. For example, if thread A calls the `Thread.Join` method of thread B, thread A is blocked until thread B completes. The synchronization primitives described in the preceding section provide a different mechanism for signaling: by releasing a lock, a thread notifies another thread that it can proceed by acquiring the lock.
+
+==== EventWaitHandle, AutoResetEvent, ManualResetEvent, and ManualResetEventSlim classes
+
+:system-threading-eventwaithandle: https://learn.microsoft.com/en-us/dotnet/api/system.threading.eventwaithandle
+:system-threading-autoresetevent: https://learn.microsoft.com/en-us/dotnet/api/system.threading.autoresetevent
+:system-threading-manualresetevent: https://learn.microsoft.com/en-us/dotnet/api/system.threading.manualresetevent
+:system-threading-manualreseteventslim: https://learn.microsoft.com/en-us/dotnet/api/system.threading.manualreseteventslim
+
+The {system-threading-eventwaithandle}[System.Threading.EventWaitHandle] class represents a thread synchronization event.
+
+A _synchronization event_ can be either in an unsignaled or signaled state. When the state of an event is unsignaled, a thread that calls the event's `WaitOne` overload is blocked until an event is signaled. The `EventWaitHandle.Set` method sets the state of an event to signaled.
+
+The behavior of an EventWaitHandle that has been signaled depends on its reset mode:
+
+* An EventWaitHandle created with the `EventResetMode.AutoReset` flag resets automatically after releasing a single waiting thread. It's like a turnstile that allows only one thread through each time it's signaled. The {system-threading-autoresetevent}[System.Threading.AutoResetEvent] class, which derives from EventWaitHandle, represents that behavior.
+* An EventWaitHandle created with the `EventResetMode.ManualReset` flag remains signaled until its `Reset` method is called. It's like a gate that is closed until signaled and then stays open until someone closes it. The {system-threading-manualresetevent}[System.Threading.ManualResetEvent] class, which derives from EventWaitHandle, represents that behavior. The {system-threading-manualreseteventslim}[System.Threading.ManualResetEventSlim] class is a lightweight alternative to ManualResetEvent.
+
+On Windows, you can use EventWaitHandle for the inter-process synchronization. To do that, create an EventWaitHandle instance that represents a named system synchronization event by using one of the EventWaitHandle constructors that specifies a name or the `EventWaitHandle.OpenExisting` method.
+
+NOTE: Event wait handles are not .NET events. There are no delegates or event handlers involved. The word "event" is used to describe them because they have traditionally been referred to as operating-system events, and because the act of signaling the wait handle indicates to waiting threads that an event has occurred.
+
+* Event Wait Handles That Reset Automatically <<eventwaithandle>>
++
+You create an automatic reset event by specifying `EventResetMode.AutoReset` when you create the `EventWaitHandle` object. As its name implies, this synchronization event resets automatically when signaled, after releasing a single waiting thread. Signal the event by calling its `Set` method.
++
+Automatic reset events are usually used to provide exclusive access to a resource for a single thread at a time. A thread requests the resource by calling the `WaitOne` method. If no other thread is holding the wait handle, the method returns true and the calling thread has control of the resource.
++
+If an automatic reset event is signaled when no threads are waiting, it remains signaled until a thread attempts to wait on it. The event releases the thread and immediately resets, blocking subsequent threads.
+
+* Event Wait Handles That Reset Manually <<eventwaithandle>>
++
+You create a manual reset event by specifying `EventResetMode.ManualReset` when you create the `EventWaitHandle` object. As its name implies, this synchronization event must be reset manually after it has been signaled. Until it is reset, by calling its `Reset` method, threads that wait on the event handle proceed immediately without blocking.
++
+A manual reset event acts like the gate of a corral. When the event is not signaled, threads that wait on it block, like horses in a corral. When the event is signaled, by calling its `Set` method, all waiting threads are free to proceed. The event remains signaled until its `Reset` method is called. This makes the manual reset event an ideal way to hold up threads that need to wait until one thread finishes a task.
++
+Like horses leaving a corral, it takes time for the released threads to be scheduled by the operating system and to resume execution. If the `Reset` method is called before all the threads have resumed execution, the remaining threads once again block. Which threads resume and which threads block depends on random factors like the load on the system, the number of threads waiting for the scheduler, and so on. This is not a problem if the thread that signals the event ends after signaling, which is the most common usage pattern. If you want the thread that signaled the event to begin a new task after all the waiting threads have resumed, you must block it until all the waiting threads have resumed. Otherwise, you have a race condition, and the behavior of your code is unpredictable.
++
+[source,cs]
+----
+EventWaitHandle ewh = new EventWaitHandle(false, EventResetMode.ManualReset);
+ThreadPool.QueueUserWorkItem(_ =>
+{
+    ewh.WaitOne();
+    Console.WriteLine("FooSingled");
+});
+ThreadPool.QueueUserWorkItem(_ =>
+{
+    ewh.WaitOne();
+    Console.WriteLine("BarSingled");
+});
+ewh.Set();
+Thread.Sleep(1000);
+// $ dotnet run
+// BarSingled
+// FooSingled
+----
+
+==== CountdownEvent class
+
+:system-threading-countdownevent: https://learn.microsoft.com/en-us/dotnet/api/system.threading.countdownevent
+
+The {system-threading-countdownevent}[System.Threading.CountdownEvent] class represents an event that becomes set when its count is zero. While `CountdownEvent.CurrentCount` is greater than zero, a thread that calls `CountdownEvent.Wait` is blocked. Call `CountdownEvent.Signal` to decrement an event's count.
+
+In contrast to `ManualResetEvent` or `ManualResetEventSlim`, which you can use to unblock multiple threads with a signal from one thread, you can use CountdownEvent to unblock one or more threads with signals from multiple threads.
+
+==== Barrier class
+
+:system-threading-barrier: https://learn.microsoft.com/en-us/dotnet/api/system.threading.barrier
+
+The {system-threading-barrier}[System.Threading.Barrier] class represents a thread execution barrier. A thread that calls the `Barrier.SignalAndWait` method signals that it reached the barrier and waits until other participant threads reach the barrier. When all participant threads reach the barrier, they proceed and the barrier is reset and can be used again.
+
+You might use Barrier when one or more threads require the results of other threads before proceeding to the next computation phase.
+
+==== Interlocked class
+
+:system-threading-interlocked: https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked
+
+The {system-threading-interlocked}[System.Threading.Interlocked] class provides static methods that perform simple atomic operations on a variable. Those atomic operations include addition, increment and decrement, exchange and conditional exchange that depends on a comparison, and read operation of a 64-bit integer value.
+
+==== SpinWait structure
+
+:system-threading-spinwait: https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinwait
+
+The {system-threading-spinwait}[System.Threading.SpinWait] structure provides support for spin-based waiting. You might want to use it when a thread has to wait for an event to be signaled or a condition to be met, but when the actual wait time is expected to be less than the waiting time required by using a wait handle or by otherwise blocking the thread. By using SpinWait, you can specify a short period of time to spin while waiting, and then yield (for example, by waiting or sleeping) only if the condition was not met in the specified time.
+
 [bibliography]
 == References
 
@@ -491,3 +848,5 @@ As always, it's recommended to let the CLR manage the ThreadPool for you, unless
 * [[[cancellation-in-managed-threads,3]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/cancellation-in-managed-threads
 * [[[pausing-and-resuming-threads,4]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/pausing-and-resuming-threads
 * [[[the-managed-thread-pool,5]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/the-managed-thread-pool
+* [[[overview-of-synchronization-primitives,6]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/overview-of-synchronization-primitives
+* [[[eventwaithandle,7]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/eventwaithandle
