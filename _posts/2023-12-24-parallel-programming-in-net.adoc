@@ -834,6 +834,97 @@ You might use Barrier when one or more threads require the results of other thre
 
 The {system-threading-interlocked}[System.Threading.Interlocked] class provides static methods that perform simple atomic operations on a variable. Those atomic operations include addition, increment and decrement, exchange and conditional exchange that depends on a comparison, and read operation of a 64-bit integer value.
 
+[TIP]
+====
++++>+++ About the Interlocked class in .NET, what if we increment a 64-bit integer on a 32-bit hardware?
+
++++*+++ The `Interlocked.Increment` method guarantees atomic increment operations, even with a 64-bit integer on 32-bit hardware. This method is thread-safe and ensures that the increment operation completes as one uninterruptible operation.
+
+In a multithreaded or parallel computing scenario, multiple threads might be trying to increment the value of a shared 64-bit integer simultaneously. In such a case, `Interlocked.Increment` ensures that each increment operation happens in its entirety without being interrupted by another thread. This is because, without such atomic operations, a thread could be halfway through incrementing the integer when another thread reads from or writes to it, leading to buggy and hard-to-diagnose problems.
+
+However, performing atomic operations on a 64-bit integer (long/Int64) in 32-bit hardware requires two CPU instructions, because the size of the long value is greater than the word size of the 32-bit processor. But even then, .NET runtime ensures via `Interlocked.Increment` method that the operation is atomic at thread level and no partial updates can be seen by another thread.
+
+Still, it's important to note that such atomic operations come with a slightly increased performance overhead as compared to non-atomic operations, due to preventing reordering and caching of the value being incremented. Thus, they must be used judiciously.
+
+
+'''
+
++++>+++ How does CRL make the two CPU instructions as an atomic?
+
++++*+++ The .NET Common Language Runtime (CLR) and the underlying operating system provide certain guarantees to ensure atomicity of operations on 64-bit values, even on 32-bit platforms.
+
+The `Interlocked` class methods in .NET, like `Interlocked.Increment`, wrap platform-specific instructions for atomic operations. On a 32-bit system, where a 64-bit increment operation would generally require two CPU instructions, these interlocked operations use special instructions provided by the platform to ensure atomicity.
+
+On Windows, for example, this can be achieved using a combination of OS-provided synchronization primitives and specific processor instructions. For instance, the `InterlockedIncrement64` function in the Windows API performs a 64-bit atomic increment operation even on a 32-bit platform.
+
+When you call an `Interlocked` method, the .NET runtime translates that into a call to the appropriate system function or CPU instruction that guarantees the operation's atomicity. It's important to note that this relies on support from the operating system kernel and the CPU hardware, and the .NET runtime itself does not handle these details.
+
+These atomic operations prevent any thread interference or inconsistencies while performing read-modify-write actions by ensuring that the operation is completed as a single, uninterruptible unit.
+
+'''
+
++++>+++ I heard there are some risk on atomic operations in Go or sth else?
+
++++*+++ Yes, coding with atomic operations can indeed be risky, not just in Go but in any language, if they are misused or misunderstood. Here are a few reasons why this is the case:
+
+1. Atomic operations do not compose: If there are multiple separate atomic operations, there is no guarantee about the order in which they will execute or whether some other operation (not part of the atomic operation) may not interleave among them.
+
+2. As atomic operations do not lock or synchronize larger pieces of the code, using them incorrectly can leave data in an inconsistent state if a sequence of operations (transaction) must be completed without interruption.
+
+3. Atomic operations generally require a precise understanding of hardware, compilers, and the language memory model to be used correctly. Any misunderstanding can lead to subtle, intermittent bugs that are hard to trace or replicate.
+
+4. Atomics can suffer from issues like ABA problems where a value changes from A to B then back to A between your atomic check and usage, causing potential problems when the code assumes the value has not changed.
+
+5. Atomic operations are tough to debug since typical stepping debuggers might disrupt the precise timing which is usually involved in the bugs related to atomic operations.
+
+In Go, for example, the `sync/atomic` package provides low-level atomic memory primitives, but they are not sufficient to implement high-level synchronizations. Go encourages the use of higher-level synchronization primitives such as goroutines, channels, and select statements for most cases, and the `sync` package's Mutex and WaitGroup types for others.
+
+So while atomic operations are a powerful tool in concurrent programming, they are best suited for a limited set of problems and should be used judiciously and cautiously, usually when performance is a dicerning factor and you're comfortable and proficient with the complexities of concurrent system behaviour and memory models.
+
+'''
+
++++>+++ What's ABA problems?
+
++++*+++ The ABA problem is a particularly tricky issue that can occur in multi-threaded or concurrent programs that use lock-free data structures and make use of atomic primitives, such as Compare-and-Swap (CAS).
+
+Here's a brief explanation of the ABA problem:
+
+1. Say a thread, Thread A, accesses shared data and notes the value there is 'A'.
+2. Thread A gets preempted, allowing Thread B to run.
+3. Thread B changes the value in the shared data from 'A' to 'B', then changes it back to 'A' before it's finished.
+4. Thread A resumes execution, goes to change the shared data using a CAS operation. It checks if the value is 'A', which it is, but what Thread A doesn't know is that the value has changed since it first loaded it. As far as Thread A can tell, though, nothing has changed, and so it goes ahead with the modification.
+
+The result here is that Thread A acted on the assumption that nothing had changed when actually something had, but it was effectively invisible to it. This can have outcomes ranging from inconsequential to catastrophic, depending on what the shared data is used for. This is the ABA problem.
+
+This issue is typically resolved by assigning a version number or a timestamp along with every change so that the revisiting thread can check not only the value but whether it is the same instance of the value it observed before. This kind of solution is often referred to as "tagging". Double-width Compare-and-Swap (DWCAS) or similar atomic primitives are used to atomically change the value and its associated version number or tag.
+
+'''
+
++++>+++ How to understand 'hardware, compilers, and the language memory model' as you mentioned?
+
++++*+++ Understanding 'hardware, compilers, and the language memory model' is important when working with lower-level concurrent constructs such as atomic operations or volatile fields. Let me break them down:
+
+1. Hardware: Modern CPUs can have multiple cores with their own caches. When one core updates a value in its cache, other cores won't immediately see that change until it's written back to main memory, or if cache-coherency protocols mark it as invalid. Similarly, hardware can execute instructions out of order for optimization purposes, which can lead to unexpected results in concurrent code.
+
+2. Compilers: Similar to hardware, the compiler can reorder instructions or optimize away redundant loads/stores for performance. This can change the program's behavior unless specific memory barriers or volatile qualifiers are used. Also, understanding how the hardware and compiler interact is crucial. For example, an x86 CPU has a strong memory model and won't naturally reorder certain instructions, but the C++ compiler, without any memory barriers, is free to reorder instructions as it sees fit.
+
+3. Language Memory Model: A language's memory model defines how threads interact through memory and what behaviors are allowed in multi-threaded code. For instance, the C++11 memory model allows several levels of memory ordering, provides atomic operations and fences, and describes how synchronizes-with and happens-before relationships are formed. Understanding this is vital to writing correct concurrent code.
+
+All these can significantly impact the correctness, performance, and portability of multi-threaded code. Learning about them usually involves studying computer architecture, compilations, operating systems, and of course, the programming language's specification. For most developers, however, using higher-level synchronization primitives and libraries that abstract these details away is sufficient and recommended.
+
+'''
+
++++>+++ Anyway, for a single operation like `Interlocked.Increment`, it will always ensure it as an atomic?
+
++++*+++ Yes, for the `Interlocked.Increment` method in .NET, it always ensures atomicity of the increment operation, regardless of the system architecture (32-bit or 64-bit) and the data type of the variable being incremented (32-bit like `int` or 64-bit like `long`).
+
+This method guarantees that the increment operation, which is otherwise a read-modify-write operation consisting of multiple steps, is executed in a single, unbroken step. No context switch or thread interference can happen in the middle of the operation that could leave the data in an inconsistent state.
+
+It can be used safely in a multithreaded and concurrent environment, ensuring that all incrementing operations on a shared variable are done in full, one at a time.
+
+Please be aware that while `Interlocked.Increment` ensures atomic increment operations, complex multi-step operations or transactions would require additional synchronization mechanisms, like locks or mutexes.
+====
+
 ==== SpinWait structure
 
 :system-threading-spinwait: https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinwait
