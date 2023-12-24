@@ -925,6 +925,90 @@ How then are WPF applications supposed to handle big operations? What if your co
 
 If only one thread can modify the UI, how do background threads interact with the user? A background thread can ask the UI thread to perform an operation on its behalf. It does this by registering a work item with the {system-windows-threading-dispatcher}[Dispatcher] of the UI thread. The {system-windows-threading-dispatcher}[Dispatcher] class provides the methods for registering work items: `Dispatcher.InvokeAsync`, `Dispatcher.BeginInvoke`, and `Dispatcher.Invoke`. These methods schedule a delegate for execution. `Invoke` is a synchronous call – that is, it doesn't return until the UI thread actually finishes executing the delegate. `InvokeAsync` and `BeginInvoke` are asynchronous and return immediately.
 
+=== The volatile keyword
+
+The `volatile` keyword indicates that a field might be modified by multiple threads that are executing at the same time. The compiler, the runtime system, and even hardware may rearrange reads and writes to memory locations for performance reasons. Fields that are declared volatile are excluded from certain kinds of optimizations. There is *no guarantee* of a single total ordering of volatile writes as seen from all threads of execution. <<language-keywords-volatile>>
+
+NOTE: On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor. Similarly, a volatile write operation does not guarantee that the value written would be immediately visible to other processors.
+
+The `volatile` keyword can be applied to fields of these types:
+
+* Reference types.
+* Pointer types (in an unsafe context). Note that although the pointer itself can be volatile, the object that it points to cannot. In other words, you cannot declare a "pointer to volatile."
+* Simple types such as sbyte, byte, short, ushort, int, uint, char, float, and bool.
+* An enum type with one of the following base types: byte, sbyte, short, ushort, int, or uint.
+* Generic type parameters known to be reference types.
+* IntPtr and UIntPtr.
+
+Other types, including double and long, cannot be marked volatile because reads and writes to fields of those types cannot be guaranteed to be atomic. To protect multi-threaded access to those types of fields, use the `Interlocked` class members or protect access using the `lock` statement.
+
+The `volatile` keyword can only be applied to fields of a class or struct. Local variables cannot be declared volatile.
+
+[TIP]
+====
++++>+++ How to understand the volatile keyword in .NET? And how to understand "There is no guarantee of a single total ordering of volatile writes as seen from all threads of execution."?
+
++++*+++ The `volatile` keyword in .NET is a modifier that you can use on fields. It tells the compiler and the runtime that accesses to that field should not be subject to certain kinds of compiler or hardware optimizations such as caching its value in a register or reordering reads and writes.
+
+In multithreaded applications, the `volatile` keyword can be used to ensure that modification to a value by one thread is immediately visible to other threads. Without `volatile`, the changes one thread makes to the field could be stored in a register and not written back to the memory location until later, causing another thread to see out-of-date values.
+
+The quote "There is no guarantee of a single total ordering of volatile writes as seen from all threads of execution" means that the order in which threads observe volatile writes may not be consistent across all threads. While `volatile` ensures that each individual thread will observe the writes in the order they were performed, it doesn't guarantee that all threads will perceive those writes in the same order.
+
+Here's an example to illustrate:
+
+```
+Thread 1
+    Volatile write to variable A
+    Volatile write to variable B
+
+Thread 2
+    Volatile read from variable B
+    Volatile read from variable A
+```
+
+The volatile keyword ensures that Thread 1 will write to variable A before variable B. If Thread 2 reads variable B, it will see this write (or a later one). However, another volatile read to variable A can still return an older value. This is because the volatile read from variable B does not provide 'release-fence' semantics; it doesn't force a refresh of all other modifications.
+
+This is why it's often recommended to use higher-level synchronization constructs (like `lock`, `Monitor`, `Mutex`, `Semaphore`, etc.) or the `System.Threading.Interlocked` class for complex synchronization, because they provide stronger guarantees about how they behave in multithreaded scenarios. The `volatile` keyword is a low-level mechanism that's harder to use correctly and it's easy to accidentally build incorrect code when using `volatile` for complex synchronization.
+
+'''
+
++++>+++ How to understand "On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor."?
+
++++*+++ This statement draws attention to an important fact about volatile keyword usage in .NET on a multiprocessor system where threads could be executing on different processors.
+
+The volatile keyword in C# tells the compiler not to reorder reads or writes to a field, or cache the field in a register, which helps ensure that all reads and writes on one processor occur in the order they're specified in the code. Because of this, the volatile keyword is helpful for ensuring consistency in a multithreaded context.
+
+However, it does not guarantee immediate visibility on all processors. For example, if one processor writes to a volatile field and another processor reads from that field, the reading processor might not get the most recent value written by the writing processor. The reasons can include delay due to propagation of write from one processor's cache to others (in a multiprocessor, multi-caching systems) or the order in which these reads and writes are performed.
+
+This is why it's stated that "On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor."
+
+In general, for complex synchronization or if strong cross-processor memory guarantees are required, usage of higher-level synchronization primitives or constructs (like locks, `Monitor`, `Mutex`, `Semaphore`, `ConcurrentDictionary`, `Interlocked`, `MemoryBarrier`, etc.) should be preferred. These toolsets are built to handle advanced multithreading and synchronization tasks, giving strict guarantees about order of operations and memory visibility on multi-core and multiprocessor systems.
+
++++>+++ What's the diff of volatile keyword and Volatile class?
+
++++*+++ The `volatile` keyword and `Volatile` class in .NET both provide support for using volatile memory, but they do so in slightly different ways.
+
+The `volatile` keyword is a modifier that can be applied to fields of a class or a struct. The .NET run-time knows not to cache the value of that field and always accesses it directly from memory, which makes it useful in multithreading scenarios where you need to ensure that a specific field's latest value is accessible across multiple threads. It provides acquire-fence semantics for reads (a read of a volatile field is guaranteed to happen after any previous memory accesses), and release-fence semantics for writes (a write to a volatile field is guaranteed to happen before any subsequent memory accesses).
+
+The `Volatile` class, introduced in .NET Framework 4.5, provides a set of methods that perform volatile reads and writes. This is beneficial as it allows volatile operations on types that were not declared as `volatile`. It provides stronger memory guarantees: a read done via `Volatile.Read` has acquire-fence semantics, i.e., it ensures that all subsequent reads and writes occur strictly after the volatile read, and a write done via `Volatile.Write` has release-fence semantics, i.e., it ensures that all previous reads and writes happen strictly before the volatile write. It acts as a full-fence, not allowing reordering or caching optimizations around it.
+
+So, while both are used for volatile memory operations, the `Volatile` class provides stronger guarantees and offers more flexibility because it lets you perform volatile operations on non-volatile declared variables, while the `volatile` keyword is simpler to use but only operates on fields declared as `volatile`.
+
++++>+++ It's about the happen-before on a memory model. It seems we should avoid to use the volatile keyword?
+
++++*+++ In general, understanding and correctly using the `volatile` keyword can be tricky. `volatile` only provides a very specific type of memory barrier, and can be misused easily. Beginners often have misunderstandings about what `volatile` actually does.
+
+The primary purpose of `volatile` is to provide a way to declare fields that can be modified by multiple threads, to indicate that such fields should not be subject to certain compiler and hardware optimizations. Essentially, no caching, no reordering, etc.
+
+However, using `volatile` won't prevent all problems with visibility or ordering of operations. It does not provide atomicity, and often it's not strong enough to replace other types of synchronization. For example, complex state manipulation or operations involving more than one memory location, like switching pointers or managing linked nodes, often need to be done in a single, uninterruptible step. Those operations are far beyond the scope of `volatile`.
+
+Higher-level concurrency constructs (`lock`, `Monitor`, `Mutex`, `Semaphore`, `ManualResetEvent`, `AutoResetEvent`, and types in `System.Collections.Concurrent` or `System.Threading.Tasks`) should be preferred. These handle most of the complexity of ensuring correct memory barriers and state visibility, and they are generally safer and more efficient choices.
+
+`Interlocked` class also offers atomic operations for a single memory location and can be used for lightweight synchronization in high-performance scenarios, although understanding and using it correctly can be as tricky as `volatile`.
+
+In the end, `volatile` isn’t something you should be reaching for regularly. Its usage should be limited to very specific cases. In general, you are better off using a higher-level synchronization construct in .NET when dealing with multithreading scenarios.
+====
+
 == Asynchronous programming patterns
 
 +++.+++NET provides three patterns for performing asynchronous operations:
@@ -947,5 +1031,6 @@ If only one thread can modify the UI, how do background threads interact with th
 * [[[overview-of-synchronization-primitives,6]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/overview-of-synchronization-primitives
 * [[[eventwaithandle,7]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/eventwaithandle
 * [[[an-introduction-to-system-threading-channels,8]]] https://devblogs.microsoft.com/dotnet/an-introduction-to-system-threading-channels/
-* [[[asynchronous-programming-patterns,9]]] https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/
-* [[[wpf-advanced-threading-model,10]]] https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model
+* [[[language-keywords-volatile,9]]] https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile
+* [[[asynchronous-programming-patterns,10]]] https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/
+* [[[wpf-advanced-threading-model,11]]] https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model
