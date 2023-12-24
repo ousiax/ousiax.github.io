@@ -910,6 +910,21 @@ In general, `Channel<T>` is more modern and better integrated with async program
 
 However, if you have a legacy application where you cannot use async and await extensively, or where you are using ThreadPool and Tasks heavily, then `BlockingCollection<T>` might be a better choice.
 
+=== Windows Presentation Foundation (WPF): Threading model
+
+Typically, WPF applications start with two threads: one for handling rendering and another for managing the UI. The rendering thread effectively runs hidden in the background while the UI thread receives input, handles events, paints the screen, and runs application code. Most applications use a single UI thread, although in some situations it is best to use several. <<wpf-advanced-threading-model>>
+
+:system-windows-threading-dispatcher: https://learn.microsoft.com/en-us/dotnet/api/system.windows.threading.dispatcher
+:system-windows-threading-dispatcherobject: https://learn.microsoft.com/en-us/dotnet/api/system.windows.threading.dispatcherobject
+
+The UI thread queues work items inside an object called a {system-windows-threading-dispatcher}[Dispatcher]. The {system-windows-threading-dispatcher}[Dispatcher] selects work items on a priority basis and runs each one to completion. Every UI thread must have at least one {system-windows-threading-dispatcher}[Dispatcher], and each {system-windows-threading-dispatcher}[Dispatcher] can execute work items in exactly one thread.
+
+The trick to building responsive, user-friendly applications is to maximize the {system-windows-threading-dispatcher}[Dispatcher] throughput by keeping the work items small. This way items never get stale sitting in the {system-windows-threading-dispatcher}[Dispatcher] queue waiting for processing. Any perceivable delay between input and response can frustrate a user.
+
+How then are WPF applications supposed to handle big operations? What if your code involves a large calculation or needs to query a database on some remote server? Usually, the answer is to handle the big operation in a separate thread, leaving the UI thread free to tend to items in the {system-windows-threading-dispatcher}[Dispatcher] queue. When the big operation is complete, it can report its result back to the UI thread for display.
+
+If only one thread can modify the UI, how do background threads interact with the user? A background thread can ask the UI thread to perform an operation on its behalf. It does this by registering a work item with the {system-windows-threading-dispatcher}[Dispatcher] of the UI thread. The {system-windows-threading-dispatcher}[Dispatcher] class provides the methods for registering work items: `Dispatcher.InvokeAsync`, `Dispatcher.BeginInvoke`, and `Dispatcher.Invoke`. These methods schedule a delegate for execution. `Invoke` is a synchronous call – that is, it doesn't return until the UI thread actually finishes executing the delegate. `InvokeAsync` and `BeginInvoke` are asynchronous and return immediately.
+
 == Asynchronous programming patterns
 
 +++.+++NET provides three patterns for performing asynchronous operations:
@@ -933,3 +948,4 @@ However, if you have a legacy application where you cannot use async and await e
 * [[[eventwaithandle,7]]] https://learn.microsoft.com/en-us/dotnet/standard/threading/eventwaithandle
 * [[[an-introduction-to-system-threading-channels,8]]] https://devblogs.microsoft.com/dotnet/an-introduction-to-system-threading-channels/
 * [[[asynchronous-programming-patterns,9]]] https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/
+* [[[wpf-advanced-threading-model,10]]] https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model
