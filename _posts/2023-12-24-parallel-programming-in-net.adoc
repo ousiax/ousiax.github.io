@@ -1110,6 +1110,74 @@ In the end, `volatile` isn’t something you should be reaching for regularly. I
 
 * `Asynchronous Programming Model (APM)` pattern (also called the IAsyncResult pattern), which is the legacy model that uses the `IAsyncResult` interface to provide asynchronous behavior. In this pattern, asynchronous operations require `Begin` and `End` methods (for example, `BeginWrite` and `EndWrite` to implement an asynchronous write operation). This pattern is no longer recommended for new development.
 
+== Parallel programming in .NET
+
+Many personal computers and workstations have multiple CPU cores that enable multiple threads to be executed simultaneously. To take advantage of the hardware, you can parallelize your code to distribute work across multiple processors. <<parallel-programming>>
+
+In the past, parallelization required low-level manipulation of threads and locks. Visual Studio and .NET enhance support for parallel programming by providing a runtime, class library types, and diagnostic tools. These features, which were introduced in .NET Framework 4, simplify parallel development. You can write efficient, fine-grained, and scalable parallel code in a natural idiom without having to work directly with threads or the thread pool.
+
+The following illustration provides a high-level overview of the parallel programming architecture in .NET.
+
+image::https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/media/tpl-architecture.png[.NET Parallel Programming Architecture,45%,45%]
+
+=== Task Parallel Library (TPL)
+
+:system-threading: https://learn.microsoft.com/en-us/dotnet/api/system.threading
+:system-threading-tasks: https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks
+:system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
+
+The Task Parallel Library (TPL) is a set of public types and APIs in the {system-threading}[System.Threading] and {system-threading-tasks}[System.Threading.Tasks] namespaces. The purpose of the TPL is to make developers more productive by simplifying the process of adding parallelism and concurrency to applications. The TPL dynamically scales the degree of concurrency to use all the available processors most efficiently. In addition, the TPL handles the partitioning of the work, the scheduling of threads on the {system-threading-threadpool}[ThreadPool], cancellation support, state management, and other low-level details. By using TPL, you can maximize the performance of your code while focusing on the work that your program is designed to accomplish.
+
+=== Data Parallelism (Task Parallel Library)
+
+:system-threading-tasks-parallel: https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.parallel
+
+_Data parallelism_ refers to scenarios in which the same operation is performed concurrently (that is, in parallel) on elements in a source collection or array. In data parallel operations, the source collection is partitioned so that multiple threads can operate on different segments concurrently. <<data-parallelism-task-parallel-library>>
+
+The Task Parallel Library (TPL) supports data parallelism through the {system-threading-tasks-parallel}[System.Threading.Tasks.Parallel] class. This class provides method-based parallel implementations of `for` and `foreach` loops (`For` and `For Each` in Visual Basic). You write the loop logic for a `Parallel.For` or `Parallel.ForEach` loop much as you would write a sequential loop. You do not have to create threads or queue work items. In basic loops, you do not have to take locks. The TPL handles all the low-level work for you. 
+
+[source,cs]
+----
+string path = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget/packages/");
+string[] fileNames = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
+
+Stopwatch sw = Stopwatch.StartNew();
+for (int i = 0; i < 2; i++)
+{
+    sw.Restart();
+    long parallelTotalSize = 0;
+    Parallel.ForEach(fileNames,
+        fileName => Interlocked.Add(ref parallelTotalSize, new FileInfo(fileName).Length));
+    Console.WriteLine($"Parallel: {parallelTotalSize}, {sw.ElapsedMilliseconds}ms");
+
+    sw.Restart();
+    long totalSize = 0;
+    foreach (string fileName in fileNames) totalSize += new FileInfo(fileName).Length;
+    Console.WriteLine($"Sequential : {totalSize}, {sw.ElapsedMilliseconds}ms");
+}
+// $ dotnet run
+// Parallel: 2743226084, 400ms
+// Sequential : 2743226084, 598ms
+// Parallel: 2743226084, 220ms
+// Sequential : 2743226084, 429ms
+----
+
+=== Task-based asynchronous programming
+
+:system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
+
+The Task Parallel Library (TPL) is based on the concept of a _task_, which represents an asynchronous operation. In some ways, a task resembles a thread or {system-threading-threadpool}[ThreadPool] work item but at a higher level of abstraction. The term _task parallelism_ refers to one or more independent tasks running concurrently. Tasks provide two primary benefits: <<task-based-asynchronous-programming>>
+
+* More efficient and more scalable use of system resources.
++
+Behind the scenes, tasks are queued to the {system-threading-threadpool}[ThreadPool], which has been enhanced with algorithms that determine and adjust to the number of threads. These algorithms provide load balancing to maximize throughput. This process makes tasks relatively lightweight, and you can create many of them to enable fine-grained parallelism.
+
+* More programmatic control than is possible with a thread or work item.
++
+Tasks and the framework built around them provide a rich set of APIs that support waiting, cancellation, continuations, robust exception handling, detailed status, custom scheduling, and more.
+
+For both reasons, TPL is the preferred API for writing multi-threaded, asynchronous, and parallel code in .NET.
 
 [bibliography]
 == References
@@ -1125,3 +1193,6 @@ In the end, `volatile` isn’t something you should be reaching for regularly. I
 * [[[language-keywords-volatile,9]]] https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile
 * [[[asynchronous-programming-patterns,10]]] https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/
 * [[[wpf-advanced-threading-model,11]]] https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model
+* [[[parallel-programming,12]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/
+* [[[data-parallelism-task-parallel-library,13]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/data-parallelism-task-parallel-library
+* [[[task-based-asynchronous-programming,14]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/task-based-asynchronous-programming
