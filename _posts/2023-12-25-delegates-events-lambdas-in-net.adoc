@@ -1,0 +1,176 @@
+= Delegates and Lambdas, Events in .NET
+:page-layout: post
+:page-categories: ['dotnet']
+:page-tags: ['dotnet']
+:page-date: 2023-12-25 21:12:40 +0800
+:page-revdate: 2023-12-25 21:12:40 +0800
+// :toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+*Delegates* are reference types that serve a purpose similar to that of function pointers in C++. They are used for event handlers and callback functions in .NET. Unlike function pointers, delegates are secure, verifiable, and type safe. A delegate type can represent any instance method or static method that has a compatible signature. <<cts-delegates>>
+
+A parameter of a delegate is compatible with the corresponding parameter of a method if the type of the delegate parameter is more restrictive than the type of the method parameter, because this guarantees that an argument passed to the delegate can be passed safely to the method.
+
+Similarly, the return type of a delegate is compatible with the return type of a method if the return type of the method is more restrictive than the return type of the delegate, because this guarantees that the return value of the method can be cast safely to the return type of the delegate.
+
+:system-multicastdelegate: https://learn.microsoft.com/en-us/dotnet/api/system.multicastdelegate
+:system-delegate: https://learn.microsoft.com/en-us/dotnet/api/system.delegate
+
+All delegates inherit from {system-multicastdelegate}[System.MulticastDelegate], which inherits from {system-delegate}[System.Delegate]. The C#, Visual Basic, and C++ languages do not allow inheritance from these types. Instead, they provide keywords for declaring delegates.
+
+Because delegates inherit from MulticastDelegate, a delegate has an invocation list, which is a list of methods that the delegate represents and that are executed when the delegate is invoked. All methods in the list receive the arguments supplied when the delegate is invoked.
+
+NOTE: The return value is not defined for a delegate that has more than one method in its invocation list, even if the delegate has a return type.
+
+In many cases, such as with callback methods, a delegate represents only one method, and the only actions you have to take are creating the delegate and invoking it.
+
+For delegates that represent multiple methods, .NET provides methods of the {system-delegate}[Delegate] and {system-multicastdelegate}[MulticastDelegate] delegate classes to support operations such as adding a method to a delegate's invocation list (the `Delegate.Combine` method), removing a method (the `Delegate.Remove` method), and getting the invocation list (the `Delegate.GetInvocationList` method).
+
+The following example declares a delegate named `Callback` that can encapsulate a method that takes a `string` as an argument and returns `void`: <<using-delegates>>
+
+[source,cs]
+----
+public delegate void Callback(string message);
+----
+
+A delegate object is normally constructed by providing the name of the method the delegate will wrap, or with a {lambda-expressions}[lambda expression]. Once a delegate is instantiated in this manner it can be invoked. Invoking a delegate calls the method attached to the delegate instance. The parameters passed to the delegate by the caller are passed to the method, and the return value, if any, from the method is returned to the caller by the delegate. For example:
+
+[source,cs]
+----
+// Create a method for a delegate.
+public static void DelegateMethod(string message)
+{
+    Console.WriteLine(message);
+}
+----
+
+[source,cs]
+----
+// Instantiate the delegate.
+Callback handler = DelegateMethod;
+
+// Call the delegate.
+handler("Hello World");
+----
+
+A delegate can call more than one method when invoked. This is referred to as multicasting. To add an extra method to the delegate's list of methods—the invocation list—simply requires adding two delegates using the addition or addition assignment operators ('+' or '+='). For example:
+
+[source,cs]
+----
+var obj = new MethodClass();
+Callback d1 = obj.Method1;
+Callback d2 = obj.Method2;
+Callback d3 = MethodClass.Method3;
+
+Callback allMethodsDelegate = d1 + d2;
+allMethodsDelegate += d3;
+allMethodsDelegate -= d2;
+Delegate[] delegates = allMethodsDelegate.GetInvocationList();
+int invocationCount = delegates.Length;
+
+public class MethodClass
+{
+    public void Method1(string message) => Console.WriteLine($"Method 1: {message}");
+    public void Method2(string message) => Console.WriteLine($"Method 2: {message}");
+    public static void Method3(string message) => Console.WriteLine($"Method 3: {message}");
+}
+----
+
+In order to streamline the development process, .NET includes a set of delegate types that programmers can reuse and not have to create new types. These types are `Func<>`, `Action<>` and `Predicate<>`, and they can be used without having to define new delegate types.
+
++++.+++NET Framework 2.0 introduced the concept of *anonymous delegates*, which let you create "inline" delegates without having to specify any additional type or method.
+
+[source,cs]
+----
+List<int> nums = new List<int>([1, 5, 3, 2, 0, 4]);
+nums.Sort(delegate (int x, int y) { return y - x; });
+nums.ForEach(delegate (int num) { Console.Write($"{num} "); });
+// 5 4 3 2 1 0
+----
+
+*Lambda expressions*, or just "lambdas" for short, were introduced in C# 3.0 as one of the core building blocks of Language Integrated Query (LINQ). They are just a more convenient syntax for using delegates. They declare a parameter list and method body, but don't have a formal identity of their own, unless they are assigned to a delegate. Unlike delegates, they can be directly assigned as the right-hand side of event registration or in various LINQ clauses and methods.
+
+[source,cs]
+----
+List<int> nums = new List<int>([1, 5, 3, 2, 0, 4]);
+nums.Sort((x, y) => y - x);
+nums.ForEach(num => Console.Write($"{num} "));
+// 5 4 3 2 1 0
+----
+
+[TIP]
+====
++++>+++ What's diff of Delegates, Lambdas and anonymous delegates in essence?
+
++++*+++ In C#, delegates, lambdas, and anonymous methods are all used to create and work with function pointers. However, they're best understood in the context of their introduction and the situations they're used for. Here's a basic breakdown:
+
+1. **Delegates**: Introduced in the early versions of C#, a delegate is a type that represents references to methods with a specific function signature. In short, it's a type-safe function pointer. When you instantiate a delegate, you can associate its instance with any method that has a compatible signature, and then call the method through the delegate instance.
+
+2. **Anonymous Delegates/Methods**: Introduced in C# 2.0, anonymous methods are a way of creating delegate instances without having to explicitly define a separate method. It lets you define a block of code inline where you'd use a delegate type. Although useful, they're somewhat verbose, especially for short bits of code.
+
+3. **Lambda Expressions**: Introduced in C# 3.0, lambdas are a further simplification and enhancement over anonymous methods. They provide a more concise, functional syntax for writing anonymous methods and can be used where you'd use a delegate type. Lambdas are particularly helpful in writing LINQ query expressions.
+
+In essence:
+
+- Use a **delegate** when you need to encapsulate a method with a specific signature and return type in a standalone entity.
+- Use an **anonymous method** when you want to declare a method inline where a delegate parameter is expected.
+- Use a **lambda expression** when you want a concise way to write an inline method, such as for use with functions like `List<T>.Find` or `List<T>.Sort`, or for constructing LINQ queries.
+
+But remember: under the hood, lambdas and anonymous methods are compiled into delegates by the C# compiler.
+====
+
+:observer-design-pattern: https://learn.microsoft.com/en-us/dotnet/standard/events/observer-design-pattern
+
+*Events* in .NET are based on the delegate model. The delegate model follows the {observer-design-pattern}[observer design pattern], which enables a subscriber to register with and receive notifications from a provider. An event sender pushes a notification that an event has happened, and an event receiver receives that notification and defines a response to it. <<dotnet-standard-events>>
+
+To define an event, you use the C# `event` or the Visual Basic `Event` keyword in the signature of your event class, and specify the type of delegate for the event.
+
+Typically, to raise an event, you add a method that is marked as `protected` and virtual (in C#) or `Protected` and `Overridable` (in Visual Basic).
+
+[source,cs]
+----
+Counter counter = new Counter();
+counter.Callback += Console.WriteLine;
+counter.Count++;
+counter.Count++;
+
+class Counter
+{
+    public event Callback? Callback;
+
+    private void OnCallback(string message)
+    {
+        Callback?.Invoke(message);
+    }
+
+    private int _count;
+
+    public int Count
+    {
+        get => _count;
+        set
+        {
+            if (value != _count)
+            {
+                int old = _count;
+                _count = value;
+                OnCallback($"Count was changed from {old} to {_count}.");
+            }
+        }
+    }
+}
+
+// $ dotnet run
+// Count was changed from 0 to 1.
+// Count was changed from 1 to 2.
+----
+
+[bibliography]
+== References
+
+* [[[common-type-system,1]]] https://learn.microsoft.com/en-us/dotnet/standard/base-types/common-type-system#delegates
+* [[[using-delegates,2]]] https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/delegates/using-delegates
+* [[[dotnet-standard-events,3]]] https://learn.microsoft.com/en-us/dotnet/standard/events/
+* [[[lambda-expressions,4]]] https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/lambda-expressions
