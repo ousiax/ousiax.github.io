@@ -1110,6 +1110,32 @@ In the end, `volatile` isn’t something you should be reaching for regularly. I
 
 * `Asynchronous Programming Model (APM)` pattern (also called the IAsyncResult pattern), which is the legacy model that uses the `IAsyncResult` interface to provide asynchronous behavior. In this pattern, asynchronous operations require `Begin` and `End` methods (for example, `BeginWrite` and `EndWrite` to implement an asynchronous write operation). This pattern is no longer recommended for new development.
 
+== Lazy Initialization
+
+_Lazy initialization_ of an object means that its creation is deferred until it is first used. (For this topic, the terms _lazy initialization_ and _lazy instantiation_ are synonymous.) Lazy initialization is primarily used to improve performance, avoid wasteful computation, and reduce program memory requirements. <<lazy-initialization>>
+
+:system-lazy-1: https://learn.microsoft.com/en-us/dotnet/api/system.lazy-1
+:system-threading-threadlocal-1: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadlocal-1
+:system-threading-lazyinitializer: https://learn.microsoft.com/en-us/dotnet/api/system.threading.lazyinitializer
+
+Although you can write your own code to perform lazy initialization, we recommend that you use {system-lazy-1}[Lazy<T>] instead. {system-lazy-1}[Lazy<T>] and its related types also support thread-safety and provide a consistent exception propagation policy.
+
+.The following table lists the types that the .NET Framework version 4 provides to enable lazy initialization in different scenarios.
+[%header,cols="1,7"]
+|===
+|Type
+|Description
+
+|{system-lazy-1}[Lazy<T>]
+|A wrapper class that provides lazy initialization semantics for any class library or user-defined type.
+
+|{system-threading-threadlocal-1}[ThreadLocal<T>]
+|Resembles `Lazy<T>` except that it provides lazy initialization semantics on a thread-local basis. Every thread has access to its own unique value.
+
+|{system-threading-lazyinitializer}[LazyInitializer]
+|Provides advanced static (Shared in Visual Basic) methods for lazy initialization of objects without the overhead of a class.
+|===
+
 == Parallel programming in .NET
 
 Many personal computers and workstations have multiple CPU cores that enable multiple threads to be executed simultaneously. To take advantage of the hardware, you can parallelize your code to distribute work across multiple processors. <<parallel-programming>>
@@ -1167,7 +1193,7 @@ for (int i = 0; i < 2; i++)
 
 :system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
 
-The Task Parallel Library (TPL) is based on the concept of a _task_, which represents an asynchronous operation. In some ways, a task resembles a thread or {system-threading-threadpool}[ThreadPool] work item but at a higher level of abstraction. The term _task parallelism_ refers to one or more independent tasks running concurrently. Tasks provide two primary benefits: <<task-based-asynchronous-programming>>
+The Task Parallel Library (TPL) is based on the concept of a _task_, which represents an asynchronous operation. In some ways, a task resembles a thread or {system-threading-threadpool}[ThreadPool] work item but at a higher level of abstraction. The term _task parallelism_ refers to one or more independent tasks running concurrently. Tasks provide two primary benefits: <<task-based-asynchronous-programming-1>>
 
 * More efficient and more scalable use of system resources.
 +
@@ -1178,6 +1204,115 @@ Behind the scenes, tasks are queued to the {system-threading-threadpool}[ThreadP
 Tasks and the framework built around them provide a rich set of APIs that support waiting, cancellation, continuations, robust exception handling, detailed status, custom scheduling, and more.
 
 For both reasons, TPL is the preferred API for writing multi-threaded, asynchronous, and parallel code in .NET.
+
+== Asynchronous programming with async and await
+
+You can avoid performance bottlenecks and enhance the overall responsiveness of your application by using asynchronous programming. However, traditional techniques for writing asynchronous applications can be complicated, making them difficult to write, debug, and maintain.
+
+C# supports simplified approach, async programming, that leverages asynchronous support in the .NET runtime. The compiler does the difficult work that the developer used to do, and your application retains a logical structure that resembles synchronous code. As a result, you get all the advantages of asynchronous programming with a fraction of the effort. <<task-asynchronous-programming-model>>
+
+=== Async improves responsiveness
+
+Asynchrony is essential for activities that are potentially blocking, such as web access. Access to a web resource sometimes is slow or delayed. If such an activity is blocked in a synchronous process, the entire application must wait. In an asynchronous process, the application can continue with other work that doesn't depend on the web resource until the potentially blocking task finishes.
+
+Asynchrony proves especially valuable for applications that access the UI thread because all UI-related activity usually shares one thread. If any process is blocked in a synchronous application, all are blocked. Your application stops responding, and you might conclude that it has failed when instead it's just waiting.
+
+When you use asynchronous methods, the application continues to respond to the UI. You can resize or minimize a window, for example, or you can close the application if you don't want to wait for it to finish.
+
+The async-based approach adds the equivalent of an automatic transmission to the list of options that you can choose from when designing asynchronous operations. That is, you get all the benefits of traditional asynchronous programming but with much less effort from the developer.
+
+===  Threads
+
+Async methods are intended to be non-blocking operations. An await expression in an async method doesn't block the current thread while the awaited task is running. Instead, the expression signs up the rest of the method as a continuation and returns control to the caller of the async method.
+
+The `async` and `await` keywords don't cause additional threads to be created. Async methods don't require multithreading because an async method doesn't run on its own thread. The method runs on the current synchronization context and uses time on the thread only when the method is active. You can use `Task.Run` to move CPU-bound work to a background thread, but a background thread doesn't help with a process that's just waiting for results to become available.
+
+===  async and await
+
+If you specify that a method is an async method by using the `async` modifier, you enable the following two capabilities.
+
+* The marked async method can use `await` to designate suspension points. The await operator tells the compiler that the async method can't continue past that point until the awaited asynchronous process is complete. In the meantime, control returns to the caller of the async method.
+
+* The suspension of an async method at an await expression doesn't constitute an exit from the method, and finally blocks don't run.
+
+* The marked async method can itself be awaited by methods that call it.
+
+An async method typically contains one or more occurrences of an await operator, but the absence of await expressions doesn't cause a compiler error. If an async method doesn't use an `await` operator to mark a suspension point, the method executes as a synchronous method does, despite the `async` modifier. The compiler issues a warning for such methods.
+
+=== SynchronizationContext and ConfigureAwait
+
+*SynchronizationContext* was also introduced in .NET Framework 2.0, as an abstraction for a general scheduler. In particular, SynchronizationContext's most used method is `Post`, which queues a work item to whatever scheduler is represented by that context. <<how-async-await-really-works>>
+
+Consider a UI framework like Windows Forms. As with most UI frameworks on Windows, controls are associated with a particular thread, and that thread runs a message pump which runs work that's able to interact with those controls: only that thread should try to manipulate those controls, and any other thread that wants to interact with the controls should do so by sending a message to be consumed by the UI thread's pump. Windows Forms makes this easy with methods like `Control.BeginInvoke`, which queues the supplied delegate and arguments to be run by whatever thread is associated with that Control. You can thus write code like this:
+
+[source,cs]
+----
+private void button1_Click(object sender, EventArgs e)
+{
+    ThreadPool.QueueUserWorkItem(_ =>
+    {
+        string message = ComputeMessage();
+        button1.BeginInvoke(() =>
+        {
+            button1.Text = message;
+        });
+    });
+}
+----
+
+That will offload the `ComputeMessage()` work to be done on a ThreadPool thread (so as to keep the UI responsive while it's being processed), and then when that work has completed, queue a delegate back to the thread associated with `button1` to update button1's label. Easy enough. WPF has something similar, just with its `Dispatcher` type:
+
+[source,cs]
+----
+private void button1_Click(object sender, RoutedEventArgs e)
+{
+    ThreadPool.QueueUserWorkItem(_ =>
+    {
+        string message = ComputeMessage();
+        button1.Dispatcher.InvokeAsync(() =>
+        {
+            button1.Content = message;
+        });
+    });
+}
+----
+
+Each application model then ensures it's published as `SynchronizationContext.Current` a SynchronizationContext-derived type that does the "right thing." For example, Windows Forms has this:
+
+[source,cs]
+----
+public sealed class WindowsFormsSynchronizationContext : SynchronizationContext, IDisposable
+{
+    public override void Post(SendOrPostCallback d, object? state) =>
+        _controlToSendTo?.BeginInvoke(d, new object?[] { state });
+    ...
+}
+----
+
+and WPF has this:
+
+[source,cs]
+----
+public sealed class DispatcherSynchronizationContext : SynchronizationContext
+{
+    public override void Post(SendOrPostCallback d, Object state) =>
+        _dispatcher.BeginInvoke(_priority, d, state);
+    ...
+}
+----
+
+SynchronizationContext makes it possible to call reusable helpers and automatically be scheduled back whenever and to wherever the calling environment deems fit. As a result, it's natural to expect that to "just work" with async/await, and it does.
+
+[source,cs]
+----
+button1.Text = await Task.Run(() => ComputeMessage());
+----
+
+That invocation of `ComputeMessage` is offloaded to the thread pool, and upon the method's completion, execution transitions back to the UI thread associated with the button, and the setting of its `Text` property happens on that thread.
+
+That integration with SynchronizationContext is left up to the *awaiter* implementation (the code generated for the state machine knows nothing about SynchronizationContext), as it's the awaiter that is responsible for actually invoking or queueing the supplied continuation when the represented asynchronous operation completes. While a custom awaiter need not respect `SynchronizationContext.Current`, the awaiters for `Task`, `Task<TResult>`, `ValueTask`, and `ValueTask<TResult>` all do. That means that, by default, when you await a `Task`, a `Task<TResult>`, a `ValueTask`, a `ValueTask<TResult>`, or even the result of a `Task.Yield()` call, the awaiter by default will look up the current `SynchronizationContext` and then if it successfully got a non-default one, will eventually queue the continuation to that context.
+
+The *ConfigureAwait* method isn't special: it's not recognized in any special way by the compiler or by the runtime. It is simply a method that returns a struct (a `ConfiguredTaskAwaitable`) that wraps the original task it was called on as well as the specified Boolean value. Remember that await can be used with any type that exposes the right pattern. By returning a different type, it means that when the compiler accesses the instances `GetAwaiter` method (part of the pattern), it’s doing so off of the type returned from ConfigureAwait rather than off of the task directly, and that provides a hook to change the behavior of how the await behaves via this custom awaiter. `ConfigureAwait(continueOnCapturedContext: false)` is used to avoid forcing the callback to be invoked on the original context or scheduler. <<configureawait-faq>>
 
 [bibliography]
 == References
@@ -1193,6 +1328,10 @@ For both reasons, TPL is the preferred API for writing multi-threaded, asynchron
 * [[[language-keywords-volatile,9]]] https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile
 * [[[asynchronous-programming-patterns,10]]] https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/
 * [[[wpf-advanced-threading-model,11]]] https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model
-* [[[parallel-programming,12]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/
-* [[[data-parallelism-task-parallel-library,13]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/data-parallelism-task-parallel-library
-* [[[task-based-asynchronous-programming,14]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/task-based-asynchronous-programming
+* [[[lazy-initialization,12]]] https://learn.microsoft.com/en-us/dotnet/framework/performance/lazy-initialization
+* [[[parallel-programming,13]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/
+* [[[data-parallelism-task-parallel-library,14]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/data-parallelism-task-parallel-library
+* [[[task-based-asynchronous-programming-1,15]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/task-based-asynchronous-programming
+* [[[task-asynchronous-programming-model,16]]] https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/task-asynchronous-programming-model
+* [[[how-async-await-really-works,17]]] https://devblogs.microsoft.com/dotnet/how-async-await-really-works/
+* [[[configureawait-faq,18]]] https://devblogs.microsoft.com/dotnet/configureawait-faq/
