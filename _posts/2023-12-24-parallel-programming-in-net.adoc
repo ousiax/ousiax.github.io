@@ -81,21 +81,6 @@ NOTE: One thread cannot call `Thread.Sleep` on another thread. `Thread.Sleep` is
 
 Calling `Thread.Sleep` with a value of `Timeout.Infinite` causes a thread to sleep until it is interrupted by another thread that calls the `Thread.Interrupt` method on the sleeping thread, or until it is terminated by a call to its `Thread.Abort` method.
 
-[TIP]
-====
-+++>+++ What happens on Thread.Sleep(0) in .NET?
-
-+++*+++ In .NET, `Thread.Sleep(0)` has a special meaning. It relinquishes the thread’s current time slice immediately, voluntarily handing over the CPU to other threads. The operating system could decide to immediately give the time slice back to the same thread if there are no other threads that need to run.
-
-It's effectively a way to signal to the operating system that the thread is willing to give up its slice of processor time, if there are other threads that are ready to run on the same processor.
-
-However, `Thread.Sleep(0)` does not lead to a context switch if there are no higher priority threads waiting.
-
-This can be useful to prevent a thread from consuming too much CPU time in a busy-wait scenario or when you might want to give other threads the chance to run.
-
-Remember that using `Thread.Sleep` is generally not the best practice because it blocks the thread and also it's not precise i.e. the thread might not awake exactly after specified time due to the way CPU scheduling works. Instead, using techniques such as `Task`, `async/await`, or the TPL's synchronization primitives (like `ManualResetEvent`, `Semaphore`, etc.) are typically better approaches for managing thread synchronization and timing.
-====
-
 You can interrupt a waiting thread by calling the `Thread.Interrupt` method on the blocked thread to throw a `ThreadInterruptedException`, which breaks the thread out of the blocking call. The thread should catch the `ThreadInterruptedException` and do whatever is appropriate to continue working. If the thread ignores the exception, the runtime catches the exception and stops the thread.
 
 [TIP]
@@ -375,113 +360,6 @@ There are several scenarios in which it's appropriate to create and manage your 
 * You have tasks that cause the thread to block for long periods of time. The thread pool has a maximum number of threads, so a large number of blocked thread pool threads might prevent tasks from starting.
 * You need to place threads into a single-threaded apartment. All ThreadPool threads are in the multithreaded apartment.
 * You need to have a stable identity associated with the thread, or to dedicate a thread to a task.
-
-==== Worker Threads and Completion Port Threads
-
-[source,cs]
-----
-//
-// Summary:
-//     Sets the number of requests to the thread pool that can be active concurrently.
-//     All requests above that number remain queued until thread pool threads become
-//     available.
-//
-// Parameters:
-//   workerThreads:
-//     The maximum number of worker threads in the thread pool.
-//
-//   completionPortThreads:
-//     The maximum number of asynchronous I/O threads in the thread pool.
-//
-// Returns:
-//     true if the change is successful; otherwise, false.
-public static bool SetMaxThreads(int workerThreads, int completionPortThreads);
-public static bool SetMinThreads(int workerThreads, int completionPortThreads);
-----
-
-+++>+++ What's worker and completion port threads in SetMaxThreads(int workerThreads, int completionPortThreads)?
-
-+++*+++ The `ThreadPool.SetMaxThreads(int workerThreads, int completionPortThreads)` method in .NET sets the number of requests to the thread pool that can be active concurrently. These two parameters define:
-
-1. `workerThreads`: This is the maximum number of worker threads in the ThreadPool. A worker thread is a thread where your work is actually getting done. It is a thread on which a task is performed. "Worker" threads are used for compute-bound operations, i.e., your average piece of synchronous work.
-
-2. `completionPortThreads`: This indicates maximum number of asynchronous I/O threads. Completion ports are used to execute callbacks after certain Async I/O operations have completed. "I/O completion" threads are used for I/O-bound operations (typically disk and network operations).
-
-The threadpool maintains two types of threads, worker threads for the most part handle compute operations and I/O threads handle as the name suggests handle I/O bound operations.
-
-Asynchronous I/O operations, which are operations that complete at some later point, often use callback methods to signal completion. When the system calls these callback methods, it does so using a thread from the ThreadPool.
-
-The `ThreadPool.SetMaxThreads` method is usually used to increase max number of concurrent threads if you have a lot of short tasks that are I/O bound.
-
-It's typically not necessary to change the ThreadPool size, because the ThreadPool already optimizes the number of threads it uses based on the number of CPUs and the types of tasks it's running. In most cases, ThreadPool is efficient in managing its threads. Its algorithm aims to efficiently use all available CPU resources while not overloading the system with too many threads at the same time. It tries to maintain a balance.
-
-'''
-
-+++>+++ How does .NET identify I/O-bound or compute-bound operations?
-
-+++*+++ The .NET runtime itself doesn't actively categorize tasks as I/O-bound or compute-bound. It's up to developers to ensure that appropriate APIs and techniques are used for I/O-bound and compute-bound tasks.
-
-For I/O-bound operations, which typically include file, database, and network operations, you should use asynchronous methods when they're available to avoid blocking (or tying up) a thread from the thread pool. When an I/O-bound operation is asynchronous, this generally means the operation is offloaded to the operating system, freeing up the .NET runtime thread to perform other work. I/O bound means the data is transferred between the CPU and the peripheral devices (disk, network, etc.), during which the CPU isn't doing much work.
-
-On the other hand, when a task is compute-bound, meaning it involves heavy computations and keeps the processor busy, developers should generally use synchronous methods and potentially multiple threads to utilize more cores and finish the computations faster. This kind of operation is typically done in parallel to split the work across multiple threads, where each thread uses synchronous code to do its part of the work.
-
-So, while .NET doesn't automatically distinguish between I/O-bound and compute-bound operations, it provides facilities (like asynchronous methods for I/O-bound tasks and parallel processing techniques such as the TPL for compute-bound tasks) for developers to write efficient code for both types of operations.
-
-'''
-
-+++>+++ How to understand 'It's up to developers...'?
-
-+++*+++ What "It's up to developers..." means is that the .NET runtime, or indeed any other runtime, cannot automatically discern if the operation you're performing is I/O-bound or compute-bound. It's the responsibility of the developer writing the code to understand what kind of operation they're performing and to use the correct method to handle it.
-
-For example,
-
-- If a developer is reading data from a file, database, or making a network call, these are typically I/O-bound operations. They should use asynchronous methods (`async/await`) provided by .NET to avoid blocking the thread while the data is being fetched.
-
-- If a developer is intending to perform an action that requires heavy computation, like sorting a large array or processing a complex algorithm, these operations are typically compute-bound. They would then use parallel programming constructs like `Parallel.For` or `Parallel.ForEach`, or manually creating multiple threads.
-
-The appropriate programming approach (asynchronous or multithreaded) is dictated by the nature of the operation. The developer must know their application, the tasks, and their nature, and then use the appropriate method. The .NET runtime will not do this discernment automatically.
-
-'''
-
-+++>+++ How does CLR manage the number of threads (worker and I/O threads) in the ThreadPool?
-
-+++*+++ The CLR, or Common Language Runtime, uses a set algorithm to manage the number of threads in its ThreadPool.
-
-Upon application startup, the ThreadPool possesses few threads. As requests come in, threads are added to fulfill those requests. The CLR considers several factors to make an adjustment, including the workload demand, number of processors, and the number of existing threads.
-
-For each pending task or work item, a check is performed to see if a thread is available. If not, and the current thread count is below the maximum limit, a new thread is created unless we've reached the maximum limit "rate". If a ThreadPool thread is idle for some time (around a minute), it gets terminated, which reduces resource usage.
-
-If the thread count reaches the max limit and the requests are still not fulfilled, they are queued. "Worker" threads are commonly used for executing synchronous and asynchronous managed code, and "I/O threads" are specifically designated for completing I/O-bound work.
-
-Both the maximum threads and "rate" are automatically set based on several factors like the size of virtual memory, number of processors available, etc.
-
-The thread injection rate (how often new threads are added) aids to prevent situations where rapidly creating too many threads would cause resource saturation and decrease performance.
-
-You can manually get and change the minimum and maximum number of threads in the ThreadPool by using `GetMinThreads`, `GetMaxThreads`, `SetMinThreads`, and `SetMaxThreads` methods.
-
-However, it's recommended to let the CLR manage the threading details because of its smart heuristics and tuning based on extensive research and testing. Custom changes should only be made after careful testing and analysis.
-
-'''
-
-+++>+++ What's the algorithm of the thread pool in .NET?
-
-+++*+++ According to .NET's official documentation, the CLR employs a hill-climbing algorithm for adjusting the number of ThreadPool threads that can run simultaneously. This heuristic algorithm is designed specifically to find the most efficient and effective number of threads for any given workload.
-
-Here's how the algorithm works:
-
-1. It starts with the minimum number of ThreadPool worker threads and regularly checks if there are pending tasks in the queue which are waiting for an available thread.
-
-2. If it finds tasks waiting in the queue, and it hasn't already created a new thread recently, it creates a new one, up to the maximum limit.
-
-3. If there are still tasks in the queue, but it just created a new thread, it waits a bit before creating another one. By waiting, it allows the currently running tasks to finish and free up some ThreadPool threads before deciding to create new ones.
-
-4. If threads are idle for more than a certain time (like a minute), these threads can be retired and removed from the pool.
-
-This algorithm works to maintain a balance between the number of threads and the amount of work that needs to be done. By ensuring threads are only created as needed, and cleaning up idle threads, it helps to optimize the system resources and performance.
-
-It's important to note that the .NET ThreadPool’s algorithm is intentionally not publicly documented in detail because it's subject to change as Microsoft fine-tunes it based on new findings and requirements.
-
-As always, it's recommended to let the CLR manage the ThreadPool for you, unless you have a specific reason and have done careful performance analysis.
 
 === Overview of synchronization primitives
 
@@ -834,97 +712,6 @@ You might use Barrier when one or more threads require the results of other thre
 
 The {system-threading-interlocked}[System.Threading.Interlocked] class provides static methods that perform simple atomic operations on a variable. Those atomic operations include addition, increment and decrement, exchange and conditional exchange that depends on a comparison, and read operation of a 64-bit integer value.
 
-[TIP]
-====
-+++>+++ About the Interlocked class in .NET, what if we increment a 64-bit integer on a 32-bit hardware?
-
-+++*+++ The `Interlocked.Increment` method guarantees atomic increment operations, even with a 64-bit integer on 32-bit hardware. This method is thread-safe and ensures that the increment operation completes as one uninterruptible operation.
-
-In a multithreaded or parallel computing scenario, multiple threads might be trying to increment the value of a shared 64-bit integer simultaneously. In such a case, `Interlocked.Increment` ensures that each increment operation happens in its entirety without being interrupted by another thread. This is because, without such atomic operations, a thread could be halfway through incrementing the integer when another thread reads from or writes to it, leading to buggy and hard-to-diagnose problems.
-
-However, performing atomic operations on a 64-bit integer (long/Int64) in 32-bit hardware requires two CPU instructions, because the size of the long value is greater than the word size of the 32-bit processor. But even then, .NET runtime ensures via `Interlocked.Increment` method that the operation is atomic at thread level and no partial updates can be seen by another thread.
-
-Still, it's important to note that such atomic operations come with a slightly increased performance overhead as compared to non-atomic operations, due to preventing reordering and caching of the value being incremented. Thus, they must be used judiciously.
-
-
-'''
-
-+++>+++ How does CRL make the two CPU instructions as an atomic?
-
-+++*+++ The .NET Common Language Runtime (CLR) and the underlying operating system provide certain guarantees to ensure atomicity of operations on 64-bit values, even on 32-bit platforms.
-
-The `Interlocked` class methods in .NET, like `Interlocked.Increment`, wrap platform-specific instructions for atomic operations. On a 32-bit system, where a 64-bit increment operation would generally require two CPU instructions, these interlocked operations use special instructions provided by the platform to ensure atomicity.
-
-On Windows, for example, this can be achieved using a combination of OS-provided synchronization primitives and specific processor instructions. For instance, the `InterlockedIncrement64` function in the Windows API performs a 64-bit atomic increment operation even on a 32-bit platform.
-
-When you call an `Interlocked` method, the .NET runtime translates that into a call to the appropriate system function or CPU instruction that guarantees the operation's atomicity. It's important to note that this relies on support from the operating system kernel and the CPU hardware, and the .NET runtime itself does not handle these details.
-
-These atomic operations prevent any thread interference or inconsistencies while performing read-modify-write actions by ensuring that the operation is completed as a single, uninterruptible unit.
-
-'''
-
-+++>+++ I heard there are some risk on atomic operations in Go or sth else?
-
-+++*+++ Yes, coding with atomic operations can indeed be risky, not just in Go but in any language, if they are misused or misunderstood. Here are a few reasons why this is the case:
-
-1. Atomic operations do not compose: If there are multiple separate atomic operations, there is no guarantee about the order in which they will execute or whether some other operation (not part of the atomic operation) may not interleave among them.
-
-2. As atomic operations do not lock or synchronize larger pieces of the code, using them incorrectly can leave data in an inconsistent state if a sequence of operations (transaction) must be completed without interruption.
-
-3. Atomic operations generally require a precise understanding of hardware, compilers, and the language memory model to be used correctly. Any misunderstanding can lead to subtle, intermittent bugs that are hard to trace or replicate.
-
-4. Atomics can suffer from issues like ABA problems where a value changes from A to B then back to A between your atomic check and usage, causing potential problems when the code assumes the value has not changed.
-
-5. Atomic operations are tough to debug since typical stepping debuggers might disrupt the precise timing which is usually involved in the bugs related to atomic operations.
-
-In Go, for example, the `sync/atomic` package provides low-level atomic memory primitives, but they are not sufficient to implement high-level synchronizations. Go encourages the use of higher-level synchronization primitives such as goroutines, channels, and select statements for most cases, and the `sync` package's Mutex and WaitGroup types for others.
-
-So while atomic operations are a powerful tool in concurrent programming, they are best suited for a limited set of problems and should be used judiciously and cautiously, usually when performance is a dicerning factor and you're comfortable and proficient with the complexities of concurrent system behaviour and memory models.
-
-'''
-
-+++>+++ What's ABA problems?
-
-+++*+++ The ABA problem is a particularly tricky issue that can occur in multi-threaded or concurrent programs that use lock-free data structures and make use of atomic primitives, such as Compare-and-Swap (CAS).
-
-Here's a brief explanation of the ABA problem:
-
-1. Say a thread, Thread A, accesses shared data and notes the value there is 'A'.
-2. Thread A gets preempted, allowing Thread B to run.
-3. Thread B changes the value in the shared data from 'A' to 'B', then changes it back to 'A' before it's finished.
-4. Thread A resumes execution, goes to change the shared data using a CAS operation. It checks if the value is 'A', which it is, but what Thread A doesn't know is that the value has changed since it first loaded it. As far as Thread A can tell, though, nothing has changed, and so it goes ahead with the modification.
-
-The result here is that Thread A acted on the assumption that nothing had changed when actually something had, but it was effectively invisible to it. This can have outcomes ranging from inconsequential to catastrophic, depending on what the shared data is used for. This is the ABA problem.
-
-This issue is typically resolved by assigning a version number or a timestamp along with every change so that the revisiting thread can check not only the value but whether it is the same instance of the value it observed before. This kind of solution is often referred to as "tagging". Double-width Compare-and-Swap (DWCAS) or similar atomic primitives are used to atomically change the value and its associated version number or tag.
-
-'''
-
-+++>+++ How to understand 'hardware, compilers, and the language memory model' as you mentioned?
-
-+++*+++ Understanding 'hardware, compilers, and the language memory model' is important when working with lower-level concurrent constructs such as atomic operations or volatile fields. Let me break them down:
-
-1. Hardware: Modern CPUs can have multiple cores with their own caches. When one core updates a value in its cache, other cores won't immediately see that change until it's written back to main memory, or if cache-coherency protocols mark it as invalid. Similarly, hardware can execute instructions out of order for optimization purposes, which can lead to unexpected results in concurrent code.
-
-2. Compilers: Similar to hardware, the compiler can reorder instructions or optimize away redundant loads/stores for performance. This can change the program's behavior unless specific memory barriers or volatile qualifiers are used. Also, understanding how the hardware and compiler interact is crucial. For example, an x86 CPU has a strong memory model and won't naturally reorder certain instructions, but the C++ compiler, without any memory barriers, is free to reorder instructions as it sees fit.
-
-3. Language Memory Model: A language's memory model defines how threads interact through memory and what behaviors are allowed in multi-threaded code. For instance, the C++11 memory model allows several levels of memory ordering, provides atomic operations and fences, and describes how synchronizes-with and happens-before relationships are formed. Understanding this is vital to writing correct concurrent code.
-
-All these can significantly impact the correctness, performance, and portability of multi-threaded code. Learning about them usually involves studying computer architecture, compilations, operating systems, and of course, the programming language's specification. For most developers, however, using higher-level synchronization primitives and libraries that abstract these details away is sufficient and recommended.
-
-'''
-
-+++>+++ Anyway, for a single operation like `Interlocked.Increment`, it will always ensure it as an atomic?
-
-+++*+++ Yes, for the `Interlocked.Increment` method in .NET, it always ensures atomicity of the increment operation, regardless of the system architecture (32-bit or 64-bit) and the data type of the variable being incremented (32-bit like `int` or 64-bit like `long`).
-
-This method guarantees that the increment operation, which is otherwise a read-modify-write operation consisting of multiple steps, is executed in a single, unbroken step. No context switch or thread interference can happen in the middle of the operation that could leave the data in an inconsistent state.
-
-It can be used safely in a multithreaded and concurrent environment, ensuring that all incrementing operations on a shared variable are done in full, one at a time.
-
-Please be aware that while `Interlocked.Increment` ensures atomic increment operations, complex multi-step operations or transactions would require additional synchronization mechanisms, like locks or mutexes.
-====
-
 ==== SpinWait structure
 
 :system-threading-spinwait: https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinwait
@@ -1034,71 +821,6 @@ The `volatile` keyword can be applied to fields of these types:
 Other types, including double and long, cannot be marked volatile because reads and writes to fields of those types cannot be guaranteed to be atomic. To protect multi-threaded access to those types of fields, use the `Interlocked` class members or protect access using the `lock` statement.
 
 The `volatile` keyword can only be applied to fields of a class or struct. Local variables cannot be declared volatile.
-
-[TIP]
-====
-+++>+++ How to understand the volatile keyword in .NET? And how to understand "There is no guarantee of a single total ordering of volatile writes as seen from all threads of execution."?
-
-+++*+++ The `volatile` keyword in .NET is a modifier that you can use on fields. It tells the compiler and the runtime that accesses to that field should not be subject to certain kinds of compiler or hardware optimizations such as caching its value in a register or reordering reads and writes.
-
-In multithreaded applications, the `volatile` keyword can be used to ensure that modification to a value by one thread is immediately visible to other threads. Without `volatile`, the changes one thread makes to the field could be stored in a register and not written back to the memory location until later, causing another thread to see out-of-date values.
-
-The quote "There is no guarantee of a single total ordering of volatile writes as seen from all threads of execution" means that the order in which threads observe volatile writes may not be consistent across all threads. While `volatile` ensures that each individual thread will observe the writes in the order they were performed, it doesn't guarantee that all threads will perceive those writes in the same order.
-
-Here's an example to illustrate:
-
-```
-Thread 1
-    Volatile write to variable A
-    Volatile write to variable B
-
-Thread 2
-    Volatile read from variable B
-    Volatile read from variable A
-```
-
-The volatile keyword ensures that Thread 1 will write to variable A before variable B. If Thread 2 reads variable B, it will see this write (or a later one). However, another volatile read to variable A can still return an older value. This is because the volatile read from variable B does not provide 'release-fence' semantics; it doesn't force a refresh of all other modifications.
-
-This is why it's often recommended to use higher-level synchronization constructs (like `lock`, `Monitor`, `Mutex`, `Semaphore`, etc.) or the `System.Threading.Interlocked` class for complex synchronization, because they provide stronger guarantees about how they behave in multithreaded scenarios. The `volatile` keyword is a low-level mechanism that's harder to use correctly and it's easy to accidentally build incorrect code when using `volatile` for complex synchronization.
-
-'''
-
-+++>+++ How to understand "On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor."?
-
-+++*+++ This statement draws attention to an important fact about volatile keyword usage in .NET on a multiprocessor system where threads could be executing on different processors.
-
-The volatile keyword in C# tells the compiler not to reorder reads or writes to a field, or cache the field in a register, which helps ensure that all reads and writes on one processor occur in the order they're specified in the code. Because of this, the volatile keyword is helpful for ensuring consistency in a multithreaded context.
-
-However, it does not guarantee immediate visibility on all processors. For example, if one processor writes to a volatile field and another processor reads from that field, the reading processor might not get the most recent value written by the writing processor. The reasons can include delay due to propagation of write from one processor's cache to others (in a multiprocessor, multi-caching systems) or the order in which these reads and writes are performed.
-
-This is why it's stated that "On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor."
-
-In general, for complex synchronization or if strong cross-processor memory guarantees are required, usage of higher-level synchronization primitives or constructs (like locks, `Monitor`, `Mutex`, `Semaphore`, `ConcurrentDictionary`, `Interlocked`, `MemoryBarrier`, etc.) should be preferred. These toolsets are built to handle advanced multithreading and synchronization tasks, giving strict guarantees about order of operations and memory visibility on multi-core and multiprocessor systems.
-
-+++>+++ What's the diff of volatile keyword and Volatile class?
-
-+++*+++ The `volatile` keyword and `Volatile` class in .NET both provide support for using volatile memory, but they do so in slightly different ways.
-
-The `volatile` keyword is a modifier that can be applied to fields of a class or a struct. The .NET run-time knows not to cache the value of that field and always accesses it directly from memory, which makes it useful in multithreading scenarios where you need to ensure that a specific field's latest value is accessible across multiple threads. It provides acquire-fence semantics for reads (a read of a volatile field is guaranteed to happen after any previous memory accesses), and release-fence semantics for writes (a write to a volatile field is guaranteed to happen before any subsequent memory accesses).
-
-The `Volatile` class, introduced in .NET Framework 4.5, provides a set of methods that perform volatile reads and writes. This is beneficial as it allows volatile operations on types that were not declared as `volatile`. It provides stronger memory guarantees: a read done via `Volatile.Read` has acquire-fence semantics, i.e., it ensures that all subsequent reads and writes occur strictly after the volatile read, and a write done via `Volatile.Write` has release-fence semantics, i.e., it ensures that all previous reads and writes happen strictly before the volatile write. It acts as a full-fence, not allowing reordering or caching optimizations around it.
-
-So, while both are used for volatile memory operations, the `Volatile` class provides stronger guarantees and offers more flexibility because it lets you perform volatile operations on non-volatile declared variables, while the `volatile` keyword is simpler to use but only operates on fields declared as `volatile`.
-
-+++>+++ It's about the happen-before on a memory model. It seems we should avoid to use the volatile keyword?
-
-+++*+++ In general, understanding and correctly using the `volatile` keyword can be tricky. `volatile` only provides a very specific type of memory barrier, and can be misused easily. Beginners often have misunderstandings about what `volatile` actually does.
-
-The primary purpose of `volatile` is to provide a way to declare fields that can be modified by multiple threads, to indicate that such fields should not be subject to certain compiler and hardware optimizations. Essentially, no caching, no reordering, etc.
-
-However, using `volatile` won't prevent all problems with visibility or ordering of operations. It does not provide atomicity, and often it's not strong enough to replace other types of synchronization. For example, complex state manipulation or operations involving more than one memory location, like switching pointers or managing linked nodes, often need to be done in a single, uninterruptible step. Those operations are far beyond the scope of `volatile`.
-
-Higher-level concurrency constructs (`lock`, `Monitor`, `Mutex`, `Semaphore`, `ManualResetEvent`, `AutoResetEvent`, and types in `System.Collections.Concurrent` or `System.Threading.Tasks`) should be preferred. These handle most of the complexity of ensuring correct memory barriers and state visibility, and they are generally safer and more efficient choices.
-
-`Interlocked` class also offers atomic operations for a single memory location and can be used for lightweight synchronization in high-performance scenarios, although understanding and using it correctly can be as tricky as `volatile`.
-
-In the end, `volatile` isn’t something you should be reaching for regularly. Its usage should be limited to very specific cases. In general, you are better off using a higher-level synchronization construct in .NET when dealing with multithreading scenarios.
-====
 
 == Asynchronous programming patterns
 
@@ -1313,6 +1035,523 @@ That invocation of `ComputeMessage` is offloaded to the thread pool, and upon th
 That integration with SynchronizationContext is left up to the *awaiter* implementation (the code generated for the state machine knows nothing about SynchronizationContext), as it's the awaiter that is responsible for actually invoking or queueing the supplied continuation when the represented asynchronous operation completes. While a custom awaiter need not respect `SynchronizationContext.Current`, the awaiters for `Task`, `Task<TResult>`, `ValueTask`, and `ValueTask<TResult>` all do. That means that, by default, when you await a `Task`, a `Task<TResult>`, a `ValueTask`, a `ValueTask<TResult>`, or even the result of a `Task.Yield()` call, the awaiter by default will look up the current `SynchronizationContext` and then if it successfully got a non-default one, will eventually queue the continuation to that context.
 
 The *ConfigureAwait* method isn't special: it's not recognized in any special way by the compiler or by the runtime. It is simply a method that returns a struct (a `ConfiguredTaskAwaitable`) that wraps the original task it was called on as well as the specified Boolean value. Remember that await can be used with any type that exposes the right pattern. By returning a different type, it means that when the compiler accesses the instances `GetAwaiter` method (part of the pattern), it’s doing so off of the type returned from ConfigureAwait rather than off of the task directly, and that provides a hook to change the behavior of how the await behaves via this custom awaiter. `ConfigureAwait(continueOnCapturedContext: false)` is used to avoid forcing the callback to be invoked on the original context or scheduler. <<configureawait-faq>>
+
+[appendix]
+== FAQ
+
+=== What happens on Thread.Sleep(0) in .NET?
+
+[TIP]
+====
++++>+++ What happens on Thread.Sleep(0) in .NET?
+
++++*+++ In .NET, `Thread.Sleep(0)` has a special meaning. It relinquishes the thread’s current time slice immediately, voluntarily handing over the CPU to other threads. The operating system could decide to immediately give the time slice back to the same thread if there are no other threads that need to run.
+
+It's effectively a way to signal to the operating system that the thread is willing to give up its slice of processor time, if there are other threads that are ready to run on the same processor.
+
+However, `Thread.Sleep(0)` does not lead to a context switch if there are no higher priority threads waiting.
+
+This can be useful to prevent a thread from consuming too much CPU time in a busy-wait scenario or when you might want to give other threads the chance to run.
+
+Remember that using `Thread.Sleep` is generally not the best practice because it blocks the thread and also it's not precise i.e. the thread might not awake exactly after specified time due to the way CPU scheduling works. Instead, using techniques such as `Task`, `async/await`, or the TPL's synchronization primitives (like `ManualResetEvent`, `Semaphore`, etc.) are typically better approaches for managing thread synchronization and timing.
+====
+
+=== What are the worker and completion port threads?
+
+[source,cs]
+----
+//
+// Summary:
+//     Sets the number of requests to the thread pool that can be active concurrently.
+//     All requests above that number remain queued until thread pool threads become
+//     available.
+//
+// Parameters:
+//   workerThreads:
+//     The maximum number of worker threads in the thread pool.
+//
+//   completionPortThreads:
+//     The maximum number of asynchronous I/O threads in the thread pool.
+//
+// Returns:
+//     true if the change is successful; otherwise, false.
+public static bool SetMaxThreads(int workerThreads, int completionPortThreads);
+public static bool SetMinThreads(int workerThreads, int completionPortThreads);
+----
+
+[TIP]
+====
++++>+++ What are the worker and completion port threads in SetMaxThreads(int workerThreads, int completionPortThreads)?
+
++++*+++ The `ThreadPool.SetMaxThreads(int workerThreads, int completionPortThreads)` method in .NET sets the number of requests to the thread pool that can be active concurrently. These two parameters define:
+
+1. `workerThreads`: This is the maximum number of worker threads in the ThreadPool. A worker thread is a thread where your work is actually getting done. It is a thread on which a task is performed. "Worker" threads are used for compute-bound operations, i.e., your average piece of synchronous work.
+
+2. `completionPortThreads`: This indicates maximum number of asynchronous I/O threads. Completion ports are used to execute callbacks after certain Async I/O operations have completed. "I/O completion" threads are used for I/O-bound operations (typically disk and network operations).
+
+The threadpool maintains two types of threads, worker threads for the most part handle compute operations and I/O threads handle as the name suggests handle I/O bound operations.
+
+Asynchronous I/O operations, which are operations that complete at some later point, often use callback methods to signal completion. When the system calls these callback methods, it does so using a thread from the ThreadPool.
+
+The `ThreadPool.SetMaxThreads` method is usually used to increase max number of concurrent threads if you have a lot of short tasks that are I/O bound.
+
+It's typically not necessary to change the ThreadPool size, because the ThreadPool already optimizes the number of threads it uses based on the number of CPUs and the types of tasks it's running. In most cases, ThreadPool is efficient in managing its threads. Its algorithm aims to efficiently use all available CPU resources while not overloading the system with too many threads at the same time. It tries to maintain a balance.
+====
+
+=== How does .NET identify I/O-bound or compute-bound operations?
+
+[TIP]
+====
++++>+++ How does .NET identify I/O-bound or compute-bound operations?
+
++++*+++ The .NET runtime itself doesn't actively categorize tasks as I/O-bound or compute-bound. It's up to developers to ensure that appropriate APIs and techniques are used for I/O-bound and compute-bound tasks.
+
+For I/O-bound operations, which typically include file, database, and network operations, you should use asynchronous methods when they're available to avoid blocking (or tying up) a thread from the thread pool. When an I/O-bound operation is asynchronous, this generally means the operation is offloaded to the operating system, freeing up the .NET runtime thread to perform other work. I/O bound means the data is transferred between the CPU and the peripheral devices (disk, network, etc.), during which the CPU isn't doing much work.
+
+On the other hand, when a task is compute-bound, meaning it involves heavy computations and keeps the processor busy, developers should generally use synchronous methods and potentially multiple threads to utilize more cores and finish the computations faster. This kind of operation is typically done in parallel to split the work across multiple threads, where each thread uses synchronous code to do its part of the work.
+
+So, while .NET doesn't automatically distinguish between I/O-bound and compute-bound operations, it provides facilities (like asynchronous methods for I/O-bound tasks and parallel processing techniques such as the TPL for compute-bound tasks) for developers to write efficient code for both types of operations.
+====
+
+[TIP]
+====
++++>+++ How to understand 'It's up to developers...'?
+
++++*+++ What "It's up to developers..." means is that the .NET runtime, or indeed any other runtime, cannot automatically discern if the operation you're performing is I/O-bound or compute-bound. It's the responsibility of the developer writing the code to understand what kind of operation they're performing and to use the correct method to handle it.
+
+For example,
+
+- If a developer is reading data from a file, database, or making a network call, these are typically I/O-bound operations. They should use asynchronous methods (`async/await`) provided by .NET to avoid blocking the thread while the data is being fetched.
+
+- If a developer is intending to perform an action that requires heavy computation, like sorting a large array or processing a complex algorithm, these operations are typically compute-bound. They would then use parallel programming constructs like `Parallel.For` or `Parallel.ForEach`, or manually creating multiple threads.
+
+The appropriate programming approach (asynchronous or multithreaded) is dictated by the nature of the operation. The developer must know their application, the tasks, and their nature, and then use the appropriate method. The .NET runtime will not do this discernment automatically.
+====
+
+=== How does CLR manage the number of threads (worker and I/O threads) in the ThreadPool?
+
+[TIP]
+====
++++>+++ How does CLR manage the number of threads (worker and I/O threads) in the ThreadPool?
+
++++*+++ The CLR, or Common Language Runtime, uses a set algorithm to manage the number of threads in its ThreadPool.
+
+Upon application startup, the ThreadPool possesses few threads. As requests come in, threads are added to fulfill those requests. The CLR considers several factors to make an adjustment, including the workload demand, number of processors, and the number of existing threads.
+
+For each pending task or work item, a check is performed to see if a thread is available. If not, and the current thread count is below the maximum limit, a new thread is created unless we've reached the maximum limit "rate". If a ThreadPool thread is idle for some time (around a minute), it gets terminated, which reduces resource usage.
+
+If the thread count reaches the max limit and the requests are still not fulfilled, they are queued. "Worker" threads are commonly used for executing synchronous and asynchronous managed code, and "I/O threads" are specifically designated for completing I/O-bound work.
+
+Both the maximum threads and "rate" are automatically set based on several factors like the size of virtual memory, number of processors available, etc.
+
+The thread injection rate (how often new threads are added) aids to prevent situations where rapidly creating too many threads would cause resource saturation and decrease performance.
+
+You can manually get and change the minimum and maximum number of threads in the ThreadPool by using `GetMinThreads`, `GetMaxThreads`, `SetMinThreads`, and `SetMaxThreads` methods.
+
+However, it's recommended to let the CLR manage the threading details because of its smart heuristics and tuning based on extensive research and testing. Custom changes should only be made after careful testing and analysis.
+====
+
+=== What's the algorithm of the thread pool in .NET?
+
+[TIP]
+====
++++>+++ What's the algorithm of the thread pool in .NET?
+
++++*+++ According to .NET's official documentation, the CLR employs a hill-climbing algorithm for adjusting the number of ThreadPool threads that can run simultaneously. This heuristic algorithm is designed specifically to find the most efficient and effective number of threads for any given workload.
+
+Here's how the algorithm works:
+
+1. It starts with the minimum number of ThreadPool worker threads and regularly checks if there are pending tasks in the queue which are waiting for an available thread.
+
+2. If it finds tasks waiting in the queue, and it hasn't already created a new thread recently, it creates a new one, up to the maximum limit.
+
+3. If there are still tasks in the queue, but it just created a new thread, it waits a bit before creating another one. By waiting, it allows the currently running tasks to finish and free up some ThreadPool threads before deciding to create new ones.
+
+4. If threads are idle for more than a certain time (like a minute), these threads can be retired and removed from the pool.
+
+This algorithm works to maintain a balance between the number of threads and the amount of work that needs to be done. By ensuring threads are only created as needed, and cleaning up idle threads, it helps to optimize the system resources and performance.
+
+It's important to note that the .NET ThreadPool’s algorithm is intentionally not publicly documented in detail because it's subject to change as Microsoft fine-tunes it based on new findings and requirements.
+
+As always, it's recommended to let the CLR manage the ThreadPool for you, unless you have a specific reason and have done careful performance analysis.
+====
+
+=== What if Interlocked.Increment a 64-bit integer on a 32-bit hardware?
+
+[TIP]
+====
++++>+++ About the Interlocked class in .NET, what if we increment a 64-bit integer on a 32-bit hardware?
+
++++*+++ The `Interlocked.Increment` method guarantees atomic increment operations, even with a 64-bit integer on 32-bit hardware. This method is thread-safe and ensures that the increment operation completes as one uninterruptible operation.
+
+In a multithreaded or parallel computing scenario, multiple threads might be trying to increment the value of a shared 64-bit integer simultaneously. In such a case, `Interlocked.Increment` ensures that each increment operation happens in its entirety without being interrupted by another thread. This is because, without such atomic operations, a thread could be halfway through incrementing the integer when another thread reads from or writes to it, leading to buggy and hard-to-diagnose problems.
+
+However, performing atomic operations on a 64-bit integer (long/Int64) in 32-bit hardware requires two CPU instructions, because the size of the long value is greater than the word size of the 32-bit processor. But even then, .NET runtime ensures via `Interlocked.Increment` method that the operation is atomic at thread level and no partial updates can be seen by another thread.
+
+Still, it's important to note that such atomic operations come with a slightly increased performance overhead as compared to non-atomic operations, due to preventing reordering and caching of the value being incremented. Thus, they must be used judiciously.
+====
+
+=== How does .NET make the multiple CPU instructions as an atomic?
+
+[TIP]
+====
++++>+++ How does CLR make the two CPU instructions as an atomic?
+
++++*+++ The .NET Common Language Runtime (CLR) and the underlying operating system provide certain guarantees to ensure atomicity of operations on 64-bit values, even on 32-bit platforms.
+
+The `Interlocked` class methods in .NET, like `Interlocked.Increment`, wrap platform-specific instructions for atomic operations. On a 32-bit system, where a 64-bit increment operation would generally require two CPU instructions, these interlocked operations use special instructions provided by the platform to ensure atomicity.
+
+On Windows, for example, this can be achieved using a combination of OS-provided synchronization primitives and specific processor instructions. For instance, the `InterlockedIncrement64` function in the Windows API performs a 64-bit atomic increment operation even on a 32-bit platform.
+
+When you call an `Interlocked` method, the .NET runtime translates that into a call to the appropriate system function or CPU instruction that guarantees the operation's atomicity. It's important to note that this relies on support from the operating system kernel and the CPU hardware, and the .NET runtime itself does not handle these details.
+
+These atomic operations prevent any thread interference or inconsistencies while performing read-modify-write actions by ensuring that the operation is completed as a single, uninterruptible unit.
+====
+
+=== I heard there are some risk on atomic operations in Go or sth else?
+
+[TIP]
+====
++++>+++ I heard there are some risk on atomic operations in Go or sth else?
+
++++*+++ Yes, coding with atomic operations can indeed be risky, not just in Go but in any language, if they are misused or misunderstood. Here are a few reasons why this is the case:
+
+1. Atomic operations do not compose: If there are multiple separate atomic operations, there is no guarantee about the order in which they will execute or whether some other operation (not part of the atomic operation) may not interleave among them.
+
+2. As atomic operations do not lock or synchronize larger pieces of the code, using them incorrectly can leave data in an inconsistent state if a sequence of operations (transaction) must be completed without interruption.
+
+3. Atomic operations generally require a precise understanding of hardware, compilers, and the language memory model to be used correctly. Any misunderstanding can lead to subtle, intermittent bugs that are hard to trace or replicate.
+
+4. Atomics can suffer from issues like ABA problems where a value changes from A to B then back to A between your atomic check and usage, causing potential problems when the code assumes the value has not changed.
+
+5. Atomic operations are tough to debug since typical stepping debuggers might disrupt the precise timing which is usually involved in the bugs related to atomic operations.
+
+In Go, for example, the `sync/atomic` package provides low-level atomic memory primitives, but they are not sufficient to implement high-level synchronizations. Go encourages the use of higher-level synchronization primitives such as goroutines, channels, and select statements for most cases, and the `sync` package's Mutex and WaitGroup types for others.
+
+So while atomic operations are a powerful tool in concurrent programming, they are best suited for a limited set of problems and should be used judiciously and cautiously, usually when performance is a dicerning factor and you're comfortable and proficient with the complexities of concurrent system behaviour and memory models.
+====
+
+=== What's ABA problems?
+
+[TIP]
+====
++++>+++ What's ABA problems?
+
++++*+++ The ABA problem is a particularly tricky issue that can occur in multi-threaded or concurrent programs that use lock-free data structures and make use of atomic primitives, such as Compare-and-Swap (CAS).
+
+Here's a brief explanation of the ABA problem:
+
+1. Say a thread, Thread A, accesses shared data and notes the value there is 'A'.
+2. Thread A gets preempted, allowing Thread B to run.
+3. Thread B changes the value in the shared data from 'A' to 'B', then changes it back to 'A' before it's finished.
+4. Thread A resumes execution, goes to change the shared data using a CAS operation. It checks if the value is 'A', which it is, but what Thread A doesn't know is that the value has changed since it first loaded it. As far as Thread A can tell, though, nothing has changed, and so it goes ahead with the modification.
+
+The result here is that Thread A acted on the assumption that nothing had changed when actually something had, but it was effectively invisible to it. This can have outcomes ranging from inconsequential to catastrophic, depending on what the shared data is used for. This is the ABA problem.
+
+This issue is typically resolved by assigning a version number or a timestamp along with every change so that the revisiting thread can check not only the value but whether it is the same instance of the value it observed before. This kind of solution is often referred to as "tagging". Double-width Compare-and-Swap (DWCAS) or similar atomic primitives are used to atomically change the value and its associated version number or tag.
+====
+
+=== How to understand 'hardware, compilers, and the language memory model'?
+
+[TIP]
+====
++++>+++ How to understand 'hardware, compilers, and the language memory model'?
+
++++*+++ Understanding 'hardware, compilers, and the language memory model' is important when working with lower-level concurrent constructs such as atomic operations or volatile fields. Let me break them down:
+
+1. Hardware: Modern CPUs can have multiple cores with their own caches. When one core updates a value in its cache, other cores won't immediately see that change until it's written back to main memory, or if cache-coherency protocols mark it as invalid. Similarly, hardware can execute instructions out of order for optimization purposes, which can lead to unexpected results in concurrent code.
+
+2. Compilers: Similar to hardware, the compiler can reorder instructions or optimize away redundant loads/stores for performance. This can change the program's behavior unless specific memory barriers or volatile qualifiers are used. Also, understanding how the hardware and compiler interact is crucial. For example, an x86 CPU has a strong memory model and won't naturally reorder certain instructions, but the C++ compiler, without any memory barriers, is free to reorder instructions as it sees fit.
+
+3. Language Memory Model: A language's memory model defines how threads interact through memory and what behaviors are allowed in multi-threaded code. For instance, the C++11 memory model allows several levels of memory ordering, provides atomic operations and fences, and describes how synchronizes-with and happens-before relationships are formed. Understanding this is vital to writing correct concurrent code.
+
+All these can significantly impact the correctness, performance, and portability of multi-threaded code. Learning about them usually involves studying computer architecture, compilations, operating systems, and of course, the programming language's specification. For most developers, however, using higher-level synchronization primitives and libraries that abstract these details away is sufficient and recommended.
+====
+
+=== Anyway, for a single operation like Interlocked.Increment, it will always ensure it as an atomic?
+
+[TIP]
+====
++++>+++ Anyway, for a single operation like `Interlocked.Increment`, it will always ensure it as an atomic?
+
++++*+++ Yes, for the `Interlocked.Increment` method in .NET, it always ensures atomicity of the increment operation, regardless of the system architecture (32-bit or 64-bit) and the data type of the variable being incremented (32-bit like `int` or 64-bit like `long`).
+
+This method guarantees that the increment operation, which is otherwise a read-modify-write operation consisting of multiple steps, is executed in a single, unbroken step. No context switch or thread interference can happen in the middle of the operation that could leave the data in an inconsistent state.
+
+It can be used safely in a multithreaded and concurrent environment, ensuring that all incrementing operations on a shared variable are done in full, one at a time.
+
+Please be aware that while `Interlocked.Increment` ensures atomic increment operations, complex multi-step operations or transactions would require additional synchronization mechanisms, like locks or mutexes.
+====
+
+=== How to understand the volatile keyword in .NET?
+
+[TIP]
+====
++++>+++ How to understand the volatile keyword in .NET? And how to understand "There is no guarantee of a single total ordering of volatile writes as seen from all threads of execution."?
+
++++*+++ The `volatile` keyword in .NET is a modifier that you can use on fields. It tells the compiler and the runtime that accesses to that field should not be subject to certain kinds of compiler or hardware optimizations such as caching its value in a register or reordering reads and writes.
+
+In multithreaded applications, the `volatile` keyword can be used to ensure that modification to a value by one thread is immediately visible to other threads. Without `volatile`, the changes one thread makes to the field could be stored in a register and not written back to the memory location until later, causing another thread to see out-of-date values.
+
+The quote "There is no guarantee of a single total ordering of volatile writes as seen from all threads of execution" means that the order in which threads observe volatile writes may not be consistent across all threads. While `volatile` ensures that each individual thread will observe the writes in the order they were performed, it doesn't guarantee that all threads will perceive those writes in the same order.
+
+Here's an example to illustrate:
+
+```
+Thread 1
+    Volatile write to variable A
+    Volatile write to variable B
+
+Thread 2
+    Volatile read from variable B
+    Volatile read from variable A
+```
+
+The volatile keyword ensures that Thread 1 will write to variable A before variable B. If Thread 2 reads variable B, it will see this write (or a later one). However, another volatile read to variable A can still return an older value. This is because the volatile read from variable B does not provide 'release-fence' semantics; it doesn't force a refresh of all other modifications.
+
+This is why it's often recommended to use higher-level synchronization constructs (like `lock`, `Monitor`, `Mutex`, `Semaphore`, etc.) or the `System.Threading.Interlocked` class for complex synchronization, because they provide stronger guarantees about how they behave in multithreaded scenarios. The `volatile` keyword is a low-level mechanism that's harder to use correctly and it's easy to accidentally build incorrect code when using `volatile` for complex synchronization.
+====
+
+[TIP]
+====
++++>+++ How to understand "On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor."?
+
++++*+++ This statement draws attention to an important fact about volatile keyword usage in .NET on a multiprocessor system where threads could be executing on different processors.
+
+The volatile keyword in C# tells the compiler not to reorder reads or writes to a field, or cache the field in a register, which helps ensure that all reads and writes on one processor occur in the order they're specified in the code. Because of this, the volatile keyword is helpful for ensuring consistency in a multithreaded context.
+
+However, it does not guarantee immediate visibility on all processors. For example, if one processor writes to a volatile field and another processor reads from that field, the reading processor might not get the most recent value written by the writing processor. The reasons can include delay due to propagation of write from one processor's cache to others (in a multiprocessor, multi-caching systems) or the order in which these reads and writes are performed.
+
+This is why it's stated that "On a multiprocessor system, a volatile read operation does not guarantee to obtain the latest value written to that memory location by any processor."
+
+In general, for complex synchronization or if strong cross-processor memory guarantees are required, usage of higher-level synchronization primitives or constructs (like locks, `Monitor`, `Mutex`, `Semaphore`, `ConcurrentDictionary`, `Interlocked`, `MemoryBarrier`, etc.) should be preferred. These toolsets are built to handle advanced multithreading and synchronization tasks, giving strict guarantees about order of operations and memory visibility on multi-core and multiprocessor systems.
+====
+
+=== What's the diff of volatile keyword and Volatile class?
+
+[TIP]
+====
++++>+++ What's the diff of volatile keyword and Volatile class?
+
++++*+++ The `volatile` keyword and `Volatile` class in .NET both provide support for using volatile memory, but they do so in slightly different ways.
+
+The `volatile` keyword is a modifier that can be applied to fields of a class or a struct. The .NET run-time knows not to cache the value of that field and always accesses it directly from memory, which makes it useful in multithreading scenarios where you need to ensure that a specific field's latest value is accessible across multiple threads. It provides acquire-fence semantics for reads (a read of a volatile field is guaranteed to happen after any previous memory accesses), and release-fence semantics for writes (a write to a volatile field is guaranteed to happen before any subsequent memory accesses).
+
+The `Volatile` class, introduced in .NET Framework 4.5, provides a set of methods that perform volatile reads and writes. This is beneficial as it allows volatile operations on types that were not declared as `volatile`. It provides stronger memory guarantees: a read done via `Volatile.Read` has acquire-fence semantics, i.e., it ensures that all subsequent reads and writes occur strictly after the volatile read, and a write done via `Volatile.Write` has release-fence semantics, i.e., it ensures that all previous reads and writes happen strictly before the volatile write. It acts as a full-fence, not allowing reordering or caching optimizations around it.
+
+So, while both are used for volatile memory operations, the `Volatile` class provides stronger guarantees and offers more flexibility because it lets you perform volatile operations on non-volatile declared variables, while the `volatile` keyword is simpler to use but only operates on fields declared as `volatile`.
+====
+
+=== It seems we should avoid to use the volatile keyword?
+
+[TIP]
+====
++++>+++ It's about the happen-before on a memory model. It seems we should avoid to use the volatile keyword?
+
++++*+++ In general, understanding and correctly using the `volatile` keyword can be tricky. `volatile` only provides a very specific type of memory barrier, and can be misused easily. Beginners often have misunderstandings about what `volatile` actually does.
+
+The primary purpose of `volatile` is to provide a way to declare fields that can be modified by multiple threads, to indicate that such fields should not be subject to certain compiler and hardware optimizations. Essentially, no caching, no reordering, etc.
+
+However, using `volatile` won't prevent all problems with visibility or ordering of operations. It does not provide atomicity, and often it's not strong enough to replace other types of synchronization. For example, complex state manipulation or operations involving more than one memory location, like switching pointers or managing linked nodes, often need to be done in a single, uninterruptible step. Those operations are far beyond the scope of `volatile`.
+
+Higher-level concurrency constructs (`lock`, `Monitor`, `Mutex`, `Semaphore`, `ManualResetEvent`, `AutoResetEvent`, and types in `System.Collections.Concurrent` or `System.Threading.Tasks`) should be preferred. These handle most of the complexity of ensuring correct memory barriers and state visibility, and they are generally safer and more efficient choices.
+
+`Interlocked` class also offers atomic operations for a single memory location and can be used for lightweight synchronization in high-performance scenarios, although understanding and using it correctly can be as tricky as `volatile`.
+
+In the end, `volatile` isn’t something you should be reaching for regularly. Its usage should be limited to very specific cases. In general, you are better off using a higher-level synchronization construct in .NET when dealing with multithreading scenarios.
+====
+
+=== What's the diff of asynchronous and parallel programming in .NET?
+
+[TIP]
+====
++++>+++ What's the diff of asynchronous and parallel programming in .NET?
+
++++*+++ In .NET, both asynchronous and parallel programming paradigms are used to execute code that can potentially run concurrently to improve performance. However, they are used in different scenarios and address different types of problems.
+
+1. Asynchronous Programming:
+
+Asynchronous programming is about freeing up the main executing thread to do other work when it would otherwise be blocked, usually waiting for I/O operations (like reading a file, downloading from the internet, querying a database, etc.).
+
+The goal of asynchronous programming is to make the application more responsive. With async programming, the application can yield control while it waits on these long-running tasks, allowing it to perform other tasks concurrently.
+
+In .NET, you often see `async` and `await` keywords for asynchronous programming. It does not necessarily create more threads, but uses the .NET framework's ability to efficiently handle I/O bound tasks.
+
+2. Parallel Programming:
+
+Parallel programming, on the other hand, is about executing multiple operations, or tasks, at the same time by utilizing multiple cores of the CPU.
+
+This is particularly helpful for CPU-bound work that can be broken down into smaller, independent tasks and processed in parallel. For example, if you're processing an array of elements, you can use parallel programming to process multiple elements at the same time in different cores.
+
+In .NET, this could be achieved using the `Parallel` class (like `Parallel.For`, `Parallel.ForEach`), or `PLINQ (Parallel LINQ)`, or creating `Tasks` manually, and these generally involve multi-threading.
+
+In summary, use asynchronous programming when dealing with I/O-bound tasks to avoid blocking and keep the application responsive, and use parallel programming when trying to break down CPU-intensive tasks to run simultaneously to improve throughput.
+====
+
+=== What's the control meaning in async and await programming?
+
+[TIP]
+====
++++>+++ What's the 'control' meaning in async and await programming?
+
++++*+++ In the context of asynchronous programming with `async` and `await`, "control" refers to the flow of execution in a program.
+
+When you call an `async` method, control is returned to the caller as soon as an `await` statement is encountered and the awaited operation is not yet complete. The remainder of the async method then continues to execute "in the background" and the calling code can proceed to do other work without waiting for the `async` method to complete.
+
+When the awaited operation (such as an I/O operation, web request, etc.) completes, the remainder of the `async` method is then executed. This may involve a "context switch" back to the original context where the `await` was called (for example, the user interface thread), but the important point is that the initial call to the `async` method doesn't block and hold up that original context while the awaited operation is ongoing.
+
+So "yielding control" in `async`/`await` programming means giving back the control of execution to the caller code immediately, without waiting for the async method to finish, thus keeping the application responsive for doing other tasks. It's an effective way to achieve concurrency, particularly for I/O-bound operations.
+====
+
+[TIP]
+====
++++>+++ What's the underneath in 'control', like a thread or sth else?
+
++++*+++ "Control" primarily refers to the sequence of execution of code or the flow of a program. When we talk about control in the context of `async` and `await`, we are referring to which code or operation gets to use the executing thread at a given time.
+
+On a lower level in .NET runtime, this "control" is facilitated by the Task Scheduler and in many scenarios, the synchronization context. Here's a simplified view:
+
+When a method awaits an operation (e.g. `await someTask();`), the rest of the method is posted back to the synchronization context as a continuation. If there is no SynchronizationContext (`SynchronizationContext.Current` is null), then by default the TaskScheduler is used. This continuation implicitly captures the synchronization context that was active at the time of the await.
+
+In a UI-based application, the synchronization context is typically tied to the main UI thread, which allows the continuation (the code following the await keyword) to be executed on the same UI thread. This makes async programming easier and safer in a UI context.
+
+In an environment without a SynchronizationContext (like in Console applications or thread pool threads), the default TaskScheduler schedules the continuation to run on the ThreadPool.
+
+With this in mind, when you call `await` in a method, it signs up the rest of the method to be continued later, and then returns. This frees up the current thread to go off and do other work. When the awaited task finishes, the continuation (the remainder of the method) is then executed on the captured context.
+
+Again, this is a simplified view. In reality, there are several optimizations and mechanisms in place to make async programming more efficient and easier to use.
+====
+
+[TIP]
+====
++++>+++ Does it mean the 'someTask' will be executed on another thread?
+
++++*+++ Not necessarily. When you call an async method, it does its work on the same thread that called it until it awaits an incomplete task. At the await, if the task isn't already complete, the async method is paused and control returns to the caller of the async method. This all happens on the same thread, and no extra threads are created.
+
+What happens next depends on what the awaited task is doing. Here's a simple way to think about it:
+
+- If it's a CPU-bound task doing computation, it may be done on another thread, especially if you specifically started the task on a thread pool thread (for example, using `Task.Run`).
+
+- If it's an I/O-bound task (like reading from disk or a network operation), then actually no thread is needed while it's waiting for the I/O operation to complete. Threads are a precious resource and I/O-bound tasks are not doing any CPU-bound computation, they're just waiting, so it would be wasteful to dedicate a thread to that.
+
+When the awaited operation completes, the remainder of the async method is scheduled to continue running. The scheduling depends on the context when the 'await' keyword is encountered.
+
+In a UI application, it resumes on the UI thread (as this is the captured context); for a server application, it generally runs on a ThreadPool thread, but not necessarily the same thread as the one it started.
+
+Remember, in most cases, async doesn't mean concurrent or multi-threaded. Async methods don't require multithreading because an async method doesn't run on its own thread. The method runs on the current synchronization context and uses time on the thread only when the method is active.
+
+You can use `Task.Run` to queue work on the ThreadPool if you want to use separate threads for CPU-bound work.
+====
+
+=== How to understand "Async methods don't require multithreading because an async method doesn't run on its own thread."?
+
+[TIP]
+====
++++>+++ How to understand "Async methods don't require multithreading because an async method doesn't run on its own thread."?
+
++++*+++ In asynchronous programming, the fundamental misunderstanding is often thinking that "asynchronous" automatically means "on a different thread". This is not strictly true.
+
+When you mark a method with `async`, all this does is allow the use of the `await` keyword in the method, it doesn't inherently create a new thread for the method to run on.
+
+An `async` method starts running on the same thread, because invoking an `async` method is just like invoking any regular method. So when an `async` method is called, it runs on the current thread in a synchronous manner until it encounters an `await` that applies to a task which has not yet completed.
+
+At that point, assuming the task being awaited has not yet completed, the method yields and the remainder of the method is turned into a continuation that will be invoked once the awaited operation completes. What's important to understand here is that the continuation does not have to run on the same thread where it left off - it could run on whatever thread the completed task calls back on.
+
+So an `async` method doesn't require multithreading because it typically offloads I/O-bound work or CPU-bound work rather than running its own ongoing work on a dedicated thread.
+
+However, if you were to use `Task.Run` within an `async` method, that would indeed use a separate thread from the thread pool to perform the function passed to `Task.Run`, thereby enabling multithreading.
+
+So to sum it up, `async` does not create additional threads. It simply provides a mechanism to better utilize the threads by allowing them to perform other work instead of sitting idle when waiting for operations to complete.
+====
+
+=== Can the async/await improve the responsiveness on ASP.NET Core?
+
+[TIP]
+====
++++>+++ Can the async/await improve the responsiveness on ASP.NET Core?
+
++++*+++ Yes, utilizing `async` and `await` in ASP.Net Core can drastically improve application responsiveness, especially when dealing with I/O-bound operations like database calls, file reads, or API requests.
+
+The primary benefit of using `async` and `await` in ASP.Net Core is not faster execution of individual requests, but rather the ability to handle more concurrent requests with the same resources. This happens because `async` and `await` enable your application to free up threads when they would otherwise be blocked, waiting for I/O-bound tasks to complete.
+
+In a synchronous ASP.NET Core application without `async`/`await`, each incoming request is handled by a dedicated thread from the ThreadPool. If the request requires I/O-bound operation like a database query or an external API call, that thread sits idle and waits for the operation to complete, which is a waste of resources.
+
+In ASP.NET Core, when you use async methods and await async tasks, the thread handling the request can be used for starting another request as soon as it enters a waiting state (awaiting I/O-bound operation).
+
+So by leveraging `async` and `await` in your ASP.NET Core applications, the overall resource usage becomes more efficient and your application can handle more concurrent clients/requests. This can lead to greater scalability of your application and also, in many cases, to a better user experience through increased responsiveness.
+====
+
+[TIP]
+====
++++>+++ It seems that it is because the I/O operations are offloaded from the current thread, and release the CPU capacity. But who should
+be in charge of the I/O operations?
+
++++*+++ Yes, that's correct. The benefit of `async`/`await` for I/O operations is to free up the current thread, rather than waiting for the I/O operation to complete. The CPU is then free to do other work.
+
+The operating system is in charge of coordinating and managing I/O operations. When you start an I/O-bound operation, like reading from disk or making a network request, the request is sent to the operating system. The operating system takes care of the actual I/O operation, interfacing with the necessary hardware, like the disk or network card.
+
+From your application's perspective, once you start an I/O operation and `await` the returned task, your application doesn't need to worry about the operation anymore. It gets a notification (in the form of the awaited task completing) when the operation is done.
+
+So you can think of I/O-bound `async` operations as being "offloaded" to the operating system. Your application doesn't need to use a thread to wait for the I/O operation to complete, making it available for other work. This is the key benefit of asynchrony for I/O-bound operations.
+====
+
+[TIP]
+====
++++>+++ Actually, if we use sync methods, the current thread will be in wait status for the I/O. but it  still can free up CPU.
+
++++*+++ Yes, you're correct. Even with synchronous I/O operations, the CPU isn't actively engaged the whole time. The operating system still manages the I/O operation, and the CPU is freed up to perform other tasks. However, the key difference lies in the usage of threads.
+
+In synchronous operations, the thread performing the operation goes into a wait state and cannot be used for anything else. This means the application can handle fewer concurrent operations, as it might run out of available threads if multiple I/O operations are waiting to complete.
+
+With asynchronous operations using `async`/`await`, after initiating the I/O operation, the thread is freed up entirely - it doesn't enter a wait state. Instead, it can be returned to the thread pool and used to service other incoming requests. This is what makes `async`/`await` so beneficial in a scenario handling many concurrent I/O-bound operations, such as a server application.
+
+So while both sync and async free up CPU during I/O operations, async also allows for the thread to be reused during this time, leading to more efficient utilization of system resources.
+====
+
+[TIP]
+====
++++>+++ This is the non-blocking I/O in essence?
+
++++*+++ Exactly, using `async`/`await` for I/O-bound operations is a form of non-blocking I/O.
+
+In blocking or synchronous I/O, the execution thread is halted—or "blocked"—until the I/O operation completes. This means the thread can't be used for any other tasks, regardless of how long the I/O operation takes.
+
+Non-blocking or asynchronous I/O, on the other hand, starts the I/O operation and then allows the execution thread to continue other tasks. It doesn't wait for the I/O operation to complete. Instead, it will be notified once the I/O operation is done, at which point it can proceed with any steps that depend on the result.
+
+Thus, by enabling non-blocking I/O, the `async`/`await` pattern can improve the scalability and responsiveness of applications, particularly in scenarios handling many concurrent I/O-bound operations, such as server applications or services.
+====
+
+[TIP]
+====
++++*+++ Here's a summary of the key points regarding the use of `async`/`await` from the ASP.NET Core section:
+
+1. **Improves Responsiveness**: Utilizing `async` and `await` in ASP.Net Core can drastically improve application responsiveness, particularly when dealing with I/O-bound operations like database calls, file reads, or API requests.
+
+2. **Enhances Scalability**: The primary benefit of using `async`/`await` in ASP.NET Core is to handle more concurrent requests with the same resources. This is achieved by freeing up threads, which would otherwise be blocked during I/O-bound tasks.
+
+3. **Operating System's Role**: In `async`/`await` programming, the operating system handles the actual I/O operation. The application receives a notification when the operation is complete, reducing the need for threads to wait.
+
+4. **Benefit of Async Over Sync**: While both synchronous and asynchronous operations free up the CPU, asynchronous programming also frees up threads. This allows them to be reused for other tasks, leading to more efficient utilization of system resources.
+
+5. **Non-Blocking I/O**: Using `async`/`await` for I/O-bound operations is a form of non-blocking I/O. The I/O operation is initiated, and the thread is then freed up to continue with other tasks. This is the crux of how `async`/`await` improves the scalability and responsiveness of applications.
+====
+
+=== Is there a SynchronizationContext on ASP.NET Core?
+
+[TIP]
+====
++++>+++ Is there a SynchronizationContext on ASP.NET Core?
+
++++*+++ No, there's no `SynchronizationContext` in ASP.NET Core.
+
+In traditional .NET Framework, `SynchronizationContext` is utilized to marshal operations back to the original context or thread, for instance, a particular thread in a desktop application that interacts with the user interface. This behavior is often necessary because UI updates must be performed on the main/UI thread.
+
+In ASP.NET Framework, `SynchronizationContext` is also used to provide a "request context" - meaning that after an `await`, you're back on the same request context.
+
+However, ASP.NET Core does not have a `SynchronizationContext`. It's designed to be efficient and scalable right from the start. In most Server applications, synchronization back to the original context is not necessary. Allowing the system to execute continuations on any available thread tends to be more efficient and doesn't block resources, which helps ASP.NET Core handle many requests simultaneously.
+
+With that said, developers need to be aware that the code after an `await` may be running on a different thread than the code before it. All access to the `HttpContext` needs to be before the `await` or within the `await` call to make sure the right context is accessed.
+====
 
 [bibliography]
 == References
