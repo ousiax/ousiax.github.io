@@ -1,0 +1,164 @@
+= Generics in .NET
+:page-layout: post
+:page-categories: ['dotnet']
+:page-tags: ['dotnet']
+:page-date: 2023-12-26 14:28:58 +0800
+:page-revdate: 2023-12-26 14:28:58 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+Generics let you tailor a method, class, structure, or interface to the precise data type it acts upon. For example, instead of using the `Hashtable` class, which allows keys and values to be of any type, you can use the `Dictionary<TKey,TValue>` generic class and specify the types allowed for the key and the value. Among the benefits of generics are increased code reusability and type safety. <<dotnet-standard-generics>>
+
+== Define and use generics
+
+Generics are classes, structures, interfaces, and methods that have placeholders (_type parameters_) for one or more of the types that they store or use. A generic collection class might use a type parameter as a placeholder for the type of objects that it stores. The type parameters appear as the types of its fields and the parameter types of its methods. A generic method might use its type parameter as the type of its return value or as the type of one of its formal parameters.
+
+The following code illustrates a simple generic class definition.
+
+[source,cs]
+----
+public class SimpleGenericClass<T>
+{
+    public T Field;
+}
+----
+
+When you create an instance of a generic class, you specify the actual types to substitute for the type parameters. This establishes a new generic class, referred to as a _constructed generic_ class, with your chosen types substituted everywhere that the type parameters appear. The result is a type-safe class that is tailored to your choice of types, as the following code illustrates.
+
+[source,cs]
+----
+public static void Main()
+{
+    SimpleGenericClass<string> g = new SimpleGenericClass<string>();
+    g.Field = "A string";
+    //...
+    Console.WriteLine("SimpleGenericClass.Field           = \"{0}\"", g.Field);
+    Console.WriteLine("SimpleGenericClass.Field.GetType() = {0}", g.Field.GetType().FullName);
+}
+----
+
+== Terminology
+
+The following terms are used to discuss generics in .NET:
+
+* A *generic type definition* is a class, structure, or interface declaration that functions as a template, with placeholders for the types that it can contain or use. For example, the `System.Collections.Generic.Dictionary<TKey,TValue>` class can contain two types: keys and values. Because a generic type definition is only a template, you cannot create instances of a class, structure, or interface that is a generic type definition.
+
+* Generic type parameters, or *type parameters*, are the placeholders in a generic type or method definition. The `System.Collections.Generic.Dictionary<TKey,TValue>` generic type has two type parameters, `TKey` and `TValue`, that represent the types of its keys and values.
+
+* A *constructed generic type*, or *constructed type*, is the result of specifying types for the generic type parameters of a generic type definition.
+
+* A *generic type argument* is any type that is substituted for a generic type parameter.
+
+* The general term *generic type* includes both constructed types and generic type definitions.
+
+* *Covariance* and *contravariance* of generic type parameters enable you to use constructed generic types whose type arguments are more derived (covariance) or less derived (contravariance) than a target constructed type. Covariance and contravariance are collectively referred to as *variance*.
+
+* *Constraints* are limits placed on generic type parameters. For example, you might limit a type parameter to types that implement the `System.Collections.Generic.IComparer<T>` generic interface, to ensure that instances of the type can be ordered. You can also constrain type parameters to types that have a particular base class, that have a parameterless constructor, or that are reference types or value types. Users of the generic type cannot substitute type arguments that do not satisfy the constraints.
+
+* A *generic method definition* is a method with two parameter lists: a list of generic type parameters and a list of formal parameters. Type parameters can appear as the return type or as the types of the formal parameters, as the following code shows.
++
+[source,cs]
+----
+T MyGenericMethod<T>(T arg)
+{
+    T temp = arg;
+    //...
+    return temp;
+}
+----
++
+Generic methods can appear on generic or nongeneric types. It's important to note that a method is not generic just because it belongs to a generic type, or even because it has formal parameters whose types are the generic parameters of the enclosing type. _A method is generic only if it has its own list of type parameters._ In the following code, only method G is generic.
++
+[source,cs]
+----
+class A
+{
+    T G<T>(T arg)
+    {
+        T temp = arg;
+        //...
+        return temp;
+    }
+}
+
+class MyGenericClass<T>
+{
+    T M(T arg)
+    {
+        T temp = arg;
+        //...
+        return temp;
+    }
+}
+----
+
+== Advantages and disadvantages of generics
+
+There are many advantages to using generic collections and delegates:
+
+* Type safety. Generics shift the burden of type safety from you to the compiler. There is no need to write code to test for the correct data type because it is enforced at compile time. The need for type casting and the possibility of run-time errors are reduced.
+
+* Less code and code is more easily reused. There is no need to inherit from a base type and override members. For example, the `LinkedList<T>` is ready for immediate use. For example, you can create a linked list of strings with the following variable declaration:
++
+[source,cs]
+----
+LinkedList<string> llist = new LinkedList<string>();
+----
+
+* Better performance. Generic collection types generally perform better for storing and manipulating value types because there is no need to box the value types.
++
+> https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/types/boxing-and-unboxing[Boxing and Unboxing (C# Programming Guide)]
+>
+> Boxing is the process of converting a value type to the type object or to any interface type implemented by this value type. When the common language runtime (CLR) boxes a value type, it wraps the value inside a `System.Object` instance and stores it on the _managed heap_. Unboxing extracts the value type from the object. Boxing is implicit; unboxing is explicit. The concept of boxing and unboxing underlies the C# unified view of the type system in which a value of any type can be treated as an object.
+
+* Generic delegates enable type-safe callbacks without the need to create multiple delegate classes. For example, the `Predicate<T>` generic delegate allows you to create a method that implements your own search criteria for a particular type and to use your method with methods of the `Array` type such as `Find`, `FindLast`, and `FindAll`.
+
+* Generics streamline dynamically generated code. When you use generics with dynamically generated code you do not need to generate the type. This increases the number of scenarios in which you can use lightweight dynamic methods instead of generating entire assemblies.
+
+The following are some limitations of generics:
+
+* Generic types can be derived from most base classes, such as `MarshalByRefObject` (and constraints can be used to require that generic type parameters derive from base classes like `MarshalByRefObject`). However, .NET does not support context-bound generic types. A generic type can be derived from `ContextBoundObject`, but trying to create an instance of that type causes a `TypeLoadException`.
+
+* Enumerations cannot have generic type parameters. An enumeration can be generic only incidentally (for example, because it is nested in a generic type that is defined using Visual Basic, C#, or C++).
+
+* Lightweight dynamic methods cannot be generic.
++
+In Visual Basic, C#, and C++, a nested type that is enclosed in a generic type cannot be instantiated unless types have been assigned to the type parameters of all enclosing types. Another way of saying this is that in reflection, a nested type that is defined using these languages includes the type parameters of all its enclosing types. This allows the type parameters of enclosing types to be used in the member definitions of a nested type.
+
+[apendix]
+== FAQs
+
+=== Why the value type need NOT to be boxed in a generic collection in .NET?
+
+[TIP]
+====
++++>+++ Why the value type need NOT to be boxed in a generic collection in .NET?
+
++++*+++ In .NET, boxing is the process of converting a value type to a reference type, this involves creating a new object on the heap and copying the value into the new object. Unboxing is the reverse process, which can be costly in terms of performance.
+
+When using a generic collection, like `List<T>`, there's no need to box the value types because generics are type-safe and can hold any type of data without converting them to an object.
+
+Generics in .NET use a mechanism called 'reified generics', which means that the system knows the actual types a generic class was instantiated with, even at runtime. It uses this information to directly allocate and deallocate memory for the values in the collection, avoiding the need to box and unbox value types.
+
+That's one of the key benefits of utilizing generics in .NET: they allow you to enforce type safety without incurring the performance cost of boxing and unboxing for value types.
+====
+
+=== With reified generics, the mememory would be still allocated on mananged heap?
+
+[TIP]
+====
++++>+++ With reified generics, the mememory would be still allocated on mananged heap?
+
++++*+++ Yes, the memory for any object, including those constructed using generic types, is still allocated on the managed heap in .NET. However, the point of difference lies in how these objects are managed.
+
+With reference types, an object is created on the heap and a reference to this object is used to access it. Value types, on the other hand, hold their value directly. When value types are used in a generic collection, a consecutive block of memory is allocated on the heap for the collection to store the actual values directly rather than references to the values. This optimization contributes to both the performance speed and reduction of pressure on the garbage collector.
+
+The mechanism 'reified generics' helps to keep the information about the specific type that a generic type was instantiated with, and this helps in efficient memory allocation and type safety at runtime.
+====
+
+[bibliography]
+== References
+
+* [[[dotnet-standard-generics,1]]] https://learn.microsoft.com/en-us/dotnet/standard/generics/
