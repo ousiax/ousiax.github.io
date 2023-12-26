@@ -43,21 +43,21 @@ public static void Main()
 
 The following terms are used to discuss generics in .NET:
 
-* A *generic type definition* is a class, structure, or interface declaration that functions as a template, with placeholders for the types that it can contain or use. For example, the `System.Collections.Generic.Dictionary<TKey,TValue>` class can contain two types: keys and values. Because a generic type definition is only a template, you cannot create instances of a class, structure, or interface that is a generic type definition.
+* A _generic type definition_ is a class, structure, or interface declaration that functions as a template, with placeholders for the types that it can contain or use. For example, the `System.Collections.Generic.Dictionary<TKey,TValue>` class can contain two types: keys and values. Because a generic type definition is only a template, you cannot create instances of a class, structure, or interface that is a generic type definition.
 
-* Generic type parameters, or *type parameters*, are the placeholders in a generic type or method definition. The `System.Collections.Generic.Dictionary<TKey,TValue>` generic type has two type parameters, `TKey` and `TValue`, that represent the types of its keys and values.
+* _Generic type parameters_, or _type parameters_, are the placeholders in a generic type or method definition. The `System.Collections.Generic.Dictionary<TKey,TValue>` generic type has two type parameters, `TKey` and `TValue`, that represent the types of its keys and values.
 
-* A *constructed generic type*, or *constructed type*, is the result of specifying types for the generic type parameters of a generic type definition.
+* A _constructed generic type_, or _constructed type_, is the result of specifying types for the generic type parameters of a generic type definition.
 
-* A *generic type argument* is any type that is substituted for a generic type parameter.
+* A _generic type argument_ is any type that is substituted for a generic type parameter.
 
-* The general term *generic type* includes both constructed types and generic type definitions.
+* The general term _generic type_ includes both constructed types and generic type definitions.
 
-* *Covariance* and *contravariance* of generic type parameters enable you to use constructed generic types whose type arguments are more derived (covariance) or less derived (contravariance) than a target constructed type. Covariance and contravariance are collectively referred to as *variance*.
+* _Covariance_ and _contravariance_ of generic type parameters enable you to use constructed generic types whose type arguments are more derived (covariance) or less derived (contravariance) than a target constructed type. Covariance and contravariance are collectively referred to as *variance*.
 
-* *Constraints* are limits placed on generic type parameters. For example, you might limit a type parameter to types that implement the `System.Collections.Generic.IComparer<T>` generic interface, to ensure that instances of the type can be ordered. You can also constrain type parameters to types that have a particular base class, that have a parameterless constructor, or that are reference types or value types. Users of the generic type cannot substitute type arguments that do not satisfy the constraints.
+* _Constraints_ are limits placed on generic type parameters. For example, you might limit a type parameter to types that implement the `System.Collections.Generic.IComparer<T>` generic interface, to ensure that instances of the type can be ordered. You can also constrain type parameters to types that have a particular base class, that have a parameterless constructor, or that are reference types or value types. Users of the generic type cannot substitute type arguments that do not satisfy the constraints.
 
-* A *generic method definition* is a method with two parameter lists: a list of generic type parameters and a list of formal parameters. Type parameters can appear as the return type or as the types of the formal parameters, as the following code shows.
+* A _generic method definition_ is a method with two parameter lists: a list of generic type parameters and a list of formal parameters. Type parameters can appear as the return type or as the types of the formal parameters, as the following code shows.
 +
 [source,cs]
 ----
@@ -127,6 +127,212 @@ The following are some limitations of generics:
 +
 In Visual Basic, C#, and C++, a nested type that is enclosed in a generic type cannot be instantiated unless types have been assigned to the type parameters of all enclosing types. Another way of saying this is that in reflection, a nested type that is defined using these languages includes the type parameters of all its enclosing types. This allows the type parameters of enclosing types to be used in the member definitions of a nested type.
 
+== Covariance and contravariance
+
+:wiki_covariance_and_contravariance_: https://en.wikipedia.org/wiki/Covariance_and_contravariance_(computer_science)
+
+> Liskov's notion of a behavioural subtype defines a notion of substitutability for objects; that is, if S is a subtype of T, then objects of type T in a program may be replaced with objects of type S without altering any of the desirable properties of that program (e.g. correctness). <<liskov_substitution_principle>>
+>
+> _Liskov substitution principle_ imposes some standard requirements on signatures that have been adopted in newer object-oriented programming languages (usually at the level of classes rather than types):
+> 
+> * {wiki_covariance_and_contravariance_}[Contravariance] of method parameter types in the subtype.
+> * {wiki_covariance_and_contravariance_}[Covariance] of method return types in the subtype.
+> * New exceptions cannot be thrown by the methods in the subtype, except if they are subtypes of exceptions thrown by the methods of the supertype.
+
+_Covariance_ and _contravariance_ are terms that refer to the ability to use a more derived type (more specific) or a less derived type (less specific) than originally specified. Generic type parameters support covariance and contravariance to provide greater flexibility in assigning and using generic types. <<dotnet-standard-generics-covariance-and-contravariance>>
+
+When you're referring to a type system, _covariance_, _contravariance_, and _invariance_ have the following definitions. The examples assume a base class named `Base` and a derived class named `Derived`.
+
+* Covariance
++
+Enables you to use a more derived type than originally specified.
++
+You can assign an instance of `IEnumerable<Derived>` to a variable of type `IEnumerable<Base>`.
+
+* Contravariance
++
+Enables you to use a more generic (less derived) type than originally specified.
++
+You can assign an instance of `Action<Base>` to a variable of type `Action<Derived>`.
+
+* Invariance
++
+Means that you can use only the type originally specified. An invariant generic type parameter is neither covariant nor contravariant.
++
+You cannot assign an instance of `List<Base>` to a variable of type `List<Derived>` or vice versa.
+
+Covariant type parameters enable you to make assignments that look much like ordinary _Polymorphism_, as shown in the following code.
+
+[source,cs]
+----
+IEnumerable<Derived> d = new List<Derived>();
+IEnumerable<Base> b = d;
+----
+
+Contravariance, on the other hand, seems counterintuitive.
+
+[source,cs]
+----
+Action<Base> b = (target) => { Console.WriteLine(target.GetType().Name); };
+Action<Derived> d = b;
+d(new Derived());
+----
+
+In general, a covariant type parameter can be used as the return type of a delegate, and contravariant type parameters can be used as parameter types. For an interface, covariant type parameters can be used as the return types of the interface's methods, and contravariant type parameters can be used as the parameter types of the interface's methods.
+
+Covariance and contravariance are collectively referred to as _variance_. A generic type parameter that is not marked covariant or contravariant is referred to as _invariant_. A brief summary of facts about variance in the common language runtime:
+
+* Variant type parameters are restricted to generic interface and generic delegate types.
+
+* A generic interface or generic delegate type can have both covariant and contravariant type parameters.
+
+* Variance applies only to reference types; if you specify a value type for a variant type parameter, that type parameter is invariant for the resulting constructed type.
+
+* Variance does not apply to delegate combination. That is, given two delegates of types `Action<Derived>` and `Action<Base>` (`Action(Of Derived)` and `Action(Of Base)` in Visual Basic), you cannot combine the second delegate with the first although the result would be type safe. Variance allows the second delegate to be assigned to a variable of type `Action<Derived>`, but delegates can combine only if their types match exactly.
+
+* Starting in https://devblogs.microsoft.com/dotnet/welcome-to-c-9-0/[C# 9], covariant return types are supported. An overriding method can declare a more derived return type the method it overrides, and an overriding, read-only property can declare a more derived type.
++
+[source,cs]
+----
+abstract class Animal
+{
+    public abstract Food GetFood();
+    ...
+}
+class Tiger : Animal
+{
+    public override Meat GetFood() => ...;
+}
+----
+
+A covariant type parameter is marked with the `out` keyword (`Out` keyword in Visual Basic).
+
+* You can use a covariant type parameter as the return value of a method that belongs to an interface, or as the return type of a delegate.
++
+[NOTE]
+====
+If a method of an interface has a parameter that is a generic delegate type, a covariant type parameter of the interface type can be used to specify a contravariant type parameter of the delegate type.
+
+[source,cs]
+----
+interface ICovariant<out R>
+{
+    void DoSomething(Action<R> callback);
+}
+----
+====
+
+* You cannot use a covariant type parameter as a generic type constraint for interface methods. <<creating-variant-generic-interfaces>>
++
+[source,cs]
+----
+interface ICovariant<out R>
+{
+    // The following statement generates a compiler error
+    // because you can use only contravariant or invariant types
+    // in generic constraints.
+    // void DoSomething<T>() where T : R;
+}
+----
+
+A contravariant type parameter is marked with the `in` keyword (`In` keyword in Visual Basic).
+
+* You can use a contravariant type parameter as the type of a parameter of a method that belongs to an interface, or as the type of a parameter of a delegate.
+
+* You can use a contravariant type parameter as a generic type constraint for an interface method.
++
+[source,cs]
+----
+interface IContravariant<in A>
+{
+    void SetSomething(A sampleArg);
+    void DoSomething<T>() where T : A;
+    // The following statement generates a compiler error.
+    // A GetSomething();
+}
+----
+
+An interface or delegate type can have both covariant and contravariant type parameters.
+
+[source,cs]
+----
+public delegate TResult Func<in T, out TResult>(T arg)
+----
+
+TIP: _Only interface types and delegate types can have variant type parameters._
+
+== Generics in the runtime
+
+When a generic type or method is compiled into Microsoft intermediate language (MSIL), it contains metadata that identifies it as having type parameters. How the MSIL for a generic type is used differs based on whether the supplied type parameter is a value type or reference type. <<csharp-generics-in-the-run-time>>
+
+When a generic type is first constructed with a value type as a parameter, the runtime creates a specialized generic type with the supplied parameter or parameters substituted in the appropriate locations in the MSIL. Specialized generic types are created one time for each unique value type that is used as a parameter.
+
+However, suppose a different value type as its parameter is created at another point, the runtime generates another version of the generic type and substitutes the type arguments in the appropriate locations in MSIL. Conversions are no longer necessary because each specialized generic class natively contains the value type.
+
+The first time a generic type is constructed with any reference type, the runtime creates a specialized generic type with object references substituted for the parameters in the MSIL. Then, every time that a constructed type is instantiated with a reference type as its parameter, regardless of what type it is, the runtime reuses the previously created specialized version of the generic type. This is possible because all references are the same size.
+
+Because the number of reference types can vary wildly from program to program, the C# implementation of generics greatly reduces the amount of code by reducing to one the number of specialized classes created by the compiler for generic classes of reference types.
+
+Moreover, when a generic C# class is instantiated by using a value type or reference type parameter, reflection can query it at run time and both its actual type and its type parameter can be ascertained.
+
+[TIP]
+====
+The runtime creates specific versions of the generic type based on the actual types used to instantiate the generic type. For example, if you have a List<T> and you create a `List<int>` and a `List<double>`, the CLR will create two separate versions of the List class, one for each of those value types.
+
+When you instantiate the generic type with a reference type, like `List<string>` or `List<object>`, the CLR reuses the same version of the List class that it has already created for reference types.
+
+However, the .NET CLR maintains type safety by treating these as separate types at the type system level, even though the underlying implementation is the same.
+====
+
+== Reflection and Generic Types
+
+From the point of view of reflection, the difference between a generic type and an ordinary type is that a generic type has associated with it a set of type parameters (if it is a generic type definition) or type arguments (if it is a constructed type). A generic method differs from an ordinary method in the same way. <<dotnet-codedom-reflection-and-generic-types>>
+
+:system-type: https://learn.microsoft.com/en-us/dotnet/api/system.type
+:system-reflection-methodinfo: https://learn.microsoft.com/en-us/dotnet/api/system.reflection.methodinfo
+
+There are two keys to understanding how reflection handles generic types and methods:
+
+* The type parameters of generic type definitions and generic method definitions are represented by instances of the {system-type}[Type] class.
+
+* If an instance of {system-type}[Type] represents a generic type, then it includes an array of types that represent the type parameters (for generic type definitions) or the type arguments (for constructed types). The same is true of an instance of the {system-reflection-methodinfo}[MethodInfo] class that represents a generic method.
+
+TIP: A generic type or method is closed if instantiable types have been substituted for all its type parameters, including all the type parameters of all enclosing types. You can only create an instance of a generic type if it is closed.
+
+[source,cs]
+----
+WriteLine(typeof(Dictionary<,>));
+WriteLine(typeof(MySet<>));
+WriteLine(typeof(MySet<int>));
+MySet<int> mySet = (MySet<int>)typeof(MySet<int>).GetConstructor([])!.Invoke(null);
+mySet.AddRange([1, 2, 1, 1, 2, 1, 1, 2, 3, 4]);
+mySet.Keys.ToList().ForEach(Console.WriteLine);
+
+static void WriteLine(Type type)
+{
+    string message = string.Format("{0} {1,-31} {2}",
+        $"IsGenericType: {type.IsGenericType}.",
+        $"IsGenericTypeDefinition: {type.IsGenericTypeDefinition}.",
+        $"Open or Closed: {(type.ContainsGenericParameters ? "Open" : "Closed")}.");
+    Console.WriteLine(message);
+}
+
+class MySet<E> : Dictionary<E, bool> where E : notnull
+{
+    public void AddRange(params E[] items) => Array.ForEach(items, Add);
+
+    public void Add(E e) { if (ContainsKey(e)) return; Add(e, true); }
+}
+// $ dotnet run
+// IsGenericType: True.IsGenericTypeDefinition: True.Open or Closed: Open.
+// IsGenericType: True.IsGenericTypeDefinition: True.Open or Closed: Open.
+// IsGenericType: True.IsGenericTypeDefinition: False.Open or Closed: Closed.
+// 1
+// 2
+// 3
+// 4
+----
+
 [apendix]
 == FAQs
 
@@ -162,3 +368,8 @@ The mechanism 'reified generics' helps to keep the information about the specifi
 == References
 
 * [[[dotnet-standard-generics,1]]] https://learn.microsoft.com/en-us/dotnet/standard/generics/
+* [[[dotnet-standard-generics-covariance-and-contravariance,2]]] https://learn.microsoft.com/en-us/dotnet/standard/generics/covariance-and-contravariance
+* [[[liskov_substitution_principle,3]]] https://en.wikipedia.org/wiki/Liskov_substitution_principle
+* [[[creating-variant-generic-interfaces,4]]] https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/covariance-contravariance/creating-variant-generic-interfaces
+* [[[csharp-generics-in-the-run-time,5]]] https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/generics/generics-in-the-run-time
+* [[[dotnet-codedom-reflection-and-generic-types,6]]] https://learn.microsoft.com/en-us/dotnet/framework/reflection-and-codedom/reflection-and-generic-types
