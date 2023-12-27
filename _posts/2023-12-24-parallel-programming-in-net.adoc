@@ -911,6 +911,103 @@ for (int i = 0; i < 2; i++)
 // Sequential : 2743226084, 429ms
 ----
 
+=== Parallel LINQ (PLINQ)
+
+:dotnet-csharp-linq: https://learn.microsoft.com/en-us/dotnet/csharp/linq/
+
+{dotnet-csharp-linq}[Language-Integrated Query (LINQ)] is the name for a set of technologies based on the integration of query capabilities directly into the C# language.
+
+Traditionally, queries against data are expressed as simple strings without type checking at compile time or IntelliSense support. Furthermore, you have to learn a different query language for each type of data source: SQL databases, XML documents, various Web services, and so on.
+
+With LINQ, a query is a first-class language construct, just like classes, methods, and events. <<dotnet-csharp-linq>>
+
+* In-memory data
++
+There are two ways you enable LINQ querying of in-memory data. If the data is of a type that implements `IEnumerable<T>`, you query the data by using LINQ to Objects. If it doesn't make sense to enable enumeration by implementing the `IEnumerable<T>` interface, you define LINQ standard query operator methods, either in that type or as _extension methods_ for that type. Custom implementations of the standard query operators should use deferred execution to return the results.
+
+* Remote data
++
+The best option for enabling LINQ querying of a remote data source is to implement the `IQueryable<T>` interface.
+
+[TIP]
+====
+At compile time, _query expressions_ are converted to _standard query operator_ method calls according to the rules defined in the C# specification. Any query that can be expressed by using _query syntax_ can also be expressed by using _method syntax_. In some cases, query syntax is more readable and concise. In others, method syntax is more readable. There's no semantic or performance difference between the two different forms.
+
+[source,cs]
+----
+string sentence = "the quick brown fox jumps over the lazy dog";
+// Split the string into individual words to create a collection.
+string[] words = sentence.Split(' ');
+
+// Using query expression syntax.
+var query = from word in words
+            group word.ToUpper() by word.Length into gr
+            orderby gr.Key
+            select new { Length = gr.Key, Words = gr };
+
+// Using method-based query syntax.
+var query2 = words.
+    GroupBy(w => w.Length, w => w.ToUpper()).
+    Select(g => new { Length = g.Key, Words = g }).
+    OrderBy(o => o.Length);
+
+foreach (var obj in query)
+{
+    Console.WriteLine("Words of length {0}:", obj.Length);
+    foreach (string word in obj.Words)
+        Console.WriteLine(word);
+}
+----
+====
+
+:introduction-to-plinq: https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/introduction-to-plinq
+
+{introduction-to-plinq}[Parallel LINQ (PLINQ)] is a parallel implementation of the {dotnet-csharp-linq}[Language-Integrated Query (LINQ)] pattern. PLINQ implements the full set of LINQ standard query operators as extension methods for the System.Linq namespace and has additional operators for parallel operations. PLINQ combines the simplicity and readability of LINQ syntax with the power of parallel programming. <<introduction-to-plinq>>
+
+A PLINQ query in many ways resembles a non-parallel LINQ to Objects query. PLINQ queries, just like sequential LINQ queries, operate on any in-memory `IEnumerable` or `IEnumerable<T>` data source, and have deferred execution, which means they do not begin executing until the query is enumerated. The primary difference is that PLINQ attempts to make full use of all the processors on the system. It does this by partitioning the data source into segments, and then executing the query on each segment on separate worker threads in parallel on multiple processors. In many cases, parallel execution means that the query runs significantly faster.
+
+:system-linq-parallelenumerable: https://learn.microsoft.com/en-us/dotnet/api/system.linq.parallelenumerable
+
+The {system-linq-parallelenumerable}[System.Linq.ParallelEnumerable] class exposes almost all of PLINQ's functionality, includes implementations of all the standard query operators that LINQ to Objects supports, although it does not attempt to parallelize each one.
+
+In addition to the standard query operators, the {system-linq-parallelenumerable}[ParallelEnumerable] class contains a set of methods that enable behaviors specific to parallel execution. These PLINQ-specific methods are listed in the following table.
+
+[%hearder,cols="3,8"]
+|===
+|ParallelEnumerable Operator
+|Description
+
+|`AsParallel`
+|The entry point for PLINQ. Specifies that the rest of the query should be parallelized, if it is possible.
+
+|`AsSequential`
+|Specifies that the rest of the query should be run sequentially, as a non-parallel LINQ query.
+
+|`AsOrdered`
+|Specifies that PLINQ should preserve the ordering of the source sequence for the rest of the query, or until the ordering is changed, for example by the use of an orderby (Order By in Visual Basic) clause.
+
+|`AsUnordered`
+|Specifies that PLINQ for the rest of the query is not required to preserve the ordering of the source sequence.
+
+|`WithCancellation`
+|Specifies that PLINQ should periodically monitor the state of the provided cancellation token and cancel execution if it is requested.
+
+|`WithDegreeOfParallelism`
+|Specifies the maximum number of processors that PLINQ should use to parallelize the query.
+
+|`WithMergeOptions`
+|Provides a hint about how PLINQ should, if it is possible, merge parallel results back into just one sequence on the consuming thread.
+
+|`WithExecutionMode`
+|Specifies whether PLINQ should parallelize the query even when the default behavior would be to run it sequentially.
+
+|`ForAll`
+|A multithreaded enumeration method that, unlike iterating over the results of the query, enables results to be processed in parallel without first merging back to the consumer thread.
+
+|`Aggregate` overload
+|An overload that is unique to PLINQ and enables intermediate aggregation over thread-local partitions, plus a final aggregation function to combine the results of all partitions.
+|===
+
 === Task-based asynchronous programming
 
 :system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
@@ -1574,3 +1671,5 @@ With that said, developers need to be aware that the code after an `await` may b
 * [[[task-asynchronous-programming-model,16]]] https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/task-asynchronous-programming-model
 * [[[how-async-await-really-works,17]]] https://devblogs.microsoft.com/dotnet/how-async-await-really-works/
 * [[[configureawait-faq,18]]] https://devblogs.microsoft.com/dotnet/configureawait-faq/
+* [[[dotnet-csharp-linq,19]]] https://learn.microsoft.com/en-us/dotnet/csharp/linq/
+* [[[introduction-to-plinq,20]]] https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/introduction-to-plinq
