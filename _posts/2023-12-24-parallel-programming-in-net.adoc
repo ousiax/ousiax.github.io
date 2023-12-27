@@ -1008,6 +1008,52 @@ In addition to the standard query operators, the {system-linq-parallelenumerable
 |An overload that is unique to PLINQ and enables intermediate aggregation over thread-local partitions, plus a final aggregation function to combine the results of all partitions.
 |===
 
+[source,cs]
+----
+IEnumerable<string> files = Directory.EnumerateFiles("/usr/share/man", "*.gz", SearchOption.AllDirectories);
+
+Stopwatch sw = Stopwatch.StartNew();
+for (int i = 0; i < 2; i++)
+{
+    sw.Restart();
+    var parallelLetters = files.AsParallel()
+        .Select(SplitLetters)
+        .SelectMany(w => w)
+        .GroupBy(char.ToLower)
+        .OrderByDescending(g => g.Count())
+        .First();
+    Console.WriteLine($"Parallel: {parallelLetters.Key}: {parallelLetters.Count()}, {sw.ElapsedMilliseconds}ms");
+
+    sw.Restart();
+    var sequentialLetters = files // .AsParallel().AsSequential()
+        .Select(SplitLetters)
+        .SelectMany(w => w)
+        .GroupBy(char.ToLower)
+        .OrderByDescending(g => g.Count())
+        .First();
+    Console.WriteLine($"Sequential: {sequentialLetters.Key}: {sequentialLetters.Count()}, {sw.ElapsedMilliseconds}ms");
+}
+
+static IEnumerable<char> SplitLetters(string fileName)
+{
+    using StreamReader reader = new StreamReader(fileName);
+    string? line;
+    while ((line = reader.ReadLine()) != null)
+    {
+        foreach (char c in line.ToCharArray())
+        {
+            if (char.IsLetter(c))
+                yield return c;
+        }
+    }
+}
+// $ dotnet run
+// Parallel: e: 251378, 2242ms
+// Sequential: e: 251378, 1996ms
+// Parallel: e: 251378, 1133ms
+// Sequential: e: 251378, 1824ms
+----
+
 === Task-based asynchronous programming
 
 :system-threading-threadpool: https://learn.microsoft.com/en-us/dotnet/api/system.threading.threadpool
