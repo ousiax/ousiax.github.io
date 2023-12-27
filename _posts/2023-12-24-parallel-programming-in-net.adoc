@@ -1696,6 +1696,48 @@ However, ASP.NET Core does not have a `SynchronizationContext`. It's designed to
 With that said, developers need to be aware that the code after an `await` may be running on a different thread than the code before it. All access to the `HttpContext` needs to be before the `await` or within the `await` call to make sure the right context is accessed.
 ====
 
+=== What's the diff of AsOrdered and AsUnordered in PLINQ?
+
+[TIP]
+====
++++>+++ What's the diff of AsOrdered and AsUnordered in PLINQ?
+
++++*+++ In PLINQ, the methods `AsOrdered` and `AsUnordered` are used to determine whether the original order of the source sequence should be preserved in the output.
+
+The `AsOrdered` method enforces that the output sequence will be in the same order as the input sequence. This means even though the operations may occur in parallel or out of order, the actual results are buffered and then delivered in the original order. This can impact performance due to the overhead of maintaining order.
+
+The `AsUnordered` method allows the output sequence to provide data as soon as it is calculated, regardless of the input sequence's original order. This means if the third item is processed before the second item, it can be returned before the second item.
+
+[source,cs]
+----
+var numbers = Enumerable.Range(1, 10);
+
+var squareNumbersOrdered = numbers.AsParallel().AsOrdered()
+                             .Select(n => { Thread.SpinWait(50_000 / n); return n * n; });
+
+var squareNumbersUnordered = numbers.AsParallel().AsUnordered()
+                             .Select(n => { Thread.SpinWait(50_000 / n); return n * n; });
+
+Console.WriteLine(string.Join(", ", squareNumbersOrdered));
+Console.WriteLine(string.Join(", ", squareNumbersUnordered));
+// $ dotnet run
+// 1, 4, 9, 16, 25, 36, 49, 64, 81, 100
+// 16, 49, 81, 25, 64, 100, 36, 1, 4, 9
+----
+
+It's important to note that by default, PLINQ tries to preserve the original order, so `AsUnordered` can be used when the order does not matter and you want to increase performance. If ordering is important, using `AsOrdered` makes this explicit, but could decrease performance due to the ordering requirement.
+
+Partitioning is the process in which PLINQ divides the source data into multiple chunks, or partitions, so that it can process them independently and concurrently on multiple cores.
+
+Order preservation affects this partitioning process:
+
+. **Ordered PLINQ queries (`AsOrdered`):** PLINQ partitions the input such that order is preserved. Each partition except for the first has to wait for its preceding partitions to finish before it produces its output. This introduces a synchronization delay but the ordering of data is maintained.
+
+. **Unordered PLINQ queries (`AsUnordered`):** PLINQ divides the input into multiple partitions, and each partition can produce and output its results independently of other partitions. This increases concurrency and performance, but data ordering is not preserved.
+
+Generally, if the order in which results are produced doesn't matter, you should use `AsUnordered` as it gives PLINQ more flexibility in how it performs partitioning and can often lead to better performance.
+====
+
 [bibliography]
 == References
 
