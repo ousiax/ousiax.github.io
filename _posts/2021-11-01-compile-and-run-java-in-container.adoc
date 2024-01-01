@@ -3,7 +3,7 @@
 :page-categories: ['java']
 :page-tags: ['java', 'jdk', 'maven', 'jvm', 'container', 'kubernetes', 'springboot']
 :page-date: 2021-11-01 13:12:53 +0800
-:page-revdate: Wed Dec 13 03:50:33 PM CST 2023
+:page-revdate: Mon Jan  1 03:20:19 PM CST 2024
 :sectnums:
 :toc:
 :toclevels: 5
@@ -1421,6 +1421,87 @@ The next section documents the directory layout expected by Maven and the direct
 |Project's readme
 |===
 
+=== Dependency management
+
+Maven avoids the need to discover and specify the libraries that your own dependencies require by including transitive dependencies automatically. In general, all dependencies of those projects are used in your project, as are any that the project inherits from its parents, or from its dependencies, and so on. <<mvndeps>>
+
+* Dependency mediation - this determines what version of an artifact will be chosen when multiple versions are encountered as dependencies.
++
+Maven picks the "nearest definition". That is, it uses the version of the closest dependency to your project in the tree of dependencies. You can always guarantee a version by declaring it explicitly in your project's POM. Note that if two dependency versions are at the same depth in the dependency tree, the first declaration wins.
+
+* Dependency management - this allows project authors to directly specify the versions of artifacts to be used when they are encountered in transitive dependencies or in dependencies where no version has been specified.
+
+* Dependency scope - this allows you to only include dependencies appropriate for the current stage of the build.
++
+Dependency scope is used to limit the transitivity of a dependency and to determine when a dependency is included in a classpath. There are 6 scopes: compile, provided, runtime, test, system and import.
+
+* Excluded dependencies - If project X depends on project Y, and project Y depends on project Z, the owner of project X can explicitly exclude project Z as a dependency, using the "exclusion" element.
+
+* Optional dependencies - If project Y depends on project Z, the owner of project Y can mark project Z as an optional dependency, using the "optional" element. When project X depends on project Y, X will depend only on Y and not on Y's optional dependency Z. The owner of project X may then explicitly add a dependency on Z, at her option. (It may be helpful to think of optional dependencies as "excluded by default.")
+
+Maven also provides `dependency:analyze` plugin goal for analyzing the dependencies: it helps making this best practice more achievable.
+
+[TIP]
+====
++++>+++ What's the dependencyManagement?
+
++++*+++ In Maven, the `dependencyManagement` section is a mechanism for centralizing dependency information. When you have a multi-module project, it can be used in the parent POM to manage the versions of dependencies. This ensures that all modules use the same versions of dependencies, which can help avoid potential conflicts or bugs due to different modules using different versions of the same dependency.
+
+In the `dependencyManagement` section, you list all the dependencies that might be used by the project (including its sub-modules), along with their versions. However, putting a dependency in the `dependencyManagement` of the parent POM does not mean that it will automatically be included in the all sub-modules. The sub-modules must still expressly declare the dependencies they are using in their own `<dependencies>` sections, though without versions.
+
+```xml
+<!-- In your parent POM's dependencyManagement section-->
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>com.mycompany</groupId>
+      <artifactId>my-library</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+
+<!-- And in your module's POM -->
+<dependencies>
+  <dependency>
+    <groupId>com.mycompany</groupId>
+    <artifactId>my-library</artifactId>
+  </dependency>
+</dependencies>
+```
+
+In the example above, the version of "my-library" will be managed by the parent POM, ensuring consistency across modules, but "my-library" will only be included in specific modules that call it in their `<dependencies>` section.
+
+This allows you to control versions from a central place. Additionally, if you need to update or change the versions, you only need to do it in one place rather than going through multiple POM files. It's a very effective way of managing and controlling what gets included in your build.
+====
+
+[TIP]
+====
++++>+++ What's the import scope?
+
++++*+++ The `import` scope is used in Maven for dependency management. It is only supported in a `<dependencyManagement>` section. The `import` scope is intended to be used when you have a multi-module project, where one module (typically the parent) defines dependency versions in its dependency management, and you'd like to import that version information into another project or module.
+
+The purpose of the `import` scope is not to include dependencies directly, but rather to pull in and use the dependency version information from another POM. Once the dependency information is pulled in, it becomes a part of the current POM's dependency management.
+
+For instance, consider the following use of `import` scope:
+
+```xml
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-dependencies</artifactId>
+      <version>2.3.4.RELEASE</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+```
+
+In this case, `spring-boot-dependencies` is a POM that contains a `<dependencyManagement>` section that lists various components and their versions. By using the `import` scope, the project importing it can include those versions as part of its own dependency management without explicitly listing each one. This helps in maintaining a consistent set of dependency versions across multiple projects or modules.
+====
+
 === Repositories
 
 :mvn-repositories: https://maven.apache.org/guides/introduction/introduction-to-repositories.html
@@ -2814,3 +2895,4 @@ Date: Tue, 02 Nov 2021 07:48:07 GMT
 * [[[k8scgroups,18]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
 * [[[mvndeplug,19]]] https://maven.apache.org/plugins/maven-dependency-plugin/
 * [[[baeldungmvndeplug,20]]] https://www.baeldung.com/maven-download-sources-javadoc
+* [[[mvndeps,21]]] https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html
