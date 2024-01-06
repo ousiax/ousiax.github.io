@@ -1,15 +1,16 @@
-= How to produce and consume events on Kafka with Spring Stream
-:page-layout: post
-:page-categories: ['spring']
-:page-tags: ['spring']
-:page-date: 2024-01-06 17:37:25 +0800
-:page-revdate: 2024-01-06 17:37:25 +0800
-:toc:
-:toclevels: 4
-:sectnums:
-:sectnumlevels: 4
+---
+layout: post
+title: How to produce and consume events on Kafka with Spring Stream
+date: 2020-11-18 16:07:04 +0800
+categories: ['spring']
+tags: ['spring']
+date: 2024-01-06 17:37:25 +0800
+---
 
-== How to produce and consume events on Kafka with Spring Stream?
+- TOC
+{:toc}
+
+## How to produce and consume events on Kafka with Spring Stream?
 
 > How to produce and consume events on Kafka with Spring Stream?
 
@@ -124,7 +125,7 @@ Now, you can run your Spring Boot application. It should be able to send and rec
 
 Remember, this is just a basic guide that covers the core concepts. There are more configurations and details that you can explore as per your use case. Make sure to refer to the official documentations for both Spring Cloud Stream and Apache Kafka.
 
-== What's the bindings and binder?
+## What's the bindings and binder?
 
 > What's the bindings and binder?
 
@@ -189,7 +190,7 @@ Here's the explanation for this:
 
 Remember that YAML files are whitespace and indentation sensitive. Misalignment may lead to an error or properties may not be assigned correctly.
 
-== What's the default binder meaning?
+## What's the default binder meaning?
 
 > What's the default binder meaning?
 
@@ -230,7 +231,7 @@ spring:
 ```
 In this example, `myOutputChannel` will use Kafka as the binder (as Kafka is defined as the default binder), and `myRabbitChannel` will use the RabbitMQ as the binder (as it's explicitly defined for this binding).
 
-== What if there is only ond binder like Kafka? Should we need to specify the defaultBinder explicitly?
+## What if there is only ond binder like Kafka? Should we need to specify the defaultBinder explicitly?
 
 > What if there is only ond binder like Kafka? Should we need to specify the defaultBinder explicitly?
 
@@ -256,7 +257,7 @@ In this case, `spring.cloud.stream.kafka.binder.brokers` property maps to the Ka
 
 Your application will use Kafka as the binder since it's the only binder available in the setup, and you don't need to specify it as a default binder explicitly.
 
-== The sample code you used by MessageChannel etc, nowdays SCS will use the spring cloud functions like Supplier, Consumer etc.
+## The sample code you used by MessageChannel etc, nowdays SCS will use the spring cloud functions like Supplier, Consumer etc.
 
 > The sample code you used by MessageChannel etc, nowdays SCS will use the spring cloud functions like Supplier, Consumer etc.
 
@@ -352,7 +353,7 @@ Moreover, when the application starts up, Spring Cloud Stream automatically sets
 
 Note: The Supplier function is generally used in source applications where you are producing messages and not consuming any.
 
-== What if we want to send a message manually, like when we receive a user login event on a Rest Controller?
+## What if we want to send a message manually, like when we receive a user login event on a Rest Controller?
 
 > What if we want to send a message manually, like when we receive a user login event on a Rest Controller?
 
@@ -402,7 +403,7 @@ spring:
 
 The `StreamBridge` utility provides a flexible way to produce messages from anywhere within your application, making it a great choice when you need to manually send messages in a Spring Cloud Stream application.
 
-== What if there are multiple functions, but used to be handle diff topics?
+## What if there are multiple functions, but used to be handle diff topics?
 
 > What if there are multiple functions, but used to be handle diff topics?
 
@@ -511,7 +512,7 @@ public Consumer<String> myConsumer() {
 
 You should use `myConsumer` in the `spring.cloud.function.definition`.
 
-== How to compiste functions to handle a topic?
+## How to compiste functions to handle a topic?
 
 > How to compiste functions to handle a topic?
 
@@ -549,7 +550,7 @@ Keep in mind, when composing functions:
 * Composing two or more consumers (`Consumer<A> | Consumer<B>`) or two or more suppliers (`Supplier<A> | Supplier<B>`) is not valid as per Spring Cloud Stream documentation because the supplier does not consume any input, and the consumer does not produce any output.
 * If message types do not match, a converter can be used to typecast them.
 
-== How does the composite functions to be bound to a destination?
+## How does the composite functions to be bound to a destination?
 
 > How does the composite functions to be bound to a destination?
 
