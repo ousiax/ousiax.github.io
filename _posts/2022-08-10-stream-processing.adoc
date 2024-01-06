@@ -3,7 +3,7 @@
 :page-categories: ['data']
 :page-tags: ['data', 'stream processing', 'kafka']
 :page-date: 2022-08-10 08:29:55 +0800
-:page-revdate: 2022-08-10 08:29:55 +0800
+:page-revdate: Sat Jan  6 02:33:00 PM CST 2024
 :toc: preamble
 :toclevels: 3
 :sectnums:
@@ -570,6 +570,121 @@ Exactly-once semantics is the most desirable guarantee, but also a poorly unders
 +
 For instance, if after consuming a message successfully you rewind your Kafka consumer to a previous offset, you will receive all the messages from that offset to the latest one, all over again. This shows why the messaging system and the client application must cooperate to make exactly-once semantics happen.
 
+=== What is Confluent Platform?
+
+Confluent Platform is a full-scale data streaming platform that enables you to easily access, store, and manage data as continuous, real-time streams. Built by the original creators of Apache Kafka®, Confluent expands the benefits of Kafka with enterprise-grade features while removing the burden of Kafka management or monitoring.
+
+:cp-versions-interoperability: https://docs.confluent.io/platform/current/installation/versions-interoperability.html
+
+.{cp-versions-interoperability}[Confluent Platform and Apache Kafka compatibility]
+[%header,cols="1,1,1,1,1"]
+|===
+|Confluent Platform
+|Apache Kafka®
+|Release Date
+|Standard End of Support
+|Platinum End of Support
+
+|7.5.x
+|3.5.x
+|August 25, 2023
+|August 25, 2025
+|August 25, 2026
+
+|7.4.x
+|3.4.x
+|May 3, 2023
+|May 3, 2025
+|May 3, 2026
+|===
+
+. Start the Kafka broker with the `-d` option to run in detached mode:
++
+[source,yml]
+----
+version: "2.4"
+services:
+  broker:
+    # https://raw.githubusercontent.com/confluentinc/cp-all-in-one/7.5.2-post/cp-all-in-one-kraft/docker-compose.yml
+    image: confluentinc/cp-kafka:7.5.3
+    hostname: broker
+    container_name: broker
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid"
+      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+----
++
+[source,console]
+----
+$ docker-compose up -d
+[+] Running 1/1
+ ✔ Container broker  Started
+----
++
+NOTE: The Apache Kafka community has decided to move away from using ZooKeeper and create its own internal, built-in consensus and coordination layer, in a project known as KRaft (Kafka Raft Metadata mode) or KRaft mode.
+
+. Open a terminal session and run in the _broker_ container:
++
+[source,console]
+----
+$ docker exec -it broker bash
+----
+
+. Create a topic to store your events
++
+[source,console]
+----
+$ kafka-topics --create --topic quickstart-events --bootstrap-server localhost:9092
+Created topic quickstart-events.
+
+$ kafka-topics --describe --topic quickstart-events --bootstrap-server localhost:9092
+Topic: quickstart-events	TopicId: cQ9KYWsUScyxvdrcHsQ8tg	PartitionCount: 1	ReplicationFactor: 1	Configs:
+	Topic: quickstart-events	Partition: 0	Leader: 1	Replicas: 1	Isr: 1
+----
+
+. Write some events into the topic
++
+[source,console]
+----
+$ kafka-console-producer --topic quickstart-events --bootstrap-server localhost:9092
+>This is my first event
+>This is my second event
+>^C
+----
++
+You can stop the producer client with `Ctrl-C` at any time.
+
+. Read the events
++
+[source,console]
+----
+$ kafka-console-consumer --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+^CProcessed a total of 2 messages
+----
++
+You can stop the consumer client with `Ctrl-C` at any time.
+
 == References
 
 * Martin Kleppmann: Designing Data-Intensive Applications, O’Reilly, 2017.
@@ -577,3 +692,6 @@ For instance, if after consuming a message successfully you rewind your Kafka co
 * Apache Kafka, https://kafka.apache.org/documentation/
 * Apache Kafka, https://kafka.apache.org/08/documentation.html
 * Exactly-Once Semantics Are Possible: Here’s How Kafka Does It, https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/
+* What is Confluent Platform, https://docs.confluent.io/platform/current/platform.html
+* Apache Kafka Quickstart, https://kafka.apache.org/quickstart
+* Quick Start for Confluent Platform, https://docs.confluent.io/platform/current/platform-quickstart.html
