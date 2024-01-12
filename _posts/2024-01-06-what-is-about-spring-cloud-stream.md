@@ -331,9 +331,11 @@ The methods signature implies whether the application is intended to be used for
 
 Remember, these examples are just basic scenarios and more complicated scenarios like content-type negotiation or error handling in Apache Kafka with Spring Cloud Stream may need additional steps.
 
-> how does the produce function work? I mean how it is triggered to send messages?
-q
-* Great question! The Supplier function in Spring Cloud Stream is used to produce or generate messages that need to be sent to the message broker system, like Apache Kafka or RabbitMQ.
+## How does the produce function work? I mean how it is triggered to send messages?
+
+> How does the produce function work? I mean how it is triggered to send messages?
+
+Great question! The Supplier function in Spring Cloud Stream is used to produce or generate messages that need to be sent to the message broker system, like Apache Kafka or RabbitMQ.
 
 However, a `Supplier` in Spring Cloud Stream is not called or triggered directly. Instead, the framework does it automatically for you at regular intervals. This interval is by default set at 1 message/second, but it can be easily configured using the property `spring.cloud.stream.poller.fixed-delay`.
 
