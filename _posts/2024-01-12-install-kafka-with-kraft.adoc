@@ -1,0 +1,496 @@
+= Install a Kafka cluster in KRaft mode
+:page-layout: post
+:page-categories: ['kafka']
+:page-tags: ['kafka']
+:page-date: 2024-01-12 22:01:27 +0800
+:page-revdate: 2024-01-12 22:01:27 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+:KIP-500: https://cwiki.apache.org/confluence/display/KAFKA/KIP-500%3A+Replace+ZooKeeper+with+a+Self-Managed+Metadata+Quorum
+:KIP-833: https://cwiki.apache.org/confluence/display/KAFKA/KIP-833%3A+Mark+KRaft+as+Production+Ready
+
+Apache Kafka Raft (KRaft) is the consensus protocol that was introduced in {KIP-500}[KIP-500] to remove Apache Kafka’s dependency on ZooKeeper for metadata management. KRaft mode makes use of a new quorum controller service in Kafka which replaces the previous controller and makes use of an event-based variant of the Raft consensus protocol. <<learn-kraft>>
+
+KRaft mode is production ready for new clusters as of Apache Kafka 3.3. The development progress for additional features like migration from ZooKeeper is tracked in {KIP-833}[KIP-833].
+
+image::https://docs.confluent.io/platform/current/_images/KRaft-isolated-mode.png[KRaft running in Isolated Mode,55%,55%]
+
+The KRaft controller nodes comprise a Raft quorum which manages the Kafka metadata log. This log contains information about each change to the cluster metadata. Everything that is currently stored in ZooKeeper, such as topics, partitions, ISRs, configurations, and so on, is stored in this log. <<kafka-metadata-kraft>>
+
+== Control plane and Data plane
+
+A Kafka cluster can be broken down into two components: a control plane and a data plane, each with its own responsibilities that work together to transfer data where it needs to go. <<redhat-ha-kafka>>
+
+*Control plane responsibilities include:*
+
+* Knowing which servers are alive.
+* Making appropriate changes when a server is detected as down.
+* Storing and exchanging metadata.
+
+*Data plane responsibilities include:*
+
+* Handling requests to produce and fetch records and other application requests.
+* Reacting to metadata changes from the control plane.
+
+Historically, Kafka used an Apache ZooKeeper cluster to provide most of its control plane functionality. ZooKeeper tracks each broker and provides replicated and consistent storage for the cluster metadata. ZooKeeper also elects one Kafka broker to be the controller. The controller has extra, non data plane duties to manage the state of the cluster, such as responding to brokers that crash or restart.
+
+image::https://www.redhat.com/rhdc/managed-files/Kafka-Diagrams_3C%20copy%209.png[ZooKeeper architecture for Kafka,35%,35%]
+
+:raft: https://raft.github.io/
+
+The new architecture removes the ZooKeeper dependency and replaces it with a flavor of the {raft}[Raft consensus protocol], allowing each server in the Kafka cluster to take the role of _broker_, _controller_, or both. The controller cluster will perform the same roles as the cluster of ZooKeeper nodes did previously, but the Kafka controller will now be elected from the controllers instead of the brokers.
+
+image::https://www.redhat.com/rhdc/managed-files/cl-high-availability-kafka-detail-f31411_fig2.PNG[KRaft architecture for Kafka,35%,35%]
+
+For a Kafka cluster to be highly available, you need to make certain both the data plane and control plane (whichever kind is being used) are highly available.
+
+== Install Kafka using TAR Archives
+
+._Your local environment must have Java 8+ installed._
+[TIP]
+====
+
+:temurin11: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.21%2B9/OpenJDK11U-jdk_x64_linux_hotspot_11.0.21_9.tar.gz
+
+. Go to https://adoptium.net/temurin/releases/?os=linux&arch=x64&package=jdk&version=11[Eclipse Temurin], and download {temurin11}[JDK 11-LTS].
+
+. Extract the tar to _/usr/local/jdk_:
++
+```console
+$ sudo mkdir /usr/local/jdk
+$ sudo tar xf OpenJDK11U-jdk_x64_linux_hotspot_11.0.21_9.tar.gz -C /usr/local/jdk  --strip-components=1
+```
+
+. Set `JAVA_HOME` in _/etc/profile.d/java.sh_ with the following content:
++
+```sh
+JAVA_HOME=/usr/local/jdk
+PATH=$JAVA_HOME/bin:$PATH
+```
+. Load the environment variables to the current shell and verify the installation:
++
+```console
+$ source /etc/profile
+$ java -version
+openjdk version "11.0.21" 2023-10-17
+OpenJDK Runtime Environment Temurin-11.0.21+9 (build 11.0.21+9)
+OpenJDK 64-Bit Server VM Temurin-11.0.21+9 (build 11.0.21+9, mixed mode)
+```
+====
+
+=== Setup a standalone server in KRaft combined mode as a proof of concept.
+
+. Go to  https://kafka.apache.org/, download the https://www.apache.org/dyn/closer.cgi?path=/kafka/3.6.1/kafka_2.13-3.6.1.tgz[latest] Kafka:
++
+```console
+$ curl -LO https://dlcdn.apache.org/kafka/3.6.1/kafka_2.13-3.6.1.tgz
+```
+
+. Create a `kafka` user and extract the tar to the home:
++
+```console
+$ sudo useradd -m kafka # [-s /bin/bash] Specify the login shell of the new account.
+$ sudo su - kafka
+$ sudo tar xf kafka_2.13-3.6.1.tgz -C /home/kafka/ --strip-components=1
+```
++
+NOTE: Running Kafka as root is not a recommended configuration.
+
+. Generate a Cluster UUID:
++
+```console
+$ KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
+```
+
+. Format Log Directories:
++
+```console
+$ bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/server.properties
+Formatting /tmp/kraft-combined-logs with metadata.version 3.6-IV2.
+```
+
+. Start the Kafka Server:
++
+```console
+$ bin/kafka-server-start.sh config/kraft/server.properties
+...
+[2024-01-12 23:22:34,872] INFO [SocketServer listenerType=CONTROLLER, nodeId=1] Enabling request processing. (kafka.network.SocketServer)
+[2024-01-12 23:22:34,881] INFO [MetadataLoader id=1] InitializeNewPublishers: initializing ScramPublisher controller id=1 with a snapshot at offset 4 (org.apache.kafka.image.loader.MetadataLoader)
+[2024-01-12 23:22:34,911] INFO Awaiting socket connections on 0.0.0.0:9093. (kafka.network.DataPlaneAcceptor)
+...
+[2024-01-12 23:22:36,629] INFO [SocketServer listenerType=BROKER, nodeId=1] Enabling request processing. (kafka.network.SocketServer)
+[2024-01-12 23:22:36,629] INFO Awaiting socket connections on 0.0.0.0:9092. (kafka.network.DataPlaneAcceptor)
+...
+```
++
+NOTE: The logs (not to be confused with the commit log) are located at `logs` which are configured in the _log4j.properties_.
+
+. Once the Kafka server has successfully launched:
+
+** Open another terminal session and create a topic:
++
+```console
+$ bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+Created topic quickstart-events.
+$ bin/kafka-topics.sh --describe --topic quickstart-events --bootstrap-server localhost:9092
+Topic: quickstart-events	TopicId: wx6vplZjRHaJubPnPP3_QQ	PartitionCount: 1	ReplicationFactor: 1	Configs: segment.bytes=1073741824
+	Topic: quickstart-events	Partition: 0	Leader: 1	Replicas: 1	Isr: 1
+```
+
+** Run the console producer client to write a few events into your topic:
++
+```console
+$ bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+```
+
+** Open another terminal session and run the console consumer client to read the events you just created:
++
+```console
+$ bin/kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+```
+
+=== Setup a Kafka cluster in KRaft
+
+. Make sure the nodes in the cluster could be reachable each other:
++
+TIP: You can use the hostname, DNS name, or even IP address to connect each other.
++
+TIP: You can run the `ip a s` to show the addresses assigned to all network interfaces.
++
+The following steps will be demostrated with the following two nodes (_/etc/hosts_):
++
+```txt
+192.168.46.131	node-1
+192.168.46.132	node-2
+```
+
+. Create a `kafka` user and extract the tar to the home at each node:
++
+```console
+$ sudo useradd -m kafka # [-s /bin/bash] Specify the login shell of the new account.
+$ sudo su - kafka
+$ sudo tar xf kafka_2.13-3.6.1.tgz -C /home/kafka/ --strip-components=1
+```
++
+NOTE: Running Kafka as root is not a recommended configuration.
+
+. Generate a Cluster UUID:
++
+```console
+$ KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
+$ echo $KAFKA_CLUSTER_ID
+MkU3OEVBNTcwNTJENDM2Qk
+```
++
+Note down the value of `KAFKA_CLUSTER_ID` and copy it to each node in `/etc/profile.d/kafka.sh` with the following content:
++
+```sh
+KAFKA_CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk
+```
++
+Load the environment variables to the current shell with the following command:
++
+```console
+$ source /etc/profile
+```
+
+. Backup the orignal _config_ directory on each node:
++
+```console
+$ cp -a config config.org
+```
+
+. Create _log.dirs_ with the following commands on each node:
++
+```console
+$ sudo mkdir -p /var/lib/kafka
+$ sudo chmod kafka:kafka /var/lib/kafka
+```
+
+. Update the _config/kraft/controller.properties_:
++
+```properties
+# The node id associated with this instance's roles
+# !!! on the second node, set the node.id to be 3002.
+node.id=3001
+
+# The connect string for the controller quorum
+controller.quorum.voters=3001@node-1:9093,3002@node-2:9093
+
+# Use to specify where the metadata log for clusters in KRaft mode is placed.
+log.dirs=/var/lib/kafka/controller
+```
++
+NOTE: Each node ID (`node.id`) must be unique across all the servers in a particular cluster.
+
+. Update the _config/kraft/broker.properties_:
++
+```properties
+# The node id associated with this instance's roles
+# !!! on the second node, set the node.id to be 1002.
+node.id=1001
+
+# The connect string for the controller quorum
+controller.quorum.voters=3001@node-1:9093,3002@node-2:9093
+
+# The address the socket server listens on.
+listeners=PLAINTEXT://:9092
+
+# Listener name, hostname and port the broker will advertise to clients.
+# !!! on the second node, set it to be `PLAINTEXT://node-2:9092`.
+advertised.listeners=PLAINTEXT://node-1:9092
+
+# The directory in which the log data is kept。
+log.dirs=/var/lib/kafka/data
+```
++
+NOTE: Each node ID (`node.id`) must be unique across all the servers in a particular cluster.
++
+NOTE: The `advertised.listeners` should be reachable by the clients outside the cluster. You could set it with a reachable hostname or DNS name, or an external IP address. <<kafka-listeners-explained>>
+
+. Format Log Directories:
++
+```console
+$ bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/controller.properties
+Formatting /var/lib/kafka/controller with metadata.version 3.6-IV2.
+$ bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/broker.properties
+Formatting /var/lib/kafka/data with metadata.version 3.6-IV2.
+```
+
+. Start the Kafka Controller and Broker on each node:
++
+```console
+$ bin/kafka-server-start.sh -daemon config/kraft/controller.properties
+$ bin/kafka-server-start.sh -daemon config/kraft/broker.properties
+```
++
+[NOTE]
+====
+Note that authentication is disabled for JMX by default in Kafka and security configs must be overridden for production deployments by setting the environment variable `KAFKA_JMX_OPTS` for processes started using the CLI or by setting appropriate Java system properties. <<kafka-monitoring>><<redhat-kafka-monitoring>>
+
+```console
+$ JMX_PORT=9101 bin/kafka-server-start.sh -daemon config/kraft/broker.properties
+```
+====
+
+. Use the `kafka-metadata-quorum` tool to query the metadata quorum status.
++
+The following code example displays a summary of the metadata quorum:
++
+```console
+$ bin/kafka-metadata-quorum.sh --bootstrap-server node-1:9092 describe --status
+bin/kafka-metadata-quorum.sh --bootstrap-server node-1:9092 describe --status
+ClusterId:              MkU3OEVBNTcwNTJENDM2Qg
+LeaderId:               3002
+LeaderEpoch:            83
+HighWatermark:          779
+MaxFollowerLag:         0
+MaxFollowerLagTimeMs:   408
+CurrentVoters:          [3001,3002]
+CurrentObservers:       [1001,1002]
+```
+
+==== Install Schema Registry
+
+Schema Registry provides a centralized repository for managing and validating schemas for topic message data, and for serialization and deserialization of the data over the network. <<confluent-schema-registry>> <<conduktor-schema-registry>>
+
+The Schema Registry is not part of Apache Kafka but there are several open source options to choose from. Here we use the Confluent Schema Registry for this example. <<kafka-the-definitive-guide>>
+
+. Download Confluent Platform using only Confluent Community components by using the `curl` command:
++
+```console
+$ curl -O https://packages.confluent.io/archive/7.5/confluent-community-7.5.3.tar.gz
+```
+. Extract the contents of the archive to _/home/kafka/confluent_:
++
+```console
+$ mkdir /home/kafka/confluent
+$ tar xf confluent-community-7.5.3.tar.gz -C /home/kafka/confluent/ --strip-components=1
+$ cd /home/kafka/confluent
+$ cp -a etc/ etc.org
+```
+
+. Navigate to the Schema Registry properties file (_etc/schema-registry/schema-registry.properties_) and specify or update the following properties:
++
+```properties
+# Specify the address the socket server listens on, e.g. listeners = PLAINTEXT://your.host.name:9092
+listeners=http://0.0.0.0:8081
+
+# The advertised host name. Make sure to set this if running Schema Registry with multiple nodes.
+host.name=node-1
+
+# List of Kafka brokers to connect to, e.g. PLAINTEXT://hostname:9092,SSL://hostname2:9092
+kafkastore.bootstrap.servers=PLAINTEXT://node-1:9092,PLAINTEXT://node-1:9092
+```
+
+Schema Registry on Confluent Platform can be deployed using a single primary source, with either Kafka or ZooKeeper leader election. You can also set up multiple Schema Registry servers for high availability deployments, where you switch to a secondary Schema Registry cluster if the primary goes down, and for data migration, one time or as a continuous feed. <<schema-registry-multidc>>
+
+. Start Schema Registry. Run this command in its own terminal:
++
+```console
+$ bin/schema-registry-start -daemon etc/schema-registry/schema-registry.properties
+```
+
+. View the runtime logs of Schema Registry:
++
+```console
+$ tail -f logs/schema-registry.log
+[2024-01-13 01:58:05,916] INFO DefaultSessionIdManager workerName=node0 (org.eclipse.jetty.server.session)
+[2024-01-13 01:58:05,916] INFO No SessionScavenger set, using defaults (org.eclipse.jetty.server.session)
+[2024-01-13 01:58:05,918] INFO node0 Scavenging every 600000ms (org.eclipse.jetty.server.session)
+[2024-01-13 01:58:06,798] INFO HV000001: Hibernate Validator 6.1.7.Final (org.hibernate.validator.internal.util.Version)
+[2024-01-13 01:58:07,291] INFO Started o.e.j.s.ServletContextHandler@53a84ff4{/,null,AVAILABLE} (org.eclipse.jetty.server.handler.ContextHandler)
+[2024-01-13 01:58:07,319] INFO Started o.e.j.s.ServletContextHandler@5807efad{/ws,null,AVAILABLE} (org.eclipse.jetty.server.handler.ContextHandler)
+[2024-01-13 01:58:07,349] INFO Started NetworkTrafficServerConnector@65a15628{HTTP/1.1, (http/1.1, h2c)}{0.0.0.0:8081} (org.eclipse.jetty.server.AbstractConnector)
+[2024-01-13 01:58:07,354] INFO Started @9485ms (org.eclipse.jetty.server.Server)
+[2024-01-13 01:58:07,355] INFO Schema Registry version: 7.5.3 commitId: 03b675da443c5687684ecae6736d873560f7c441 (io.confluent.kafka.schemaregistry.rest.SchemaRegistryMain)
+[2024-01-13 01:58:07,356] INFO Server started, listening for requests... (io.confluent.kafka.schemaregistry.rest.SchemaRegistryMain)
+```
+
+. Show the `_schemas` information:
+
+```console
+$ bin/kafka-topics.sh --describe --topic _schemas --bootstrap-server node-1:9092
+Topic: _schemas	TopicId: 9A_-36hMRYuTfUyhQwMm6Q	PartitionCount: 1	ReplicationFactor: 2	Configs: cleanup.policy=compact,segment.bytes=1073741824
+	Topic: _schemas	Partition: 0	Leader: 1001	Replicas: 1001,1002	Isr: 1001,1002
+```
+
+==== Setup UI for Apache Kafka
+
+https://github.com/provectus/kafka-ui[UI for Apache Kafka] is a free, open-source web UI to monitor and manage Apache Kafka clusters. <<kafka-ui-getting-started>>
+
+```console
+$ docker run -it -p 8080:8080 -e DYNAMIC_CONFIG_ENABLED=true provectuslabs/kafka-ui
+```
+
+== Apache Kafka .NET Client
+
+NOTE: This guide assumes that you already have .NET Core (>= 6.0) installed.
+
+:confluent-kafka-dotnet: https://github.com/confluentinc/confluent-kafka-dotnet
+
+Confluent develops and maintains {confluent-kafka-dotnet}[confluent-kafka-dotnet], a .NET library that provides a high-level producer, consumer and AdminClient compatible with all Apache Kafka® brokers version 0.8 and later, Confluent Cloud and Confluent Platform.
+
+> https://avro.apache.org/docs/current/[Apache Avro] is a language-neutral data serialization format. The project was created by Doug Cutting to provide a way to share data files with a large audience. <<kafka-the-definitive-guide>>
+> 
+> Avro data is described in a language-independent schema. The schema is usually described in JSON and the serialization is usually to binary files, although serializing to JSON is also supported. Avro assumes that the schema is present when reading and writing files, usually by embedding the schema in the files themselves.
+> 
+> One of the most interesting features of Avro, and what makes it a good fit for use in a messaging system like Kafka, is that when the application that is writing messages switches to a new schema, the applications reading the data can continue processing messages without requiring any change or update.
+> 
+> Suppose the original schema was:
+> 
+> ```json
+> { "namespace": "customerManagement.avro",
+>   "type": "record",
+>   "name": "Customer",
+>   "fields": [
+>     { "name": "id", "type": "int" },
+>     { "name": "name", "type": "string" },
+>     { "name": "faxNumber", "type": [ "null", "string" ], "default": "null" } <1>
+>   ]
+> }
+> ```
+> 
+> <1> id and name fields are mandatory, while fax number is optional and defaults to null.
+> 
+> We used this schema for a few months and generated a few terabytes of data in this format. Now suppose that we decide that in the new version, we will upgrade to the twenty-first century and will no longer include a fax number field and will instead use an email field.
+> 
+> The new schema would be:
+> 
+> ```json
+> { "namespace": "customerManagement.avro",
+>   "type": "record",
+>   "name": "Customer",
+>   "fields": [
+>     { "name": "id", "type": "int" },
+>     { "name": "name", "type": "string" },
+>     { "name": "email", "type": [ "null", "string" ], "default": "null" }
+>   ]
+> }
+> ```
+> 
+> Now, after upgrading to the new version, old records will contain “faxNumber” and new records will contain “email.” In many organizations, upgrades are done slowly and over many months. So we need to consider how preupgrade applications that still use the fax numbers and postupgrade applications that use email will be able to handle all the events in Kafka.
+> 
+> The reading application will contain calls to methods similar to `getName()`, `getId()`, and `getFaxNumber()`. If it encounters a message written with the new schema, `getName()` and `getId()` will continue working with no modification, but `getFaxNumber()` will return null because the message will not contain a fax number.
+> 
+> Now suppose we upgrade our reading application and it no longer has the `getFaxNumber()` method but rather `getEmail()`. If it encounters a message written with the old schema, `getEmail()` will return null because the older messages do not contain an email address.
+> 
+> This example illustrates the benefit of using Avro: even though we changed the schema in the messages without changing all the applications reading the data, there will be no exceptions or breaking errors and no need for expensive updates of existing data.
+> 
+> However, there are two caveats to this scenario:
+> 
+> * The schema used for writing the data and the schema expected by the reading
+> application must be compatible. The Avro documentation includes compatibility
+> rules.
+> 
+> * The deserializer will need access to the schema that was used when writing the data, even when it is different than the schema expected by the application that accesses the data. In Avro files, the writing schema is included in the file itself, but there is a better way to handle this for Kafka messages. 
+> 
+> Unlike Avro files, where storing the entire schema in the data file is associated with a fairly reasonable overhead, storing the entire schema in each record will usually more than double the record size. However, Avro still requires the entire schema to be present when reading the record, so we need to locate the schema elsewhere. To achieve this, we follow a common architecture pattern and use a _Schema Registry_. The Schema Registry is not part of Apache Kafka but there are several open source options to choose from.
+> 
+> The idea is to store all the schemas used to write data to Kafka in the registry. Then we simply store the identifier for the schema in the record we produce to Kafka. The consumers can then use the identifier to pull the record out of the schema registry and deserialize the data. The key is that all this work—storing the schema in the registry and pulling it up when required—is done in the serializers and deserializers. The code that produces data to Kafka simply uses the Avro serializer just like it would any other serializer.
+
+- https://docs.confluent.io/kafka-clients/dotnet/current/overview.html
+- https://www.confluent.io/blog/designing-the-net-api-for-apache-kafka/
+
+
+```console
+~/learn/dotnet
+$ mkdir confluent-kafka-dotnet
+
+~/learn/dotnet
+$ cd confluent-kafka-dotnet/
+
+~/learn/dotnet/confluent-kafka-dotnet
+$ dotnet new sln
+已成功创建模板“解决方案文件”。
+
+
+~/learn/dotnet/confluent-kafka-dotnet
+$ dotnet new console -o HelloKafka
+已成功创建模板“控制台应用”。
+
+正在处理创建后操作...
+正在还原 C:\Users\ousiax\learn\dotnet\confluent-kafka-dotnet\HelloKafka\HelloKafka.csproj:
+  正在确定要还原的项目…
+  已还原 C:\Users\ousiax\learn\dotnet\confluent-kafka-dotnet\HelloKafka\HelloKafka.csproj (用时 788 ms)。
+已成功还原。
+
+
+
+~/learn/dotnet/confluent-kafka-dotnet
+$ dotnet sln add HelloKafka/
+已将项目“HelloKafka\HelloKafka.csproj”添加到解决方案中。
+
+~/learn/dotnet/confluent-kafka-dotnet
+$ cd HelloKafka/
+
+~/learn/dotnet/confluent-kafka-dotnet/HelloKafka
+$ dotnet add package Confluent.SchemaRegistry.Serdes.Avro --version 2.3.0
+  正在确定要还原的项目…
+  ...
+```
+
+[bibliography]
+== References
+
+* [[[learn-kraft,1]]] https://developer.confluent.io/learn/kraft/
+* [[[kafka-metadata-kraft,2]]] https://docs.confluent.io/platform/current/kafka-metadata/kraft.html
+* [[[redhat-ha-kafka,3]]] https://www.redhat.com/en/resources/high-availability-for-apache-kafka-detail
+* [[[quickstart,4]]] https://kafka.apache.org/quickstart
+* [[[kafka-monitoring,5]]] https://kafka.apache.org/documentation/#monitoring
+* [[[redhat-kafka-monitoring,6]]] https://access.redhat.com/documentation/en-us/red_hat_amq_streams/2.5/html/using_amq_streams_on_rhel/monitoring-str
+* [[[kafka-listeners-explained,7]]] https://www.confluent.io/blog/kafka-listeners-explained/
+* [[[confluent-schema-registry,8]]] https://docs.confluent.io/platform/current/schema-registry/index.html
+* [[[conduktor-schema-registry,9]]] https://www.conduktor.io/blog/what-is-the-schema-registry-and-why-do-you-need-to-use-it/
+* [[[kafka-the-definitive-guide,10]]] "20170707-EB-Confluent_Kafka_Definitive-Guide_Complete", https://www.confluent.io/resources/kafka-the-definitive-guide/
+* [[[installing_cp-zip-tar,11]]] https://docs.confluent.io/platform/current/installation/installing_cp/zip-tar.html
+* [[[schema-registry-installation,12]]] https://docs.confluent.io/platform/current/schema-registry/installation/deployment.html
+* [[[schema-registry-multidc,13]]] https://docs.confluent.io/platform/current/schema-registry/multidc.html
+* [[[kafka-ui-getting-started,14]]] https://docs.kafka-ui.provectus.io/overview/getting-started
