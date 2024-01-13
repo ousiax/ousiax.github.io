@@ -12,7 +12,9 @@
 :KIP-500: https://cwiki.apache.org/confluence/display/KAFKA/KIP-500%3A+Replace+ZooKeeper+with+a+Self-Managed+Metadata+Quorum
 :KIP-833: https://cwiki.apache.org/confluence/display/KAFKA/KIP-833%3A+Mark+KRaft+as+Production+Ready
 
-Apache Kafka Raft (KRaft) is the consensus protocol that was introduced in {KIP-500}[KIP-500] to remove Apache Kafka’s dependency on ZooKeeper for metadata management. KRaft mode makes use of a new quorum controller service in Kafka which replaces the previous controller and makes use of an event-based variant of the Raft consensus protocol. <<learn-kraft>>
+Apache Kafka Raft (KRaft, pronounced craft) is the consensus protocol that was introduced in {KIP-500}[KIP-500] to remove Apache Kafka’s dependency on ZooKeeper for metadata management.
+
+KRaft mode makes use of a new quorum controller service in Kafka which replaces the previous controller and makes use of an event-based variant of the Raft consensus protocol. <<learn-kraft>>
 
 KRaft mode is production ready for new clusters as of Apache Kafka 3.3. The development progress for additional features like migration from ZooKeeper is tracked in {KIP-833}[KIP-833].
 
@@ -47,7 +49,7 @@ image::https://www.redhat.com/rhdc/managed-files/cl-high-availability-kafka-deta
 
 For a Kafka cluster to be highly available, you need to make certain both the data plane and control plane (whichever kind is being used) are highly available.
 
-== Install Kafka using TAR Archives
+== Setup Kafka using TAR Archives
 
 ._Your local environment must have Java 8+ installed._
 [TIP]
@@ -297,11 +299,25 @@ CurrentVoters:          [3001,3002]
 CurrentObservers:       [1001,1002]
 ```
 
-==== Install Schema Registry
+==== Setup Schema Registry
 
 Schema Registry provides a centralized repository for managing and validating schemas for topic message data, and for serialization and deserialization of the data over the network. <<confluent-schema-registry>> <<conduktor-schema-registry>>
 
 The Schema Registry is not part of Apache Kafka but there are several open source options to choose from. Here we use the Confluent Schema Registry for this example. <<kafka-the-definitive-guide>>
+
+image::https://docs.confluent.io/platform/current/_images/schema-registry-and-kafka.png[Confluent Schema Registry for storing and retrieving schemas,55%,55%]
+
+Schema Registry lives outside of and separately from your Kafka brokers. Your producers and consumers still talk to Kafka to publish and read data (messages) to topics. Concurrently, they can also talk to Schema Registry to send and retrieve schemas that describe the data models for the messages. <<schema-registry-fundamentals>>
+
+Schema Registry is a distributed storage layer for schemas which uses Kafka as its underlying storage mechanism. Some key design decisions:
+
+* Assigns globally unique ID to each registered schema. Allocated IDs are guaranteed to be monotonically increasing and unique, but not necessarily consecutive.
+
+* Kafka provides the durable backend, and functions as a write-ahead changelog for the state of Schema Registry and the schemas it contains.
+
+* Schema Registry is designed to be distributed, with single-primary architecture, and ZooKeeper/Kafka coordinates primary election (based on the configuration).
+
+===== Installation
 
 . Download Confluent Platform using only Confluent Community components by using the `curl` command:
 +
@@ -370,113 +386,6 @@ https://github.com/provectus/kafka-ui[UI for Apache Kafka] is a free, open-sourc
 $ docker run -it -p 8080:8080 -e DYNAMIC_CONFIG_ENABLED=true provectuslabs/kafka-ui
 ```
 
-== Apache Kafka .NET Client
-
-NOTE: This guide assumes that you already have .NET Core (>= 6.0) installed.
-
-:confluent-kafka-dotnet: https://github.com/confluentinc/confluent-kafka-dotnet
-
-Confluent develops and maintains {confluent-kafka-dotnet}[confluent-kafka-dotnet], a .NET library that provides a high-level producer, consumer and AdminClient compatible with all Apache Kafka® brokers version 0.8 and later, Confluent Cloud and Confluent Platform.
-
-> https://avro.apache.org/docs/current/[Apache Avro] is a language-neutral data serialization format. The project was created by Doug Cutting to provide a way to share data files with a large audience. <<kafka-the-definitive-guide>>
-> 
-> Avro data is described in a language-independent schema. The schema is usually described in JSON and the serialization is usually to binary files, although serializing to JSON is also supported. Avro assumes that the schema is present when reading and writing files, usually by embedding the schema in the files themselves.
-> 
-> One of the most interesting features of Avro, and what makes it a good fit for use in a messaging system like Kafka, is that when the application that is writing messages switches to a new schema, the applications reading the data can continue processing messages without requiring any change or update.
-> 
-> Suppose the original schema was:
-> 
-> ```json
-> { "namespace": "customerManagement.avro",
->   "type": "record",
->   "name": "Customer",
->   "fields": [
->     { "name": "id", "type": "int" },
->     { "name": "name", "type": "string" },
->     { "name": "faxNumber", "type": [ "null", "string" ], "default": "null" } <1>
->   ]
-> }
-> ```
-> 
-> <1> id and name fields are mandatory, while fax number is optional and defaults to null.
-> 
-> We used this schema for a few months and generated a few terabytes of data in this format. Now suppose that we decide that in the new version, we will upgrade to the twenty-first century and will no longer include a fax number field and will instead use an email field.
-> 
-> The new schema would be:
-> 
-> ```json
-> { "namespace": "customerManagement.avro",
->   "type": "record",
->   "name": "Customer",
->   "fields": [
->     { "name": "id", "type": "int" },
->     { "name": "name", "type": "string" },
->     { "name": "email", "type": [ "null", "string" ], "default": "null" }
->   ]
-> }
-> ```
-> 
-> Now, after upgrading to the new version, old records will contain “faxNumber” and new records will contain “email.” In many organizations, upgrades are done slowly and over many months. So we need to consider how preupgrade applications that still use the fax numbers and postupgrade applications that use email will be able to handle all the events in Kafka.
-> 
-> The reading application will contain calls to methods similar to `getName()`, `getId()`, and `getFaxNumber()`. If it encounters a message written with the new schema, `getName()` and `getId()` will continue working with no modification, but `getFaxNumber()` will return null because the message will not contain a fax number.
-> 
-> Now suppose we upgrade our reading application and it no longer has the `getFaxNumber()` method but rather `getEmail()`. If it encounters a message written with the old schema, `getEmail()` will return null because the older messages do not contain an email address.
-> 
-> This example illustrates the benefit of using Avro: even though we changed the schema in the messages without changing all the applications reading the data, there will be no exceptions or breaking errors and no need for expensive updates of existing data.
-> 
-> However, there are two caveats to this scenario:
-> 
-> * The schema used for writing the data and the schema expected by the reading
-> application must be compatible. The Avro documentation includes compatibility
-> rules.
-> 
-> * The deserializer will need access to the schema that was used when writing the data, even when it is different than the schema expected by the application that accesses the data. In Avro files, the writing schema is included in the file itself, but there is a better way to handle this for Kafka messages. 
-> 
-> Unlike Avro files, where storing the entire schema in the data file is associated with a fairly reasonable overhead, storing the entire schema in each record will usually more than double the record size. However, Avro still requires the entire schema to be present when reading the record, so we need to locate the schema elsewhere. To achieve this, we follow a common architecture pattern and use a _Schema Registry_. The Schema Registry is not part of Apache Kafka but there are several open source options to choose from.
-> 
-> The idea is to store all the schemas used to write data to Kafka in the registry. Then we simply store the identifier for the schema in the record we produce to Kafka. The consumers can then use the identifier to pull the record out of the schema registry and deserialize the data. The key is that all this work—storing the schema in the registry and pulling it up when required—is done in the serializers and deserializers. The code that produces data to Kafka simply uses the Avro serializer just like it would any other serializer.
-
-- https://docs.confluent.io/kafka-clients/dotnet/current/overview.html
-- https://www.confluent.io/blog/designing-the-net-api-for-apache-kafka/
-
-
-```console
-~/learn/dotnet
-$ mkdir confluent-kafka-dotnet
-
-~/learn/dotnet
-$ cd confluent-kafka-dotnet/
-
-~/learn/dotnet/confluent-kafka-dotnet
-$ dotnet new sln
-已成功创建模板“解决方案文件”。
-
-
-~/learn/dotnet/confluent-kafka-dotnet
-$ dotnet new console -o HelloKafka
-已成功创建模板“控制台应用”。
-
-正在处理创建后操作...
-正在还原 C:\Users\ousiax\learn\dotnet\confluent-kafka-dotnet\HelloKafka\HelloKafka.csproj:
-  正在确定要还原的项目…
-  已还原 C:\Users\ousiax\learn\dotnet\confluent-kafka-dotnet\HelloKafka\HelloKafka.csproj (用时 788 ms)。
-已成功还原。
-
-
-
-~/learn/dotnet/confluent-kafka-dotnet
-$ dotnet sln add HelloKafka/
-已将项目“HelloKafka\HelloKafka.csproj”添加到解决方案中。
-
-~/learn/dotnet/confluent-kafka-dotnet
-$ cd HelloKafka/
-
-~/learn/dotnet/confluent-kafka-dotnet/HelloKafka
-$ dotnet add package Confluent.SchemaRegistry.Serdes.Avro --version 2.3.0
-  正在确定要还原的项目…
-  ...
-```
-
 [bibliography]
 == References
 
@@ -493,4 +402,8 @@ $ dotnet add package Confluent.SchemaRegistry.Serdes.Avro --version 2.3.0
 * [[[installing_cp-zip-tar,11]]] https://docs.confluent.io/platform/current/installation/installing_cp/zip-tar.html
 * [[[schema-registry-installation,12]]] https://docs.confluent.io/platform/current/schema-registry/installation/deployment.html
 * [[[schema-registry-multidc,13]]] https://docs.confluent.io/platform/current/schema-registry/multidc.html
-* [[[kafka-ui-getting-started,14]]] https://docs.kafka-ui.provectus.io/overview/getting-started
+* [[[schema-registry-fundamentals,14]]] https://docs.confluent.io/platform/current/schema-registry/fundamentals/index.html
+* [[[kafka-ui-getting-started,15]]] https://docs.kafka-ui.provectus.io/overview/getting-started
+* [[[kafka-serdes-develop,16]]] https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html
+* [[[avro-kafka-data,17]]] https://www.confluent.io/blog/avro-kafka-data/
+* [[[avro,17]]] https://avro.apache.org/
