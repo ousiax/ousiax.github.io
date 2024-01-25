@@ -1,0 +1,440 @@
+= What is the docker0 in Docker
+:page-layout: post
+:page-categories: ['docker']
+:page-tags: ['docker']
+:page-date: 2024-01-25 11:56:05 +0800
+:page-revdate: 2024-01-25 11:56:05 +0800
+:toc:
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+_TL.DR: The `docker0` is the default bridge when starting the Docker daemon._
+
+== Docker network overview
+
+Container networking refers to the ability for containers to connect to and communicate with each other, or to non-Docker workloads. <<docker-network-overview>>
+
+Containers have networking enabled by default, and they can make outgoing connections. A container has no information about what kind of network it's attached to, or whether their peers are also Docker workloads or not. A container only sees a network interface with an IP address, a gateway, a routing table, DNS services, and other networking details. That is, unless the container uses the `none` network driver.
+
+You can create custom, user-defined networks, and connect multiple containers to the same network. Once connected to a user-defined network, containers can communicate with each other using container IP addresses or container names.
+
+The following example creates a network using the bridge network driver and running a container in the created network:
+
+```sh
+docker network create -d bridge my-net
+docker run --network=my-net -itd --name=container3 busybox
+```
+
+The following network drivers are available by default, and provide core networking functionality:
+
+[%header,cols="1,7",width="65%"]
+|===
+|Driver
+|Description
+
+|bridge
+|The default network driver.
+
+|host
+|Remove network isolation between the container and the Docker host.
+
+|none
+|Completely isolate a container from the host and other containers.
+
+|overlay
+|Overlay networks connect multiple Docker daemons together.
+
+|ipvlan
+|IPvlan networks provide full control over both IPv4 and IPv6 addressing.
+
+|macvlan
+|Assign a MAC address to a container.
+|===
+
+== Bridge network driver
+
+In terms of networking, a bridge network is a Link Layer device which forwards traffic between network segments. A bridge can be a hardware device or a software device running within a host machine's kernel. <<docker-network-bridge>>
+
+In terms of Docker, a bridge network uses a software bridge which lets containers connected to the same bridge network communicate, while providing isolation from containers that aren't connected to that bridge network. The Docker bridge driver automatically installs rules in the host machine so that containers on different bridge networks can't communicate directly with each other.
+
+:docker-overlay-network: https://docs.docker.com/network/drivers/overlay/
+
+Bridge networks apply to containers running on the same Docker daemon host. For communication among containers running on different Docker daemon hosts, you can either manage routing at the OS level, or you can use an {docker-overlay-network}[overlay network].
+
+*When you start Docker, a default bridge network (also called `bridge`) is created automatically, and newly-started containers connect to it unless otherwise specified.* You can also create user-defined custom bridge networks.
+
+```console
+$ docker run --rm -it qqbuby/net-tools:1.0 hostname -i
+172.17.0.2
+$ docker run --rm -it qqbuby/net-tools:1.0 ip r
+default via 172.17.0.1 dev eth0
+172.17.0.0/16 dev eth0 proto kernel scope link src 172.17.0.2
+```
+
+[source,console,highlight="3"]
+----
+$ docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+78ec0b2e6034   bridge    bridge    local
+52eb0b3c3639   host      host      local
+97378c7bca5f   none      null      local
+----
+
+[TIP]
+====
+*The `docker0` is the default bridge when starting the Docker daemon.*
+
+[source,console,highlight="15-16,33"]
+----
+$ docker inspect bridge
+[
+    {
+        "Name": "bridge",
+        "Id": "78ec0b2e60344ad1ee80c77589c467236693d7fb0b22964854cf34460184b163",
+        "Created": "2024-01-25T12:36:59.025362533+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {
+            "com.docker.network.bridge.default_bridge": "true",
+            "com.docker.network.bridge.enable_icc": "true",
+            "com.docker.network.bridge.enable_ip_masquerade": "true",
+            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+            "com.docker.network.bridge.name": "docker0",
+            "com.docker.network.driver.mtu": "1500"
+        },
+        "Labels": {}
+    }
+]
+----
+
+[source,console,highlight=""]
+----
+$ ip a show docker0
+11: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
+    link/ether 02:42:67:64:cd:53 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+$ ip r
+default via 192.168.56.2 dev ens32
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown
+192.168.56.0/24 dev ens32 proto kernel scope link src 192.168.56.130
+----
+====
+
+=== Configure the default bridge network
+
+To configure the default bridge network, you specify options in `daemon.json`. Here is an example `daemon.json` with several options specified. Only specify the settings you need to customize. <<dockerd>>
+
+```json
+{
+  "bip": "192.168.1.1/24",
+  "fixed-cidr": "192.168.1.0/25",
+  "fixed-cidr-v6": "2001:db8::/64",
+  "mtu": 1500,
+  "default-gateway": "192.168.1.254",
+  "default-gateway-v6": "2001:db8:abcd::89",
+  "dns": ["10.20.1.2","10.20.1.3"]
+}
+```
+
+Restart Docker for the changes to take effect.
+
+```console
+$ ip a show docker0
+11: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
+    link/ether 02:42:67:64:cd:53 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.1/24 brd 192.168.1.255 scope global docker0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::42:67ff:fe64:cd53/64 scope link
+       valid_lft forever preferred_lft forever
+$ docker inspect bridge
+[
+    {
+        "Name": "bridge",
+        "Id": "335bd5ba267bde54a9b125270c4a010d0031ece7e75f43addf70df04571290b1",
+        "Created": "2024-01-25T12:54:54.930262205+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "192.168.1.0/24",
+                    "IPRange": "192.168.1.0/25",
+                    "Gateway": "192.168.1.1",
+                    "AuxiliaryAddresses": {
+                        "DefaultGatewayIPv4": "192.168.1.254"
+                    }
+                },
+                {
+                    "Subnet": "2001:db8::/64",
+                    "AuxiliaryAddresses": {
+                        "DefaultGatewayIPv6": "2001:db8:abcd::89"
+                    }
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {
+            "com.docker.network.bridge.default_bridge": "true",
+            "com.docker.network.bridge.enable_icc": "true",
+            "com.docker.network.bridge.enable_ip_masquerade": "true",
+            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+            "com.docker.network.bridge.name": "docker0",
+            "com.docker.network.driver.mtu": "1500"
+        },
+        "Labels": {}
+    }
+]
+$ docker run --rm -it qqbuby/net-tools:1.0 hostname -i
+192.168.1.2
+$ docker run --rm -it qqbuby/net-tools:1.0 ip r
+default via 192.168.1.254 dev eth0
+192.168.1.0/24 dev eth0 proto kernel scope link src 192.168.1.2
+```
+
+=== Configure the user-defined bridge network
+
+Use the `docker network create` command to create a user-defined bridge network.
+
+```sh
+docker network create my-net
+```
+
+:docker-network-create-reference: https://docs.docker.com/engine/reference/commandline/network_create/#specify-advanced-options
+
+You can specify the subnet, the IP address range, the gateway, and other options. See the {docker-network-create-reference}[docker network create reference] or the output of `docker network create --help` for details.
+
+[source,console,highlight="7,23-24"]
+----
+$ docker network create my-net
+6fae1652e77ea4aa5452ce8f7321005dec3cbdfd5480bd6ad2caf92ae2646f85
+$ docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+449f407d5f92   bridge    bridge    local
+e25b7a4625b8   host      host      local
+6fae1652e77e   my-net    bridge    local
+8c9b745f69e5   none      null      local
+$ docker inspect my-net
+[
+    {
+        "Name": "my-net",
+        "Id": "6fae1652e77ea4aa5452ce8f7321005dec3cbdfd5480bd6ad2caf92ae2646f85",
+        "Created": "2024-01-25T14:05:37.630914427+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {},
+        "Labels": {}
+    }
+]
+----
+
+NOTE: The IP range of the network `my-net` is still `172.17.0.0/16`.
+
+To configure the default address range, specify options in `daemon.json`.
+
+[source,json,highlight="9-18"]
+----
+{
+  "bip": "192.168.1.1/24",
+  "fixed-cidr": "192.168.1.0/25",
+  "fixed-cidr-v6": "2001:db8::/64",
+  "mtu": 1500,
+  "default-gateway": "192.168.1.254",
+  "default-gateway-v6": "2001:db8:abcd::89",
+  "dns": ["10.20.1.2","10.20.1.3"],
+  "default-address-pools": [
+    {
+      "base": "10.201.0.0/16",
+      "size": 24
+    },
+    {
+      "base": "10.202.0.0/16",
+      "size": 24
+    }
+  ]
+}
+----
+
+Restart Docker for the changes to take effect.
+
+[source,console,highlight="3-5,23-24"]
+----
+$ docker info
+...
+ Default Address Pools:
+   Base: 10.201.0.0/16, Size: 24
+   Base: 10.202.0.0/16, Size: 24
+
+$ docker network create my-net2
+c77a9f13ba7732575a3d99d5bfde8852ee5c6827a3cad7d7f268be306394856e
+$ docker inspect my-net2 
+[
+    {
+        "Name": "my-net2",
+        "Id": "c77a9f13ba7732575a3d99d5bfde8852ee5c6827a3cad7d7f268be306394856e",
+        "Created": "2024-01-25T14:10:14.285419243+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "10.201.0.0/24",
+                    "Gateway": "10.201.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {},
+        "Labels": {}
+    }
+]
+----
+
+[source,console,highlight="15-16"]
+----
+$ docker run --rm -it --network my-net2 qqbuby/net-tools:1.0 hostname -i
+10.201.0.2
+$ docker run --rm -it --network my-net2 qqbuby/net-tools:1.0 ip r
+default via 10.201.0.1 dev eth0
+10.201.0.0/24 dev eth0 proto kernel scope link src 10.201.0.2
+----
+
+[NOTE]
+====
+The IP range of the `my-net` created previously is still `172.17.0.0/16`. 
+
+[source,console,highlight="15-16"]
+----
+$ docker inspect my-net
+[
+    {
+        "Name": "my-net",
+        "Id": "6fae1652e77ea4aa5452ce8f7321005dec3cbdfd5480bd6ad2caf92ae2646f85",
+        "Created": "2024-01-25T14:05:37.630914427+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {},
+        "Labels": {}
+    }
+]
+----
+====
+
+=== Reset the bridge network settings 
+
+. Remove the user-defined network.
++
+[source,console]
+----
+$ docker network rm my-net my-net2
+my-net
+my-net2
+----
++
+TIP: The default `bridge` can't be removed by `docker network rm` command.
+
+. Stop the Docker, delete the `docker0`, and clean the network config files.
++
+```console
+$ sudo systemctl stop docker.service docker.socket
+$ sudo ip link delete docker0
+$ sudo rm /var/lib/docker/network/files/local-kv.db
+```
++
+WARNING: It will reset all the networking in the current Docker instance.
+
+. Start the Docker and check the changes.
++
+```console
+$ sudo systemctl start docker.service
+$ ip a show docker0
+24: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
+    link/ether 02:42:e6:78:3a:e3 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+```
+
+[bibliography]
+== References
+
+* [[[docker-network-overview,1]]] https://docs.docker.com/network/
+* [[[docker-network-bridge,2]]] https://docs.docker.com/network/drivers/bridge/
+* [[[dockerd,3]]] https://docs.docker.com/engine/reference/commandline/dockerd/
