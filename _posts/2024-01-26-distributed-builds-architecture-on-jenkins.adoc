@@ -1,0 +1,234 @@
+= Distributed Builds Architecture on Jenkins
+:page-layout: post
+:page-categories: [jenkins]
+:page-tags: [jenkins]
+:page-date: 2024-01-26 15:01:54 +0800
+:page-revdate: 2024-01-26 15:01:54 +0800
+:toc: 
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+[TIP]
+====
+The _controller_ is a central, coordinating process which stores configuration, loads plugins, and renders the various user interfaces for Jenkins.
+
+An _agent_ is typically a machine, or container, which connects to a Jenkins controller and executes tasks when directed by the controller.
+
+A node is a machine which is part of the Jenkins environment and capable of executing Pipelines or jobs. Both the Controller and Agents are considered to be Nodes.
+
+An _executor_ is a slot for execution of work defined by a Pipeline or job on a Node. A Node may have zero or more Executors configured which corresponds to how many concurrent Jobs or Pipelines are able to execute on that Node.
+
+A _workspace_ is disposable directory on the file system of a Node where work can be done by a Pipeline or job. Workspaces are typically left in place after a Build or Pipeline run completes unless specific Workspace cleanup policies have been put in place on the Jenkins Controller. <<glossary>>
+====
+
+== Distributed Builds Architecture
+
+A Jenkins controller can operate by itself both managing the build environment and executing the builds with its own executors and resources. If you stick with this "standalone" configuration you will most likely run out of resources when the number or the load of your projects increase.
+
+An agent, where the workload of building projects are delegated to, is a machine set up to offload projects from the controller. The method with which builds are scheduled depends on the configuration given to each project. For example, some projects may be configured to "restrict where this project is run" which ties the project to a specific agent or set of labeled agents. Other projects which omit this configuration will select an agent from the available pool in Jenkins.
+
+In a distributed builds environment, the Jenkins controller will use its resources to only handle HTTP requests and manage the build environment. Actual execution of builds will be delegated to the agents. With this configuration it is possible to horizontally scale an architecture, which allows a single Jenkins installation to host a large number of projects and build environments. <<architecting-for-scale>>
+
+In order for a machine to be recognized as an agent, it needs to run a specific agent program to establish bi-directional communication with the controller.
+
+There are different ways to establish a connection between controller and agent:
+
+* The *SSH connector*: Configuring an agent to use the SSH connector is the preferred and the most stable way to establish controller-agent communication.
+
+* The *Inbound connector*: In this case the communication is established starting the agent through a connection initiated by an agent program.
+
+* The *Inbound-HTTP connector*: This approach is quite similar to the Inbound-TCP Java Web Start approach, with the difference in this case being that the agent is executed as headless and the connection can be tunneled via HTTP(s).
+
+* *Custom-script*: It is also possible to create a custom script to initialize the communication between controller and agent if the other solutions do not provide enough flexibility for a specific use-case.
+
+== Nodes and Components
+
+Builds in a distributed builds architecture use _nodes_, _agents_, and _executors_, which are distinct from the Jenkins controller itself. Understanding what each of these components are is useful when managing nodes: <<managing-nodes>>
+
+=== Jenkins controller
+
+The Jenkins controller is the Jenkins service itself and where Jenkins is installed. It is also a web server that also acts as a "brain" for deciding how, when, and where to run tasks. Management tasks such as configuration, authorization, and authentication are executed on the controller, which serves HTTP requests. Files written when a Pipeline executes are written to the filesystem on the controller, unless they are off-loaded to an artifact repository such as Nexus or Artifactory.
+
+=== Nodes
+
+Nodes are the "machines" on which build agents run. Jenkins monitors each attached node for disk space, free temp space, free swap, clock time/sync, and response time. A node is taken offline if any of these values go outside the configured threshold. Jenkins supports two types of nodes:
+
+* *agents* (described below)
+
+* *built-in node*
++
+The built-in node is a node that exists within the controller process. It is possible to use agents and the build-in node to run tasks. However, running tasks on the built-in node is discouraged for security, performance, and scalability reasons. The number of executors configured for the node determines the node’s ability to run tasks. _Set the number of executors to 0 to disable running tasks on the built-in node._
+
+=== Agents
+
+Agents manage the task execution on behalf of the Jenkins controller by using executors. An agent is a small (170KB single jar) Java client process that connects to a Jenkins controller and is assumed to be unreliable. An agent can use any operating system that supports Java. Any tools required for building and testing get installed on the node where the agent runs. Because these tools are a part of the node, they can be installed directly or in a container, such as Docker or Kubernetes. Each agent is effectively a process with its own Process Identifier (PID) on the host machine. In practice, nodes and agents are essentially the same but it is good to remember that they are conceptually distinct.
+
+=== Executors
+
+An executor is a slot for the execution of tasks. Effectively, it is a thread in the agent. The number of executors on a node defines the number of concurrent tasks that can run. In other words, this determines the number of concurrent Pipeline _stages_ that can execute at the same time. Determine the correct number of executors per build node must be determined based on the resources available on the node and the resources required for the workload. When determining how many executors to run on a node, consider CPU and memory requirements, as well as the amount of I/O and network activity:
+
+* One executor per node is the safest configuration.
+
+ * One executor per CPU core can work well, if the tasks running are small.
+
+* Monitor I/O performance, CPU load, memory usage, and I/O throughput carefully when running multiple executors on a node.
+
+== Installing Jenkins with Docker
+
+Due to Docker’s fundamental platform and container design, a Docker image for a given application, such as Jenkins, can be run on any supported operating system or cloud service also running Docker. <<installing-docker>>
+
+=== Configuring controller
+
+. Open up a terminal window, and create a directory named _controller_:
++
+```sh
+mkdir controller
+cd controller
+```
+
+. Create a groovy file named `executors.groovy` with the following content:
++
+```groovy
+import jenkins.model.*
+Jenkins.instance.setNumExecutors(0) // Recommended to not run builds on the built-in node
+```
+
+. Create a compose file named `compose.yml` with the following content:
++
+```yml
+version: "2.4"
+services:
+  controller:
+    container_name: jenkins-controller
+    build:
+      context: .
+      dockerfile_inline: |
+        ARG JENKINS_TAG=2.426.3-jdk21
+        FROM jenkins/jenkins:$${JENKINS_TAG} <1>
+        COPY --chown=jenkins:jenkins executors.groovy /usr/share/jenkins/ref/init.groovy.d/executors.groovy <2>
+    restart: on-failure
+    ports:
+      - "8080:8080"
+      - "50000:50000" <3>
+    volumes:
+      - jenkins_home:/var/jenkins_home:rw <4>
+    networks:
+      jenkins:
+volumes:
+  jenkins_home:
+    name: jenkins-home
+networks:
+  jenkins:
+```
++
+--
+<1> Use the recommended official https://hub.docker.com/r/jenkins/jenkins/[jenkins/jenkins] image from the Docker Hub repository. <<installing-docker>>
+
+<2> Extend the image and change it to your desired number of executors (recommended 0 executors on the built-in node). <<docker-readme-md>>
+
+<3> In order to connect agents through an inbound TCP connection, map the port: `-p 50000:50000`. That port will be used when you connect agents to the controller.
++
+If you are only using https://plugins.jenkins.io/ssh-slaves[SSH (outbound) build agents], this port is not required, as connections are established from the controller. If you connect agents using web sockets (since Jenkins 2.217), the TCP agent port is not used either. <<docker-readme-md>>
+
+<4> NOTE: Avoid using a https://docs.docker.com/storage/bind-mounts/[bind mount] from a folder on the host machine into _/var/jenkins_home_, as this might result in file permission issues (the user used inside the container might not have rights to the folder on the host machine). If you _really_ need to bind mount jenkins_home, ensure that the directory on the host is accessible by the jenkins user inside the container (jenkins user - uid 1000) or use `-u some_other_user` parameter with `docker run`. <<docker-readme-md>>
+--
+
+. (Optional) Create a compose file named `compose.override.yml` with the following content:
++
+```yml
+version: "2.4"
+services:
+  controller:
+    build:
+      args:
+        - JENKINS_TAG=2.426.3-jdk21
+    environment:
+      - TZ=Asia/Shanghai
+```
+
+. Starting the controller container:
++
+```sh
+docker compose up -d
+```
+
+. Post-installation setup wizard:
++
+Following this https://www.jenkins.io/doc/book/installing/docker/#setup-wizard[Post-installation setup] to finish the last steps.
++
+[TIP]
+====
+Print the password at console.
+
+```console
+$ sudo docker inspect jenkins-home
+...
+        "Mountpoint": "/var/lib/docker/volumes/jenkins-home/_data",
+        "Name": "jenkins-home",
+...
+$ sudo cat /var/lib/docker/volumes/jenkins-data/_data/secrets/initialAdminPassword
+80df7355be5c4b15933742f7024dd739
+```
+====
+
+=== Configuring agents
+
+. Open up a terminal window, and create a directory named _agents_:
++
+```sh
+mkdir agents
+cd agents
+```
+
+. Generating an SSH key pair
++
+To generate the SSH key pair, you have to execute a command line tool named `ssh-keygen` on a machine you have access to.
++
+```sh
+ssh-keygen -t ed25519 -f ~/.ssh/jenkins_agent_key
+```
+
+. Create a compose file named `compose.yml` with the following content:
++
+```yml
+version: "2.4"
+services:
+  jenkins-agent:
+    container_name: jenkins-agent
+    image: jenkins/ssh-agent:alpine-jdk21
+    restart: on-failure
+    ports:
+      - "2200:22"
+    environment:
+      - JENKINS_AGENT_SSH_PUBKEY=[your-public-key] <1>
+      # e.g. - "JENKINS_AGENT_SSH_PUBKEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKBBHLJ+8RuLPO8dO1tm3RAt5kc3HqYwJUYMmRPjhtI3" <1>
+    volumes:
+      - jenkins_agent_home:/home/jenkins/agent:rw
+    networks:
+      jenkins-agents:
+volumes:
+  jenkins_agent_home:
+    name: jenkins-agent-home
+networks:
+  jenkins-agents:
+```
++
+<1> The value of `JENKINS_AGENT_SSH_PUBKEY` MUST include the full contents of your .pub file (e.g. `~/.ssh/jenkins_agent_key.pub`), including the `ssh-XXXX` prefix.
+
+. Starting the controller container:
++
+```sh
+docker compose up -d
+```
+
+[bibliography]
+== References
+
+* [[[glossary,1]]] https://www.jenkins.io/doc/book/glossary/
+* [[[architecting-for-scale,2]]] https://www.jenkins.io/doc/book/scaling/architecting-for-scale/
+* [[[managing-nodes,3]]] https://www.jenkins.io/doc/book/managing/nodes/
+* [[[installing-docker,4]]] https://www.jenkins.io/doc/book/installing/docker/
+* [[[docker-readme-md,5]]] https://github.com/jenkinsci/docker/blob/master/README.md
+* [[[using-agents,6]]]] https://www.jenkins.io/doc/book/using/using-agents/
+* [[[docker-ssh-agent,7]]] https://github.com/jenkinsci/docker-ssh-agent
