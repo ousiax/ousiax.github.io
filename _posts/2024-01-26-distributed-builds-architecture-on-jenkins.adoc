@@ -174,19 +174,38 @@ $ sudo cat /var/lib/docker/volumes/jenkins-data/_data/secrets/initialAdminPasswo
 
 === Configuring agents
 
-. Open up a terminal window, and create a directory named _agents_:
-+
-```sh
-mkdir agents
-cd agents
-```
-
-. Generating an SSH key pair
+. Generating an SSH key pair <<using-agents>>
 +
 To generate the SSH key pair, you have to execute a command line tool named `ssh-keygen` on a machine you have access to.
 +
 ```sh
 ssh-keygen -t ed25519 -f ~/.ssh/jenkins_agent_key
+```
+
+. Create a Jenkins SSH credential
++
+--
+. Go to your Jenkins dashboard;
+
+. Go to `Manage Jenkins` option in left main menu and click on the `Credentials` button under the `Security`;
+
+. Select the drop option `Add Credentials` from the `(global)` item under the `Stores scoped to Jenkins`;
+
+. Fill in the form:
++
+** Kind: SSH Username with private key;
+** id: jenkins
+** description: The jenkins ssh key
+** username: jenkins
+** Private Key: select `Enter directly` and press the `Add` button to insert the content of your private key file at `~/.ssh/jenkins_agent_key`
+** Passphrase: fill your passphrase used to generate the SSH key pair (leave empty if you didn’t use one at the previous step) and then press the Create button
+--
+
+. Open up a terminal window, and create a directory named _agents_:
++
+```sh
+mkdir agents
+cd agents
 ```
 
 . Create a compose file named `compose.yml` with the following content:
@@ -204,7 +223,7 @@ services:
       - JENKINS_AGENT_SSH_PUBKEY=[your-public-key] <1>
       # e.g. - "JENKINS_AGENT_SSH_PUBKEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKBBHLJ+8RuLPO8dO1tm3RAt5kc3HqYwJUYMmRPjhtI3" <1>
     volumes:
-      - jenkins_agent_home:/home/jenkins/agent:rw
+      - jenkins_agent_home:/home/jenkins/agent:rw <2>
     networks:
       jenkins-agents:
 volumes:
@@ -214,13 +233,53 @@ networks:
   jenkins-agents:
 ```
 +
-<1> The value of `JENKINS_AGENT_SSH_PUBKEY` MUST include the full contents of your .pub file (e.g. `~/.ssh/jenkins_agent_key.pub`), including the `ssh-XXXX` prefix.
+--
+<1> The value of `JENKINS_AGENT_SSH_PUBKEY` MUST include the full contents of your .pub file (e.g. `~/.ssh/jenkins_agent_key.pub`), including the `ssh-XXXX` prefix. <<using-agents>>
+
+<2> When using the Linux image, you have to set the value of the `Remote root directory` to `/home/jenkins/agent` in the agent configuration UI.
++
+When using the Windows image, you have to set the value of the `Remote root directory` to `C:/Users/jenkins/Work` in the agent configuration UI. <<docker-ssh-agent>>
+--
 
 . Starting the controller container:
 +
 ```sh
 docker compose up -d
 ```
+
+. Setup up the agent1 on jenkins.
++
+--
+. Go to your Jenkins dashboard;
+
+. Go to `Manage Jenkins` option in left main menu;
+
+. Go to `Nodes` item under the `System Configuration`;
+
+. Go to `New Node` option in side menu;
+
+. Fill the Node/agent name and select the type; (e.g. Name: agent1, Type: Permanent Agent)
+
+. Now fill the fields:
+
+** Remote root directory; (e.g.: /home/jenkins/agent)
+
+** label; (e.g.: agent1 )
+
+** usage; (e.g.: Use this node as much as possible)
+
+** Launch method; (e.g.: Launch agents by SSH )
+
+** Host; (e.g.: localhost or your IP address )
+
+** Credentials; (e.g.: jenkins )
+
+** Host Key verification Strategy; (e.g.: Non verifying Verification Strategy)
+
+** Expand the `Advanced` tab, and set the `Port` to be `2200`
+
+. Press the `Save` button and the agent1 will be registered.
+--
 
 [bibliography]
 == References
