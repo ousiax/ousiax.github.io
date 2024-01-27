@@ -112,14 +112,14 @@ services:
       - "8080:8080"
       - "50000:50000" <3>
     volumes:
-      - jenkins_home:/var/jenkins_home:rw <4>
+      - jenkins-home:/var/jenkins_home:rw <4>
     networks:
-      jenkins:
+      jenkins-controller:
 volumes:
-  jenkins_home:
+  jenkins-home:
     name: jenkins-home
 networks:
-  jenkins:
+  jenkins-controller:
 ```
 +
 --
@@ -174,7 +174,7 @@ $ sudo docker inspect jenkins-home
         "Mountpoint": "/var/lib/docker/volumes/jenkins-home/_data",
         "Name": "jenkins-home",
 ...
-$ sudo cat /var/lib/docker/volumes/jenkins-data/_data/secrets/initialAdminPassword
+$ sudo cat /var/lib/docker/volumes/jenkins-home/_data/secrets/initialAdminPassword
 80df7355be5c4b15933742f7024dd739
 ```
 ====
@@ -220,7 +220,7 @@ cd agents
 ```yml
 version: "2.4"
 services:
-  jenkins-agent:
+  agent:
     container_name: jenkins-agent
     image: jenkins/ssh-agent:alpine-jdk21
     restart: on-failure
@@ -230,14 +230,14 @@ services:
       - "JENKINS_AGENT_SSH_PUBKEY=[your-public-key]" <1>
       # e.g. - "JENKINS_AGENT_SSH_PUBKEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKBBHLJ+8RuLPO8dO1tm3RAt5kc3HqYwJUYMmRPjhtI3" <1>
     volumes:
-      - jenkins_agent_home:/home/jenkins/agent:rw <2>
+      - agent-home:/home/jenkins/agent:rw <2>
     networks:
-      jenkins-agents:
+      jenkins-agent:
 volumes:
-  jenkins_agent_home:
+  agent-home:
     name: jenkins-agent-home
 networks:
-  jenkins-agents:
+  jenkins-agent:
 ```
 +
 --
@@ -247,8 +247,81 @@ networks:
 +
 When using the Windows image, you have to set the value of the `Remote root directory` to `C:/Users/jenkins/Work` in the agent configuration UI. <<docker-ssh-agent>>
 --
++
+.Docker in Docker
+[NOTE]
+====
+```yml
+version: "2.4"
+services:
+  agent:
+    container_name: jenkins-agent
+    build:
+      context: .
+      dockerfile_inline: |
+        ARG SSH_AGENET_TAG=jdk21
+        FROM jenkins/ssh-agent:$${SSH_AGENET_TAG}
 
-. Starting the controller container:
+        ENV DOCKER_CE_CLI_VERSION=5:25.0.1-1~debian.12~bookworm
+
+        RUN apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                ca-certificates \
+                curl \
+                lsb-release \
+            && rm -rf /var/lib/apt/lists/*
+        RUN curl -fsSLo /usr/share/keyrings/docker-archive-keyring.asc https://download.docker.com/linux/debian/gpg
+        RUN echo "deb [arch=$(dpkg --print-architecture) \
+                  signed-by=/usr/share/keyrings/docker-archive-keyring.asc] \
+                  https://download.docker.com/linux/debian \
+                  $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+        RUN apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                docker-ce-cli=$${DOCKER_CE_CLI_VERSION} \
+            && rm -rf /var/lib/apt/lists/*
+    restart: on-failure
+    ports:
+      - "2200:22"
+    environment:
+      - "JENKINS_AGENT_SSH_PUBKEY=[your-public-key]" <1>
+      # e.g. - "JENKINS_AGENT_SSH_PUBKEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKBBHLJ+8RuLPO8dO1tm3RAt5kc3HqYwJUYMmRPjhtI3" 
+      - DOCKER_HOST=tcp://docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+    volumes:
+      - agent-home:/home/jenkins/agent:rw 
+      - docker-certs:/certs/client:ro
+    networks:
+      jenkins-agent:
+  docker:
+    container_name: jenkins-docker
+    image: docker:25
+    restart: on-failure
+    privileged: true
+    environment:
+       - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - docker-certs:/certs/client:rw
+      - docker-root:/var/lib/docker:rw
+    networks:
+      jenkins-agent:
+        aliases:
+          - docker
+volumes:
+  agent-home:
+    name: jenkins-agent-home
+  docker-certs:
+    name: jenkins-agent-docker-certs
+  docker-root:
+    name: jenkins-agent-docker-root
+networks:
+  jenkins-agent:
+```
+
+<1> The value of `JENKINS_AGENT_SSH_PUBKEY` MUST include the full contents of your .pub file created above (i.e. _~/.ssh/jenkins_agent_key.pub_), including the `ssh-XXXX` prefix. <<using-agents>>
+====
+
+. Starting the agent container:
 +
 ```sh
 docker compose up -d
@@ -317,7 +390,6 @@ agent1
 Finished: SUCCESS
 ```
 --
-
 
 [bibliography]
 == References
