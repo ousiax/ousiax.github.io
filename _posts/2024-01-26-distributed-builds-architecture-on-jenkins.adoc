@@ -87,11 +87,23 @@ mkdir controller
 cd controller
 ```
 
+. Create an environment file named _.env_ and set the project name with _jenkins_:
++
+```sh
+echo -n COMPOSE_PROJECT_NAME=jenkins > .env
+```
+
 . Create a groovy file named `executors.groovy` with the following content:
 +
 ```groovy
 import jenkins.model.*
 Jenkins.instance.setNumExecutors(0) // Recommended to not run builds on the built-in node
+```
+
+. Create a bridge network for the controller:
++
+```sh
+docker network create -d bridge jenkins-controller
 ```
 
 . Create a compose file named `compose.yml` with the following content:
@@ -119,7 +131,9 @@ volumes:
   jenkins-home:
     name: jenkins-home
 networks:
-  jenkins-controller:
+  controller:
+    external: true <5>
+    name: jenkins-controller
 ```
 +
 --
@@ -132,6 +146,8 @@ networks:
 If you are only using https://plugins.jenkins.io/ssh-slaves[SSH (outbound) build agents], this port is not required, as connections are established from the controller. If you connect agents using web sockets (since Jenkins 2.217), the TCP agent port is not used either. <<docker-readme-md>>
 
 <4> NOTE: Avoid using a https://docs.docker.com/storage/bind-mounts/[bind mount] from a folder on the host machine into _/var/jenkins_home_, as this might result in file permission issues (the user used inside the container might not have rights to the folder on the host machine). If you _really_ need to bind mount jenkins_home, ensure that the directory on the host is accessible by the jenkins user inside the container (jenkins user - uid 1000) or use `-u some_other_user` parameter with `docker run`. <<docker-readme-md>>
+
+<5> `external` specifies that this network’s lifecycle is maintained outside of that of the application.
 --
 
 . (Optional) Create a compose file named `compose.override.yml` with the following content:
@@ -179,17 +195,17 @@ $ sudo cat /var/lib/docker/volumes/jenkins-home/_data/secrets/initialAdminPasswo
 ```
 ====
 
-=== Configuring agents
+=== Configuring a Jenkins SSH credential
 
-. Generating an SSH key pair <<using-agents>>
+. Generating an SSH key pair:
 +
-To generate the SSH key pair, you have to execute a command line tool named `ssh-keygen` on a machine you have access to.
+TIP: To generate the SSH key pair, execute a command line tool named `ssh-keygen` on a machine you have access to. <<using-agents>>
 +
 ```sh
 ssh-keygen -t ed25519 -f ~/.ssh/jenkins_agent_key
 ```
 
-. Create a Jenkins SSH credential
+. Create a Jenkins SSH credential:
 +
 --
 . Go to your Jenkins dashboard;
@@ -208,11 +224,25 @@ ssh-keygen -t ed25519 -f ~/.ssh/jenkins_agent_key
 ** Passphrase: fill your passphrase used to generate the SSH key pair (leave empty if you didn’t use one at the previous step) and then press the `Create` button
 --
 
+=== Configuring agents using the SSH connector in Docker
+
 . Open up a terminal window, and create a directory named _agents_:
 +
 ```sh
 mkdir agents
 cd agents
+```
+
+. Create an environment file named _.env_ and set the project name with _jenkins-agents_:
++
+```sh
+echo -n COMPOSE_PROJECT_NAME=jenkins-agents > .env
+```
+
+. Create a bridge network for the agent:
++
+```sh
+docker network create -d bridge jenkins-agents
 ```
 
 . Create a compose file named `compose.yml` with the following content:
@@ -237,7 +267,9 @@ volumes:
   agent-home:
     name: jenkins-agent-home
 networks:
-  jenkins-agent:
+  agents:
+    external: true
+    name: jenkins-agents
 ```
 +
 --
@@ -247,79 +279,6 @@ networks:
 +
 When using the Windows image, you have to set the value of the `Remote root directory` to `C:/Users/jenkins/Work` in the agent configuration UI. <<docker-ssh-agent>>
 --
-+
-.Docker in Docker
-[NOTE]
-====
-```yml
-version: "2.4"
-services:
-  agent:
-    container_name: jenkins-agent
-    build:
-      context: .
-      dockerfile_inline: |
-        ARG SSH_AGENET_TAG=jdk21
-        FROM jenkins/ssh-agent:$${SSH_AGENET_TAG}
-
-        ENV DOCKER_CE_CLI_VERSION=5:25.0.1-1~debian.12~bookworm
-
-        RUN apt-get update \
-            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                ca-certificates \
-                curl \
-                lsb-release \
-            && rm -rf /var/lib/apt/lists/*
-        RUN curl -fsSLo /usr/share/keyrings/docker-archive-keyring.asc https://download.docker.com/linux/debian/gpg
-        RUN echo "deb [arch=$(dpkg --print-architecture) \
-                  signed-by=/usr/share/keyrings/docker-archive-keyring.asc] \
-                  https://download.docker.com/linux/debian \
-                  $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-        RUN apt-get update \
-            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                docker-ce-cli=$${DOCKER_CE_CLI_VERSION} \
-            && rm -rf /var/lib/apt/lists/*
-    restart: on-failure
-    ports:
-      - "2200:22"
-    environment:
-      - "JENKINS_AGENT_SSH_PUBKEY=[your-public-key]" <1>
-      # e.g. - "JENKINS_AGENT_SSH_PUBKEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKBBHLJ+8RuLPO8dO1tm3RAt5kc3HqYwJUYMmRPjhtI3" 
-      - DOCKER_HOST=tcp://docker:2376
-      - DOCKER_CERT_PATH=/certs/client
-      - DOCKER_TLS_VERIFY=1
-    volumes:
-      - agent-home:/home/jenkins/agent:rw 
-      - docker-certs:/certs/client:ro
-    networks:
-      jenkins-agent:
-  docker:
-    container_name: jenkins-docker
-    image: docker:25
-    restart: on-failure
-    privileged: true
-    environment:
-       - DOCKER_TLS_CERTDIR=/certs
-    volumes:
-      - docker-certs:/certs/client:rw
-      - docker-root:/var/lib/docker:rw
-    networks:
-      jenkins-agent:
-        aliases:
-          - docker
-volumes:
-  agent-home:
-    name: jenkins-agent-home
-  docker-certs:
-    name: jenkins-agent-docker-certs
-  docker-root:
-    name: jenkins-agent-docker-root
-networks:
-  jenkins-agent:
-```
-
-<1> The value of `JENKINS_AGENT_SSH_PUBKEY` MUST include the full contents of your .pub file created above (i.e. _~/.ssh/jenkins_agent_key.pub_), including the `ssh-XXXX` prefix. <<using-agents>>
-====
 
 . Starting the agent container:
 +
@@ -390,6 +349,164 @@ agent1
 Finished: SUCCESS
 ```
 --
+
+=== Configuring agents running Docker in Docker
+
+. Open up a terminal window, and create a directory named _agents/dind_:
++
+```sh
+mkdir -p agents/dind
+cd agents/dind
+```
+
+. Create an environment file named _.env_ and set the project name with _jenkins-agents-dind_:
++
+```sh
+echo -n COMPOSE_PROJECT_NAME=jenkins-agents-dind > .env
+```
+
+. Create a bridge network for the agent:
++
+```sh
+docker network create -d bridge jenkins-agents-dind
+```
+
+. Create a compose file named `compose.yml` with the following content:
++
+```yml
+version: "2.4"
+services:
+  agent:
+    container_name: jenkins-agent
+    build:
+      context: .
+      dockerfile_inline: |
+        ARG SSH_AGENET_TAG=jdk21
+        FROM jenkins/ssh-agent:$${SSH_AGENET_TAG}
+        ARG DOCKER_CE_CLI_VERSION=5:25.0.1-1~debian.12~bookworm
+        RUN apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                ca-certificates \
+                curl \
+                lsb-release \
+            && rm -rf /var/lib/apt/lists/*
+        RUN curl -fsSLo /usr/share/keyrings/docker-archive-keyring.asc https://download.docker.com/linux/debian/gpg
+        RUN echo "deb [arch=$(dpkg --print-architecture) \
+                  signed-by=/usr/share/keyrings/docker-archive-keyring.asc] \
+                  https://download.docker.com/linux/debian \
+                  $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+        RUN apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                docker-ce-cli=$${DOCKER_CE_CLI_VERSION} \ <1>
+            && rm -rf /var/lib/apt/lists/*
+    restart: on-failure
+    ports:
+      - "2200:22" <2>
+    environment:
+      - "JENKINS_AGENT_SSH_PUBKEY=[your-public-key]" <3>
+      # e.g. - "JENKINS_AGENT_SSH_PUBKEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKBBHLJ+8RuLPO8dO1tm3RAt5kc3HqYwJUYMmRPjhtI3" 
+      - DOCKER_HOST=tcp://docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+    volumes:
+      - agent-home:/home/jenkins/agent:rw
+      - docker-certs:/certs/client:ro
+    networks:
+      agents:
+    depends_on:
+      - docker
+  docker:
+    container_name: jenkins-docker
+    image: docker:25
+    restart: on-failure
+    ports:
+      - "2376"
+    privileged: true
+    environment:
+       - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - docker-certs:/certs/client:rw
+      - docker-root:/var/lib/docker:rw
+    networks:
+      agents:
+        aliases:
+          - docker
+volumes:
+  agent-home:
+    name: jenkins-agent-home-dind
+  docker-certs:
+    name: jenkins-agent-docker-certs
+  docker-root:
+    name: jenkins-agent-docker-root
+networks:
+  agents:
+    external: true
+    name: jenkins-agents-dind
+```
++
+--
+<1> Extend the `jenkins/ssh-agent` image to install Docker CLI.
+<2> If your machine already has a ssh server running on the `22` port, use another port to publish the agent container port 22 (SSH), such as `2200:22`.
+<1> The value of `JENKINS_AGENT_SSH_PUBKEY` MUST include the full contents of your .pub file created above (i.e. _~/.ssh/jenkins_agent_key.pub_), including the `ssh-XXXX` prefix. <<using-agents>>
+--
+
+. (Optional) Create a compose file named _compose.override.yml_ with the following content:
++
+```yml
+version: "2.4"
+services:
+  agent:
+    build:
+      args:
+        - SSH_AGENET_TAG=jdk21
+        - DOCKER_CE_CLI_VERSION=5:25.0.1-1~debian.12~bookworm
+  docker:
+    image: docker:25
+```
+
+. Starting the agent and docker container:
++
+```sh
+docker compose up -d
+```
+
+. Refer to link:#configuring-agents-running-docker-in-docker[Configuring agents using the SSH connector in Docker] to setup up the agent on jenkins, and create a `Freestyle project` using `Execute shell` with `docker version` command, and select the option `Build Now` then go to `Console Output` page.
++
+```txt
+Started by user admin
+Running as SYSTEM
+Building remotely on agent1 in workspace /home/jenkins/agent/workspace/test
+[test] $ /bin/sh -xe /tmp/jenkins2069680891022148280.sh
++ docker version
+Client: Docker Engine - Community
+ Version:           25.0.1
+ API version:       1.44
+ Go version:        go1.21.6
+ Git commit:        29cf629
+ Built:             Tue Jan 23 23:09:46 2024
+ OS/Arch:           linux/amd64
+ Context:           default
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          25.0.1
+  API version:      1.44 (minimum version 1.24)
+  Go version:       go1.21.6
+  Git commit:       71fa3ab
+  Built:            Tue Jan 23 23:09:59 2024
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          v1.7.12
+  GitCommit:        71909c1814c544ac47ab91d2e8b84718e517bb99
+ runc:
+  Version:          1.1.11
+  GitCommit:        v1.1.11-0-g4bccb38
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+Finished: SUCCESS
+```
 
 [bibliography]
 == References
