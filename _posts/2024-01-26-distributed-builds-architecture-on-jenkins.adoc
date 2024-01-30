@@ -716,6 +716,99 @@ v20.11.0
 . . .
 ```
 
+==== Workspace Synchronization
+
+If it is important to keep the workspace synchronized with other stages, use `reuseNode true`. Otherwise, a dockerized stage can be run on the same agent or any other agent, but in a temporary workspace.
+
+By default, for a _containerized stage_, Jenkins:
+
+. Picks an agent.
+
+. Creates a new empty workspace.
+
+. Clones pipeline code into it.
+
+. Mounts this new workspace into the container.
+
+If you have multiple Jenkins agents, your containerized stage can be started on any of them.
+
+When `reuseNode` is set to `true`, no new workspace will be created, and the current workspace from the current agent will be mounted into the container. After this, the container will be started on the same node, so all of the data will be synchronized.
+
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            agent {
+                docker {
+                    image 'gradle:8.2.0-jdk17-alpine'
+                    // Run the container on the node specified at the
+                    // top-level of the Pipeline, in the same workspace,
+                    // rather than on a new node entirely:
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'gradle --version'
+            }
+        }
+    }
+}
+```
+
+==== Caching Data for Containers
+
+Many build tools will download external dependencies and cache them locally for future re-use. Since containers are initially created with "clean" file systems, this can result in slower Pipelines, as they may not take advantage of on-disk caches between subsequent Pipeline runs.
+
+Pipeline supports adding custom arguments that are passed to Docker, allowing users to specify custom https://docs.docker.com/engine/tutorials/dockervolumes/[Docker Volumes] to mount, which can be used for caching data on the agent between Pipeline runs. The following example will cache `~/.m2` between Pipeline runs utilizing the maven container, avoiding the need to re-download dependencies for subsequent Pipeline runs.
+
+```groovy
+pipeline {
+    agent {
+        docker {
+            image 'maven:3.9.3-eclipse-temurin-17'
+            args '-v $HOME/.m2:/root/.m2'
+        }
+    }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn -B'
+            }
+        }
+    }
+}
+```
+
+==== Using Multiple Containers
+
+It has become increasingly common for code bases to rely on multiple different technologies. For example, a repository might have both a Java-based back-end API implementation and a JavaScript-based front-end implementation. Combining Docker and Pipeline allows a Jenkinsfile to use multiple types of technologies, by combining the `agent {}` directive with different stages.
+
+```groovy
+pipeline {
+    agent none
+    stages {
+        stage('Back-end') {
+            agent {
+                docker { image 'maven:3.9.6-eclipse-temurin-17-alpine' }
+            }
+            steps {
+                sh 'mvn --version'
+            }
+        }
+        stage('Front-end') {
+            agent {
+                docker { image 'node:20.11.0-alpine3.19' }
+            }
+            steps {
+                sh 'node --version'
+            }
+        }
+    }
+}
+```
+
+
 [appendix]
 == GitLab Jenkins Integration
 
@@ -726,49 +819,135 @@ However, many organizations have been using Jenkins for their deployment process
 With https://docs.gitlab.com/ee/integration/jenkins.html[GitLab's Jenkins integration], you can effortlessly set up your project to build with Jenkins, and GitLab will output the results for you right from GitLab's UI.
 
 [appendix]
+== Nexus Repository OSS as Docker Registry
+
+. Open a terminal, and create the _compose.yml_ file.
++
+```yml
+version: "2.4"
+services:
+  nexus:
+    container_name: sonatype-nexus
+    user: nexus:nexus
+    image: sonatype/nexus3:3.64.0
+    restart: "on-failure:3"
+    ports:
+      - "8081:8081"
+      - "8082:8082" # Using for Docker Registry
+    # environment:
+    #   NEXUS_CONTEXT: nexus
+    #   INSTALL4J_ADD_VM_PARAMS, passed to the Install4J startup script. Defaults to -Xms2703m -Xmx2703m -XX:MaxDirectMemorySize=2703m -Djava.util.prefs.userRoot=${NEXUS_DATA}/javaprefs.
+    volumes:
+      - data:/nexus-data:rw
+    networks:
+      nexus:
+volumes:
+  data:
+    name: nexus-data
+networks:
+  nexus:
+```
+
+. Start the Nexus container.
++
+```sh
+docker compose up -d
+```
+
+. Login in and initialize the Nexus with `http://[hostname]:8081/[NEXUS_CONTEXT]`, e.g. http://localhost:8081. 
+
+. Create a hosted Docker repository, named _docker-registry_, and set the `8082` as the HTTP connector number.
+
+. Login in with Docker, and push an image.
++
+```sh
+docker login --username admin --password REPLACE-WITH-YOUR-PASSWORD http://localhost:8082/
+```
++
+```console
+$ docker pull qqbuby/net-tools:1.0
+1.0: Pulling from qqbuby/net-tools
+c7b7d16361e0: Pull complete
+f7abee135f61: Pull complete
+Digest: sha256:a3df158f5fa1f0a12a0eeb3deb27b65d6201edce9b07308b96200989f6a4f309
+Status: Downloaded newer image for qqbuby/net-tools:1.0
+docker.io/qqbuby/net-tools:1.0
+$ docker tag qqbuby/net-tools:1.0 localhost:8082/qqbuby/net-tools:1.0
+$ docker push localhost:8082/qqbuby/net-tools:1.0
+The push refers to repository [localhost:8082/qqbuby/net-tools]
+0b167ceab5e1: Pushed
+831b66a484dc: Pushed
+1.0: digest: sha256:a3df158f5fa1f0a12a0eeb3deb27b65d6201edce9b07308b96200989f6a4f309 size: 741
+```
+
+[appendix]
 == Jenkins for a .NET application using Docker
 
+. Open a terminal, create a working folder if you haven't already, and enter it.
++
+In the working folder, run the following command to create a demo ASP.NET Core Web project:
++
+```sh
+dotnet new gitignore
+dotnet new globaljson --sdk-version=8.0.101 --roll-forward=latestFeature
+dotnet new sln -n jenkins-getting-started
+dotnet new web -o src/HelloWorld
+dotnet sln add -s src src/HelloWorld/
+```
+
+. Build and test the project.
++
+Run the Web application.
++
+```sh
+$ dotnet run --project src/HelloWorld/
+Building...
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5062
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+...
+```
++
+Open another terminal, and test the above endpoint.
++
+```sh
+$ curl -i http://localhost:5062
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Date: Tue, 30 Jan 2024 03:25:20 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+Hello World!
+```
+
+. Create a Dockerfile to build and publish the image.
++
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /source
+
+# Copy everything
+COPY . ./
+# Restore as distinct layers
+RUN dotnet restore
+# Build and publish a release
+RUN dotnet publish -c release -o /app --no-restore
+
+# Build runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /app ./
+ENTRYPOINT ["dotnet", "HelloWorld.dll"]
+```
+
+. Create a Jenkinsfile.
++
 ```groovy
-#!/usr/bin/env groovy
 
-pipeline {
-
-    environment {
-        // Explicitly specify the DOTNET_CLI_HOME environment variable to a writable directory, like /tmp.
-        // See also: https://github.com/dotnet/cli/pull/9327
-        //           https://github.com/dotnet/sdk/blob/main/src/Common/CliFolderPathCalculatorCore.cs#L14
-        // System.UnauthorizedAccessException: Access to the path '/.dotnet' is denied.
-        DOTNET_CLI_HOME = '/tmp'
-    }
-
-    agent {
-        docker {
-            image 'mcr.microsoft.com/dotnet/sdk:8.0'
-            // Run the container on the node specified at the
-            // top-level of the Pipeline, in the same workspace,
-            // rather than on a new node entirely:
-            reuseNode true
-        }
-    }
-
-    stages {
-        stage('Build') {
-            steps {
-                sh 'dotnet build'
-            }
-        }
-        stage('Test') {
-            steps {
-                sh 'dotnet test'
-            }
-        }
-        stage('Deploy') {
-            steps {
-                sh 'dotnet publish'
-            }
-        }
-    }
-}
 ```
 
 [bibliography]
@@ -789,3 +968,4 @@ pipeline {
 * [[[pipeline-syntax,12]]] https://www.jenkins.io/doc/book/pipeline/syntax/
 * [[[pipeline-docker,13]]] https://www.jenkins.io/doc/book/pipeline/docker/
 * [[[gitlab-jenkins,14]]] https://about.gitlab.com/solutions/jenkins/
+* [[[sonatype-nexus-oss-installation-methods,15]]] https://help.sonatype.com/en/installation-methods.html
