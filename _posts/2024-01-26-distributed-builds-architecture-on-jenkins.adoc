@@ -880,6 +880,31 @@ The push refers to repository [localhost:8082/qqbuby/net-tools]
 1.0: digest: sha256:a3df158f5fa1f0a12a0eeb3deb27b65d6201edce9b07308b96200989f6a4f309 size: 741
 ```
 
+. Go back to the Browser (`#browse/browse:docker-registry`) in the Nexus to check the Repository status.
+
+[TIP]
+====
+By default, Docker assumes all registries to be secure, except for local registries. Communicating with an insecure registry isn't possible if Docker assumes that registry is secure. In order to communicate with an insecure registry, the Docker daemon requires --insecure-registry in one of the following two forms:
+
+* `--insecure-registry myregistry:5000` tells the Docker daemon that myregistry:5000 should be considered insecure.
+* `--insecure-registry 10.1.0.0/16` tells the Docker daemon that all registries whose domain resolve to an IP address is part of the subnet described by the CIDR syntax, should be considered insecure.
+
+The flag can be used multiple times to allow multiple registries to be marked as insecure.
+
+If an insecure registry isn't marked as insecure, `docker pull`, `docker push`, and `docker search` result in error messages, prompting the user to either secure or pass the `--insecure-registry` flag to the Docker daemon as described above.
+
+Local registries, whose IP address falls in the 127.0.0.0/8 range, are automatically marked as insecure as of Docker 1.3.2. It isn't recommended to rely on this, as it may change in the future.
+
+```sh
+$ docker info
+  . . .
+ Insecure Registries:
+  127.0.0.0/8
+```
+
+See also, https://docs.docker.com/engine/reference/commandline/dockerd/#insecure-registries.
+====
+
 [appendix]
 == Jenkins for a .NET application using Docker
 
@@ -924,7 +949,7 @@ Transfer-Encoding: chunked
 Hello World!
 ```
 
-. Create a Dockerfile to build and publish the image.
+. Create Dockerfile using to build Docker image.
 +
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -944,10 +969,114 @@ COPY --from=build /app ./
 ENTRYPOINT ["dotnet", "HelloWorld.dll"]
 ```
 
-. Create a Jenkinsfile.
+. Create Jenkinsfile.
 +
 ```groovy
+pipeline {
 
+    environment {
+        // Explicitly specify the DOTNET_CLI_HOME environment variable to a writable directory, like /tmp:
+        // See also: https://github.com/dotnet/cli/pull/9327
+        //           https://github.com/dotnet/sdk/blob/main/src/Common/CliFolderPathCalculatorCore.cs#L14
+        // System.UnauthorizedAccessException: Access to the path '/.dotnet' is denied.
+        DOTNET_CLI_HOME = '/tmp'
+    }
+
+    agent any
+
+    stages {
+        stage('Build') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/dotnet/sdk:8.0'
+                    // Run the container on the node specified at the
+                    // top-level of the Pipeline, in the same workspace,
+                    // rather than on a new node entirely:
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'dotnet build'
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/dotnet/sdk:8.0'
+                    // Run the container on the node specified at the
+                    // top-level of the Pipeline, in the same workspace,
+                    // rather than on a new node entirely:
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'dotnet test'
+            }
+        }
+        stage('Deploy') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/dotnet/sdk:8.0'
+                    // Run the container on the node specified at the
+                    // top-level of the Pipeline, in the same workspace,
+                    // rather than on a new node entirely:
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'dotnet publish'
+            }
+        }
+        stage('Docker') {
+            // Execute the stage on a node pre-configured to accept Docker-based Pipelines
+            environment {
+                DOCKER_REGISTRY_CREDS = credentials('jenkins-docker-registry-creds')
+                // Replace the following variables with your registry.
+                REGISTRY_SCHEME= 'http'
+                REGISTRY_HOSTNAME = '192.168.56.130'
+                REGISTRY_PORT = '8082'
+            }
+            steps {
+                sh 'docker build . -t $REGISTRY_HOSTNAME:$REGISTRY_PORT/hello-world:$BRANCH_NAME'
+                sh 'docker login -u $DOCKER_REGISTRY_CREDS_USR -p $DOCKER_REGISTRY_CREDS_PSW $REGISTRY_SCHEME://$REGISTRY_HOSTNAME:$REGISTRY_PORT'
+                sh 'docker push $REGISTRY_HOSTNAME:$REGISTRY_PORT/hello-world:$BRANCH_NAME'
+                sh 'docker logout $REGISTRY_SCHEME://$REGISTRY_HOSTNAME:$REGISTRY_PORT'
+            }
+        }
+    }
+}
+```
+
+```console
+. . .
++ dotnet build
+MSBuild version 17.8.3+195e7f5a3 for .NET
+  Determining projects to restore...
+. . .
+
++ docker build . -t 192.168.56.130:8082/hello-world:main
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  1.535MB
+. . .
+
++ docker login -u **** -p **** http://192.168.56.130:8082
+WARNING! Using --password via the CLI is insecure. Use --password-stdin.
+WARNING! Your password will be stored unencrypted in /home/jenkins/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+[Pipeline] sh
++ docker push 192.168.56.130:8082/hello-world:main
+The push refers to repository [192.168.56.130:8082/hello-world]
+. . .
+
++ docker logout http://192.168.56.130:8082
+Removing login credentials for 192.168.56.130:8082
+. . .
 ```
 
 [bibliography]
