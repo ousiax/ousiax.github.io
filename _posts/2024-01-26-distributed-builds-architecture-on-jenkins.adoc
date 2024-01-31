@@ -814,7 +814,6 @@ pipeline {
 }
 ```
 
-
 [appendix]
 == GitLab Jenkins Integration
 
@@ -825,9 +824,25 @@ However, many organizations have been using Jenkins for their deployment process
 With https://docs.gitlab.com/ee/integration/jenkins.html[GitLab's Jenkins integration], you can effortlessly set up your project to build with Jenkins, and GitLab will output the results for you right from GitLab's UI.
 
 [appendix]
-== Nexus Repository OSS as Docker Registry
+== Sonatype Nexus Repository OSS
 
-. Open a terminal, and create the _compose.yml_ file. <<sonatype-nexus-oss-installation-methods>>
+Sonatype Nexus Repository Manager provides a central platform for storing build artifacts. <<sonatype-nexus-repository>>
+
+=== Installing Nexus Repository with Docker
+
+. Open a terminal, and create a _.env_ file, and set the project name with `sonatype-nexus`.
++
+```sh
+echo -n COMPOSE_PROJECT_NAME=sonatype-nexus > .env
+```
+
+. Creata a bridge network named `sonatype-nexus`.
++
+```sh
+docker network create -d bridge sonatype-nexus
+```
+
+. Create a _compose.yml_ file.
 +
 ```yml
 version: "2.4"
@@ -837,12 +852,6 @@ services:
     user: nexus:nexus
     image: sonatype/nexus3:3.64.0
     restart: "on-failure:3"
-    ports:
-      - "8081:8081"
-      - "8082:8082" # Using for Docker Registry
-    # environment:
-    #   NEXUS_CONTEXT: nexus
-    #   INSTALL4J_ADD_VM_PARAMS, passed to the Install4J startup script. Defaults to -Xms2703m -Xmx2703m -XX:MaxDirectMemorySize=2703m -Djava.util.prefs.userRoot=${NEXUS_DATA}/javaprefs.
     volumes:
       - data:/nexus-data:rw
     networks:
@@ -852,47 +861,110 @@ volumes:
     name: nexus-data
 networks:
   nexus:
+    external: true
+    name: sonatype-nexus
 ```
 
-. Start the Nexus container.
+. Create a _compose.override.yml_ file.
++
+```yml
+version: "2.4"
+services:
+  nexus:
+    ports:
+      - "8081:8081"
+      - "8082:8082" # Using for Docker Registry
+    # environment:
+    #   NEXUS_CONTEXT: nexus <1>
+    #   INSTALL4J_ADD_VM_PARAMS, passed to the Install4J startup script. Defaults to -Xms2703m -Xmx2703m -XX:MaxDirectMemorySize=2703m -Djava.util.prefs.userRoot=${NEXUS_DATA}/javaprefs.
+```
++
+--
+<1> An environment variable can be used to control the Nexus Context Path, `NEXUS_CONTEXT`, defaults to `/`. <<sonatype-nexus-oss-installation-methods>> <<docker-nexus3>>
+--
+
+. Start the _sonatype-nexus_ container.
 +
 ```sh
 docker compose up -d
 ```
 
-. Login in and initialize the Nexus with `http://[hostname]:8081/[NEXUS_CONTEXT]`, e.g. http://localhost:8081. 
+. Go to a browser with http://localhost:8081, click the *Sign in* button on the top right, and fill the login fields, and then complete required setup tasks.
++
+[TIP]
+====
+Your *admin* user password is located in _/nexus-data/admin.password_ on the server.
 
-. Create a hosted Docker repository, named _docker-registry_, and set the `8082` as the HTTP connector number.
+. Inspect the Docker volume (i.e. _nexus-data_).
++
+[source,console]
+----
+$ docker inspect nexus-data
+...
+        "Mountpoint": "/var/lib/docker/volumes/nexus-data/_data",
+...
+----
 
-. Login in with Docker, and push an image.
+. Print the user password. 
 +
 ```sh
-docker login --username admin --password REPLACE-WITH-YOUR-PASSWORD http://localhost:8082/
+sudo cat /var/lib/docker/volumes/nexus-data/_data/admin.password
+```
+====
+
+=== Docker Hosted Repositories
+
+A hosted repository using the Docker repository format is typically called a private Docker registry. It can be used to upload your own container images as well as third-party images. It is common practice to create two separate hosted repositories for these purposes. <<nexus-hosted-repository-for-docker>>
+
+. Go the Nexus dashboard, and select the gear icon at the top bar, or enter http://localhost:8081/#admin/repository.
+
+. Select the *Repositories* on the left menu to the *Manage repositories* panel, or enter http://localhost:8081/#admin/repository/repositories.
+
+. Click the *Create repository* button, and select the *docker (hosted)* recipe, then fill the form.
++
+--
+* *Name*: _docker-registry_
+* *Http:*: _8082_
+--
+
+. Click the *Create repository* button at the bottom.
+
+. Login in with Docker, and push/pull images from/to the Nexus.
++
+```sh
+docker login -u admin -p [YOUR ADMIN PASSWORD OF NEXUS] http://localhost:8082
 ```
 +
 ```console
-$ docker pull qqbuby/net-tools:1.0
-1.0: Pulling from qqbuby/net-tools
-c7b7d16361e0: Pull complete
-f7abee135f61: Pull complete
-Digest: sha256:a3df158f5fa1f0a12a0eeb3deb27b65d6201edce9b07308b96200989f6a4f309
-Status: Downloaded newer image for qqbuby/net-tools:1.0
-docker.io/qqbuby/net-tools:1.0
-$ docker tag qqbuby/net-tools:1.0 localhost:8082/qqbuby/net-tools:1.0
-$ docker push localhost:8082/qqbuby/net-tools:1.0
-The push refers to repository [localhost:8082/qqbuby/net-tools]
-0b167ceab5e1: Pushed
-831b66a484dc: Pushed
-1.0: digest: sha256:a3df158f5fa1f0a12a0eeb3deb27b65d6201edce9b07308b96200989f6a4f309 size: 741
+$ docker pull busybox
+Using default tag: latest
+latest: Pulling from library/busybox
+9ad63333ebc9: Pull complete
+Digest: sha256:6d9ac9237a84afe1516540f40a0fafdc86859b2141954b4d643af7066d598b74
+Status: Downloaded newer image for busybox:latest
+docker.io/library/busybox:latest
+$ docker tag busybox:latest localhost:8082/busybox
+$ docker push localhost:8082/busybox
+Using default tag: latest
+The push refers to repository [localhost:8082/busybox]
+2e112031b4b9: Pushed
+latest: digest: sha256:d319b0e3e1745e504544e931cde012fc5470eba649acc8a7b3607402942e5db7 size: 527
+$ docker pull localhost:8082/busybox
+Using default tag: latest
+latest: Pulling from busybox
+Digest: sha256:d319b0e3e1745e504544e931cde012fc5470eba649acc8a7b3607402942e5db7
+Status: Image is up to date for localhost:8082/busybox:latest
+localhost:8082/busybox:latest
 ```
 
-. Go back to the Browser (`#browse/browse:docker-registry`) in the Nexus to check the Repository status.
+. Go back to the Browser (e.g. http://localhost:8081/#browse/browse:docker-registry) in the Nexus to check the Repository status.
 
-[TIP]
+[NOTE]
 ====
 By default, Docker assumes all registries to be secure, except for local registries. Communicating with an insecure registry isn't possible if Docker assumes that registry is secure. In order to communicate with an insecure registry, the Docker daemon requires --insecure-registry in one of the following two forms:
 
 * `--insecure-registry myregistry:5000` tells the Docker daemon that myregistry:5000 should be considered insecure.
+
 * `--insecure-registry 10.1.0.0/16` tells the Docker daemon that all registries whose domain resolve to an IP address is part of the subnet described by the CIDR syntax, should be considered insecure.
 
 The flag can be used multiple times to allow multiple registries to be marked as insecure.
@@ -909,6 +981,51 @@ $ docker info
 ```
 
 See also, https://docs.docker.com/engine/reference/commandline/dockerd/#insecure-registries.
+====
+
+=== NuGet Hosted Repositories
+
+A hosted repository for NuGet can be used to upload your own packages as well as third-party packages. The repository manager includes a hosted NuGet repository named _nuget-hosted_ by default. <<nexus-nuget-hosted-repo>>
+
+. Go the Nexus dashboard, sign in, and click the user name at the top right, or enter http://localhost:8081/#user/account.
+
+. On the left panel, select the *NuGet API Key*.
+
+. Click the *Access API Key*, authentication with your credential, and then click *Copy to Clipboard*. 
+
+. Click the gear icon at the top panel, select the *Realms* on the left panel under the *Security*.
+
+. Select the *NuGet API-Key Realm* on the left *Available* tab panel, and transfer it to the right *Active* tab panel.
+
+. Click the *Save* button at the bottom right.
+
+. Push a Nuget package on Nexus.
++
+```console
+$ dotnet new classlib -o HelloLib
+The template "Class Library" was created successfully.
+. . .
+$ dotnet pack HelloLib/
+$ dotnet nuget push HelloLib/bin/Release/HelloLib.1.0.0.nupkg -k [REPLACE WITH YOUR API KEY] -s http://localhost:8081/repository/nuget-hosted/index.json
+warn : You are running the 'push' operation with an 'HTTP' source, 'http://localhost:8081/repository/nuget-hosted/index.json'. Non-HTTPS access will be removed in a future version. Consider migrating to an 'HTTPS' source.
+Pushing HelloLib.1.0.0.nupkg to 'http://localhost:8081/repository/nuget-hosted'...
+warn : You are running the 'push' operation with an 'HTTP' source, 'http://localhost:8081/repository/nuget-hosted/'. Non-HTTPS access will be removed in a future version. Consider migrating to an 'HTTPS' source.
+  PUT http://localhost:8081/repository/nuget-hosted/
+  Created http://localhost:8081/repository/nuget-hosted/ 40ms
+Your package was pushed.
+```
++
+[TIP]
+====
+You can also create a _nuget.config_ and add the NuGet source to the project.
+
+```sh
+dotnet new console -o HelloApp
+cd HelloApp/
+dotnet new nugetconfig
+dotnet nuget add source -n nexus http://localhost:8081/repository/nuget-hosted/index.json
+dotnet add package HelloLib --version 1.0.0
+```
 ====
 
 [appendix]
@@ -1127,4 +1244,8 @@ Removing login credentials for 192.168.56.130:8082
 * [[[pipeline-syntax,12]]] https://www.jenkins.io/doc/book/pipeline/syntax/
 * [[[pipeline-docker,13]]] https://www.jenkins.io/doc/book/pipeline/docker/
 * [[[gitlab-jenkins,14]]] https://about.gitlab.com/solutions/jenkins/
-* [[[sonatype-nexus-oss-installation-methods,15]]] https://help.sonatype.com/en/installation-methods.html
+* [[[sonatype-nexus-repository,15]]] https://www.sonatype.com/products/sonatype-nexus-repository
+* [[[sonatype-nexus-oss-installation-methods,16]]] https://help.sonatype.com/en/installation-methods.html
+* [[[docker-nexus3,17]]] https://hub.docker.com/r/sonatype/nexus3/
+* [[[nexus-hosted-repository-for-docker,18]]] https://help.sonatype.com/en/hosted-repository-for-docker--private-registry-for-docker-.html
+* [[[nexus-nuget-hosted-repo,19]]] https://help.sonatype.com/en/nuget-hosted-repositories.html
