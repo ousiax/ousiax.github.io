@@ -823,6 +823,99 @@ However, many organizations have been using Jenkins for their deployment process
 
 With https://docs.gitlab.com/ee/integration/jenkins.html[GitLab's Jenkins integration], you can effortlessly set up your project to build with Jenkins, and GitLab will output the results for you right from GitLab's UI.
 
+After configured a Jenkins integration, trigger a build in Jenkins when push code to your repository or create a merge request in GitLab. The Jenkins pipeline status displays on merge request widgets and the GitLab project’s home page. <<gitlab-integration-jenkins>>
+
+To configure a Jenkins integration with GitLab:
+
+* Grant Jenkins access to the GitLab project.
+* Configure the Jenkins server.
+* Configure the Jenkins project.
+* Configure the GitLab project.
+
+=== Install GitLab using Docker
+
+. Open a terminal, and a bridge network named `gitlab-ce`.
++
+```sh
+docker network create gitlab-ce
+```
+
+. Create a `compose.yml` file.
++
+```yml
+version: "2.4"
+services:
+  gitlab-ce:
+    container_name: gitlab-ce
+    image: gitlab/gitlab-ce:16.5.8-ce.0 # Pin GitLab to a specific Community Edition version
+    restart: "on-failure:3"
+    volumes:
+      - data:/var/opt/gitlab:rw # For storing application data.
+      - logs:/var/log/gitlab:rw # For storing logs.
+      - config:/etc/gitlab:rw   # For storing the GitLab configuration files.
+    networks:
+      gitlab-ce:
+volumes:
+  data:
+    name: gitlab-ce-data
+  logs:
+    name: gitlab-ce-logs
+  config:
+    name: gitlab-ce-config
+networks:
+  gitlab-ce:
+    external: true
+    name: gitlab-ce
+```
+
+. Create a `compose.override.yml` file.
++
+```yml
+version: "2.4"
+services:
+  gitlab-ce:
+    # Pin GitLab to a specific Community Edition version
+    image: gitlab/gitlab-ce:16.5.8-ce.0
+    # Use a valid externally-accessible hostname or IP address. Do not use `localhost`.
+    hostname: 'node-0'
+    environment:
+      # If you want to use a different host port than 80 (HTTP), 443 (HTTPS), or 22 (SSH), you
+      # need to add a separate --publish directive to the docker run command. 
+      GITLAB_OMNIBUS_CONFIG: |
+        # Add any other gitlab.rb configuration here, each on its own line
+        external_url 'http://node-0:8929'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2424
+    ports:
+      - '8929:8929'
+      - '2424:22'
+    extra_hosts:
+      - "node-0:192.168.56.130"
+```
+
+. Start the `gitlab-ce` container.
++
+```sh
+docker compose up -d
+```
++
+--
+The initialization process may take a long time. You can track this process with: <<install-gitlab>>
+
+```sh
+docker logs -f gitlab-ce
+```
+
+After starting the container, you can visit `node-0`. It might take a while before the Docker container starts to respond to queries.
+
+Visit the GitLab URL, and sign in with the username `root` and the password from the following command:
+
+```sh
+sudo cat $(docker inspect gitlab-ce-config -f "{{.Mountpoint}}")/initial_root_password
+```
+
+NOTE: The password file is automatically deleted in the first container restart after 24 hours.
+--
+
 [appendix]
 == Sonatype Nexus Repository OSS
 
@@ -1249,3 +1342,5 @@ Removing login credentials for 192.168.56.130:8082
 * [[[docker-nexus3,17]]] https://hub.docker.com/r/sonatype/nexus3/
 * [[[nexus-hosted-repository-for-docker,18]]] https://help.sonatype.com/en/hosted-repository-for-docker--private-registry-for-docker-.html
 * [[[nexus-nuget-hosted-repo,19]]] https://help.sonatype.com/en/nuget-hosted-repositories.html
+* [[[install-gitlab,20]]] https://docs.gitlab.com/ee/install/docker.html
+* [[[gitlab-integration-jenkins,21]]] https://docs.gitlab.com/ee/integration/jenkins.html
