@@ -3,27 +3,21 @@
 :page-categories: ['container']
 :page-tags: ['linux', 'cgroup', 'namespace', 'container', 'docker']
 :page-date: 2021-11-23 14:48:37 +0800
-:page-revdate: 2021-11-23 14:48:37 +0800
+:page-revdate: Fri Feb  2 12:55:51 PM CST 2024
 :sectnums:
 :toc:
 
 == What are Control Groups
 
-Linux Control Groups (*cgroups*) enable limits on the use of system hardware, ensuring that an individual process running inside a cgroup only utilizes as much as has been allowed in the cgroups configuration.
+Linux Control Groups (cgroups) enable limits on the use of system hardware, ensuring that an individual process running inside a *cgroup* only utilizes as much as has been allowed in the *cgroups* configuration. <<rhel7-kernel_features>>
 
-Control Groups restrict the volume of usage on a resource that has been enabled by a *namespace*.
+Control Groups restrict the volume of usage on a resource that has been enabled by a *namespace*. For example, the network namespace allows a process to access a particular network card, the cgroup ensures that the process does not exceed 50% usage of that card, ensuring bandwidth is available for other processes.
 
 Control Group Namespaces provide a virtualized view of individual cgroups through the `/proc/self/ns/cgroup` interface.
 
-The purpose is to prevent leakage of privileged data from the *global namespaces* to the cgroup and to enable other features, such as container migration.
-
-Because it is now much easier to associate a *container* with a single cgroup, containers have a much more coherent cgroup view, it also enables tasks inside the container to have a virtualized view of the cgroup it belongs to.
-
-=== What are Namespaces
-
 **Namespace**s are a kernel feature that allow a virtual view of isolated system resources. By isolating a process from system resources, you can specify and control what a process is able to interact with.
 
-Namespaces are an essential part of Control Groups.
+Namespaces are an essential part of Control Groups, and a fundamental aspect of https://en.wikipedia.org/wiki/OS-level_virtualization[containers] in Linux. <<Linux_namespaces>><<suse-demystifying-containers-part-i-kernel-space>>
 
 * *Mount*
 +
@@ -31,7 +25,7 @@ The mount namespace isolates file system mount points, enabling each process to 
 
 * *UTS*
 +
-Hostname and NIS domain name 
+UTS (UNIX Time-Sharing) namespaces allow a single system to appear to have different host and domain names to different processes.
 
 * *IPC*
 +
@@ -43,7 +37,13 @@ Process IDs
 
 * *Network*
 +
-Network devices, stacks, ports, etc. 
+Network namespaces virtualize the https://en.wikipedia.org/wiki/Network_stack[network stack]. On creation, a network namespace contains only a https://en.wikipedia.org/wiki/Localhost[loopback] interface.
++
+Each network interface (physical or virtual) is present in exactly 1 namespace and can be moved between namespaces.
++
+Each namespace will have a private set of _IP addresses_, its own _routing table_, _socket listing_, _connection tracking table_, _firewall_, and other network-related resources.
++
+Destroying a network namespace destroys any virtual interfaces within it and moves any physical interfaces within it back to the initial network namespace.
 
 * *User*
 +
@@ -55,7 +55,9 @@ Isolates cgroups
 
 === What are Resource Controllers
 
-A *resource controller*, also called a *cgroup subsystem*, represents a single resource, such as CPU time or memory. The Linux kernel provides a range of resource controllers, that are mounted automatically by systemd.
+A *resource controller*, also called a *cgroup subsystem*, represents a single resource, such as CPU time or memory. The Linux kernel provides a range of resource controllers, that are mounted automatically by *systemd*. <<rhel7-resource_management_guide-index>> 
+
+TIP: Find the list of currently mounted resource controllers in `/proc/cgroups`.
 
 * *blkio* — sets limits on input/output access to and from block devices;
 * *cpu* — uses the CPU scheduler to provide cgroup tasks access to the CPU. It is mounted together with the `cpuacct` controller on the same mount;
@@ -70,28 +72,23 @@ A *resource controller*, also called a *cgroup subsystem*, represents a single r
 
 === How Control Groups are Organized
 
-Cgroups are organized hierarchically, like processes, and child cgroups inherit some of the attributes of their parents. However, there are differences between the two models.
+Cgroups are organized hierarchically, like processes, and child cgroups inherit some of the attributes of their parents. However, there are differences between the two models. <<rhel6-resource_management_guide-index>>
 
-* The Linux Process Model
-+
-All processes on a Linux system are child processes of a common parent: the `init` process, which is executed by the kernel at boot time and starts other processes (which may in turn start child processes of their own). Because all processes descend from a single parent, the Linux process model is a single hierarchy, or tree.
-+
+==== The Linux Process Model
+
+All processes on a Linux system are child processes of a common parent: the `init` process, which is executed by the kernel at boot time and starts other processes (which may in turn start child processes of their own). Because all processes descend from a single parent, _the Linux process model is a single hierarchy, or tree_.
+
 Additionally, every Linux process except init inherits the environment (such as the PATH variable) and certain other attributes (such as open file descriptors) of its parent process.
 
-* The Cgroup Model
-+
-Cgroups are similar to processes in that:
-+
---
-** they are hierarchical, and
-** child cgroups inherit certain attributes from their parent cgroup. 
---
-+
-The fundamental difference is that many different hierarchies of cgroups can exist simultaneously on a system. If the Linux process model is a single tree of processes, then the cgroup model is one or more separate, unconnected trees of tasks (i.e. processes).
-+
+==== The Cgroup Model
+
+Cgroups are similar to processes in that: they are hierarchical, and child cgroups inherit certain attributes from their parent cgroup. 
+
+The fundamental difference is that many different hierarchies of cgroups can exist simultaneously on a system. If the Linux process model is a single tree of processes, then _the cgroup model is one or more separate, unconnected trees of tasks (i.e. processes)_.
+
 Multiple separate hierarchies of cgroups are necessary because each hierarchy is attached to one or more subsystems.
 
-Remember that system *processes* are called *tasks* in *cgroup* terminology.
+_Remember that system *processes* are called *tasks* in *cgroup* terminology._
 
 Here are a few simple rules governing the relationships between subsystems, hierarchies of cgroups, and tasks, along with explanations of the consequences of those rules. 
 
@@ -106,7 +103,7 @@ A single hierarchy can have one or more subsystems attached to it.
 +
 _As a consequence, the `cpu` and `memory` subsystems (or any number of subsystems) can be attached to a single hierarchy, as long as each one is not attached to any other hierarchy which has any other subsystems attached to it already (see Rule 2)._
 +
-image::{rmg-rule1-png}[,55%,55%]
+image::{rmg-rule1-png}[,45%,45%]
 
 * *Rule 2*
 +
@@ -114,7 +111,7 @@ Any single subsystem (such as `cpu`) cannot be attached to more than one hierarc
 +
 _As a consequence, the `cpu` subsystem can never be attached to two different hierarchies if one of those hierarchies already has the `memory` subsystem attached to it. However, a single subsystem can be attached to two hierarchies if both of those hierarchies have only that subsystem attached._
 +
-image::{rmg-rule2-png}[,55%,55%]
+image::{rmg-rule2-png}[,45%,45%]
 
 * *Rule 3*
 +
@@ -130,7 +127,7 @@ The cgroup in `cpu_mem_cg` that the `httpd` process is a member of might restric
 +
 When the first hierarchy is created, every task on the system is a member of at least one cgroup: the root cgroup. When using cgroups, therefore, every system task is always in at least one cgroup. 
 +
-image::{rmg-rule3-png}[,55%,55%]
+image::{rmg-rule3-png}[,45%,45%]
 
 * *Rule 4*
 +
@@ -140,109 +137,115 @@ _As a consequence, consider the `httpd` task that is a member of the cgroup name
 +
 _From that point forward, the parent and child tasks are completely independent of each other: changing the cgroups that one task belongs to does not affect the other. Neither will changing cgroups of a parent task affect any of its grandchildren in any way. To summarize: any child task always initially inherits memberships to the exact same cgroups as their parent task, but those memberships can be changed or removed later._
 +
-image::{rmg-rule4-png}[,55%,55%]
+image::{rmg-rule4-png}[,45%,45%]
 
-=== systemd
+=== Systemd
 
-*Systemd* is a system and service manager for Linux operating systems. It is designed to be backwards compatible with SysV init scripts, and provides a number of features such as parallel startup of system services at boot time, on-demand activation of daemons, or dependency-based service control logic. 
+*Systemd* is a system and service manager for Linux operating systems. It is designed to be backwards compatible with SysV init scripts, and provides a number of features such as parallel startup of system services at boot time, on-demand activation of daemons, or dependency-based service control logic. <<rhel7-systemd>>
 
-[%header,cols="1,3",title="Systemd Unit Files Locations"]
-|===
-|Directory
-|Description
+Systemd introduces the concept of _systemd units_, represented by unit configuration files.
 
-|/usr/lib/systemd/system/
-|Systemd unit files distributed with installed RPM packages.
-
-|/run/systemd/system/
-|Systemd unit files created at run time. This directory takes precedence over the directory with installed service unit files.
-
-|/etc/systemd/system/
-|Systemd unit files created by systemctl enable as well as unit files added for extending a service. This directory takes precedence over the directory with runtime unit files. 
-|===
-
-[%header,cols="1,1,5",title="Available systemd Unit Types"]
+[%header,cols="2,2,7",title="Available systemd Unit Types"]
 |===
 |Unit Type
 |File Extension
 |Description
 
 |Service unit
-|.service
+|`.service`
 |A system service.
 
 |Target unit
-|.target
+|`.target`
 |A group of systemd units.
 
 |Automount unit
-|.automount
+|`.automount`
 |A file system automount point.
 
 |Device unit
-|.device
+|`.device`
 |A device file recognized by the kernel.
 
 |Mount unit
-|.mount
+|`.mount`
 |A file system mount point.
 
 |Path unit
-|.path
+|`.path`
 |A file or directory in a file system.
 
 |Scope unit
-|.scope
+|`.scope`
 |An externally created process.
 
 |Slice unit
-|.slice
+|`.slice`
 |A group of hierarchically organized units that manage system processes.
 
 |Snapshot unit
-|.snapshot
+|`.snapshot`
 |A saved state of the systemd manager.
 
 |Socket unit
-|.socket
+|`.socket`
 |An inter-process communication socket.
 
 |Swap unit
-|.swap
+|`.swap`
 |A swap device or a swap file.
 
 |Timer unit
-|.timer
+|`.timer`
 |A systemd timer. 
 |===
 
-By default, *systemd* automatically creates a hierarchy of `slice`, `scope` and `service` units to provide a unified structure for the cgroup tree. Also, systemd automatically mounts hierarchies for important kernel **resource controller**s in the `/sys/fs/cgroup/` directory. 
+[%header,cols="2,7",title="Systemd Unit Files Locations"]
+|===
+|Directory
+|Description
 
-* *Service* — A process or a group of processes, which `systemd` started based on a unit configuration file. Services encapsulate the specified processes so that they can be started and stopped as one set.
+|`/usr/lib/systemd/system/`
+|Systemd unit files distributed with installed RPM packages.
+
+|`/run/systemd/system/`
+|Systemd unit files created at run time. This directory takes precedence over the directory with installed service unit files.
+
+|`/etc/systemd/system/`
+|Systemd unit files created by systemctl enable as well as unit files added for extending a service. This directory takes precedence over the directory with runtime unit files. 
+|===
+
+By default, systemd automatically creates a hierarchy of `slice`, `scope` and `service` units to provide a unified structure for the cgroup tree. Also, systemd automatically mounts hierarchies for important kernel resource controllers in the `/sys/fs/cgroup/` directory. <<rhel7-resource_management_guide-index>>
+
+All processes running on the system are child processes of the _systemd init process_. Systemd provides three unit types that are used for the purpose of resource control:
+
+* *Service* — A process or a group of processes, which systemd started based on a unit configuration file. Services encapsulate the specified processes so that they can be started and stopped as one set.
 
 * *Scope* — A group of externally created processes. Scopes encapsulate processes that are started and stopped by arbitrary processes through the `fork()` function and then registered by systemd at runtime. For instance, user sessions, containers, and virtual machines are treated as scopes.
 
-* *Slice* — A group of hierarchically organized units. Slices do not contain processes, they organize a hierarchy in which scopes and services are placed. The actual processes are contained in scopes or in services. In this hierarchical tree, every name of a slice unit corresponds to the path to a location in the hierarchy. The dash ("-") character acts as a separator of the path components.
+* *Slice* — A group of hierarchically organized units. Slices do not contain processes, they organize a hierarchy in which scopes and services are placed. The actual processes are contained in scopes or in services. In this hierarchical tree, every name of a slice unit corresponds to the path to a location in the hierarchy. The dash ("`-`") character acts as a separator of the path components.
+
+Services, scopes, and slices are created manually by the system administrator or dynamically by programs. By default, the operating system defines a number of built-in services that are necessary to run the system.
 
 Use the `systemctl` command to list system units and to view their status. Also, the `systemd-cgls` command is provided to view the hierarchy of control groups and `systemd-cgtop` to monitor their resource consumption in real time. 
 
-Use the following command to list all active units on the system:
-
+* Use the following command to list all active units on the system:
++
 [source,sh]
-$ systemctl list-units
-
+systemctl list-units
++
 The `list-units` option is executed by default, which means that you will receive the same output when you omit this option.
 
-To list all unit files installed on your system and their status, type:
-
+* To list all unit files installed on your system and their status, type:
++
 [source,sh]
-$ systemctl list-unit-files
+systemctl list-unit-files
 
-To view a list of all slices used on the system, type:
-
+* To view a list of all slices used on the system, type:
++
 [source,sh]
-$ systemctl -t slice 
-
+systemctl -t slice 
++
 [source,console]
 ----
   UNIT                  LOAD   ACTIVE SUB    DESCRIPTION
@@ -260,13 +263,13 @@ SUB    = The low-level unit activation state, values depend on unit type.
 To show all installed unit files use 'systemctl list-unit-files'.
 ----
 
-To display detailed information about a service unit that corresponds to a system service, type: 
-
+* To display detailed information about a service unit that corresponds to a system service, type: 
++
 [source,sh]
 ----
-$ systemctl status ssh.service 
+systemctl status ssh.service 
 ----
-
++
 [source,console,highlight=11]
 ----
 ● ssh.service - OpenBSD Secure Shell server
@@ -283,68 +286,61 @@ $ systemctl status ssh.service
              └─367 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
 ----
 
-To display the whole cgroup hierarchy on your system, type:
-
+* To display the whole cgroup hierarchy on your system, type:
++
 [source,sh]
 ----
-$ systemd-cgls
+systemd-cgls
 ----
-
++
 When `systemd-cgls` is issued without parameters, it returns the entire cgroup hierarchy. 
-
++
 To view the information that stored in dedicated process files, type as root:
-
++
 [source,sh]
-$ cat proc/PID/cgroup
-
+cat proc/PID/cgroup
++
 Where `PID` stands for the ID of the process you wish to examine.
-
++
 The *systemd-cgls* command provides a static snapshot of the cgroup hierarchy. To see a dynamic account of currently running cgroups ordered by their resource usage (CPU, Memory, and IO), use:
-
++
 [source,sh]
-$ systemd-cgtop
+systemd-cgtop
 
 === libcgroup
+
+WARNING: The libcgroup package, which was the main tool for cgroup management in previous versions of Red Hat Enterprise Linux, is now deprecated.
 
 In order to use https://github.com/libcgroup/libcgroup[libcgroup] tools, first ensure the cgroup-tools packages are installed on your system. 
 
 [source,sh]
-$ sudo apt-get install cgroup-tools -y
+----
+sudo apt-get install cgroup-tools -y
+# sudo yum install libcgroup-tools -y
+----
+
+The `cgroup-tools` with version `0.41-21.el7` does not work with Cgroup v2.
 
 [source,console]
 ----
-$ dpkg -l | grep cgroup-tools
-ii  cgroup-tools                    0.41-8.1                     amd64        control and monitor control groups (tools)
+$ sudo yum --showduplicates list libcgroup-tools
+libcgroup-tools.x86_64                                             0.41-21.el7                                              @base
 ----
 
-[NOTE] 
-====
-The `cgroup-tools` with version `0.41-8.1` does not work with Cgroup v2.
+The cgroup version depends on the Linux distribution being used and the default cgroup version configured on the OS. To check which cgroup version your distribution uses, run the `stat -fc %T /sys/fs/cgroup/` command on the node: <<k8s-arch-cgroups>>
 
-*Cgroup v2* is the next version of the cgroup Linux API. Differently than cgroup v1, there is a single hierarchy instead of a different one for each controller.
-
-[source,console]
-----
-$ uname -r
-5.10.0-9-amd64
-
-$ stat -fc %T /sys/fs/cgroup/
-cgroup2fs
-
-$ mount -t cgroup2,cgroup
-cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
-
-$ cgget -g cpuset /
-cgget: libcgroup initialization failed: Cgroup is not mounted
-----
-====
+```sh
+stat -fc %T /sys/fs/cgroup/
+# For cgroup v2, the output is cgroup2fs.
+# For cgroup v1, the output is tmpfs.
+```
 
 * Finding a Process
 +
 To find the cgroup to which a process belongs, run:
 +
 [source,sh]
-$ ps -O cgroup
+ps -O cgroup
 +
 [source,console]
 ----
@@ -357,7 +353,7 @@ $ ps -o pid,cgroup:60,command
 Or, if you know the PID for the process, run:
 +
 [source,sh]
-$ cat /proc/PID/cgroup
+cat /proc/PID/cgroup
 +
 where `PID` stands for a ID of the inspected process. 
 +
@@ -383,7 +379,7 @@ $ cat /proc/5345/cgroup
 To find the controllers that are available in your kernel and information on how they are mounted together to hierarchies, execute:
 +
 [source,sh]
-$ cat /proc/cgroups
+cat /proc/cgroups
 +
 [source,console]
 ----
@@ -433,7 +429,7 @@ memory /sys/fs/cgroup/memory
 It is recommended that you mount hierarchies under the `/sys/fs/cgroup/` directory. Assuming this is the case on your system, list or browse the contents of that directory to obtain a list of hierarchies. If the tree utility is installed on your system, run it to obtain an overview of all hierarchies and the cgroups within them:
 +
 [source,sh]
-$ tree /sys/fs/cgroup
+tree /sys/fs/cgroup
 +
 [source,console]
 ----
@@ -461,12 +457,12 @@ $ tree -L 1 /sys/fs/cgroup/
 To list the cgroups on a system, execute as root:
 +
 [source,sh]
-$ lscgroup
+lscgroup
 +
 To restrict the output to a specific hierarchy, specify a controller and a path in the format `controller:path`. For example:
 +
 [source,sh]
-$ lscgroup cpuset:adminusers
+lscgroup cpuset:adminusers
 +
 The above command lists only subgroups of the `adminusers` cgroup in the hierarchy to which the `cpuset` controller is attached. 
 
@@ -475,23 +471,23 @@ The above command lists only subgroups of the `adminusers` cgroup in the hierarc
 To display the parameters of specific cgroups, run:
 +
 [source,sh]
-$ cgget -r parameter list_of_cgroups
+cgget -r parameter list_of_cgroups
 +
 where `parameter` is a pseudofile that contains values for a controller, and `list_of_cgroups` is a list of cgroups separated with spaces. For example:
 +
 [source,sh]
-$ cgget -r cpuset.cpus -r memory.limit_in_bytes group1 group2
+cgget -r cpuset.cpus -r memory.limit_in_bytes group1 group2
 +
 displays the values of `cpuset.cpus` and `memory.limit_in_bytes` for cgroups `group1` and `group2`.
 +
 If you do not know the names of the parameters themselves, use a command like:
 +
 [source,sh]
-$ cgget -g cpuset /
+cgget -g cpuset /
 
 === nsenter
 
-The kernel allocates and restricts the resources for individual processes running on the Linux operating system. The namespaces within the kernel partition these resources. Namespaces allocate the resources to a process such that the process only sees those specific resources. Namespaces provide isolation among the process, managing what system resources they can see. This technology is widely-used in container runtimes to provide a layer of isolation among containers that run on the same host.
+The kernel allocates and restricts the resources for individual processes running on the Linux operating system. The namespaces within the kernel partition these resources. Namespaces allocate the resources to a process such that the process only sees those specific resources, widely-used in container runtimes to provide a layer of isolation among containers that run on the same host. <<rl-container-namespaces-nsenter>> 
 
 Use Docker to create a container from the `debian:bullseye` image and install `procps` package inside the container, which provides `top` and `ps` commands.
 
@@ -549,7 +545,7 @@ $ sudo lsns -p 415111
 
 The `nsenter` command expands to _namespace enter_. It accepts different options to only enter the specified namespace.
 
-Let's enter the network namespace to check the IP address and route table.
+Let's enter the network namespace (`-n`) to check the IP address and route table.
 
 [source,console]
 ----
@@ -576,7 +572,7 @@ default via 172.17.0.1 dev eth0
 172.17.0.0/16 dev eth0 proto kernel scope link src 172.17.0.2 
 ----
 
-Next, I enter the process namespace to check the process details.
+Next, enter the process namespace to check the process details.
 
 [source,console]
 ----
@@ -643,8 +639,11 @@ $ sudo nsenter -t 415111 -a lsns
 
 The `man` page for this command states that `free` displays the total amount of free and used memory on the system, including physical and swap space, as well as the buffers and caches used by the kernel. The information is gathered by parsing *`/proc/meminfo`*.
 
-[source,console,highlight=3]
+[source,console,highlight=6]
 ----
+$ docker version -f '{{.Server.Version}}'
+24.0.7
+
 $ docker info | grep Cgroup
  Cgroup Driver: systemd
  Cgroup Version: 2
@@ -654,43 +653,44 @@ $ docker run --rm -it busybox free
 Mem:        3993764     2410712      190544        2224     1392508     1344364
 Swap:             0           0           0
 
-$ docker run --rm -it --memory 100Mi busybox free
+$ docker run --rm -it --memory 100m busybox free
               total        used        free      shared  buff/cache   available
 Mem:        3993764     2421988      178952        2180     1392824     1333032
 Swap:             0           0           0
 
-$ docker run --rm -it --memory 100Mi busybox sh -c 'echo $(($(cat /sys/fs/cgroup/memory.max) / 1024 / 1024))'
+$ docker run --rm -it --memory 100m busybox sh -c 'echo $(($(cat /sys/fs/cgroup/memory.max) / 1024 / 1024))'
 100
 ----
 
-[source,console,highlight=4]
+[source,console,highlight=5]
 ----
+$ docker version -f '{{.Server.Version}}'
+24.0.7
+
 $ docker info | grep Cgroup
-WARNING: No swap limit support
- Cgroup Driver: systemd
+ Cgroup Driver: cgroupfs
  Cgroup Version: 1
 
-$ docker run --rm -d --memory 100Mi busybox sleep 10m
-WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3
+$ docker run --rm -d --memory 100m busybox sleep 10m
+6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
 
-$ lscgroup | grep 16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3
-cpu,cpuacct:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-net_cls,net_prio:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-freezer:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-pids:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-blkio:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-perf_event:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-devices:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-memory:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-cpuset:/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
+$ lscgroup | grep 6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+pids:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+devices:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+cpu,cpuacct:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+memory:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+blkio:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+cpuset:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+freezer:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+net_cls,net_prio:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+hugetlb:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+perf_event:/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
 
-$ cgget -r memory.limit_in_bytes /system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope
-/system.slice/docker-16ad349f470c7f67b182c5a353fba2db7bc3c7052e3b4a80802bfa5c49fa09f3.scope:
+$ cgget -r memory.limit_in_bytes /docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540
+/docker/6e5f69c591d46a3701e383ce3469eb3b63f3dfb2608012177fe646b8469a3540:
 memory.limit_in_bytes: 104857600
 
-$ docker run --rm -it --memory 100Mi busybox cat /sys/fs/cgroup/memory/memory.limit_in_bytes
-WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+$ docker run --rm -it --memory 100m busybox cat /sys/fs/cgroup/memory/memory.limit_in_bytes
 104857600
 ----
 
@@ -714,7 +714,7 @@ cpuset:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod26d20484
 
 == What are Containers?
 
-Containers are lightweight packages of your application code together with dependencies such as specific versions of programming language runtimes and libraries required to run your software services.
+Containers are lightweight packages of your application code together with dependencies such as specific versions of programming language runtimes and libraries required to run your software services. <<gcp-what-are-containers>><<rl-whats-a-linux-container>>
 
 Containers make it easy to share CPU, memory, storage, and network resources at the operating systems level and offer a logical packaging mechanism in which applications can be abstracted from the environment in which they actually run. 
 
@@ -726,47 +726,49 @@ You might already be familiar with VMs: a guest operating system such as Linux o
 * Containers virtualize at the OS level while VMs virtualize at the hardware level
 * Containers share the OS kernel and use a fraction of the memory VMs require
 
-image::https://www.redhat.com/cms/managed-files/virtualization-vs-containers.png[,75%,75%]
+image::https://www.redhat.com/cms/managed-files/virtualization-vs-containers.png[,55%,55%]
 
 === Open Container Initiative
 
-The https://opencontainers.org/[*Open Container Initiative*] (*OCI*) is a lightweight, open governance structure (project), formed under the auspices of the Linux Foundation, for the express purpose of creating open industry standards around container formats and runtime. The OCI was launched on June 22nd 2015 by Docker, CoreOS and other leaders in the container industry
+The https://opencontainers.org/[Open Container Initiative] (OCI) is an open governance structure for the express purpose of creating open industry standards around container formats and runtimes.
 
-The OCI currently contains two specifications: the *Runtime Specification* (runtime-spec) and the *Image Specification* (image-spec). The Runtime Specification outlines how to run a “filesystem bundle” that is unpacked on disk. At a high-level an OCI implementation would download an OCI Image then unpack that image into an OCI Runtime filesystem bundle. At this point the OCI Runtime Bundle would be run by an OCI Runtime.
+Established in June 2015 by Docker and other leaders in the container industry, the OCI currently contains three specifications: the _Runtime Specification_ (runtime-spec), the _Image Specification_ (image-spec) and the _Distribution Specification_ (distribution-spec).
 
-Docker is donating its container format and runtime, runC, to the OCI to serve as the cornerstone of this new effort.
+Docker is donating its container format and runtime, runC, to the OCI to serve as the cornerstone of this new effort. <<oci-about>>
 
 * runc
 +
-https://github.com/opencontainers/runc[*runc*] is a CLI tool for spawning and running containers on Linux according to the OCI specification.
+https://github.com/opencontainers/runc[`runc`] is a CLI tool for spawning and running containers on Linux according to the OCI specification.
 +
 
 * containerd
 +
-https://github.com/containerd/containerd[*containerd*] is available as a daemon for Linux and Windows. It manages the complete container lifecycle of its host system, from image transfer and storage to container execution and supervision to low-level storage to network attachments and beyond.
+https://github.com/containerd/containerd[containerd] is available as a daemon for Linux and Windows. It manages the complete container lifecycle of its host system, from image transfer and storage to container execution and supervision to low-level storage to network attachments and beyond.
 +
-Containerd is built on top of the Open Container Initiative’s *runC* and specification. Containerd is a daemon providing a GRPC API to manage containers on the local system. Containerd leverages runC to provide advanced functionality like checkpoint and restore, seccomp, and user namespace support which will open the door for these features into Docker.
+Containerd is built on top of the Open Container Initiative’s runC and specification. Containerd is a daemon providing a GRPC API to manage containers on the local system. Containerd leverages runC to provide advanced functionality like checkpoint and restore, seccomp, and user namespace support which will open the door for these features into Docker. <<containerd-daemon-to-control-runc>>
 +
 Containerd is designed to be embedded into a larger system, rather than being used directly by developers or end-users.
 +
-Containerd was designed to be used by Docker and Kubernetes as well as any other container platform that wants to abstract away syscalls or OS specific functionality to run containers on linux, windows, solaris, or other OSes.  
+Containerd was designed to be used by Docker and Kubernetes as well as any other container platform that wants to abstract away syscalls or OS specific functionality to run containers on linux, windows, solaris, or other OSes. <<docker-what-is-containerd-runtime>> 
++
+image::https://containerd.io/img/architecture.png[containerd architecture diagram,55%,55%]
 
 === What is Docker? 
 
-The word "Docker" refers to several things, including an open source community project; tools from the open source project; Docker Inc., the company that primarily supports that project; and the tools that company formally supports. 
+The word "Docker" refers to several things, including an open source community project; tools from the open source project; Docker Inc., the company that primarily supports that project; and the tools that company formally supports. <<rl-what-is-docker>>
 
 // image::https://www.docker.com/sites/default/files/d8/2018-11/docker-containerized-and-vm-transparent-bg.png[,70%,70%]
-image::https://upload.wikimedia.org/wikipedia/commons/0/0a/Docker-containerized-and-vm-transparent-bg.png[,70%,70%]
+image::https://upload.wikimedia.org/wikipedia/commons/0/0a/Docker-containerized-and-vm-transparent-bg.png[,55%,55%]
 
-With Docker, you can treat containers like extremely lightweight, modular virtual machines.
+With Docker, you can treat containers like extremely lightweight, modular virtual machines. <<docker-what-container>>
 
-The Docker technology uses the https://www.redhat.com/en/topics/linux/what-is-the-linux-kernel[Linux kernel] and features of the kernel, like https://www.redhat.com/en/blog/world-domination-cgroups-rhel-8-welcome-cgroups-v2[*Cgroups*] and https://lwn.net/Articles/528078/[*namespaces*], to segregate processes so they can run independently. This independence is the intention of containers—the ability to run multiple processes and apps separately from one another to make better use of your infrastructure while retaining the security you would have with separate systems.
+The Docker technology uses the https://www.redhat.com/en/topics/linux/what-is-the-linux-kernel[Linux kernel] and features of the kernel, like https://www.redhat.com/en/blog/world-domination-cgroups-rhel-8-welcome-cgroups-v2[Cgroups] and https://lwn.net/Articles/528078/[namespaces], to segregate processes so they can run independently. This independence is the intention of containers—the ability to run multiple processes and apps separately from one another to make better use of your infrastructure while retaining the security you would have with separate systems.
 
 === What is Kubernetes?
 
-Kubernetes (also known as k8s or “kube”) is an open source container orchestration platform that automates many of the manual processes involved in deploying, managing, and scaling containerized applications.
+Kubernetes (also known as k8s or “kube”) is an open source container orchestration platform that automates many of the manual processes involved in deploying, managing, and scaling containerized applications. <<rl-what-is-kubernetes>>
 
-image::https://www.redhat.com/cms/managed-files/kubernetes_diagram-v3-770x717_0_0_v2.svg?[,55%,55%]
+image::https://www.redhat.com/cms/managed-files/kubernetes_diagram-v3-770x717_0_0_v2.svg?[,45%,45%]
 
 With Kubernetes you can:
 
@@ -780,9 +782,9 @@ With Kubernetes you can:
 
 ==== Container Runtime Interface (CRI)
 
-At the lowest layers of a Kubernetes node is the software that, among other things, starts and stops containers. We call this the “Container Runtime”. The most widely known container runtime is Docker, but it is not alone in this space. In fact, the container runtime space has been rapidly evolving. As part of the effort to make Kubernetes more extensible, we've been working on a new plugin API for container runtimes in Kubernetes, called "CRI".
+At the lowest layers of a Kubernetes node is the software that, among other things, starts and stops containers. <<k8s-cri-in-kubernetes>>
 
-*CRI* (Container Runtime Interface) consists of a specifications/requirements (to-be-added), protobuf API, and libraries for container runtimes to integrate with *kubelet* on a node.
+CRI (_Container Runtime Interface_) consists of a specifications/requirements (to-be-added), protobuf API, and libraries for container runtimes to integrate with _kubelet_ on a node.
 
 Kubelet communicates with the container runtime (or a CRI shim for the runtime) over Unix sockets using the gRPC framework, where kubelet acts as a client and the CRI shim as the server.
 
@@ -792,17 +794,19 @@ Kubernetes supports several container runtimes: https://docs.docker.com/engine/[
 
 ==== What is dockershim
 
-Just as Kubernetes started out with built-in support for Docker Engine, it also included built-in support for various storage volume solutions, network solutions, and even cloud providers. But maintaining these things on an ongoing basis became too cumbersome, so the community decided to strip all third party solutions out of the core, creating the relevant interfaces, such as:
+Just as Kubernetes started out with built-in support for Docker Engine, it also included built-in support for various storage volume solutions, network solutions, and even cloud providers. But maintaining these things on an ongoing basis became too cumbersome, so the community decided to strip all third party solutions out of the core, creating the relevant interfaces, such as: <<mirantis-to-take-over-support-of-kubernetes-dockershim-2>>
 
-* Container Runtime Interface (*CRI*)
-* Container Network Interface (*CNI*)
-* Container Storage Interface (*CSI*)
+* Container Runtime Interface (CRI)
+
+* Container Network Interface (CNI)
+
+* Container Storage Interface (CSI)
 
 The idea was that any vendor could create a product that automatically interfaces with Kubernetes, as long as it is compliant with these interfaces.
 
-That doesn’t mean that non-compliant components can’t be used with Kubernetes; Kubernetes can do anything with the right components. It just means that non-compliant components need a “shim”, which translates between the component and the relevant Kubernetes interface. For example, *dockershim* takes CRI commands and translates them into something Docker Engine understands, and vice versa. But with the drive to take third-party components like this out of the Kubernetes core, dockershim had to be removed.
+That doesn’t mean that non-compliant components can’t be used with Kubernetes; Kubernetes can do anything with the right components. It just means that non-compliant components need a “shim”, which translates between the component and the relevant Kubernetes interface. For example, _dockershim_ takes CRI commands and translates them into something Docker Engine understands, and vice versa. But with the drive to take third-party components like this out of the Kubernetes core, dockershim had to be removed.
 
-image::https://d33wubrfki0l68.cloudfront.net/6b4290afef76cad8a084292cd1b5e468e31c9bb3/c26ce/images/blog/2018-05-24-kubernetes-containerd-integration-goes-ga/cri-containerd.png[,75%,75%]
+image::https://d33wubrfki0l68.cloudfront.net/6b4290afef76cad8a084292cd1b5e468e31c9bb3/c26ce/images/blog/2018-05-24-kubernetes-containerd-integration-goes-ga/cri-containerd.png[,55%,55%]
 
 The Kubernetes project plans to deprecate https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md#deprecation[Docker Engine support] in the kubelet and support for dockershim will be removed in a future release announced as a part of the Kubernetes v1.20 release.
 
@@ -816,9 +820,7 @@ The Kubernetes project plans to deprecate https://github.com/kubernetes/kubernet
 
 ==== Debugging Kubernetes nodes with crictl
 
-*crictl* is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node. crictl and its source are hosted in the https://github.com/kubernetes-sigs/cri-tools[cri-tools] repository.
-
-The `crictl` command has several subcommands and runtime flags. Use `crictl help` or `crictl <subcommand> help` for more details.
+`crictl` is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node. crictl and its source are hosted in the https://github.com/kubernetes-sigs/cri-tools[cri-tools] repository. <<k8s-debug-cluster-crictl>>
 
 `crictl` connects to `unix:///var/run/dockershim.sock` by default. For other runtimes, you can set the endpoint in multiple different ways:
 
@@ -832,14 +834,13 @@ To view or edit the current configuration, view or edit the contents of `/etc/cr
 
 [source,console]
 ----
-cat /etc/crictl.yaml
 runtime-endpoint: unix:///var/run/dockershim.sock
 image-endpoint: unix:///var/run/dockershim.sock
 timeout: 10
 debug: true
 ----
 
-WARNING: If you use `crictl` to create pod sandboxes or containers on a running Kubernetes cluster, the Kubelet will eventually delete them. `crictl` is not a general purpose workflow tool, but a tool that is useful for debugging.
+NOTE: If you use `crictl` to create pod sandboxes or containers on a running Kubernetes cluster, the Kubelet will eventually delete them. `crictl` is not a general purpose workflow tool, but a tool that is useful for debugging.
 
 * List pods
 +
@@ -1012,7 +1013,7 @@ NOTE: You should set the CLI argument `container-config.json` before `pod-config
 
 * Start a container
 +
-To start a container, pass its ID to crictl start:
+To start a container, pass its ID to `crictl start`:
 +
 [source,console]
 ----
@@ -1032,19 +1033,25 @@ CONTAINER           IMAGE               CREATED             STATE               
 7dc686635ed28       busybox             20 seconds ago      Exited              busybox                   0                   32623026e0ec8
 ----
 
+[bibliography]
 == References
 
-* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/kernel_administration_guide/kernel_features
-* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/resource_management_guide/index
-* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/chap-managing_services_with_systemd
-* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/index
-* https://www.redhat.com/sysadmin/container-namespaces-nsenter
-* https://www.redhat.com/en/topics/containers/whats-a-linux-container
-* https://www.redhat.com/en/topics/containers/what-is-docker
-* https://www.redhat.com/en/topics/containers/what-is-kubernetes
-* https://www.docker.com/resources/what-container
-* https://www.docker.com/blog/what-is-containerd-runtime/
-* https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/
-* https://kubernetes.io/blog/2016/12/container-runtime-interface-cri-in-kubernetes/
-* https://www.docker.com/blog/what-developers-need-to-know-about-docker-docker-engine-and-kubernetes-v1-20/
-* https://www.suse.com/c/demystifying-containers-part-i-kernel-space/
+* [[[rhel7-kernel_features,1]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/kernel_administration_guide/kernel_features
+* [[[Linux_namespaces,2]]] https://en.wikipedia.org/wiki/Linux_namespaces
+* [[[rhel7-resource_management_guide-index,3]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/resource_management_guide/index
+* [[[rhel7-systemd,4]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/chap-managing_services_with_systemd
+* [[[rhel6-resource_management_guide-index,5]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/index
+* [[[k8s-arch-cgroups,6]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
+* [[[rl-container-namespaces-nsenter,7]]] https://www.redhat.com/sysadmin/container-namespaces-nsenter
+* [[[gcp-what-are-containers,8]]] https://cloud.google.com/learn/what-are-containers
+* [[[rl-whats-a-linux-container,9]]] https://www.redhat.com/en/topics/containers/whats-a-linux-container
+* [[[oci-about,10]]] https://opencontainers.org/about/overview/
+* [[[containerd-daemon-to-control-runc,11]]] https://www.docker.com/blog/containerd-daemon-to-control-runc/
+* [[[docker-what-is-containerd-runtime,12]]] https://www.docker.com/blog/what-is-containerd-runtime/
+* [[[rl-what-is-docker,13]]] https://www.redhat.com/en/topics/containers/what-is-docker
+* [[[docker-what-container,14]]] https://www.docker.com/resources/what-container
+* [[[rl-what-is-kubernetes,15]]] https://www.redhat.com/en/topics/containers/what-is-kubernetes
+* [[[k8s-cri-in-kubernetes,16]]] https://kubernetes.io/blog/2016/12/container-runtime-interface-cri-in-kubernetes/
+* [[[mirantis-to-take-over-support-of-kubernetes-dockershim-2,17]]] https://www.mirantis.com/blog/mirantis-to-take-over-support-of-kubernetes-dockershim-2/
+* [[[k8s-debug-cluster-crictl,18]]] https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/
+* [[[suse-demystifying-containers-part-i-kernel-space,19]]] https://www.suse.com/c/demystifying-containers-part-i-kernel-space/
