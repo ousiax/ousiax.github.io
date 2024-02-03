@@ -829,114 +829,6 @@ image::{cri-containerd-png}[,55%,55%]
 :docker-ce-24-release-notes: https://docs.docker.com/engine/release-notes/24.0/#2400
 TIP: Introduce experimental support for containerd as the content store (replacing the existing storage drivers) of the {docker-ce-24-release-notes}[Docker 24.0].
 
-=== Enable containerd image store on Docker Engine
-
-https://docs.docker.com/storage/containerd/[Switching to containerd snapshotters] causes you to temporarily lose images and containers created using the classic storage drivers. Those resources still exist on your filesystem, and you can retrieve them by turning off the containerd snapshotters feature.
-
-The following steps explain how to enable the containerd snapshotters feature.
-
-. Add the following configuration to your `/etc/docker/daemon.json` configuration file:
-+
-[source,json]
-----
-{
-  "features": {
-    "containerd-snapshotter": true
-  }
-}
-----
-
-. Restart the daemon for the changes to take effect.
-+
-[source,sh]
-----
-sudo systemctl restart docker
-----
-
-. After restarting the daemon, running `docker info` shows that you’re using containerd snapshotter storage drivers.
-+
-[source,sh]
-----
-docker info -f '{{ .DriverStatus }}'
-----
-+
-```console
-[[driver-type io.containerd.snapshotter.v1]]
-```
-
-Docker Engine uses the _overlayfs_ containerd snapshotter by default.
-
-[source,console]
-----
-$ sudo ctr plugin ls
-TYPE                                  ID                       PLATFORMS      STATUS
-. . .
-io.containerd.snapshotter.v1          overlayfs                linux/amd64    ok
-. . .
-----
-
-=== moby and k8s.io namespaces
-
-_``moby`` is default namespace for dockerd and `k8s.io` is default namespace for kubelet, i.e. Kubernetes._
-
-[source,console]
-----
-$ sudo docker info -f '{{.DriverStatus}}'
-[[driver-type io.containerd.snapshotter.v1]]
-$ sudo docker image ls
-REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
-$ sudo ctr ns ls
-NAME LABELS 
-moby        
-$ sudo ctr -n moby content ls
-DIGEST	SIZE	AGE	LABELS
-$ sudo ctr -n moby image pull docker.io/library/nginx:1.25.2
-docker.io/library/nginx:1.25.2:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
-index-sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c:    done           |++++++++++++++++++++++++++++++++++++++| 
-manifest-sha256:48a84a0728cab8ac558f48796f901f6d31d287101bc8b317683678125e0d2d35: done           |++++++++++++++++++++++++++++++++++++++| 
-config-sha256:eea7b3dcba7ee47c0d16a60cc85d2b977d166be3960541991f3e6294d795ed24:   done           |++++++++++++++++++++++++++++++++++++++| 
-. . .
-layer-sha256:e3b6889c89547ec9ba653ab44ed32a99370940d51df956968c0d578dd61ab665:    done           |++++++++++++++++++++++++++++++++++++++| 
-elapsed: 65.9s                                                                    total:  66.8 M (1.0 MiB/s)                                       
-unpacking linux/amd64 sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c...
-done: 1.641277314s	
-$ docker image ls
-REPOSITORY   TAG       IMAGE ID       CREATED         SIZE
-nginx        1.25.2    104c7c5c54f2   7 seconds ago   272MB
-$ docker pull nginx:1.25.2
-104c7c5c54f2: Already exists 
-48a84a0728ca: Already exists 
-eea7b3dcba7e: Already exists 
-docker.io/library/nginx:1.25.2
-$ docker image ls
-REPOSITORY   TAG       IMAGE ID       CREATED              SIZE
-nginx        1.25.2    104c7c5c54f2   About a minute ago   272MB
-----
-
-[source,console]
-----
-// same as: sudo crictl pull docker.io/library/nginx:1.25.2
-$ sudo ctr -n k8s.io i pull docker.io/library/nginx:1.25.2
-docker.io/library/nginx:1.25.2:                                                   resolved       |++++++++++++++++++++++++++++++++++++++| 
-index-sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c:    done           |++++++++++++++++++++++++++++++++++++++| 
-manifest-sha256:48a84a0728cab8ac558f48796f901f6d31d287101bc8b317683678125e0d2d35: done           |++++++++++++++++++++++++++++++++++++++| 
-. . .
-layer-sha256:a7c4092be9044bd4eef78f27c95785ef3a9f345d01fd4512bc94ddaaefc359f4:    done           |++++++++++++++++++++++++++++++++++++++| 
-config-sha256:eea7b3dcba7ee47c0d16a60cc85d2b977d166be3960541991f3e6294d795ed24:   done           |++++++++++++++++++++++++++++++++++++++| 
-. . .
-layer-sha256:52d2b7f179e32b4cbd579ee3c4958027988f9a8274850ab0c7c24661e3adaac5:    done           |++++++++++++++++++++++++++++++++++++++| 
-elapsed: 2.3 s                                                                    total:   0.0 B (0.0 B/s)                                         
-unpacking linux/amd64 sha256:104c7c5c54f2685f0f46f3be607ce60da7085da3eaa5ad22d3d9f01594295e9c...
-done: 3.058695129s	
-
-// show the container runtime of Kubernetes nodes
-$ kubectl get nodes -owide
-NAME     STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION   CONTAINER-RUNTIME
-node-0   Ready    control-plane   50m   v1.28.0   192.168.91.128   <none>        Debian GNU/Linux 12 (bookworm)   6.1.0-9-amd64    containerd://1.6.22
-----
-
-=== Docker’s runtime is built upon containerd
-
 Developers can still use the Docker platform to build, share, and run containers on Kubernetes!
 
 If you’re using Docker, you’re already using containerd.
@@ -952,98 +844,25 @@ $ dockerd --help | grep containerd
 
 The images Docker builds are compliant with OCI (Open Container Initiative), are fully supported on containerd, and will continue to run great on Kubernetes.
 
-Docker's runtime is built upon containerd while providing a great developer experience around it. For production environments that benefit from a minimal container runtime, such as Kubernetes, and may have no need for Docker's great developer experience, it's reasonable to directly use lightweight runtimes like containerd.
+_Docker's runtime is built upon containerd_ while providing a great developer experience around it. For production environments that benefit from a minimal container runtime, such as Kubernetes, and may have no need for Docker's great developer experience, it's reasonable to directly use lightweight runtimes like containerd.
 
+containerd uses snapshotters instead of the classic storage drivers for storing image and container data. While the _overlay2_ driver still remains the default driver for Docker Engine, you can opt in to using containerd snapshotters as an https://docs.docker.com/storage/containerd/[experimental feature].
+
+[TIP]
+====
 If you're using Docker, you'll find that the `cri` plugin was disabled at `/etc/containerd/config.toml`.
 
 [source,console]
 ----
 $ containerd config dump | grep 'disabled_plugins'
 disabled_plugins = ["cri"]
-$ # OR
+// OR
 $ grep cri /etc/containerd/config.toml 
 disabled_plugins = ["cri"]
-$ # OR
+// OR
 $ sudo ctr plugin ls | grep cri
 ----
-
-:kube-rt-containerd: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd
-
-To migrate runtime from Docker to {kube-rt-containerd}[containerd], please enable the `cri` plugin, and specify the cri parameters `--container-runtime=remote` and  `--container-runtime-endpoint=/run/containerd/containerd.sock` for kubelet.
-
-:kubeadm-configure-cgroup-driver: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
-
-.Using the `systemd` cgroup driver for `containerd`
-[IMPORTANT]
 ====
-To use the `systemd` cgroup driver in `/etc/containerd/config.toml` with `runc`, set
-
-[source,toml]
-----
-[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-  # ...
-  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-    SystemdCgroup = true
-----
-
-If you apply this change make sure to restart containerd again:
-
-[source,console]
-$ sudo systemctl restart containerd
-
-When using `kubeadm`, manually configure the {kubeadm-configure-cgroup-driver}[cgroup driver for kubelet].
-
-.references:
-****
-* https://kubernetes.io/docs/setup/production-environment/container-runtimes/
-* https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
-****
-====
-
-.Using the `pause` image with `kubeadm` for `cri` plugin
-[source,toml]
-----
-[plugins]
-  # ...
-  [plugins."io.containerd.grpc.v1.cri"]
-    # ...
-    sandbox_image = "k8s.gcr.io/pause:3.5" # consider to keep same as the `--pod-infra-container-image` of kubelet
-----
-
-.Use `kubeadm` to init a single node cluster with `containerd`
-[source,console]
-----
-$ sudo ctr plugin ls | grep cri
-io.containerd.grpc.v1           cri                      linux/amd64    ok 
-
-$ sudo kubeadm init --cri-socket /run/containerd/containerd.sock --ignore-preflight-errors NumCPU --kubernetes-version v1.22.3
-[init] Using Kubernetes version: v1.22.3
-[preflight] Running pre-flight checks
-
-<other outputs>
-
-Your Kubernetes control-plane has initialized successfully!
-
-$ sudo kubectl get node -owide --kubeconfig /etc/kubernetes/admin.conf
-NAME     STATUS   ROLES                  AGE     VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION    CONTAINER-RUNTIME
-node-1   Ready    control-plane,master   6m55s   v1.22.4   192.168.91.137   <none>        Debian GNU/Linux 10 (buster)   4.19.0-17-amd64   containerd://1.4.8
-
-$ sudo kubectl get no node-1 -ogo-template='{{.status.nodeInfo.containerRuntimeVersion}}' --kubeconfig /etc/kubernetes/admin.conf 
-containerd://1.4.8
-
-$ systemctl status kubelet.service --no-page --full
-● kubelet.service - kubelet: The Kubernetes Node Agent
-   Loaded: loaded (/lib/systemd/system/kubelet.service; disabled; vendor preset: enabled)
-  Drop-In: /etc/systemd/system/kubelet.service.d
-           └─10-kubeadm.conf
-   Active: active (running) since Thu 2021-11-25 17:29:02 CST; 21min ago
-     Docs: https://kubernetes.io/docs/home/
- Main PID: 38090 (kubelet)
-    Tasks: 13 (limit: 2330)
-   Memory: 54.7M
-   CGroup: /system.slice/kubelet.service
-           └─38090 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --pod-infra-container-image=k8s.gcr.io/pause:3.5
-----
 
 == Sandbox image and pause container
 
