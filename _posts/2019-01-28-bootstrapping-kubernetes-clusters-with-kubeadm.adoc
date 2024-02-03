@@ -1,4 +1,4 @@
-= Bootstrapping Kubernetes Clusters with kubeadm
+= Install Kubernetes using kubeadm
 :page-layout: post
 :page-categories: ["kubernetes"]
 :page-tags: ["kubernetes", "kubeadm"]
@@ -12,40 +12,37 @@
 :Kubernetes-Conformance-tests: https://kubernetes.io/blog/2017/10/software-conformance-certification/
 :bootstrap-tokens: https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/
 
-Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conforms to best practices. In fact, you can use kubeadm to set up a cluster that will pass the {Kubernetes-Conformance-tests}[Kubernetes Conformance tests]. kubeadm also supports other cluster lifecycle functions, such as {bootstrap-tokens}[bootstrap tokens] and cluster upgrades.
+Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conforms to best practices. In fact, you can use kubeadm to set up a cluster that will pass the {Kubernetes-Conformance-tests}[Kubernetes Conformance tests]. kubeadm also supports other cluster lifecycle functions, such as {bootstrap-tokens}[bootstrap tokens] and cluster upgrades. <<create-cluster-kubeadm>>
 
 == Installing kubeadm and container runtime
 
-* A compatible Linux host. The Kubernetes project provides generic instructions for Linux distributions based on Debian and Red Hat, and those distributions without a package manager.
-* 2 GB or more of RAM per machine (any less will leave little room for your apps).
-* 2 CPUs or more.
-* Full network connectivity between all machines in the cluster (public or private network is fine).
-* Unique hostname, MAC address, and product_uuid for every node.
-* Certain ports are open on your machines.
-* Swap disabled. You *MUST* disable swap in order for the kubelet to work properly.
+* A compatible Linux host. The Kubernetes project provides generic instructions for Linux distributions based on Debian and Red Hat, and those distributions without a package manager. <<install-kubeadm>>
 
-=== Verify the MAC address and product_uuid are unique for every node
-
-* You can get the MAC address of the network interfaces using the command `ip link` or `ifconfig -a`
-
-* The product_uuid can be checked by using the command `sudo cat /sys/class/dmi/id/product_uuid`
+* 2 GB or more of RAM per machine (any less will leave little room for your apps), 2 CPUs or more.
 +
-[source,console]
-----
-[x@node-2 ~]$ ip link show ens32
-2: ens32: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
-    link/ether 00:0c:29:f2:e6:ca brd ff:ff:ff:ff:ff:ff
+You can also use the `--ignore-preflight-errors=NumCPU,Mem` flag to ignore the preflight error when `kubeadm init` or `kubeadm join` a node.
 
-[x@node-2 ~]$ sudo cat /sys/class/dmi/id/product_uuid 
-44314D56-8B56-37B6-C94C-6A2D5FF2E6CA
-----
+* Full network connectivity between all machines in the cluster (public or private network is fine).
++
+kubeadm similarly to other Kubernetes components tries to find a usable IP on the network interfaces associated with a default gateway on a host. Such an IP is then used for the advertising and/or listening performed by a component. <<create-cluster-kubeadm>>
++
+To find out what this IP is on a Linux host you can use:
++
+```sh
+ip route show # Look for a line starting with "default via"
+```
 
-=== Check required ports
+* Unique hostname, MAC address, and product_uuid for every node.
++
+You can get the MAC address of the network interfaces using the command `ip link` or `ifconfig -a`
++
+The product_uuid can be checked by using the command `sudo cat /sys/class/dmi/id/product_uuid`
 
-:networking-ports-and-protocols: https://kubernetes.io/docs/reference/networking/ports-and-protocols/
-
+* Certain ports are open on your machines.
++
+--
 .Control plane
-[%header,cols="1,1,1,2,2"]
+[cols="1,1,1,2,2"]
 |===
 |Protocol
 |Direction
@@ -86,7 +83,7 @@ Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conform
 |===
 
 .Worker node(s)
-[%header,cols="1,1,1,2,2"]
+[cols="1,1,1,2,2"]
 |===
 |Protocol
 |Direction
@@ -108,14 +105,24 @@ Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conform
 
 |===
 
-These {networking-ports-and-protocols}[required ports] need to be open in order for Kubernetes components to communicate with each other. You can use tools like netcat to check if a port is open. For example:
+:networking-ports-and-protocols: https://kubernetes.io/docs/reference/networking/ports-and-protocols/
 
-[source,console]
-----
-nc 127.0.0.1 6443
-----
+These {networking-ports-and-protocols}[required ports] need to be open in order for Kubernetes components to communicate with each other. The pod network plugin you use may also require certain ports to be open. 
+--
 
-The pod network plugin you use may also require certain ports to be open. 
+* Swap disabled. You MUST disable swap in order for the kubelet to work properly.
++
+To check swap status, use: <<archlinux-swap>>
++
+```sh
+swapon --show
+```
++
+Or to show physical memory as well as swap usage:
++
+```sh
+free -h
+```
 
 === Installing a container runtime
 
@@ -126,24 +133,22 @@ To run containers in Pods, Kubernetes uses a {container-runtimes}[container runt
 
 By default, Kubernetes uses the {container-runtime-cri}[Container Runtime Interface] (CRI) to interface with your chosen container runtime.
 
-NOTE: Kubernetes 1.26 requires that you use a runtime that conforms with the {container-runtime-cri}[Container Runtime Interface] (CRI).
-
-If you don't specify a runtime, kubeadm automatically tries to detect an installed container runtime by scanning through a list of known endpoints.
+If you don't specify a runtime, kubeadm automatically tries to detect an installed container runtime by scanning through a list of known endpoints. <<install-kubeadm>>
 
 .Known endpoints for Linux supported operating systems
-[%header,cols="2,3"]
+[cols="2,3"]
 |===
 |Runtime
 |Path to Unix domain socket
 
 |containerd
-|unix:///var/run/containerd/containerd.sock
+|`unix:///var/run/containerd/containerd.sock`
 
 |CRI-O
-|unix:///var/run/crio/crio.sock
+|`unix:///var/run/crio/crio.sock`
 
 |Docker Engine (using cri-dockerd)
-|unix:///var/run/cri-dockerd.sock
+|`unix:///var/run/cri-dockerd.sock`
 
 |===
 
@@ -159,15 +164,30 @@ Docker Engine does not implement the {cri}[CRI] which is a requirement for a con
 
 ==== CRI version support
 
-Your container runtime must support at least v1alpha2 of the container runtime interface.
+Your container runtime must support at least v1alpha2 of the container runtime interface. <<container-runtimes>>
 
 Kubernetes 1.26 defaults to using v1 of the CRI API. If a container runtime does not support the v1 API, the kubelet falls back to using the (deprecated) v1alpha2 API instead.
+
+Show the `cri` details on containerd using `ctr`.
+
+```console
+$ sudo ctr plugins ls -d id==cri
+Type:          io.containerd.grpc.v1
+ID:            cri
+Requires:
+               io.containerd.event.v1
+               io.containerd.service.v1
+               io.containerd.warning.v1
+Platforms:     linux/amd64
+Exports:
+               CRIVersion           v1
+               CRIVersionAlpha      v1alpha2
+```
+
 
 ==== Install and configure prerequisites
 
 The following steps apply common settings for Kubernetes nodes on Linux.
-
-You can skip a particular setting if you're certain you don't need it.
 
 ===== Forwarding IPv4 and letting iptables see bridged traffic
 
@@ -198,62 +218,28 @@ EOF
 sudo sysctl --system
 ----
 
-==== Cgroup drivers
+===== Cgroup drivers
 
-:glossay-cgroup: https://kubernetes.io/docs/reference/glossary/?all=true#term-cgroup
 :manage-resources-containers: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-
-On Linux, {glossay-cgroup}[control groups] are used to constrain resources that are allocated to processes. <<env-container-runtimes>>
 
 Both kubelet and the underlying container runtime need to interface with control groups to enforce {manage-resources-containers}[resource management for pods and containers] and set resources such as cpu/memory requests and limits.
 
-To interface with control groups, the kubelet and the container runtime need to use a cgroup driver.
-
-It's critical that the kubelet and the container runtime uses the same cgroup driver and are configured the same.
-
-There are two cgroup drivers available:
-
-* link:#cgroupfs-driver[cgroupfs]
-* link:#systemd-cgroup-driver[systemd]
-
-===== cgroupfs driver 
+It's critical that the kubelet and the container runtime uses the same cgroup driver and are configured the same. <<container-runtimes>>
 
 :systemd: https://www.freedesktop.org/wiki/Software/systemd/
-:cgroups: https://kubernetes.io/docs/concepts/architecture/cgroups
 
-The *cgroupfs* driver is the default cgroup driver in the kubelet. When the cgroupfs driver is used, the kubelet and the container runtime directly interface with the cgroup filesystem to configure cgroups.
-
-The cgroupfs driver is *not* recommended when {systemd}[systemd] is the init system because systemd expects a single cgroup manager on the system.
-
-Additionally, if you use {cgroups}[cgroup v2] , use the *systemd* cgroup driver instead of cgroupfs.
-
-===== systemd cgroup driver 
+The cgroupfs driver is NOT recommended when {systemd}[systemd] is the init system because systemd expects a single cgroup manager on the system.
 
 :kubelet-config-file: https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/
 
-When {systemd}[systemd] is chosen as the init system for a Linux distribution, the init process generates and consumes a root control group (_cgroup_) and acts as a cgroup manager.
+TIP: Starting with v1.22 and later, when creating a cluster with kubeadm, if the user does not set the cgroupDriver field under {kubelet-config-file}[KubeletConfiguration], kubeadm defaults it to systemd.
 
-systemd has a tight integration with cgroups and allocates a cgroup per systemd unit. As a result, if you use systemd as the init system with the cgroupfs driver, the system gets two different cgroup managers.
+Check the Cgroup driver of the kubelet in the cluster-level:
 
-Two cgroup managers result in two views of the available and in-use resources in the system.
-
-In some cases, nodes that are configured to use cgroupfs for the kubelet and container runtime, but use systemd for the rest of the processes become unstable under resource pressure.
-
-The approach to mitigate this instability is to use systemd as the cgroup driver for the kubelet and the container runtime when systemd is the selected init system.
-
-To set _systemd_ as the cgroup driver, edit the {kubelet-config-file}[KubeletConfiguration] option of `cgroupDriver` and set it to systemd. For example:  <<env-container-runtimes>><<cgroup-driver>>
-
-[source,yml]
-----
-apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-...
-cgroupDriver: systemd
-----
-
-NOTE: In v1.22, if the user is not setting the `cgroupDriver` field under {kubelet-config-file}[KubeletConfiguration], _kubeadm_ will default it to _systemd_. <<cgroup-driver>>
-
-==== Container runtimes
+```console
+$ kubectl get -n kube-system cm kubelet-config -oyaml | grep cgroupDriver
+    cgroupDriver: systemd
+```
 
 ===== containerd
 
@@ -261,338 +247,52 @@ NOTE: In v1.22, if the user is not setting the `cgroupDriver` field under {kubel
 
 Follow the instructions for {containerd-getting-started}[getting started with containerd]. Return to this step once you've created a valid configuration file, `config.toml`.
 
-You can find this file under the path `/etc/containerd/config.toml`.
-
-On Linux the default CRI socket for containerd is `/run/containerd/containerd.sock`.
-
-. *Configuring the systemd cgroup driver*
-+
 To use the _systemd_ cgroup driver in `/etc/containerd/config.toml` with _runc_, set
-+
+
 [source,toml]
 ----
-[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-  ...
-  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-    SystemdCgroup = true
-----
-+
-[NOTE]
-====
-The systemd cgroup driver is recommended if you use {cgroups}[cgroup v2].
-
-The cgroup version depends on the Linux distribution being used and the default cgroup version configured on the OS.
-
-To check which cgroup version your distribution uses, run the `stat -fc %T /sys/fs/cgroup/` command on the node: <<cgroups>>
-
-[source,sh]
-----
-stat -fc %T /sys/fs/cgroup/
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+  SystemdCgroup = true
 ----
 
-For cgroup v2, the output is `cgroup2fs`.
+In the containerd config you can overwrite the sandbox (pause) image by setting the following config:
 
-For cgroup v1, the output is `tmpfs`.
-====
-+
-[NOTE]
-====
-If you installed containerd from a package (for example, RPM or .deb), you may find that the CRI integration plugin is disabled by default.
-
-You need CRI support enabled to use containerd with Kubernetes. Make sure that _cri_ is not included in the _disabled_plugins_ list within _/etc/containerd/config.toml_; if you made changes to that file, also restart _containerd_.
-
-[source,console]
-----
-$ apt-get download containerd.io 
-Get:1 https://download.docker.com/linux/debian buster/stable amd64 containerd.io amd64 1.6.13-1 [27.7 MB]
-Fetched 27.7 MB in 24s (1,154 kB/s)
-$ dpkg -c containerd.io_1.6.13-1_amd64.deb 
-drwxr-xr-x root/root         0 2022-12-16 02:39 ./
-drwxr-xr-x root/root         0 2022-12-16 02:39 ./etc/
-drwxr-xr-x root/root         0 2022-12-16 02:39 ./etc/containerd/
--rw-r--r-- root/root       886 2022-12-16 02:39 ./etc/containerd/config.toml
-....
-----
-
-The follow configuration _/etc/containerd/config.toml_ is used by Docker CE as default.
-
-[source,toml,highlight=15]
-----
-#   Copyright 2018-2022 Docker Inc.
-
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-
-#       http://www.apache.org/licenses/LICENSE-2.0
-
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
-
-disabled_plugins = ["cri"]
-
-#root = "/var/lib/containerd"
-#state = "/run/containerd"
-#subreaper = true
-#oom_score = 0
-
-#[grpc]
-#  address = "/run/containerd/containerd.sock"
-#  uid = 0
-#  gid = 0
-
-#[debug]
-#  address = "/run/containerd/debug.sock"
-#  uid = 0
-#  gid = 0
-#  level = "info"
-----
-====
-
-. *Overriding the sandbox (pause) image*
-+
-In your containerd config you can overwrite the sandbox image by setting the following config:
-+
 [source,toml]
 ----
 [plugins."io.containerd.grpc.v1.cri"]
   sandbox_image = "registry.k8s.io/pause:3.2"
 ----
 
-. *Configure _root_ and _state_ storage locations*
-+
+TIP: Please note, that it is a best practice for kubelet to declare the matching `pod-infra-container-image`. If not configured, kubelet may attempt to garbage collect the pause image.
+
 In the containerd config file you will find settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.
-+
+
 [source,toml]
 ----
 #root = "/var/lib/containerd"
 #state = "/run/containerd"
 ----
-+
-The containerd root will be used to store any type of persistent data for containerd. Snapshots, content, metadata for containers and image, as well as any plugin data will be kept in this location.
-+
-The root is also namespaced for plugins that containerd loads. Each plugin will have its own directory where it stores data. containerd itself does not actually have any persistent data that it needs to store, its functionality comes from the plugins that are loaded.
-+
-[source,console]
-----
-$ sudo tree  /var/lib/containerd/
-/var/lib/containerd/
-├── io.containerd.content.v1.content
-│   └── ingest
-├── io.containerd.metadata.v1.bolt
-│   └── meta.db
-├── io.containerd.runtime.v1.linux
-├── io.containerd.runtime.v2.task
-├── io.containerd.snapshotter.v1.btrfs
-├── io.containerd.snapshotter.v1.native
-│   └── snapshots
-├── io.containerd.snapshotter.v1.overlayfs
-│   └── snapshots
-└── tmpmounts
 
-11 directories, 1 file
-----
-+
-The containerd _state_ will be used to store any type of ephemeral data. Sockets, pids, runtime state, mount points, and other plugin data that must not persist between reboots are stored in this location.
-+
-[source,console]
-----
-$ sudo tree /run/containerd/
-/run/containerd/
-├── containerd.sock
-├── containerd.sock.ttrpc
-├── io.containerd.runtime.v1.linux
-└── io.containerd.runtime.v2.task
+Check the CRI integration plugin status:
 
-2 directories, 2 files
-----
+```console
+$ sudo ctr plugin ls id==cri
+TYPE                     ID     PLATFORMS      STATUS
+io.containerd.grpc.v1    cri    linux/amd64    ok
+```
 
-. *Configure HTTP or HTTPS proxy.*
-+
-The _contianerd_ daemon uses the _HTTP_PROXY_, _HTTPS_PROXY_, and _NO_PROXY_ environmental variables in its start-up environment to configure HTTP or HTTPS proxy behavior.
-+
---
-.. Create a systemd drop-in directory for the containerd service:
-+
-[source,console]
-----
-$ sudo mkdir -p /etc/systemd/system/containerd.service.d
-----
+Check whether the systemd driver is enable using `crictl`:
 
-.. Create a file called _10-http_proxy.conf_ at the above directory that adds the _HTTP_PROXY_ environment variable:
-+
-[source,ini]
-----
-[Service]
-Environment="HTTP_PROXY=http://proxy.example.com:80/"
-----
-+
-Or, if you are behind an HTTPS proxy server, adds the _HTTPS_PROXY_ environment variable:
-+
-[source,ini]
-----
-[Service]
-Environment="HTTP_PROXY=http://proxy.example.com:80/"
-Environment="HTTPS_PROXY=https://proxy.example.com:443/"
-----
-+
-If you have internal registries that you need to contact without proxying you can specify them via the _NO_PROXY_ environment variable:
-+
-[source,ini]
-----
-[Service]
-Environment="HTTP_PROXY=http://proxy.example.com:80/"
-Environment="HTTPS_PROXY=https://proxy.example.com:443/"
-Environment="NO_PROXY=localhost,127.0.0.1,docker-registry.somecorporation.com"
-----
-+
-[TIP]
-====
-The _NO_PROXY_ environment variable specifies URLs that should be excluded from proxying (on servers that should be contacted directly). This should be a comma-separated list of hostnames, domain names, or a mixture of both. Asterisks can be used as wildcards, but other clients may not support that. Domain names may be indicated by a leading dot. For example:
+```console
+$ sudo crictl info -o go-template --template '{{.config.containerd.runtimes.runc.options.SystemdCgroup}}'
+true
+```
 
-[source,text]
-----
-NO_PROXY="*.aventail.com,home.com,.seanet.com"
-----
+_For more information about Cgroups, see link:/2021/11/23/linux-cgroups-containers/[Linux CGroups and Containers]._
 
-says to contact all machines in the ‘aventail.com’ and ‘seanet.com’ domains directly, as well as the machine named ‘home.com’. If _NO_PROXY_ isn’t defined, _no_PROXY_ and _no_proxy_ are also tried, in that order.
-
-ref: https://www.gnu.org/software/emacs/manual/html_node/url/Proxies.html
-====
-+
-[TIP]
-====
-You can also use the `systemctl edit containerd` to edit _override.conf_ at _/etc/systemd/system/containrd.service.d_ for the containerd service. 
-====
-
-.. Flush changes and restart containerd:
-+
-[source,console]
-----
-$ sudo systemctl daemon-reload
-$ sudo systemctl restart containerd
-----
-
-.. Verify that the configuration has been loaded:
-+
-[source,console]
-----
-$ systemctl show --property=Environment containerd --full --no-pager
-----
---
-
-[TIP]
-====
-The _containerd.io_ packages in DEB and RPM formats are distributed by Docker (not by the containerd project)
-
-* *Debian*
-+
-[source,sh]
-----
-# Update the apt package index and install packages to allow apt to use a repository over HTTPS
-sudo apt-get update
-sudo apt-get install \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
-
-# Add Docker’s official GPG key:
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-# Use the following command to set up the repository:
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Install containerd.io
-sudo apt-get update && sudo apt-get install -y containerd.io
-----
-
-* *CentOS*
-+
-[source,sh]
-----
-# Install the yum-utils package (which provides the yum-config-manager utility) and set up the repository.
-sudo yum install -y yum-utils
-sudo yum-config-manager \
-    --add-repo \
-    https://download.docker.com/linux/centos/docker-ce.repo
-# Install the latest version of containerd.
-# If prompted to accept the GPG key, verify that the fingerprint matches
-# `060A 61C5 1B55 8A7F 742B 77AA C52F EB6B 621E 9F35`, and if so, accept it.
-sudo yum install containerd.io
-# Start containerd.
-sudo systemctl enable containerd.service
-sudo systemctl start containerd.service
-----
-====
-
-[TIP]
-====
-For more information about Cgroups, see link:/2021/11/23/linux-cgroups-containers/[Linux CGroups and Containers].
-
-For more information about containerd, see link:/2021/11/25/oci-runc-containerd-cri-dockershim/[RUNC CONTAINERD CRI DOCKERSHIM].
-====
-
-===== Docker Engine
-
-* On each of your nodes, install Docker for your Linux distribution as per https://docs.docker.com/engine/install/#server[Install Docker Engine].
-
-* Install https://github.com/Mirantis/cri-dockerd[cri-dockerd], following the instructions in that source code repository.
-+
-For _cri-dockerd_, the CRI socket is _/run/cri-dockerd.sock_ by default.
-
-[TIP]
-====
-
-This example sets the _cgroupdriver_ to _systemd_: <<docker-runtime-execution-options>>
-
-[source,sh]
-----
-sudo sh -c 'cat > /etc/docker/daemon.json <<EOF
-{
-  "data-root": "/var/lib/docker",
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m"
-  },
-  "storage-driver": "overlay2"
-}
-EOF'
-----
-====
+_For more information about containerd, see link:/2021/11/25/oci-runc-containerd-cri-dockershim/[RUNC CONTAINERD CRI DOCKERSHIM]._
 
 === Installing kubeadm, kubelet and kubectl
-
-You will install these packages on all of your machines:
-
-* *kubeadm*: the command to bootstrap the cluster.
-
-* *kubelet*: the component that runs on all of the machines in your cluster and does things like starting pods and containers.
-
-* *kubectl*: the command line util to talk to your cluster.
-
-kubeadm will not install or manage _kubelet_ or _kubectl_ for you, so you will need to ensure they match the version of the Kubernetes control plane you want kubeadm to install for you.
-
-If you do not, there is a risk of a version skew occurring that can lead to unexpected, buggy behaviour.
-
-However, one minor version skew between the kubelet and the control plane is supported, but the kubelet version may never exceed the API server version.
-
-For example, the kubelet running _1.7.0_ should be fully compatible with a _1.8.0_ API server, but not vice versa.
-
-:kubernetes-version-skew-policy: https://kubernetes.io/docs/setup/release/version-skew-policy/
-:kubeadm-version-skew-policy: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#version-skew-policy
-
-For more information on version skews, see:
-
-* Kubernetes {kubernetes-version-skew-policy}[version and version-skew policy]
-* Kubeadm-specific {kubeadm-version-skew-policy}[version skew policy]
 
 NOTE: Note: The legacy package repositories (`apt.kubernetes.io` and `yum.kubernetes.io`) have been https://kubernetes.io/blog/2023/08/31/legacy-package-repository-deprecation/[deprecated and frozen starting from September 13, 2023]. *Using the https://kubernetes.io/blog/2023/08/15/pkgs-k8s-io-introduction/[new package repositories hosted at `pkgs.k8s.io`] is strongly recommended and required in order to install Kubernetes versions released after September 13, 2023.* The deprecated legacy repositories, and their contents, might be removed at any time in the future and without a further notice period. The new package repositories provide downloads for Kubernetes versions starting with v1.24.0.
 
@@ -1299,15 +999,16 @@ images:
 [bibliography]
 == References
 
-* [[[kubeadm,1]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
-* [[[env-container-runtimes,2]]] https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+* [[[create-cluster-kubeadm,1]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+* [[[install-kubeadm,2]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+* [[[archlinux-swap,3]]] https://wiki.archlinux.org/title/swap
+* [[[container-runtimes,4]]] https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 * [[[cgroup-driver,3]]] https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
 * [[[cgroups,4]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
 * [[[kubeadm_completion,5]]] https://kubernetes.io/docs/reference/setup-tools/kubeadm/generated/kubeadm_completion/
 * [[[docker-runtime-execution-options,6]]] https://docs.docker.com/engine/reference/commandline/dockerd/#docker-runtime-execution-options
 * [[[rhel-7-yum-repo,7]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/ch-yum#sec-Configuring_Yum_and_Yum_Repositories
 * [[[rpm-gpg-verify-packages,8]]] https://www.redhat.com/sysadmin/rpm-gpg-verify-packages
-* [[[create-cluster-kubeadm,9]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
 * [[[flannel,10]]] https://github.com/flannel-io/flannel
 * [[[bib-metrics-server,11]]] https://github.com/kubernetes-sigs/metrics-server
 * [[[bib-ingress-controllers,12]]] https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
