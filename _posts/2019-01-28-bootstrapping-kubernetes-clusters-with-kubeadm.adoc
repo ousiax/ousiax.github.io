@@ -480,7 +480,7 @@ for i in $images; do
             ;;
     esac
     newtag=$(echo "$i" | sed "s@$image_repository@$new_repo@")
-    ctr -n k8s.io images tag $i $newtag
+    sudo ctr -n k8s.io images tag $i $newtag
 done
 ----
 
@@ -716,9 +716,44 @@ sudo kubeadm init \
 
 * Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to set the advertise address for this particular control-plane node's API server. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to `kubeadm init`.
 
-* While `--apiserver-advertise-address` can be used to set the advertise address for this particular control-plane node's API server, `--control-plane-endpoint` can be used to set the shared endpoint for all control-plane nodes. `--control-plane-endpoint` allows both IP addresses and DNS names that can map to IP addresses.
+* While `--apiserver-advertise-address` can be used to set the advertise address for this particular control-plane node's API server, `--control-plane-endpoint` can be used to set the shared endpoint for all control-plane nodes.
 
-=== Installing a Pod network add-on
+* `--control-plane-endpoint` allows both IP addresses and DNS names that can map to IP addresses. Such as:
++
+```txt
+192.168.56.130	cluster-endpoint
+```
++
+Where `192.168.56.130` is the IP address of this node and `cluster-endpoint` is a custom DNS name that maps to this IP. Later you can modify `cluster-endpoint` to point to the address of your load-balancer in an high availability scenario.
+
+Run the following command to init a control panel:
+
+```sh
+sudo kubeadm init \
+    --kubernetes-version=v1.26.0 \
+    --control-plane-endpoint=cluster-endpoint \
+    --pod-network-cidr=10.244.0.0/16
+```
+
+```console
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+You can now join any number of control-plane nodes by copying certificate authorities
+and service account keys on each node and then running the following as root:
+
+  kubeadm join cluster-endpoint:6443 --token ed790l.ylclzoyoa7l9v0e9 \
+	--discovery-token-ca-cert-hash sha256:cb046f4d8183a66f930155654cc34354612eeab839d7ed97971154fa8f35072f \
+	--control-plane
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join cluster-endpoint:6443 --token ed790l.ylclzoyoa7l9v0e9 \
+	--discovery-token-ca-cert-hash sha256:cb046f4d8183a66f930155654cc34354612eeab839d7ed97971154fa8f35072f
+```
+
+==== Installing a Pod network add-on
 
 :cni-network-plugins: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
 :rbac: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
@@ -753,130 +788,143 @@ Flannel may be paired with several different backends. Once set, the backend sho
 
 Several external projects provide Kubernetes Pod networks using CNI, some of which also support {network-policies}[Network Policy]. See a list of {addons-networking-and-network-policy}[add-ons] that implement the {how-to-implement-the-kubernetes-networking-model}[Kubernetes networking model].
 
+==== Control plane node isolation
 
-
-=== Control plane node isolation
-
-By default, your cluster will not schedule Pods on the control plane nodes for security reasons. If you want to be able to schedule Pods on the control plane nodes, for example for a single machine Kubernetes cluster, run:
+By default,  Pods will not be scheduled on the control plane nodes for security reasons. To be able to schedule Pods on the control plane nodes, run:
 
 [source,console]
 ----
-$ kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+kubectl taint nodes --all node-role.kubernetes.io/control-plane-
 ----
 
-The output will look something like:
+=== Joining the work nodes
 
-[source,console]
-----
-node/node-1.localdomain untainted
-...
-----
-
-This will remove the `node-role.kubernetes.io/control-plane:NoSchedule` taint from any nodes that have it, including the control plane nodes, meaning that the scheduler will then be able to schedule Pods everywhere.
-
-=== Joining your nodes 
-
-The nodes are where your workloads (containers and Pods, etc) run. To add new nodes to your cluster do the following for each machine:
+To add new nodes to your cluster do the following for each machine:
 
 * SSH to the machine
 
-* Become root (e.g. _sudo su -_)
+* Become root (e.g. `sudo su -`)
 
 * Install a runtime if needed
 
-* Run the command that was output by _kubeadm init_. For example:
+* Run the command that was output by `kubeadm init`. For example:
 +
 [source,console]
 ----
-You can now join any number of control-plane nodes by copying certificate authorities
-and service account keys on each node and then running the following as root:
-
-  kubeadm join cluster-endpoint:6443 --token r8zo5w.rfrg93x0luuo01cy \
-	--discovery-token-ca-cert-hash sha256:ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1 \
-	--control-plane
-
 Then you can join any number of worker nodes by running the following on each as root:
 
-kubeadm join cluster-endpoint:6443 --token r8zo5w.rfrg93x0luuo01cy \
-	--discovery-token-ca-cert-hash sha256:ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1
+kubeadm join cluster-endpoint:6443 --token ed790l.ylclzoyoa7l9v0e9 \
+	--discovery-token-ca-cert-hash sha256:cb046f4d8183a66f930155654cc34354612eeab839d7ed97971154fa8f35072f
 ----
 
 If you do not have the token, you can get it by running the following command on the control-plane node:
 
-[source,console]
+[source,sh]
 ----
-$ kubeadm token list
-TOKEN                     TTL         EXPIRES                USAGES                   DESCRIPTION                                                EXTRA GROUPS
-r8zo5w.rfrg93x0luuo01cy   23h         2022-12-27T06:07:36Z   authentication,signing   The default bootstrap token generated by 'kubeadm init'.   system:bootstrappers:kubeadm:default-node-token
+kubeadm token list
 ----
 
 By default, tokens expire after 24 hours. If you are joining a node to the cluster after the current token has expired, you can create a new token by running the following command on the control-plane node:
 
-[source,console]
+[source,sh]
 ----
-$ kubeadm token create
-jlur5d.5qzgyjl28ssfj3za
+kubeadm token create
 ----
 
 If you don't have the value of `--discovery-token-ca-cert-hash`, you can get it by running the following command chain on the control-plane node:
 
-[source,console]
+[source,sh]
 ----
-$ openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
+openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
    openssl dgst -sha256 -hex | sed 's/^.* //'
-ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1
 ----
 
 You can also run the following command to create and print join command:
 
 [source,console]
 ----
-$ kubeadm token create --print-join-command
-kubeadm join cluster-endpoint:6443 --token 2ihyt2.g933wbzyatjdw56i --discovery-token-ca-cert-hash sha256:ffede9eb2a183a66e3ba5dd313abe9423e36ee57ac3d6b75e7d693c3df3f23f1
+kubeadm token create --print-join-command
 ----
 
-[NOTE]
-====
-As the cluster nodes are usually initialized sequentially, the CoreDNS Pods are likely to all run on the first control-plane node.
+=== Joing the stacked control plane and etcd nodes
 
-To provide higher availability, please rebalance the CoreDNS Pods with `kubectl -n kube-system rollout restart deployment coredns` after at least one new node is joined.
-====
+* Upload the certificates that should be shared across all the control-plane instances to the cluster, and note the certificate key.
++
+```sh
+sudo kubeadm init phase upload-certs --upload-certs
+```
++
+```console
+[upload-certs] Storing the certificates in Secret "kubeadm-certs" in the "kube-system" Namespace
+[upload-certs] Using certificate key:
+a455917454410f7d8bcdfa5795ed54526c7484e4e6316ef57a3aa16c3454ada2
+```
 
-=== Remove the node
+* Run the command that was output by `kubeadm init` with the `--certificate-key <certificate key>` generated above. For example:
++
+[source,console]
+----
+You can now join any number of control-plane nodes by copying certificate authorities
+and service account keys on each node and then running the following as root:
+
+  kubeadm join cluster-endpoint:6443 --token ed790l.ylclzoyoa7l9v0e9 \
+	--discovery-token-ca-cert-hash sha256:cb046f4d8183a66f930155654cc34354612eeab839d7ed97971154fa8f35072f \
+	--control-plane
+----
++
+```sh
+kubeadm join cluster-endpoint:6443 --token ed790l.ylclzoyoa7l9v0e9 \
+  --discovery-token-ca-cert-hash sha256:cb046f4d8183a66f930155654cc34354612eeab839d7ed97971154fa8f35072f \
+  --control-plane \
+  --certificate-key a455917454410f7d8bcdfa5795ed54526c7484e4e6316ef57a3aa16c3454ada2
+```
++
+```console
+This node has joined the cluster and a new control plane instance was created:
+
+* Certificate signing request was sent to apiserver and approval was received.
+* The Kubelet was informed of the new secure connection details.
+* Control plane label and taint were applied to the new node.
+* The Kubernetes control plane instances scaled up.
+* A new etcd member was added to the local/stacked etcd cluster.
+
+To start administering your cluster from this node, you need to run the following as a regular user:
+
+	mkdir -p $HOME/.kube
+	sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+	sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Run 'kubectl get nodes' to see this node join the cluster.
+```
++
+```console
+$ kubectl get nodes
+NAME                 STATUS   ROLES           AGE   VERSION
+node-0               Ready    control-plane   92m   v1.26.0
+node-2               Ready    control-plane   27s   v1.26.13
+```
+
+=== Removing the nodes
 
 Talking to the control-plane node with the appropriate credentials, run:
 
-[source,console]
+[source,sh]
 ----
-$ kubectl drain <node name> --delete-emptydir-data --force --ignore-daemonsets
+kubectl drain <node name> --delete-emptydir-data --force --ignore-daemonsets
 ----
 
 Before removing the node, reset the state installed by kubeadm:
 
-[source,console]
+[source,sh]
 ----
-$ kubeadm reset
-----
-
-The reset process does not reset or clean up iptables rules or IPVS tables. If you wish to reset iptables, you must do so manually:
-
-[source,console]
-----
-$ iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
-----
-
-If you want to reset the IPVS tables, you must run the following command:
-
-[source,console]
-----
-$ ipvsadm -C
+kubeadm reset
 ----
 
 Now remove the node:
 
-[source,console]
+[source,sh]
 ----
-$ kubectl delete node <node name>
+kubectl delete node <node name>
 ----
 
 == Installing addons
@@ -953,5 +1001,6 @@ images:
 * [[[node-pressure-eviction,10]]] https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
 * [[[kubernetes-separate-image-filesystem,11]]] https://kubernetes.io/blog/2024/01/23/kubernetes-separate-image-filesystem/
 * [[[flannel,12]]] https://github.com/flannel-io/flannel
+* [[[stacked-control-plane-and-etcd-nodes,13]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/#stacked-control-plane-and-etcd-nodes
 * [[[bib-metrics-server,11]]] https://github.com/kubernetes-sigs/metrics-server
 * [[[bib-ingress-controllers,12]]] https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
