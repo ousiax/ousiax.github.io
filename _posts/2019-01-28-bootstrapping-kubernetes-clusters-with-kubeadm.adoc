@@ -11,8 +11,9 @@
 
 :Kubernetes-Conformance-tests: https://kubernetes.io/blog/2017/10/software-conformance-certification/
 :bootstrap-tokens: https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/
+:kubeadm-upgrade: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
 
-Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conforms to best practices. In fact, you can use kubeadm to set up a cluster that will pass the {Kubernetes-Conformance-tests}[Kubernetes Conformance tests]. kubeadm also supports other cluster lifecycle functions, such as {bootstrap-tokens}[bootstrap tokens] and cluster upgrades. <<create-cluster-kubeadm>>
+Using *kubeadm*, you can create a minimum viable Kubernetes cluster that conforms to best practices. In fact, you can use kubeadm to set up a cluster that will pass the {Kubernetes-Conformance-tests}[Kubernetes Conformance tests]. kubeadm also supports other cluster lifecycle functions, such as {bootstrap-tokens}[bootstrap tokens] and {kubeadm-upgrade}[cluster upgrades]. <<create-cluster-kubeadm>>
 
 == Installing kubeadm and container runtime
 
@@ -136,7 +137,7 @@ By default, Kubernetes uses the {container-runtime-cri}[Container Runtime Interf
 If you don't specify a runtime, kubeadm automatically tries to detect an installed container runtime by scanning through a list of known endpoints. <<install-kubeadm>>
 
 .Known endpoints for Linux supported operating systems
-[cols="2,3"]
+[cols="3,4"]
 |===
 |Runtime
 |Path to Unix domain socket
@@ -162,15 +163,10 @@ If multiple or no container runtimes are detected kubeadm will throw an error an
 Docker Engine does not implement the {cri}[CRI] which is a requirement for a container runtime to work with Kubernetes. For that reason, an additional service {cri-dockerd}[cri-dockerd] has to be installed. cri-dockerd is a project based on the legacy built-in Docker Engine support that was removed from the kubelet in version 1.24.
 ====
 
-==== CRI version support
-
-Your container runtime must support at least v1alpha2 of the container runtime interface. <<container-runtimes>>
-
-Kubernetes 1.26 defaults to using v1 of the CRI API. If a container runtime does not support the v1 API, the kubelet falls back to using the (deprecated) v1alpha2 API instead.
-
-Show the `cri` details on containerd using `ctr`.
+Kubernetes 1.26 defaults to using v1 of the CRI API. If a container runtime does not support the v1 API, the kubelet falls back to using the (deprecated) v1alpha2 API instead. <<container-runtimes>>
 
 ```console
+// Show the details of the `cri` plugin on an existed containerd using `ctr`
 $ sudo ctr plugins ls -d id==cri
 Type:          io.containerd.grpc.v1
 ID:            cri
@@ -184,12 +180,7 @@ Exports:
                CRIVersionAlpha      v1alpha2
 ```
 
-
-==== Install and configure prerequisites
-
-The following steps apply common settings for Kubernetes nodes on Linux.
-
-===== Forwarding IPv4 and letting iptables see bridged traffic
+==== Forwarding IPv4 and letting iptables see bridged traffic
 
 Verify that the `br_netfilter` module is loaded by running `lsmod | grep br_netfilter`.
 
@@ -216,9 +207,18 @@ EOF
 
 # Apply sysctl params without reboot
 sudo sysctl --system
+
+# Verify that the `br_netfilter`, `overlay` modules are loaded
+lsmod | grep br_netfilter
+lsmod | grep overlay
+
+# Verify that the
+#   `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, and `net.ipv4.ip_forward`
+#   system variables are set to `1`
+sudo sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
 ----
 
-===== Cgroup drivers
+==== Cgroup drivers
 
 :manage-resources-containers: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 
@@ -234,152 +234,100 @@ The cgroupfs driver is NOT recommended when {systemd}[systemd] is the init syste
 
 TIP: Starting with v1.22 and later, when creating a cluster with kubeadm, if the user does not set the cgroupDriver field under {kubelet-config-file}[KubeletConfiguration], kubeadm defaults it to systemd.
 
-Check the Cgroup driver of the kubelet in the cluster-level:
+Check the Cgroup driver of the kubelet in the cluster-level of an existed cluster:
 
 ```console
 $ kubectl get -n kube-system cm kubelet-config -oyaml | grep cgroupDriver
     cgroupDriver: systemd
 ```
 
-===== containerd
+==== Containerd
 
 :containerd-getting-started: https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
-Follow the instructions for {containerd-getting-started}[getting started with containerd]. Return to this step once you've created a valid configuration file, `config.toml`.
+Follow the instructions for {containerd-getting-started}[getting started with containerd].
 
-To use the _systemd_ cgroup driver in `/etc/containerd/config.toml` with _runc_, set
+[TIP]
+====
+_For more information about Cgroups, see link:/2021/11/23/linux-cgroups-containers/[Linux CGroups and Containers]._
 
+_For more information about containerd, see link:/2021/11/25/oci-runc-containerd-cri-dockershim/[RUNC CONTAINERD CRI DOCKERSHIM]._
+====
+
+In the containerd config `/etc/containerd/config.toml`:
+
+* To use the systemd cgroup driver:
++
 [source,toml]
 ----
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
   SystemdCgroup = true
 ----
 
-In the containerd config you can overwrite the sandbox (pause) image by setting the following config:
-
+* To overwrite the sandbox (pause) image:
++
 [source,toml]
 ----
 [plugins."io.containerd.grpc.v1.cri"]
   sandbox_image = "registry.k8s.io/pause:3.2"
 ----
++
+NOTE: Please note, that it is a best practice for kubelet to declare the matching `pod-infra-container-image`. If not configured, kubelet may attempt to garbage collect the pause image.
 
-TIP: Please note, that it is a best practice for kubelet to declare the matching `pod-infra-container-image`. If not configured, kubelet may attempt to garbage collect the pause image.
-
-In the containerd config file you will find settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.
-
+* Find or overwrite the settings for persistent and runtime storage locations as well as grpc, debug, and metrics addresses for the various APIs.
++
 [source,toml]
 ----
 #root = "/var/lib/containerd"
 #state = "/run/containerd"
 ----
 
-Check the CRI integration plugin status:
-
+* Check the CRI integration plugin status.
++
 ```console
 $ sudo ctr plugin ls id==cri
 TYPE                     ID     PLATFORMS      STATUS
 io.containerd.grpc.v1    cri    linux/amd64    ok
 ```
 
-Check whether the systemd driver is enable using `crictl`:
-
+* Check the systemd driver status using `crictl`.
++
 ```console
 $ sudo crictl info -o go-template --template '{{.config.containerd.runtimes.runc.options.SystemdCgroup}}'
 true
 ```
 
-_For more information about Cgroups, see link:/2021/11/23/linux-cgroups-containers/[Linux CGroups and Containers]._
-
-_For more information about containerd, see link:/2021/11/25/oci-runc-containerd-cri-dockershim/[RUNC CONTAINERD CRI DOCKERSHIM]._
-
 === Installing kubeadm, kubelet and kubectl
 
-NOTE: Note: The legacy package repositories (`apt.kubernetes.io` and `yum.kubernetes.io`) have been https://kubernetes.io/blog/2023/08/31/legacy-package-repository-deprecation/[deprecated and frozen starting from September 13, 2023]. *Using the https://kubernetes.io/blog/2023/08/15/pkgs-k8s-io-introduction/[new package repositories hosted at `pkgs.k8s.io`] is strongly recommended and required in order to install Kubernetes versions released after September 13, 2023.* The deprecated legacy repositories, and their contents, might be removed at any time in the future and without a further notice period. The new package repositories provide downloads for Kubernetes versions starting with v1.24.0.
+NOTE: Note: The legacy package repositories (`apt.kubernetes.io` and `yum.kubernetes.io`) have been https://kubernetes.io/blog/2023/08/31/legacy-package-repository-deprecation/[deprecated and frozen starting from September 13, 2023]. *Using the https://kubernetes.io/blog/2023/08/15/pkgs-k8s-io-introduction/[new package repositories hosted at `pkgs.k8s.io`] is strongly recommended and required in order to install Kubernetes versions released after September 13, 2023.* The deprecated legacy repositories, and their contents, might be removed at any time in the future and without a further notice period. The new package repositories provide downloads for Kubernetes versions starting with v1.24.0. <<install-kubeadm>>
 
-==== Debian-based distributions
-
-. Update the `apt` package index and install packages needed to use the Kubernetes `apt` repository:
+* Debian-based distributions
 +
+--
 [source,sh]
 ----
 sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key \
+    | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg <1>
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.26/deb/ /' \
+    | sudo tee /etc/apt/sources.list.d/kubernetes.list <2>
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl <3>
+sudo apt-mark hold kubelet kubeadm kubectl
 ----
 
-. Download the public signing key for the Kubernetes package repositories. The same signing key is used for all repositories so you can disregard the version in the URL:
-+
-[source,sh]
-----
-# If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command.
-# sudo mkdir -p -m 755 /etc/apt/keyrings
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-----
-+
-[source,txt]
-----
------BEGIN PGP PUBLIC KEY BLOCK-----
-Version: GnuPG v2.0.15 (GNU/Linux)
+<1> Download the public signing key for the Kubernetes package repositories. The same signing key is used for all repositories so you can disregard the version in the URL.
 
-mQENBGMHoXcBCADukGOEQyleViOgtkMVa7hKifP6POCTh+98xNW4TfHK/nBJN2sm
-u4XaiUmtB9UuGt9jl8VxQg4hOMRf40coIwHsNwtSrc2R9v5Kgpvcv537QVIigVHH
-WMNvXeoZkkoDIUljvbCEDWaEhS9R5OMYKd4AaJ+f1c8OELhEcV2dAQLLyjtnEaF/
-qmREN+3Y9+5VcRZvQHeyBxCG+hdUGE740ixgnY2gSqZ/J4YeQntQ6pMUEhT6pbaE
-10q2HUierj/im0V+ZUdCh46Lk/Rdfa5ZKlqYOiA2iN1coDPIdyqKavcdfPqSraKF
-Lan2KLcZcgTxP+0+HfzKefvGEnZa11civbe9ABEBAAG0PmlzdjprdWJlcm5ldGVz
-IE9CUyBQcm9qZWN0IDxpc3Y6a3ViZXJuZXRlc0BidWlsZC5vcGVuc3VzZS5vcmc+
-iQE+BBMBCAAoBQJjB6F3AhsDBQkEHrAABgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIX
-gAAKCRAjRlTamilkNhnRCADud9iv+2CUtJGyZhhdzzd55wRKvHGmSY4eIAEKChmf
-1+BHwFnzBzbdNtnglY2xSATqKIWikzXI1stAwi8qR0dK32CS+ofMS6OUklm26Yd1
-jBWFg4LCCh8S21GLcuudHtW9QNCCjlByS4gyEJ+eYTOo2dWp88NWEzVXIKRtfLHV
-myHJnt2QLmWOeYTgmCzpeT8onl2Lp19bryRGla+Ms0AmlCltPn8j+hPeADDtR2bv
-7cTLDi/nA46u3SLV1P6yjC1ejOOswtgxppTxvLgYniS22aSnoqm47l111zZiZKJ5
-bCm1Th6qJFJwOrGEOu3aV1iKaQmN2k4G2DixsHFAU3ZeiQIcBBMBAgAGBQJjB6F3
-AAoJEM8Lkoze1k873TQP/0t2F/jltLRQMG7VCLw7+ps5JCW5FIqu/S2i9gSdNA0E
-42u+LyxjG3YxmVoVRMsxeu4kErxr8bLcA4p71W/nKeqwF9VLuXKirsBC7z2syFiL
-Ndl0ARnC3ENwuMVlSCwJO0MM5NiJuLOqOGYyD1XzSfnCzkXN0JGA/bfPRS5mPfoW
-0OHIRZFhqE7ED6wyWpHIKT8rXkESFwszUwW/D7o1HagX7+duLt8WkrohGbxTJ215
-YanOKSqyKd+6YGzDNUoGuMNPZJ5wTrThOkTzEFZ4HjmQ16w5xmcUISnCZd4nhsbS
-qN/UyV9Vu3lnkautS15E4CcjP1RRzSkT0jka62vPtAzw+PiGryM1F7svuRaEnJD5
-GXzj9RCUaR6vtFVvqqo4fvbA99k4XXj+dFAXW0TRZ/g2QMePW9cdWielcr+vHF4Z
-2EnsAmdvF7r5e2JCOU3N8OUodebU6ws4VgRVG9gptQgfMR0vciBbNDG2Xuk1WDk1
-qtscbfm5FVL36o7dkjA0x+TYCtqZIr4x3mmfAYFUqzxpfyXbSHqUJR2CoWxlyz72
-XnJ7UEo/0UbgzGzscxLPDyJHMM5Dn/Ni9FVTVKlALHnFOYYSTluoYACF1DMt7NJ3
-oyA0MELL0JQzEinixqxpZ1taOmVR/8pQVrqstqwqsp3RABaeZ80JbigUC29zJUVf
-=F4EX
------END PGP PUBLIC KEY BLOCK-----
-----
-
-. Add the Kubernetes `apt` repository:
+<2> Please NOTE that this repository have packages only for Kubernetes 1.26; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version. Such as:
 +
-[source,sh]
-----
-# This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.26/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-----
-+
-[NOTE]
-====
-Please note that this repository have packages only for Kubernetes 1.26; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version. Such as:
-
 ```console
 deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /
 deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /
 deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.27/deb/ /
 deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.26/deb/ /
 ```
-====
 
-. Update `apt` package index, install `kubelet`, `kubeadm` and `kubectl`, and pin their version:
-+
-[source,sh]
-----
-sudo apt-get update
-sudo apt-get install -y kubelet kubeadm kubectl
-sudo apt-mark hold kubelet kubeadm kubectl
-----
-+
-TIP: The kubelet is now restarting every few seconds, as it waits in a crashloop for kubeadm to tell it what to do.
-+
-You can also specify the installing package version:
+<3> You can also specify the installing package version:
 +
 [source,console]
 ----
@@ -393,8 +341,8 @@ $ apt-cache madison kubeadm | head -n 5
 $ sudo apt-get install -y kubelet=1.26.0-2.1 kubeadm=1.26.0-2.1 kubectl=1.26.0-2.1
 ----
 
-. Output shell completion code for the specified shell (bash or zsh). <<kubeadm_completion>>
-+
+Output shell completion code for the specified shell (bash or zsh). <<kubeadm_completion>>
+
 [source,sh]
 ----
 # Install the bash-completion framework
@@ -408,9 +356,11 @@ sudo sh -c 'crictl completion > /etc/bash_completion.d/crictl'
 # Load the completion code for bash into the current shell
 source /etc/bash_completion
 ----
+--
 
-==== Red Hat-based distributions
-
+* Red Hat-based distributions
++
+--
 [source,sh]
 ----
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
@@ -421,38 +371,27 @@ baseurl=https://pkgs.k8s.io/core:/stable:/v1.26/rpm/
 enabled=1
 gpgcheck=1
 gpgkey=https://pkgs.k8s.io/core:/stable:/v1.26/rpm/repodata/repomd.xml.key
-exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni <1>
 EOF
 
-# Set SELinux in permissive mode (effectively disabling it)
+# Set SELinux in permissive mode (effectively disabling it) <2>
 sudo setenforce 0
 sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
 
-sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes <3>
 
 sudo systemctl enable --now kubelet
-
-# Install the bash-completion framework
-sudo yum install -y bash-completion
-
-# Output bash completion
-sudo sh -c 'kubeadm completion bash > /etc/bash_completion.d/kubeadm'
-sudo sh -c 'kubectl completion bash > /etc/bash_completion.d/kubectl'
-sudo sh -c 'crictl completion > /etc/bash_completion.d/crictl'
-
-# Load the completion code for bash into the current shell
-source /usr/share/bash-completion/bash_completion
 ----
 
-* Setting SELinux in permissive mode by running `setenforce 0` and `sed ...` effectively disables it. This is required to allow containers to access the host filesystem, which is needed by pod networks for example. You have to do this until SELinux support is improved in the kubelet.
-
-* You can leave SELinux enabled if you know how to configure it but it may require settings that are not supported by kubeadm.
-
-* The `exclude` parameter in the repository definition ensures that the packages related to Kubernetes are not upgraded upon running `yum update` as there's a special procedure that must be followed for upgrading Kubernetes.
+<1> The `exclude` parameter in the repository definition ensures that the packages related to Kubernetes are not upgraded upon running `yum update` as there's a special procedure that must be followed for upgrading Kubernetes.
 +
-NOTE: Please note that this repository have packages only for Kubernetes 1.26; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version.
+Please NOTE that this repository have packages only for Kubernetes 1.26; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version.
 
-* You can also specify the installing package version:
+<1> Setting SELinux in permissive mode by running `setenforce 0` and `sed ...` effectively disables it. This is required to allow containers to access the host filesystem, which is needed by pod networks for example. You have to do this until SELinux support is improved in the kubelet.
++
+You can leave SELinux enabled if you know how to configure it but it may require settings that are not supported by kubeadm.
+
+<3> You can also specify the installing package version:
 +
 [source,console]
 ----
@@ -466,85 +405,41 @@ kubeadm.x86_64                   1.26.4-150500.1.1                    kubernetes
 $ sudo yum --disableexcludes=kubernetes install kubelet-1.26.0-150500.2.1 kubeadm-1.26.0-150500.2.1 kubectl-1.26.0-150500.2.1
 ----
 
-==== Set crictl endpoint of CRI container runtime service
+Output shell completion code for the specified shell (bash or zsh). <<kubeadm_completion>>
 
-This example sets the container runtime endpoint of _crictl_ as `unix:///run/containerd/containerd.sock`.
+```sh
+# Install the bash-completion framework
+sudo yum install -y bash-completion
 
-[source,sh]
-----
-sudo crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock
-----
+# Output bash completion
+sudo sh -c 'kubeadm completion bash > /etc/bash_completion.d/kubeadm'
+sudo sh -c 'kubectl completion bash > /etc/bash_completion.d/kubectl'
+sudo sh -c 'crictl completion > /etc/bash_completion.d/crictl'
 
-[source,console]
-----
-$ sudo cat /etc/crictl.yaml 
-runtime-endpoint: "unix:///run/containerd/containerd.sock"
-image-endpoint: ""
-timeout: 0
-debug: false
-pull-image-on-create: false
-disable-pull-on-run: false
+# Load the completion code for bash into the current shell
+source /usr/share/bash-completion/bash_completion
+```
+--
 
-$ sudo crictl info
+TIP: You may need to set the runtime endpoint of the https://github.com/kubernetes-sigs/cri-tools/blob/v1.29.0/docs/crictl.md[crictl] explicity, such as `sudo crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock`.
 
-  "cniconfig": {
-    "PluginDirs": [
-      "/opt/cni/bin"
-    ],
-    "PluginConfDir": "/etc/cni/net.d",
-
-  "config": {
-    "containerd": {
-      "runtimes": {
-        "runc": {
-          "options": {
-            "SystemdCgroup": false
-
-    "cni": {
-      "binDir": "/opt/cni/bin",
-      "confDir": "/etc/cni/net.d",
-    },
-    "sandboxImage": "registry.k8s.io/pause:3.6",
-
-    "containerdRootDir": "/var/lib/containerd",
-    "containerdEndpoint": "/run/containerd/containerd.sock",
-    "rootDir": "/var/lib/containerd/io.containerd.grpc.v1.cri",
-    "stateDir": "/run/containerd/io.containerd.grpc.v1.cri"
-
-----
-
-==== Configuring a cgroup driver
-
-:container-runtimes: https://kubernetes.io/docs/setup/production-environment/container-runtimes/
-
-Both the container runtime and the kubelet have a property called "{container-runtimes}[cgroup driver]", which is important for the management of cgroups on Linux machines.
-
-[WARNING]
+[TIP]
 ====
-Matching the container runtime and kubelet cgroup drivers is required or otherwise the kubelet process will fail.
+Consider enabling the https://docs.docker.com/storage/containerd/[containerd snapshotters feature] on Docker Engine.
+
+```json
+{
+  "features": {
+    "containerd-snapshotter": true
+  }
+}
+```
 ====
-
-To set _systemd_ as the cgroup driver, edit the _KubeletConfiguration_ option of _cgroupDriver_ and set it to _systemd_. For example: <<env-container-runtimes>><<cgroup-driver>>
-
-[source,yml]
-----
-apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-...
-cgroupDriver: systemd
-----
-
-NOTE: In v1.22, if the user is not setting the _cgroupDriver_ field under _KubeletConfiguration_, _kubeadm_ will default it to _systemd_.
 
 == Creating a cluster with kubeadm
 
-=== Preparing the required container images
-
 :kubeadm-init-without-internet-connection: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/#without-internet-connection
 :kubeadm-init-custom-images: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init#custom-images
-:kubeadm-init-config-file: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/#config-file
-
-This step is optional and only applies in case you wish `kubeadm init` and `kubeadm join` to not download the default container images which are hosted at _registry.k8s.io_.
 
 Kubeadm has commands that can help you pre-pull the required images when {kubeadm-init-without-internet-connection}[creating a cluster without an internet connection] on its nodes.
 
@@ -556,10 +451,7 @@ kubeadm config images list # [--kubernetes-version=v1.26.0] [--image-repository=
 kubeadm config images pull # [--kubernetes-version=v1.26.0] [--image-repository=registry.k8s.io]
 ----
 
-Kubeadm allows you to use a {kubeadm-init-custom-images}[custom image repository] for the required images.
-
-This example uses the custom image repository with  _registry.cn-hangzhou.aliyuncs.com/google_containers_:
-
+Kubeadm allows you to use a {kubeadm-init-custom-images}[custom image repository] for the required images. For example:
 [source,sh]
 ----
 sudo kubeadm config images pull \
@@ -567,7 +459,7 @@ sudo kubeadm config images pull \
   --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers
 ----
 
-You can use `ctr` to retag the images back to the default repository `registry.k8s.io`:
+You can use `ctr` to retag the images in the `k8s.io` namespace back to the default repository `registry.k8s.io`:
 
 [source,sh]
 ----
@@ -592,50 +484,24 @@ for i in $images; do
 done
 ----
 
-You can override this behavior by using {kubeadm-init-config-file}[kubeadm with a configuration file].
+:kubeadm-init-config-file: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/#config-file
 
-[source,console,highlight="31"]
-----
-$ kubeadm config print init-defaults
+You can also override this behavior by using {kubeadm-init-config-file}[kubeadm with a configuration file].
+
+```yml
+# Run `kubeadm config print init-defaults` to see the default Init configuration.
 apiVersion: kubeadm.k8s.io/v1beta3
-bootstrapTokens:
-- groups:
-  - system:bootstrappers:kubeadm:default-node-token
-  token: abcdef.0123456789abcdef
-  ttl: 24h0m0s
-  usages:
-  - signing
-  - authentication
-kind: InitConfiguration
-localAPIEndpoint:
-  advertiseAddress: 1.2.3.4
-  bindPort: 6443
-nodeRegistration:
-  criSocket: unix:///var/run/containerd/containerd.sock
-  imagePullPolicy: IfNotPresent
-  name: node
-  taints: null
----
-apiServer:
-  timeoutForControlPlane: 4m0s
-apiVersion: kubeadm.k8s.io/v1beta3
-certificatesDir: /etc/kubernetes/pki
-clusterName: kubernetes
-controllerManager: {}
-dns: {}
-etcd:
-  local:
-    dataDir: /var/lib/etcd
-imageRepository: registry.k8s.io
 kind: ClusterConfiguration
-kubernetesVersion: 1.25.0
-networking:
-  dnsDomain: cluster.local
-  serviceSubnet: 10.96.0.0/12
-scheduler: {}
-----
+imageRepository: registry.k8s.io
+```
 
-=== Initializing your control-plane node
+Such a configuration file can then be passed to the kubeadm command:
+
+```sh
+kubeadm init --config kubeadm-config.yaml
+```
+
+=== Initializing control-plane node
 
 :configure-upgrade-etcd: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
 :kube-apiserver: https://kubernetes.io/docs/concepts/overview/components/#kube-apiserver
@@ -644,41 +510,30 @@ scheduler: {}
 
 The control-plane node is the machine where the control plane components run, including {configure-upgrade-etcd}[etcd] (the cluster database) and the {kube-apiserver}[API Server] (which the {kubectl-overview}[kubectl] command line tool communicates with). <<create-cluster-kubeadm>>
 
+[source,sh]
+----
+sudo kubeadm init \
+    --kubernetes-version=v1.26.0 \
+    --control-plane-endpoint=cluster-endpoint \
+    --apiserver-advertise-address=192.168.0.100 \
+    --pod-network-cidr=10.244.0.0/16 \
+    --service-cidr=10.96.0.0/12 \
+    --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers \
+    --ignore-preflight-errors=NumCPU,Mem \
+    --dry-run
+----
+
 . (Recommended) If you have plans to upgrade this single control-plane kubeadm cluster to high availability you should specify the `--control-plane-endpoint` to set the shared endpoint for all control-plane nodes. Such an endpoint can be either a DNS name or an IP address of a load-balancer.
 
 . Choose a {pod-network}[Pod network] add-on, and verify whether it requires any arguments to be passed to `kubeadm init`. Depending on which third-party provider you choose, you might need to set the `--pod-network-cidr` to a provider-specific value.
 
 . (Optional) kubeadm tries to detect the container runtime by using a list of well known endpoints. To use different container runtime or if there are more than one installed on the provisioned node, specify the `--cri-socket` argument to kubeadm.
 
-. (Optional) Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to set the advertise address for this particular control-plane node's API server. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to kubeadm init. To deploy an IPv6 Kubernetes cluster using IPv6 addressing, you must specify an IPv6 address, for example `--apiserver-advertise-address=2001:db8::101`.
+*Considerations about apiserver-advertise-address and ControlPlaneEndpoint*
 
-[NOTE]
-====
-While `--apiserver-advertise-address` can be used to set the advertise address for this particular control-plane node's API server, `--control-plane-endpoint` can be used to set the shared endpoint for all control-plane nodes.
+* Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to set the advertise address for this particular control-plane node's API server. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to `kubeadm init`.
 
-`--control-plane-endpoint` allows both IP addresses and DNS names that can map to IP addresses. Please contact your network administrator to evaluate possible solutions with respect to such mapping.
-
-Here is an example mapping:
-
-[source,text]
-192.168.0.102 cluster-endpoint
-
-Where `192.168.0.102` is the IP address of this node and cluster-endpoint is a custom DNS name that maps to this IP. This will allow you to pass `--control-plane-endpoint=cluster-endpoint` to `kubeadm init` and pass the same DNS name to `kubeadm join`. Later you can modify `cluster-endpoint` to point to the address of your load-balancer in an high availability scenario.
-
-Turning a single control plane cluster created without `--control-plane-endpoint` into a highly available cluster is not supported by kubeadm.
-====
-
-[source,sh]
-----
-sudo kubeadm init \
-    --kubernetes-version=v1.26.0 \
-    --pod-network-cidr=10.244.0.0/16 \
-    --apiserver-advertise-address=192.168.0.100 \
-    --control-plane-endpoint=cluster-endpoint \
-    --ignore-preflight-errors=NumCPU,Mem \
-    --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers \
-    --dry-run
-----
+* While `--apiserver-advertise-address` can be used to set the advertise address for this particular control-plane node's API server, `--control-plane-endpoint` can be used to set the shared endpoint for all control-plane nodes. `--control-plane-endpoint` allows both IP addresses and DNS names that can map to IP addresses.
 
 === The kubelet drop-in file for systemd
 
@@ -1003,9 +858,7 @@ images:
 * [[[install-kubeadm,2]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
 * [[[archlinux-swap,3]]] https://wiki.archlinux.org/title/swap
 * [[[container-runtimes,4]]] https://kubernetes.io/docs/setup/production-environment/container-runtimes/
-* [[[cgroup-driver,3]]] https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
-* [[[cgroups,4]]] https://kubernetes.io/docs/concepts/architecture/cgroups/
-* [[[kubeadm_completion,5]]] https://kubernetes.io/docs/reference/setup-tools/kubeadm/generated/kubeadm_completion/
+* [[[configure-cgroup-driver,5]]] https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
 * [[[docker-runtime-execution-options,6]]] https://docs.docker.com/engine/reference/commandline/dockerd/#docker-runtime-execution-options
 * [[[rhel-7-yum-repo,7]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/ch-yum#sec-Configuring_Yum_and_Yum_Repositories
 * [[[rpm-gpg-verify-packages,8]]] https://www.redhat.com/sysadmin/rpm-gpg-verify-packages
