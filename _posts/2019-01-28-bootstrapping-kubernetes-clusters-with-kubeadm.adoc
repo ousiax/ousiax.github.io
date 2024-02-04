@@ -341,7 +341,7 @@ $ apt-cache madison kubeadm | head -n 5
 $ sudo apt-get install -y kubelet=1.26.0-2.1 kubeadm=1.26.0-2.1 kubectl=1.26.0-2.1
 ----
 
-Output shell completion code for the specified shell (bash or zsh). <<kubeadm_completion>>
+Output shell completion code for the specified shell (bash or zsh).
 
 [source,sh]
 ----
@@ -387,7 +387,7 @@ sudo systemctl enable --now kubelet
 +
 Please NOTE that this repository have packages only for Kubernetes 1.26; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version.
 
-<1> Setting SELinux in permissive mode by running `setenforce 0` and `sed ...` effectively disables it. This is required to allow containers to access the host filesystem, which is needed by pod networks for example. You have to do this until SELinux support is improved in the kubelet.
+<2> Setting SELinux in permissive mode by running `setenforce 0` and `sed ...` effectively disables it. This is required to allow containers to access the host filesystem, which is needed by pod networks for example. You have to do this until SELinux support is improved in the kubelet.
 +
 You can leave SELinux enabled if you know how to configure it but it may require settings that are not supported by kubeadm.
 
@@ -405,7 +405,7 @@ kubeadm.x86_64                   1.26.4-150500.1.1                    kubernetes
 $ sudo yum --disableexcludes=kubernetes install kubelet-1.26.0-150500.2.1 kubeadm-1.26.0-150500.2.1 kubectl-1.26.0-150500.2.1
 ----
 
-Output shell completion code for the specified shell (bash or zsh). <<kubeadm_completion>>
+Output shell completion code for the specified shell (bash or zsh).
 
 ```sh
 # Install the bash-completion framework
@@ -501,6 +501,186 @@ Such a configuration file can then be passed to the kubeadm command:
 kubeadm init --config kubeadm-config.yaml
 ```
 
+=== Customizing components with the kubeadm API
+
+The preferred way to configure kubeadm is to pass an YAML https://kubernetes.io/docs/reference/config-api/[configuration file] with the `--config` option. A https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/[kubeadm config file] could contain multiple configuration types separated using three dashes (`---`).
+
+```yml
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: JoinConfiguration
+```
+
+==== Customizing the control plane with flags in ClusterConfiguration
+
+The kubeadm `ClusterConfiguration` object exposes a way for users to override the default flags passed to control plane components such as the APIServer, ControllerManager, Scheduler and Etcd. <<control-plane-flags>>
+
+```yml
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+apiServer:
+  timeoutForControlPlane: 4m0s
+controllerManager: {}
+scheduler: {}
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+networking:
+  dnsDomain: cluster.local
+  serviceSubnet: 10.96.0.0/12
+dns: {}
+imageRepository: registry.k8s.io
+kubernetesVersion: 1.26.0
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+```
+
+==== Customizing with patches
+
+Kubeadm allows you to pass a directory with patch files to `InitConfiguration` and `JoinConfiguration` on individual nodes. These `patches` can be used as the last customization step before component configuration is written to disk.
+
+```yml
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+patches:
+  directory: /home/user/somedir
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: JoinConfiguration
+patches:
+  directory: /home/user/somedir
+```
+
+==== Customizing the kubelet
+
+Some kubelet configuration details need to be the same across all kubelets involved in the cluster, while other configuration aspects need to be set on a per-kubelet basis to accommodate the different characteristics of a given machine (such as OS, storage, and networking). <<kubelet-integration>>
+
+===== Kubelet configuration patterns
+
+* Propagating cluster-level configuration to each kubelet
++
+--
+You can provide the kubelet with default values to be used by `kubeadm init` and `kubeadm join` commands. Interesting examples include using a different container runtime or setting the default subnet used by services.
+
+If you want your services to use the subnet 10.96.0.0/12 as the default for services, you can pass the `--service-cidr` parameter to kubeadm:
+
+```sh
+kubeadm init --service-cidr 10.96.0.0/12
+```
+
+The kubelet provides a versioned, structured API object that can configure most parameters in the kubelet and push out this configuration to each running kubelet in the cluster, called `KubeletConfiguration`, and can be passed to `kubeadm init` and kubeadm will apply the same base `KubeletConfiguration` to all nodes in the cluster.
+
+```yml
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+clusterDNS:
+- 10.96.0.10
+cgroupDriver: systemd
+```
+--
+
+* Providing instance-specific configuration details
++
+--
+Some hosts require specific kubelet configurations due to differences in hardware, operating system, networking, or other host-specific parameters. The following list provides a few examples.
+
+* The path to the DNS resolution file, as specified by the `--resolv-conf` kubelet configuration flag, may differ among operating systems, or depending on whether you are using systemd-resolved. If this path is wrong, DNS resolution will fail on the Node whose kubelet is configured incorrectly.
+
+* The Node API object `.metadata.name` is set to the machine's hostname by default, unless you are using a cloud provider. You can use the `--hostname-override` flag to override the default behavior if you need to specify a Node name different from the machine's hostname.
+
+* Currently, the kubelet cannot automatically detect the cgroup driver used by the container runtime, but the value of `--cgroup-driver` must match the cgroup driver used by the container runtime to ensure the health of the kubelet.
+
+* To specify the container runtime you must set its endpoint with the `--container-runtime-endpoint=<path>` flag.
+
+The recommended way of applying such instance-specific configuration is by using link:#customizing-with-patches[KubeletConfiguration patches].
+--
+
+===== Configure kubelets using kubeadm
+
+When you call `kubeadm init`, the kubelet configuration is marshalled to disk at `/var/lib/kubelet/config.yaml`, and also uploaded to a `kubelet-config` ConfigMap in the `kube-system` namespace of the cluster.
+
+To address the second pattern of providing instance-specific configuration details, kubeadm writes an environment file to `/var/lib/kubelet/kubeadm-flags.env`, which contains a list of flags to pass to the kubelet when it starts. The flags are presented in the file like this:
+
+```sh
+KUBELET_KUBEADM_ARGS="--flag1=value1 --flag2=value2 ..."
+```
+
+In addition to the flags used when starting the kubelet, the file also contains dynamic parameters such as the cgroup driver and whether to use a different container runtime socket (`--cri-socket`).
+
+When you run `kubeadm join`, kubeadm uses the Bootstrap Token credential to perform a TLS bootstrap, which fetches the credential needed to download the `kubelet-config` ConfigMap and writes it to `/var/lib/kubelet/config.yaml`. The dynamic environment file is generated in exactly the same way as `kubeadm init`.
+
+===== The kubelet drop-in file for systemd
+
+:deb-kubeadm-10-kubeadm-conf: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/deb/kubeadm/10-kubeadm.conf
+:rpm-kubeadm-10-kubeadm-conf: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/rpm/kubeadm/10-kubeadm.conf
+
+kubeadm ships with configuration for how systemd should run the kubelet <<kubelet-integration>>,  written to `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` and is used by systemd. For example:
+
+[source,ini]
+----
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+# This is a file that "kubeadm init" and "kubeadm join" generate at runtime, populating
+# the KUBELET_KUBEADM_ARGS variable dynamically
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+# This is a file that the user can use for overrides of the kubelet args as a last resort. Preferably,
+# the user should use the .NodeRegistration.KubeletExtraArgs object in the configuration files instead.
+# KUBELET_EXTRA_ARGS should be sourced from this file.
+EnvironmentFile=-/etc/default/kubelet
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+----
+
+This file specifies the default locations for all of the files managed by kubeadm for the kubelet.
+
+* The KubeConfig file to use for the TLS Bootstrap is `/etc/kubernetes/bootstrap-kubelet.conf`, but it is only used if `/etc/kubernetes/kubelet.conf` does not exist.
+* The KubeConfig file with the unique kubelet identity is `/etc/kubernetes/kubelet.conf`.
+* The file containing the kubelet's ComponentConfig is `/var/lib/kubelet/config.yaml`.
+* The dynamic environment file that contains `KUBELET_KUBEADM_ARGS` is sourced from `/var/lib/kubelet/kubeadm-flags.env`.
+* The file that can contain user-specified flag overrides with `KUBELET_EXTRA_ARGS` is sourced from `/etc/default/kubelet` (for DEBs), or `/etc/sysconfig/kubelet` (for RPMs). `KUBELET_EXTRA_ARGS` is last in the flag chain and has the highest priority in the event of conflicting settings.
+
+===== Configurations for local ephemeral storage
+
+:volumes-emptyDir: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
+:logging-at-the-node-level: https://kubernetes.io/docs/concepts/cluster-administration/logging/#logging-at-the-node-level
+
+Nodes have local ephemeral storage, backed by locally-attached writeable devices or, sometimes, by RAM. <<manage-resources-containers>> <<so-ephemeral-storage>>
+
+Pods use ephemeral local storage for scratch space, caching, and for logs. The kubelet can provide scratch space to Pods using local ephemeral storage to mount {volumes-emptyDir}[emptyDir] volumes into containers.
+
+The kubelet also uses this kind of storage to hold {logging-at-the-node-level}[node-level container logs], container images, and the writable layers of running containers.
+
+TIP: Note: The kubelet tracks `tmpfs` emptyDir volumes as container memory use, rather than as local ephemeral storage.
+
+TIP: Note: The kubelet will only track the root filesystem for ephemeral storage. OS layouts that mount a separate disk to `/var/lib/kubelet` or `/var/lib/containers` will not report ephemeral storage correctly.
+
+TIP: The kubelet writes logs to files inside its configured log directory (`/var/log` by default); and has a base directory for other locally stored data (`/var/lib/kubelet` by default).
+
+The kubelet recognizes two specific filesystem identifiers: <<node-pressure-eviction>>
+
+* `nodefs`: The node's main filesystem, used for local disk volumes, emptyDir volumes not backed by memory, log storage, and more. For example, `nodefs` contains `/var/lib/kubelet/`.
+
+* `imagefs`: An optional filesystem that container runtimes use to store container images and container writable layers. <<kubernetes-separate-image-filesystem>>
++
+TIP: The containerd runtime uses a TOML configuration file to control where persistent (default "/var/lib/containerd") and ephemeral data (default "/run/containerd") is stored.
+
+Kubelet auto-discovers these filesystems and ignores other node local filesystems. Kubelet does not support other configurations.
+
 === Initializing control-plane node
 
 :configure-upgrade-etcd: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
@@ -534,88 +714,6 @@ sudo kubeadm init \
 * Unless otherwise specified, kubeadm uses the network interface associated with the default gateway to set the advertise address for this particular control-plane node's API server. To use a different network interface, specify the `--apiserver-advertise-address=<ip-address>` argument to `kubeadm init`.
 
 * While `--apiserver-advertise-address` can be used to set the advertise address for this particular control-plane node's API server, `--control-plane-endpoint` can be used to set the shared endpoint for all control-plane nodes. `--control-plane-endpoint` allows both IP addresses and DNS names that can map to IP addresses.
-
-=== The kubelet drop-in file for systemd
-
-:deb-kubeadm-10-kubeadm-conf: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/deb/kubeadm/10-kubeadm.conf
-:rpm-kubeadm-10-kubeadm-conf: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/rpm/kubeadm/10-kubeadm.conf
-:deb-kubelet-service: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/deb/kubelet/lib/systemd/system/kubelet.service
-:rpm-kubelet-service: https://github.com/kubernetes/release/blob/master/cmd/kubepkg/templates/latest/rpm/kubelet/kubelet.service
-
-_kubeadm_ ships with configuration for how systemd should run the kubelet. Note that the kubeadm CLI command never touches this drop-in file. <<kubeadm-kubelet-integration>>
-
-This configuration file installed by the kubeadm {deb-kubeadm-10-kubeadm-conf}[DEB] or {rpm-kubeadm-10-kubeadm-conf}[RPM] package is written to _/etc/systemd/system/kubelet.service.d/10-kubeadm.conf_ and is used by systemd. It augments the basic {rpm-kubelet-service}[kubelet.service for RPM] or {deb-kubelet-service}[kubelet.service for DEB]:
-
-NOTE: Note: The contents below are just an example.
-
-[source,ini]
-----
-[Service]
-Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
-Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
-# This is a file that "kubeadm init" and "kubeadm join" generate at runtime, populating
-# the KUBELET_KUBEADM_ARGS variable dynamically
-EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
-# This is a file that the user can use for overrides of the kubelet args as a last resort. Preferably,
-# the user should use the .NodeRegistration.KubeletExtraArgs object in the configuration files instead.
-# KUBELET_EXTRA_ARGS should be sourced from this file.
-EnvironmentFile=-/etc/default/kubelet
-ExecStart=
-ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
-----
-
-This file specifies the default locations for all of the files managed by kubeadm for the kubelet.
-
-* The KubeConfig file to use for the TLS Bootstrap is _/etc/kubernetes/bootstrap-kubelet.conf_, but it is only used if _/etc/kubernetes/kubelet.conf_ does not exist.
-* The KubeConfig file with the unique kubelet identity is _/etc/kubernetes/kubelet.conf_.
-* The file containing the kubelet's ComponentConfig is _/var/lib/kubelet/config.yaml_.
-* The dynamic environment file that contains _KUBELET_KUBEADM_ARGS_ is sourced from _/var/lib/kubelet/kubeadm-flags.env_.
-* The file that can contain user-specified flag overrides with _KUBELET_EXTRA_ARGS_ is sourced from _/etc/default/kubelet_ (for DEBs), or _/etc/sysconfig/kubelet_ (for RPMs). _KUBELET_EXTRA_ARGS_ is last in the flag chain and has the highest priority in the event of conflicting settings.
-
-=== Configurations for local ephemeral storage
-
-:volumes-emptyDir: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
-
-Nodes have local ephemeral storage, backed by locally-attached writeable devices or, sometimes, by RAM. "Ephemeral" means that there is no long-term guarantee about durability. <<manage-resources-containers>> <<so-ephemeral-storage>>
-
-Pods use ephemeral local storage for scratch space, caching, and for logs. The kubelet can provide scratch space to Pods using local ephemeral storage to mount {volumes-emptyDir}[emptyDir] volumes into containers.
-
-The kubelet also uses this kind of storage to hold node-level container logs, container images, and the writable layers of running containers.
-
-Kubernetes supports two ways to configure local ephemeral storage on a node: 
-
-* https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-storage-configurations-0[Single filesystem]
-+
-In this configuration, you place all different kinds of ephemeral local data (emptyDir volumes, writeable layers, container images, logs) into one filesystem. The most effective way to configure the kubelet means dedicating this filesystem to Kubernetes (kubelet) data.
-+
-The kubelet also writes node-level container logs and treats these similarly to ephemeral local storage.
-+
-The kubelet writes logs to files inside its configured log directory (_/var/log_ by default); and has a base directory for other locally stored data (_/var/lib/kubelet_ by default).
-+
-Typically, both _/var/lib/kubelet_ and _/var/log_ are on the system root filesystem, and the kubelet is designed with that layout in mind.
-+
-Your node can have as many other filesystems, not used for Kubernetes, as you like.
-
-* https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-storage-configurations-1[Two filesystems]
-+
-You have a filesystem on the node that you're using for ephemeral data that comes from running Pods: logs, and emptyDir volumes. You can use this filesystem for other data (for example: system logs not related to Kubernetes); it can even be the root filesystem.
-+
-The kubelet also writes node-level container logs into the first filesystem, and treats these similarly to ephemeral local storage.
-+
-You also use a separate filesystem, backed by a different logical storage device. In this configuration, the directory where you tell the kubelet to place container image layers and writeable layers is on this second filesystem.
-+
-The first filesystem does not hold any image layers or writeable layers.
-+
-Your node can have as many other filesystems, not used for Kubernetes, as you like.
-
-The kubelet can measure how much local storage it is using. It does this provided that you have set up the node using one of the supported configurations for local ephemeral storage.
-
-If you have a different configuration, then the kubelet does not apply resource limits for ephemeral local storage.
-
-NOTE: Note: The kubelet tracks _tmpfs_ emptyDir volumes as container memory use, rather than as local ephemeral storage.
-
-NOTE: Note: The kubelet will only track the root filesystem for ephemeral storage. OS layouts that mount a separate disk to _/var/lib/kubelet_ or _/var/lib/containers_ will not report ephemeral storage correctly.
-
 
 === Installing a Pod network add-on
 
@@ -792,9 +890,9 @@ Now remove the node:
 $ kubectl delete node <node name>
 ----
 
-== Installing Addons
+== Installing addons
 
-=== Metrics Server
+=== Metrics server
 
 :metrics-server: https://github.com/kubernetes-sigs/metrics-server
 :kubernetes-metrics: https://github.com/kubernetes/metrics
@@ -826,7 +924,7 @@ images:
 ----
 ====
 
-=== Ingress Controllers
+=== Ingress controllers
 
 :ingress-aws: https://github.com/kubernetes-sigs/aws-load-balancer-controller#readme
 :ingress-gce: https://git.k8s.io/ingress-gce/README.md#readme
@@ -859,12 +957,17 @@ images:
 * [[[archlinux-swap,3]]] https://wiki.archlinux.org/title/swap
 * [[[container-runtimes,4]]] https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 * [[[configure-cgroup-driver,5]]] https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
+* [[[control-plane-flags,6]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/control-plane-flags/
+* [[[kubelet-integration,7]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/kubelet-integration/
+* [[[manage-resources-containers,8]]] https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-ephemeral-storage
+* [[[so-ephemeral-storage,9]]] https://stackoverflow.com/questions/70931881/what-does-kubelet-use-to-determine-the-ephemeral-storage-capacity-of-the-node
+* [[[node-pressure-eviction,10]]] https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+* [[[kubernetes-separate-image-filesystem,11]]] https://kubernetes.io/blog/2024/01/23/kubernetes-separate-image-filesystem/
+
+
 * [[[docker-runtime-execution-options,6]]] https://docs.docker.com/engine/reference/commandline/dockerd/#docker-runtime-execution-options
 * [[[rhel-7-yum-repo,7]]] https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/ch-yum#sec-Configuring_Yum_and_Yum_Repositories
 * [[[rpm-gpg-verify-packages,8]]] https://www.redhat.com/sysadmin/rpm-gpg-verify-packages
 * [[[flannel,10]]] https://github.com/flannel-io/flannel
 * [[[bib-metrics-server,11]]] https://github.com/kubernetes-sigs/metrics-server
 * [[[bib-ingress-controllers,12]]] https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
-* [[[manage-resources-containers,13]]] https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-* [[[kubeadm-kubelet-integration,14]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/kubelet-integration/
-* [[[so-ephemeral-storage,15]]] https://stackoverflow.com/questions/70931881/what-does-kubelet-use-to-determine-the-ephemeral-storage-capacity-of-the-node
