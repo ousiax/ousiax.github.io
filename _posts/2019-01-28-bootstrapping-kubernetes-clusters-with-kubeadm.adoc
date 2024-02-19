@@ -801,13 +801,13 @@ kubectl taint nodes --all node-role.kubernetes.io/control-plane-
 
 To add new nodes to your cluster do the following for each machine:
 
-* SSH to the machine
+. SSH to the machine
 
-* Become root (e.g. `sudo su -`)
+. Become root (e.g. `sudo su -`)
 
-* Install a runtime if needed
+. Install a runtime if needed
 
-* Run the command that was output by `kubeadm init`. For example:
+. Run the command that was output by `kubeadm init`. For example:
 +
 [source,console]
 ----
@@ -848,7 +848,7 @@ kubeadm token create --print-join-command
 
 === Joing the stacked control plane and etcd nodes
 
-* Upload the certificates that should be shared across all the control-plane instances to the cluster, and note the certificate key.
+. Upload the certificates that should be shared across all the control-plane instances to the cluster, and note the certificate key.
 +
 ```sh
 sudo kubeadm init phase upload-certs --upload-certs
@@ -860,7 +860,7 @@ sudo kubeadm init phase upload-certs --upload-certs
 a455917454410f7d8bcdfa5795ed54526c7484e4e6316ef57a3aa16c3454ada2
 ```
 
-* Run the command that was output by `kubeadm init` with the `--certificate-key <certificate key>` generated above. For example:
+. Run the command that was output by `kubeadm init` with the additional `--certificate-key <certificate key>` generated above.
 +
 [source,console]
 ----
@@ -927,58 +927,156 @@ Now remove the node:
 kubectl delete node <node name>
 ----
 
-=== Installing Ingress controllers and Metrics server
+=== Installing Addons
+
+Add-ons extend the functionality of Kubernetes.
+
+==== Ingress controllers
 
 :ingress-aws: https://github.com/kubernetes-sigs/aws-load-balancer-controller#readme
 :ingress-gce: https://git.k8s.io/ingress-gce/README.md#readme
 :ingress-nginx: https://git.k8s.io/ingress-nginx/README.md#readme
 :ingress-class: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class
 
-In order for the Ingress resource to work, the cluster must have an ingress controller running. <<kube-ingress-controllers>>
+In order for the Ingress resource to work, the cluster must have an ingress controller running. Unlike other types of controllers which run as part of the `kube-controller-manager` binary, Ingress controllers are not started automatically with a cluster. Kubernetes as a project supports and maintains {ingress-aws}[AWS], {ingress-gce}[GCE], and {ingress-nginx}[nginx] ingress controllers. <<kube-ingress-controllers>>
 
-Kubernetes as a project supports and maintains {ingress-aws}[AWS], {ingress-gce}[GCE], and {ingress-nginx}[nginx] ingress controllers.
+There are multiple ways to install the Ingress-Nginx Controller: <<ingress-nginx-deploy>>
+
+* with https://helm.sh/[Helm], using the project repository chart;
+* with `kubectl apply`, using YAML manifests;
+* with specific addons (e.g. for minikube or MicroK8s).
 
 [TIP]
 ====
-You can also consider updating the ingress-nginx images as the following:
+You can also expose the Ingress Nginx over a NodePort service. <<ingress-nginx-deploy-baremetal>>
+
+[source,yml]
+----
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "10254"
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      nodePort: 30080
+      protocol: TCP
+      targetPort: http
+      appProtocol: http
+    - name: https
+      port: 443
+      nodePort: 30443
+      protocol: TCP
+      targetPort: https
+      appProtocol: https
+    - name: prometheus
+      port: 10254
+      protocol: TCP
+      targetPort: prometheus
+----
+====
+
+[TIP]
+====
+Aliyun (a Chinese corporation) provides a mirror repository (`registry.aliyuncs.com/google_containers`) for the images, to which Chinese users have access. <<minikube-cn>> You can consider updating the ingress-nginx images as the following:
 
 [source,yml]
 ----
 images:
+  # registry.k8s.io/ingress-nginx/controller:v1.9.6@sha256:1405cc613bd95b2c6edd8b2a152510ae91c7e62aea4698500d23b2145960ab9c
   - name: registry.k8s.io/ingress-nginx/controller
     newName: registry.aliyuncs.com/google_containers/nginx-ingress-controller
+    # remove the digest to ignore the integrity checking.
+    newTag: v1.9.6
+  # registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20231226-1a7112e06@sha256:25d6a5f11211cc5c3f9f2bf552b585374af287b4debf693cacbe2da47daa5084
   - name: registry.k8s.io/ingress-nginx/kube-webhook-certgen
     newName: registry.aliyuncs.com/google_containers/kube-webhook-certgen
+    # remove the digest to ignore the integrity checking.
+    newTag: v20231226-1a7112e06
 ----
 ====
 
+[TIP]
+====
+*Checking ingress controller version*
+
+Run `/nginx-ingress-controller --version` within the pod, for instance with `kubectl exec`:
+
+[source,sh]
+----
+POD_NAMESPACE=ingress-nginx
+POD_NAME=$(kubectl get pods -n $POD_NAMESPACE -l app.kubernetes.io/name=ingress-nginx --field-selector=status.phase=Running -o name)
+kubectl exec $POD_NAME -n $POD_NAMESPACE -- /nginx-ingress-controller --version
+----
+
+[source,console]
+----
+-------------------------------------------------------------------------------
+NGINX Ingress controller
+  Release:       v1.9.6
+  Build:         6a73aa3b05040a97ef8213675a16142a9c95952a
+  Repository:    https://github.com/kubernetes/ingress-nginx
+  nginx version: nginx/1.21.6
+
+-------------------------------------------------------------------------------
+----
+====
+
+==== Metrics server
 
 :metrics-server: https://github.com/kubernetes-sigs/metrics-server
-:kubernetes-metrics: https://github.com/kubernetes/metrics
-:horizontal-pod-autoscale: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
-:vertical-pod-autoscaler: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler/
 
 {metrics-server}[Metrics Server] is a scalable, efficient source of container resource metrics for Kubernetes built-in autoscaling pipelines. <<kube-metrics-server>>
 
-Metrics Server collects resource metrics from Kubelets and exposes them in Kubernetes apiserver through {kubernetes-metrics}[Metrics API] for use by {horizontal-pod-autoscale}[Horizontal Pod Autoscaler] and {vertical-pod-autoscaler}[Vertical Pod Autoscaler].
+Metrics Server can be installed either directly from YAML manifest or via the official https://artifacthub.io/packages/helm/metrics-server/metrics-server[Helm chart]. To install the latest Metrics Server release from the `components.yaml` manifest, run the following command.
 
-Metrics API can also be accessed by `kubectl top`, making it easier to debug autoscaling pipelines.
-
-Installation instructions can be found in https://github.com/kubernetes-sigs/metrics-server/releases[Metrics Server releases].
+[source,yml]
+----
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+----
 
 [TIP]
 ====
-You can also consider updating the image as the following:
+You can also consider updating the yaml as the following:
+
+[source,yml]
+----
+# metrics-server-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-server
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: metrics-server
+          args:
+            - --cert-dir=/tmp
+            - --secure-port=10250
+            - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+            - --kubelet-use-node-status-port
+            - --metric-resolution=15s
+            # Do not verify the CA of serving certificates presented by Kubelets. For testing purposes only.
+            - --kubelet-insecure-tls
+----
 
 [source,yml]
 ----
 # kustomization.yaml
 resources:
-  - ../base
+  - ../manifests
 patchesStrategicMerge:
   - metrics-server-deployment.yaml
 images:
-  - name: k8s.gcr.io/metrics-server/metrics-server
+  - name: registry.k8s.io/metrics-server/metrics-server
     newName: registry.aliyuncs.com/google_containers/metrics-server
 ----
 ====
@@ -1000,4 +1098,7 @@ images:
 * [[[flannel,12]]] https://github.com/flannel-io/flannel
 * [[[stacked-control-plane-and-etcd-nodes,13]]] https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/#stacked-control-plane-and-etcd-nodes
 * [[[kube-ingress-controllers,14]]] https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
-* [[[kube-metrics-server,15]]] https://github.com/kubernetes-sigs/metrics-server
+* [[[ingress-nginx-deploy,15]]] https://kubernetes.github.io/ingress-nginx/deploy/
+* [[[ingress-nginx-deploy-baremetal,16]]] https://kubernetes.github.io/ingress-nginx/deploy/baremetal/#over-a-nodeport-service
+* [[[minikube-cn,17]]] https://minikube.sigs.k8s.io/docs/faq/#i-am-in-china-and-i-encounter-errors-when-trying-to-start-minikube-what-should-i-do
+* [[[kube-metrics-server,18]]] https://github.com/kubernetes-sigs/metrics-server
