@@ -9,341 +9,335 @@
 
 == The Kubernetes API
 
-:components-kube-apiserver: https://kubernetes.io/docs/concepts/overview/components/#kube-apiserver
 :ref_kubectl_overview: https://kubernetes.io/docs/reference/kubectl/overview/
 :ref_tools_kubeadm: https://kubernetes.io/docs/reference/setup-tools/kubeadm/
 :ref-api_client-libraries: https://kubernetes.io/docs/reference/using-api/client-libraries/
 
-image::https://d33wubrfki0l68.cloudfront.net/2475489eaf20163ec0f54ddc1d92aa8d4c87c96b/e7c81/images/docs/components-of-kubernetes.svg[,75%,75%]
+The core of Kubernetes' control plane is the {components-kube-apiserver}[API server]. The API server exposes an HTTP API that lets end users, different parts of your cluster, and external components communicate with one another. <<kube-kubernetes-api>>
 
-The core of Kubernetes' control plane is the {components-kube-apiserver}[API server]. The API server exposes an HTTP API that lets end users, different parts of your cluster, and external components communicate with one another.
+image::https://kubernetes.io/images/docs/components-of-kubernetes.svg[Components of Kubernetes,55%,55%]
 
-The Kubernetes API lets you query and manipulate the state of API objects in Kubernetes (for example: Pods, Namespaces, ConfigMaps, and Events).
+Kubernetes has a "hub-and-spoke" API pattern. All API usage from nodes (or the pods they run) terminates at the API server. None of the other control plane components are designed to expose remote services. The API server is configured to listen for remote connections on a secure HTTPS port (typically 443) with one or more forms of client _authentication_ enabled. One or more forms of _authorization_ should be enabled, especially if _anonymous requests_ or _service account tokens_ are allowed. <<kube-control-plane-node-communication>>
 
-Most operations can be performed through the {ref_kubectl_overview}[*kubectl* command-line] interface or other command-line tools, such as {ref_tools_kubeadm}[*kubeadm*], which in turn use the API. However, you can also access the API directly using {ref-api_client-libraries}[REST calls].
+Most operations can be performed through the {ref_kubectl_overview}[`kubectl`] command-line interface or other command-line tools, such as {ref_tools_kubeadm}[`kubeadm`], which in turn use the API. However, you can also access the API directly using {ref-api_client-libraries}[REST calls].
 
 === API Groups and Versioning
 
 :api-groups: https://kubernetes.io/docs/reference/using-api/#api-groups
 
-To make it easier to eliminate fields or restructure resource representations, Kubernetes supports multiple API versions, each at a different API path, such as `/api/v1` or `/apis/batch/v1`.
+To make it easier to eliminate fields or restructure resource representations, Kubernetes supports multiple API versions, each at a different API path, such as `/api/v1` or `/apis/batch/v1`. <<kube-kubernetes-api>>
 
-https://git.k8s.io/community/contributors/design-proposals/api-machinery/api-group.md[API groups] make it easier to extend the Kubernetes API. The API group is specified in a REST path and in the `apiVersion` field of a serialized object.
+https://kubernetes.io/docs/reference/using-api/#api-groups[API groups] make it easier to extend the Kubernetes API. The API group is specified in a _REST path_ and in the `apiVersion` field of a serialized object.
 
-* The *core* (also called _legacy_) group is found at REST path `/api/v1`.
+* The _core_ (also called _legacy_) group is found at REST path `/api/v1`.
 +
 The core group is not specified as part of the `apiVersion` field, for example, `apiVersion: v1`.
 
-* The *named* groups are at REST path `/apis/$GROUP_NAME/$VERSION` and use `apiVersion: $GROUP_NAME/$VERSION` (for example, `apiVersion: batch/v1`).
+* The named groups are at REST path `/apis/$GROUP_NAME/$VERSION` and use `apiVersion: $GROUP_NAME/$VERSION` (for example, `apiVersion: batch/v1`).
 
-You can find the full list of supported API groups in https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#-strong-api-groups-strong-[Kubernetes API reference].
-
-*API resources are distinguished by their API `group`, resource `type`, `namespace` (for namespaced resources), and `name`.*
-
-* The API server handles the conversion between API versions transparently: all the different versions are actually representations of the same persisted data.
-
-* Kubernetes stores the serialized state of objects by writing them into https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/[etcd].
-
-* The API server may serve the same underlying data through multiple API versions.
-
-The Kubernetes API can be extended in one of two ways:
+The Kubernetes API can be extended in one of two ways: <<kube-kubernetes-api>>
 
 * https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/[Custom resources] let you declaratively define how the API server should provide your chosen resource API.
 * You can also extend the Kubernetes API by implementing an https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/apiserver-aggregation/[aggregation layer].
 
-== Using `kubectl` Command Line Tools
+=== OpenAPI
 
-The kubectl command line tool lets you control Kubernetes clusters. For configuration, `kubectl` looks for a file named `config` in the `$HOME/.kube` directory. You can specify other https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/[kubeconfig] files by setting the `KUBECONFIG` environment variable or by setting the `--kubeconfig flag`.
+The Kubernetes API server serves an aggregated OpenAPI v2 spec via the `/openapi/v2` endpoint, and supports publishing a description of its APIs as OpenAPI v3, with a discovery endpoint `/openapi/v3` to see a list of all group/versions available. <<kube-kubernetes-api>>
 
-By default kubectl will first determine if it is running within a pod, and thus in a cluster. It starts by checking for the `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` environment variables and the existence of a service account token file at `/var/run/secrets/kubernetes.io/serviceaccount/token`. If all three are found *in-cluster authentication* is assumed.
+A list of all group versions supported by a cluster is published at the `/api` and `/apis` endpoints. Each group version also advertises the list of resources supported via `/apis/<group>/<version>` (for example: `/apis/rbac.authorization.k8s.io/v1`). These endpoints are used by `kubectl` to fetch the list of resources supported by a cluster.
 
-[source,console,highlight="9-10"]
+```console
+$ kubectl api-resources # Print the supported API resources
+NAME                              SHORTNAMES   APIVERSION                             NAMESPACED   KIND
+bindings                                       v1                                     true         Binding
+componentstatuses                 cs           v1                                     false        ComponentStatus
+configmaps                        cm           v1                                     true         ConfigMap
+endpoints                         ep           v1                                     true         Endpoints
+```
+
+```console
+$ kubectl proxy # Run a proxy to the Kubernetes API server.
+Starting to serve on 127.0.0.1:8001
+```
+
+```console
+$ curl -s localhost:8001/openapi/v2 | jq | head -n 10
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Kubernetes",
+    "version": "v1.26.0"
+  },
+  "paths": {
+    "/.well-known/openid-configuration/": {
+      "get": {
+        "description": "get service account issuer OpenID configuration, also known as the 'OIDC discovery doc'",
+
+$ curl -s localhost:8001/openapi/v3 | jq | head -n 10
+{
+  "paths": {
+    ".well-known/openid-configuration": {
+      "serverRelativeURL": "/openapi/v3/.well-known/openid-configuration?hash=41054813FD81725211A3B09D3C9FA87F2B041E99B64B1C4A6FD0AF072CEB1622726E80278D5F762B445839FD7F625B56622D56B68963DB550DFCCE30BE2C11F1"
+    },
+    "api": {
+      "serverRelativeURL": "/openapi/v3/api?hash=AB5AC9C5AB05D854B4B4489A3DE2E019BB9EA07DF8CB7E0B79F0B938FC7F7E300960DDE723878E9435E9B13AF07C0CF135A3ABCC6D2FB8FFE5F980CB3BA84F08"
+    },
+    "api/v1": {
+      "serverRelativeURL": "/openapi/v3/api/v1?hash=FB484AAC3A02DD7CC60312AB967AEE53CBD692C1D22332A846C17D94CD603392374A93C6427AA5CA5CBBC1DA1B4AF6ED2A28F933C295C6A9F46F79FA87B64A78"
+
+$ curl -s localhost:8001/apis/rbac.authorization.k8s.io/v1 | head -n 10
+{
+  "kind": "APIResourceList",
+  "apiVersion": "v1",
+  "groupVersion": "rbac.authorization.k8s.io/v1",
+  "resources": [
+    {
+      "name": "clusterrolebindings",
+      "singularName": "",
+      "namespaced": false,
+      "kind": "ClusterRoleBinding",
+```
+
+== Using kubectl Command Line Tools
+
+Kubernetes provides `kubectl`, a command line tool, for communicating with a Kubernetes cluster's control plane, using the Kubernetes API.
+
+By default `kubectl` will first determine if it is running within a pod, and thus in a cluster. It starts by checking for the `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` environment variables and the existence of a service account token file at `/var/run/secrets/kubernetes.io/serviceaccount/token`. If all three are found _in-cluster_ authentication is assumed. <<kube-kubectl>> <<kube-configure-service-account>>
+
+[source,console,highlight="10-11"]
 ----
-$ kubectl exec -n default devnetools -- env
+$ kubectl create deployment devnetools --image docker.io/qqbuby/net-tools:2.0 -- sleep 24h
+deployment.apps/devnetools created
+$ kubectl exec devnetools-847d89666-28psk -- env
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-HOSTNAME=devnetools
-KUBERNETES_PORT=tcp://172.20.0.1:443
-KUBERNETES_PORT_443_TCP=tcp://172.20.0.1:443
+HOSTNAME=devnetools-847d89666-28psk
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
 KUBERNETES_PORT_443_TCP_PROTO=tcp
 KUBERNETES_PORT_443_TCP_PORT=443
-KUBERNETES_PORT_443_TCP_ADDR=172.20.0.1
-KUBERNETES_SERVICE_HOST=172.20.0.1
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+KUBERNETES_SERVICE_HOST=10.96.0.1
 KUBERNETES_SERVICE_PORT=443
 KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_PORT=tcp://10.96.0.1:443
+HOME=/root
 
-$ kubectl cp -n default $(which kubectl) devnetools:tmp
+// copy `kubectl` cmd into container
+$ kubectl cp $(which kubectl) devnetools-847d89666-28psk:tmp
 
-$ kubectl exec -n default -it devnetools -- /tmp/kubectl cluster-info
+// show the cluster info using `kubectl` in pod with in-cluster mode
+$ kubectl exec devnetools-847d89666-28psk -- /tmp/kubectl cluster-info
+Error from server (Forbidden): services is forbidden: User "system:serviceaccount:default:default" cannot list resource "services" in API group "" in the namespace "kube-system"
 
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
-Error from server (Forbidden): services is forbidden: User "system:serviceaccount:default:default" cannot list resource "services" in API group "" in the namespace "kube-
-system"
 command terminated with exit code 1
 
+// bind the cluster view role to the service account
 $ kubectl create clusterrolebinding default:default:view --clusterrole=view --serviceaccount=default:default
 clusterrolebinding.rbac.authorization.k8s.io/default:default:view created
-
-$ kubectl exec -n default -it devnetools -- /tmp/kubectl cluster-info
-Kubernetes master is running at https://172.20.0.1:443
-CoreDNS is running at https://172.20.0.1:443/api/v1/namespaces/kube-system/services/coredns:dns/proxy
+$ kubectl exec devnetools-847d89666-28psk -- /tmp/kubectl cluster-info
+Kubernetes control plane is running at https://10.96.0.1:443
+CoreDNS is running at https://10.96.0.1:443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
 
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
-
-$ kubectl delete clusterrolebindings.rbac.authorization.k8s.io default:default:view 
+$ kubectl delete clusterrolebindings.rbac.authorization.k8s.io default:default:view
 clusterrolebinding.rbac.authorization.k8s.io "default:default:view" deleted
-
 ----
 
-Many of the https://kubernetes.io/docs/reference/kubectl/cheatsheet/[examples] provide an introduction to using kubectl and complete documentation is found in the https://kubernetes.io/docs/reference/kubectl/overview/[kubectl manual].
+=== Directly accessing the REST API
 
-== Using the REST API 
+Kubectl handles locating and authenticating to the apiserver. If you want to directly access the REST API with an http client like curl or wget, or a browser, there are several ways to locate and authenticate: <<kube-access-cluster>>
 
-Kubectl handles locating and authenticating to the apiserver. If you want to directly access the REST API with an http client like curl or wget, or a browser, there are several ways to locate and authenticate:
-
-* Run kubectl in proxy mode.
-** Recommended approach.
-*** Uses stored apiserver location.
-*** Verifies identity of apiserver using self-signed cert. No MITM possible.
-*** Authenticates to apiserver.
-*** In future, may do intelligent client-side load-balancing and failover.
-
-* Provide the location and credentials directly to the http client.
-** Alternate approach.
-** Works with some types of client code that are confused by using a proxy.
-** Need to import a root cert into your browser to protect against MITM.
-
-=== Using kubectl proxy 
+==== Run kubectl in proxy mode.
 
 The following command runs kubectl in a mode where it acts as a reverse proxy. It handles locating the apiserver and authenticating.
 
-Run it like this:
-
 [source,console]
+----
 $ kubectl proxy --port 8080 --address [::1]
 Starting to serve on [::1]:8080
+----
 
 Open another terminal:
 
 [source,console]
 ----
-$ curl -i6  http://localhost:8080/api/
-HTTP/1.1 200 OK
-Cache-Control: no-cache, private
-Content-Length: 186
-Content-Type: application/json
-Date: Thu, 11 Nov 2021 05:55:19 GMT
-
+$ curl localhost:8080/version
 {
-  "kind": "APIVersions",
-  "versions": [
-    "v1"
-  ],
-  "serverAddressByClientCIDRs": [
-    {
-      "clientCIDR": "0.0.0.0/0",
-      "serverAddress": "104.197.5.247:6443"
-    }
-  ]
+  "major": "1",
+  "minor": "26",
+  "gitVersion": "v1.26.0",
+  "gitCommit": "b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d",
+  "gitTreeState": "clean",
+  "buildDate": "2022-12-08T19:51:45Z",
+  "goVersion": "go1.19.4",
+  "compiler": "gc",
+  "platform": "linux/amd64"
 }
 ----
 
-See https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands/#proxy[kubectl proxy] for more details.
+==== Provide the location and credentials directly to the http client.
 
-=== Without kubectl proxy
+Use `kubectl apply` and `kubectl describe secret...` to create a token for the default service account with grep/cut:
 
-The following command uses service account token to access the API.
+First, create the Secret, requesting a token for the default ServiceAccount:
 
-.sa-token.sh
-[souce,bash]
+[source,sh]
 ----
-#!/bin/bash
-set -e
-
-server=$(kubectl config view -ojsonpath="{.clusters[*].cluster.server}")
-prd-k8s@kube-admin:~/proxy$ cat securce-sa-token.sh 
-#!/bin/bash
-set -e
-
-server=$(kubectl config view -ojsonpath="{.clusters[*].cluster.server}")
-
-token=$(kubectl \
-    get secrets -n default \
-    $(kubectl get sa -n default \
-        default -ojsonpath="{.secrets[].name}") \
-    -ojsonpath="{.data.token}" \
-    | base64 -d)
-
-# With `--insecure` flag, this leaves it subject to MITM attacks.
-# curl --include --insecure $server/api/ -H "Authorization: Bearer $token"
-
-curl --include \
-     --cacert <(kubectl config view \
-                --raw \
-                -ojsonpath="{.clusters[].cluster.certificate-authority-data}" \
-               | base64 -d) \
-    $server/api/ -H "Authorization: Bearer $token"
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: default-token
+  annotations:
+    kubernetes.io/service-account.name: default
+type: kubernetes.io/service-account-token
+EOF
 ----
 
-[souce,console]
-----
-$ bash sa-token.sh 
-HTTP/2 200 
-cache-control: no-cache, private
-content-type: application/json
-content-length: 184
-date: Sun, 19 Dec 2021 12:32:26 GMT
+Next, wait for the token controller to populate the Secret with a token:
 
+[source,sh]
+----
+while ! kubectl describe secret default-token | grep -E '^token' >/dev/null; do
+  echo "waiting for token..." >&2
+  sleep 1
+done
+----
+
+Capture and use the generated token:
+
+[source,sh]
+----
+APISERVER=$(kubectl config view --minify | grep server | cut -f 2- -d ":" | tr -d " ")
+TOKEN=$(kubectl describe secret default-token | grep -E '^token' | cut -f2 -d':' | tr -d " ")
+
+curl $APISERVER/api --header "Authorization: Bearer $TOKEN" --insecure
+----
+
+The output is similar to this:
+
+```console
 {
-  "kind": "APIVersions",
-  "versions": [
-    "v1"
-  ],
-  "serverAddressByClientCIDRs": [
-    {
-      "clientCIDR": "0.0.0.0/0",
-      "serverAddress": "10.24.128.43:5444"
-    }
-  ]
+  "major": "1",
+  "minor": "26",
+  "gitVersion": "v1.26.0",
+  "gitCommit": "b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d",
+  "gitTreeState": "clean",
+  "buildDate": "2022-12-08T19:51:45Z",
+  "goVersion": "go1.19.4",
+  "compiler": "gc",
+  "platform": "linux/amd64"
 }
-----
+```
 
 == Programmatic access to the API
 
-Kubernetes officially supports https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#go-client[Go] and https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#python-client[Python] client libraries.
+Kubernetes officially supports https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#go-client[Go] and https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#python-client[Python] client libraries. <<kube-access-cluster>>
 
-* To get the go client library, run the following command: `go get k8s.io/client-go@kubernetes-<kubernetes-version-number>`, see https://github.com/kubernetes/client-go/blob/master/INSTALL.md#for-the-casual-user[INSTALL.md] for detailed installation instructions. See https://github.com/kubernetes/client-go to see which versions are supported.
+* To get the go client library, run the following command: `go get k8s.io/client-go@latest`, see https://github.com/kubernetes/client-go/blob/master/INSTALL.md[INSTALL.md] for detailed installation instructions. See https://github.com/kubernetes/client-go?tab=readme-ov-file#compatibility-matrix[Compatibility matrix] to see which versions are supported.
+
 * Write an application atop of the client-go clients. Note that client-go defines its own API objects, so if needed, please import API definitions from client-go rather than from the main repository, e.g., `import "k8s.io/client-go/kubernetes"` is correct.
 
 The Go client can use the same https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/[kubeconfig file] as the kubectl CLI does to locate and authenticate to the apiserver.
 
-[source,console]
+When accessing the API from a pod, locating and authenticating to the apiserver are somewhat different. <<kube-access-api-from-pod>>
+
+* Using Official Client Libraries
++
+The easiest and recommended way to use the Kubernetes API from a Pod is to use one of the official client libraries. For a Go client, use the official https://github.com/kubernetes/client-go/[Go client library]. The `rest.InClusterConfig()` function handles API host discovery and authentication automatically. 
+
+* Directly accessing the REST API
++
+While running in a Pod, your container can create an HTTPS URL for the Kubernetes API server by fetching the `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT_HTTPS` environment variables. The API server's in-cluster address is also published to a Service named `kubernetes` in the `default` namespace so that pods may reference `kubernetes.default.svc` as a DNS name for the local API server.
++
+The recommended way to authenticate to the API server is with a https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/[service account] credential. By default, a Pod is associated with a service account, and a credential (token) for that service account is placed into the filesystem tree of each container in that Pod, at `/var/run/secrets/kubernetes.io/serviceaccount/token`.
++
+If available, a certificate bundle is placed into the filesystem tree of each container at `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`, and should be used to verify the serving certificate of the API server.
++
+Finally, the default namespace to be used for namespaced API operations is placed in a file at `/var/run/secrets/kubernetes.io/serviceaccount/namespace` in each container.
+
+[source,sh]
 ----
-$ mkdir -p github.com/samples/gocli
-
-$ cd github.com/samples/gocli/
-
-$ go mod init github.com/samples/gocli
-go: creating new go.mod: module github.com/samples/gocli
-
-$ cat > main.go <<EOF
-package main
-
-import (
-    "context"
-    "flag"
-    "fmt"
-    "os"
-    "path/filepath"
-
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    "k8s.io/client-go/kubernetes"
-    "k8s.io/client-go/rest"
-    "k8s.io/client-go/tools/clientcmd"
-    "k8s.io/client-go/util/homedir"
-    "k8s.io/klog/v2"
-)
-
-func main() {
-    var kubeconfig *string
-    if home := homedir.HomeDir(); home != "" {
-        kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-    } else {
-        kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-    }
-    flag.Parse()
-
-    // try to create the in-cluster config
-    config, err := rest.InClusterConfig()
-    if err != nil {
-        // use the current context in kubeconfig
-        config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
-        if err != nil {
-            klog.Error(err)
-            os.Exit(1)
-        }
-    }
-
-    // creates the clientset
-    clientset, err := kubernetes.NewForConfig(config)
-    if err != nil {
-        klog.Error(err)
-        os.Exit(1)
-    }
-
-    pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
-    if err != nil {
-        klog.Error(err)
-        os.Exit(1)
-    }
-    fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
-}
-EOF
-
-$ go mod tidy
-go: finding module for package k8s.io/client-go/kubernetes
-go: downloading k8s.io/client-go v0.23.1
-go: finding module for package k8s.io/client-go/rest
-go: finding module for package k8s.io/client-go/tools/clientcmd
-go: finding module for package k8s.io/client-go/util/homedir
-go: finding module for package k8s.io/klog/v2
-go: downloading k8s.io/klog/v2 v2.40.1
-...
-
-$ go build
-
-$ ./gocli 
-There are 138 pods in the cluster
+# create a go module.
+mkdir -p github.com/samples/gocli
+cd github.com/samples/gocli/
+go mod init github.com/samples/gocli
 ----
 
-== Accessing the API from a Pod
-
-When accessing the API from a pod, locating and authenticating to the apiserver are somewhat different.
-
-* The recommended way to locate the apiserver within the pod is with the `kubernetes.default.svc` DNS name, which resolves to a Service IP which in turn will be routed to an apiserver.
-
-* The recommended way to authenticate to the apiserver is with a https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/[service account] credential.
-
-** By kube-system, a pod is associated with a service account, and a credential (token) for that service account is placed into the filesystem tree of each container in that pod, at `/var/run/secrets/kubernetes.io/serviceaccount/token`.
-
-** If available, a certificate bundle is placed into the filesystem tree of each container at `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`, and should be used to verify the serving certificate of the apiserver.
-
-** Finally, the default namespace to be used for namespaced API operations is placed in a file at `/var/run/secrets/kubernetes.io/serviceaccount/namespace` in each container.
-
-From within a pod the recommended ways to connect to API are:
-
-* Run `kubectl proxy` in a sidecar container in the pod, or as a background process within the container.
-+
-This proxies the Kubernetes API to the localhost interface of the pod, so that other processes in any container of the pod can access it.
-
-* Use the Go client library, and create a client using the `rest.InClusterConfig()` and `kubernetes.NewForConfig()` functions.
-+
-They handle locating and authenticating to the apiserver.
-+
 [source,go]
 ----
+// main.go
 package main
 
 import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
+	"k8s.io/klog/v2"
 )
 
 func main() {
-	// creates the in-cluster config
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	// try to create the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		// use the current context in kubeconfig
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		if err != nil {
+			klog.Error(err)
+			os.Exit(1)
+		}
 	}
+
 	// creates the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		klog.Error(err)
+		os.Exit(1)
 	}
-	_ = clientset
+
+	pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		klog.Error(err)
+		os.Exit(1)
+	}
+	fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
 }
 ----
 
-In each case, the credentials of the pod are used to communicate securely with the apiserver.
+[source,console]
+----
+$ go mod tidy
+go: finding module for package k8s.io/klog/v2
+go: finding module for package k8s.io/client-go/rest
+go: finding module for package k8s.io/apimachinery/pkg/apis/meta/v1
+go: finding module for package k8s.io/client-go/tools/clientcmd
+go: finding module for package k8s.io/client-go/util/homedir
+go: finding module for package k8s.io/client-go/kubernetes
+go: downloading k8s.io/klog v1.0.0
+go: downloading k8s.io/klog/v2 v2.120.1
+go: downloading k8s.io/apimachinery v0.29.2
+go: downloading k8s.io/client-go v0.29.2
+...
+$ go build
+$ ./gocli
+There are 138 pods in the cluster
+----
 
 == Accessing services running on the cluster
 
@@ -473,11 +467,12 @@ Request Body:
 
 ----
 
+[bibliography]
 == References
 
-* https://kubernetes.io/docs/concepts/overview/kubernetes-api/
-* https://kubernetes.io/docs/reference/kubectl/cheatsheet/
-* https://kubernetes.io/docs/reference/kubectl/overview/
-* https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/
-* https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
-* https://datatracker.ietf.org/doc/html/rfc6750
+* [[[kube-kubernetes-api,1]]] https://kubernetes.io/docs/concepts/overview/kubernetes-api/
+* [[[kube-control-plane-node-communication,2]]] https://kubernetes.io/docs/concepts/architecture/control-plane-node-communication/
+* [[[kube-kubectl,3]]] https://kubernetes.io/docs/reference/kubectl/overview/
+* [[[kube-access-cluster,4]]] https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/
+* [[[kube-access-api-from-pod,5]]] https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/
+* [[[kube-configure-service-account,6]]] https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
