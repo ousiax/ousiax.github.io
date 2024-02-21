@@ -1118,6 +1118,37 @@ sudo apt-cache madison kubeadm # OR apt-cache policy kubeadm
 sudo yum list --showduplicates kubeadm --disableexcludes=kubernetes
 ```
 
+(Optional) Pre-pulled images:
+
+```sh
+#!/bin/sh
+
+# replace x in 1.29.x with the latest patch version
+kubernetes_version=v1.29.x
+image_repository=registry.cn-hangzhou.aliyuncs.com/google_containers
+
+sudo kubeadm config images pull \
+    --kubernetes-version=$kubernetes_version \
+    --image-repository=$image_repository
+
+images=$(kubeadm config images list \
+    --kubernetes-version $kubernetes_version \
+    --image-repository $image_repository)
+
+for i in $images; do
+    case "$i" in
+        *coredns*)
+            new_repo="registry.k8s.io/coredns"
+            ;;
+        *)
+            new_repo="registry.k8s.io"
+            ;;
+    esac
+    newtag=$(echo "$i" | sed "s@$image_repository@$new_repo@")
+    sudo ctr -n k8s.io images tag $i $newtag
+done
+```
+
 === Upgrading control plane nodes
 
 The upgrade procedure on control plane nodes should be executed one node at a time.
