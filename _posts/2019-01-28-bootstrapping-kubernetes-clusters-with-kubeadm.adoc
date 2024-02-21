@@ -1081,6 +1081,207 @@ images:
 ----
 ====
 
+== Upgrading kubeadm clusters
+
+TIP: If you are performing a _minor_ version upgrade for any kubelet, you _must_ first https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/[drain the node (or nodes)] that you are upgrading. In the case of control plane nodes, they could be running CoreDNS Pods or other critical workloads. <<kube-kubeadm-upgrade>>
+
+TIP: The Kubernetes project recommends that you match your kubelet and kubeadm versions. You can instead use a version of kubelet that is older than kubeadm, provided it is within the range of https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#kubeadm-s-skew-against-the-kubelet[supported versions].
+
+If you're using the community-owned package repositories (`pkgs.k8s.io`), you need to enable the https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/change-package-repository/[package repository] for the desired Kubernetes minor release.
+
+```conf
+# /etc/apt/sources.list.d/kubernetes.list
+deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /
+```
+
+```ini
+# /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
+exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+```
+
+```sh
+# Find the latest 1.29 version in the list.
+# It should look like 1.29.x-*, where x is the latest patch.
+sudo apt update
+sudo apt-cache madison kubeadm # OR apt-cache policy kubeadm
+```
+
+```sh
+# Find the latest 1.29 version in the list.
+# It should look like 1.29.x-*, where x is the latest patch.
+sudo yum list --showduplicates kubeadm --disableexcludes=kubernetes
+```
+
+=== Upgrading control plane nodes
+
+The upgrade procedure on control plane nodes should be executed one node at a time.
+
+==== Upgrade kubeadm
+
+*For the first control plane node*
+
+. Upgrade kubeadm:
++
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo apt-mark unhold kubeadm && \
+sudo apt-get update && sudo apt-get install -y kubeadm='1.29.x-*' && \
+sudo apt-mark hold kubeadm
+```
++
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo yum install -y kubeadm-'1.29.x-*' --disableexcludes=kubernetes
+```
+
+. Verify that the download works and has the expected version:
++
+```sh
+kubeadm version
+```
+
+. Verify the upgrade plan:
++
+```sh
+sudo kubeadm upgrade plan
+```
+
+. Choose a version to upgrade to, and run the appropriate command. For example:
++
+```sh
+# replace x with the patch version you picked for this upgrade
+sudo kubeadm upgrade apply v1.29.x
+```
+
+*For the other control plane nodes*
+
+Same as the first control plane node but use:
+
+```sh
+sudo kubeadm upgrade node
+```
+
+instead of:
+
+```sh
+sudo kubeadm upgrade apply
+```
+
+==== Upgrade kubelet and kubectl
+
+. Drain the node, prepare the node for maintenance by marking it unschedulable and evicting the workloads:
++
+```sh
+# replace <node-to-drain> with the name of your node you are draining
+kubectl drain <node-to-drain> --ignore-daemonsets
+```
+
+. Upgrade the kubelet and kubectl:
++
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo apt-mark unhold kubelet kubectl && \
+sudo apt-get update && sudo apt-get install -y kubelet='1.29.x-*' kubectl='1.29.x-*' && \
+sudo apt-mark hold kubelet kubectl
+```
++
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo yum install -y kubelet-'1.29.x-*' kubectl-'1.29.x-*' --disableexcludes=kubernetes
+```
+
+. Restart the kubelet:
++
+```sh
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+```
+
+. Uncordon the node, bring the node back online by marking it schedulable:
++
+```sh
+# replace <node-to-uncordon> with the name of your node
+kubectl uncordon <node-to-uncordon>
+```
+
+=== Upgrade worker nodes
+
+The upgrade procedure on worker nodes should be executed one node at a time or few nodes at a time, without compromising the minimum required capacity for running your workloads. <<kubeadm-upgrading-linux-nodes>>
+
+==== Upgrade kubeadm
+
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo apt-mark unhold kubeadm && \
+sudo apt-get update && sudo apt-get install -y kubeadm='1.29.x-*' && \
+sudo apt-mark hold kubeadm
+```
+
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo yum install -y kubeadm-'1.29.x-*' --disableexcludes=kubernetes
+```
+
+```sh
+# For worker nodes this upgrades the local kubelet configuration:
+sudo kubeadm upgrade node
+```
+
+==== Upgrade kubelet and kubectl
+
+. Drain the node, prepare the node for maintenance by marking it unschedulable and evicting the workloads:
++
+```sh
+# execute this command on a control plane node
+# replace <node-to-drain> with the name of your node you are draining
+kubectl drain <node-to-drain> --ignore-daemonsets
+```
+
+. Upgrade the kubelet and kubectl:
++
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo apt-mark unhold kubelet kubectl && \
+sudo apt-get update && sudo apt-get install -y kubelet='1.29.x-*' kubectl='1.29.x-*' && \
+sudo apt-mark hold kubelet kubectl
+```
++
+```sh
+# replace x in 1.29.x-* with the latest patch version
+sudo yum install -y kubelet-'1.29.x-*' kubectl-'1.29.x-*' --disableexcludes=kubernetes
+```
+
+. Restart the kubelet:
++
+```sh
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+```
+
+. Uncordon the node, bring the node back online by marking it schedulable:
++
+```sh
+# execute this command on a control plane node
+# replace <node-to-uncordon> with the name of your node
+kubectl uncordon <node-to-uncordon>
+```
+
+=== Verify the status of the cluster
+
+After the kubelet is upgraded on all nodes verify that all nodes are available again by running the following command from anywhere kubectl can access the cluster:
+
+```sh
+kubectl get nodes
+```
+
+The `STATUS` column should show `Ready` for all your nodes, and the version number should be updated.
+
 [bibliography]
 == References
 
@@ -1102,3 +1303,5 @@ images:
 * [[[ingress-nginx-deploy-baremetal,16]]] https://kubernetes.github.io/ingress-nginx/deploy/baremetal/#over-a-nodeport-service
 * [[[minikube-cn,17]]] https://minikube.sigs.k8s.io/docs/faq/#i-am-in-china-and-i-encounter-errors-when-trying-to-start-minikube-what-should-i-do
 * [[[kube-metrics-server,18]]] https://github.com/kubernetes-sigs/metrics-server
+* [[[kube-kubeadm-upgrade,19]]] https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
+* [[[kubeadm-upgrading-linux-nodes,20]]] https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/upgrading-linux-nodes/
