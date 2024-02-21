@@ -341,38 +341,53 @@ There are 138 pods in the cluster
 
 == Accessing services running on the cluster
 
-In Kubernetes, the *nodes*, *pods* and *services* all have their own IPs. In many cases, the node IPs, pod IPs, and some service IPs on a cluster will not be routable, so they will not be reachable from a machine outside the cluster, such as your desktop machine. <<kube-access-cluster-services>>
+In Kubernetes, the https://kubernetes.io/docs/concepts/architecture/nodes/[nodes], https://kubernetes.io/docs/concepts/workloads/pods/[pods] and https://kubernetes.io/docs/concepts/services-networking/service/[services] all have their own IPs. In many cases, the node IPs, pod IPs, and some service IPs on a cluster will not be routable, so they will not be reachable from a machine outside the cluster, such as your desktop machine. <<kube-access-cluster-services>>
 
-=== Ways to connect
+```console
+$ kubectl get no -owide
+NAME     STATUS   ROLES           AGE   VERSION    INTERNAL-IP      EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION                 CONTAINER-RUNTIME
+node-0   Ready    control-plane   16d   v1.26.0    192.168.56.130   <none>        Debian GNU/Linux 12 (bookworm)   6.1.0-17-amd64                 containerd://1.6.28
+node-2   Ready    <none>          2d    v1.26.13   192.168.56.132   <none>        CentOS Linux 7 (Core)            3.10.0-1160.108.1.el7.x86_64   containerd://1.6.28
 
-You have several options for connecting to nodes, pods and services from outside the cluster:
+$ kubectl get svc -n ingress-nginx
+NAME                                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)                                      AGE
+ingress-nginx-controller             NodePort    10.98.74.33    <none>        10254:31196/TCP,80:30080/TCP,443:30443/TCP   47h
+ingress-nginx-controller-admission   ClusterIP   10.100.192.1   <none>        443/TCP                                      47h
+$ kubectl get po -n ingress-nginx -owide
+NAME                                        READY   STATUS    RESTARTS   AGE   IP            NODE     NOMINATED NODE   READINESS GATES
+ingress-nginx-controller-5d84c5dd56-qdh4t   1/1     Running   0          46h   10.244.1.35   node-2   <none>           <none>
 
-* Access services through public IPs.
-** Use a service with type `NodePort` or `LoadBalancer` to make the service reachable outside the cluster.
-** Depending on your cluster environment, this may only expose the service to your corporate network, or it may expose it to the internet. Think about whether the service being exposed is secure. Does it do its own authentication?
-** Place pods behind services. To access one specific pod from a set of replicas, such as for debugging, place a unique label on the pod and create a new service which selects this label.
-** In most cases, it should not be necessary for application developer to directly access nodes via their nodeIPs.
-* Access services, nodes, or pods using the Proxy Verb.
-** Does apiserver authentication and authorization prior to accessing the remote service. Use this if the services are not secure enough to expose to the internet, or to gain access to ports on the node IP, or for debugging.
-** Proxies may cause problems for some web applications.
-** Only works for HTTP/HTTPS.
-* Access from a node or pod in the cluster.
-** Run a pod, and then connect to a shell in it using https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands/#exec[kubectl exec]. Connect to other nodes, pods, and services from that shell.
-** Some clusters may allow you to ssh to a node in the cluster. From there you may be able to access cluster services. This is a non-standard method, and will work on some clusters but not others. Browsers and other tools may or may not be installed. Cluster DNS may not work.
+// access the services with `NodePort` and node IPs reachable outside the cluster
+$ curl -iI 192.168.56.130:30080/healthz
+HTTP/1.1 200 OK
+Date: Tue, 20 Feb 2024 09:58:11 GMT
+Content-Type: text/html
+Content-Length: 0
+Connection: keep-alive
 
-=== Discovering builtin services 
+// ssh to a node in the cluster, and access the services or pods directly
+$ curl -iI 10.98.74.33/healthz
+HTTP/1.1 200 OK
+Date: Tue, 20 Feb 2024 09:50:08 GMT
+Content-Type: text/html
+Content-Length: 0
+Connection: keep-alive
 
-Typically, there are several services which are started on a cluster by kube-system. Get a list of these with the kubectl cluster-info command:
+$ curl -iI 10.244.1.35/healthz
+HTTP/1.1 200 OK
+Date: Tue, 20 Feb 2024 09:50:22 GMT
+Content-Type: text/html
+Content-Length: 0
+Connection: keep-alive
+```
 
-[souce,sh]
-kubectl cluster-info
+Typically, there are several services which are started on a cluster by `kube-system`.
 
-The output is similar to this:
-
-[souce,console]
+[source,console]
 ----
-Kubernetes control plane is running at https://104.197.5.247:6443
-CoreDNS is running at https://104.197.5.247:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+$ kubectl cluster-info
+Kubernetes control plane is running at https://cluster-endpoint:6443
+CoreDNS is running at https://cluster-endpoint:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
 
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 ----
@@ -397,23 +412,17 @@ spec:
 ...
 ----
 
-This shows the proxy-verb URL for accessing each service.
-
 To create proxy URLs that include service endpoints, suffixes, and parameters, you append to the service's proxy URL:
 
-> +++http:+++//_api-server_address_/api/v1/namespaces/_namespace_name_/services/_service_name[:port_name]_/proxy
+> +++http:+++//_kubernetes_master_address_/api/v1/namespaces/_namespace_name_/services/_pass:[https:]service_name[:port_name]_/proxy
 
-If you haven't specified a name for your port, you don't have to specify port_name in the URL.
+If you haven't specified a name for your port, you don't have to specify _port_name_ in the URL. You can also use the port number in place of the _port_name_ for both named and unnamed ports.
 
-> +++http:+++//_api-server_address_/api/v1/namespaces/_namespace_name_/services/_service_name[:port_num]_/proxy
+By default, the API server proxies to your service using http. To use https, prefix the service name with `https`:
 
-You can also use the port number in place of the port_name for both named and unnamed ports.
+> pass:[http]:<kubernetes_master_address>/api/v1/namespaces/<namespace_name>/services/<service_name>/proxy
 
-By default, the API server proxies to your service using http. To use https, prefix the service name with https:
-
-> pass:[http]://api-server_address_/api/v1/namespaces/namespace_name/services/_pass:[https]:service_name:[port_name]_/proxy
-
-The supported formats for the name segment of the URL are:
+The supported formats for the `<service_name>` segment of the URL are:
 
 * `<service_name>` - proxies to the default or unnamed port using http
 * `<service_name>:<port_name>` - proxies to the specified port name or port number using http
