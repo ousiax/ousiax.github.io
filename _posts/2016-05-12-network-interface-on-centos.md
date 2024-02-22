@@ -39,7 +39,7 @@ The primary network configuration files are as follows:
 
 ## 2. Interface Configuration Files
 
-Interface configuration files control the software interfaces for individual network devices. As the system boots, it uses these files to determine what interfaces to bring up and how to configure them. These files are usually named **ifcft-&lt;name&gt;**, where **&lt;name&gt;** refers to the name of the devices that the configuration file controls.
+Interface configuration files control the software interfaces for individual network devices. As the system boots, it uses these files to determine what interfaces to bring up and how to configure them. These files are usually named **ifcfg-&lt;name&gt;**, where **&lt;name&gt;** refers to the name of the devices that the configuration file controls.
 
 ### 2.1 Ethernet Interfaces
 
