@@ -9,31 +9,36 @@
 
 == Concepts
 
-*netfilter* is a set of hooks inside the Linux kernel that allows kernel modules to register callback functions with the network stack. A registered callback function is then called back for every packet that traverses the respective hook within the network stack.
+*netfilter* is a set of hooks inside the Linux _kernel_ that allows kernel modules to register callback functions with the network stack. A registered callback function is then called back for every packet that traverses the respective hook within the network stack.
 
-*iptables* is a userspace command line utility for configuring Linux kernel *_firewall_* implemented within the https://netfilter.org/projects/iptables/[Netfilter] project. The term _iptables_ is also commonly used to refer to this kernel-level firewall. *_iptables_* is used for IPv4, and *_ip6tables_* is used for IPv6.
+*iptables* is a _userspace_ command line utility for configuring Linux kernel _firewall_ implemented within the https://netfilter.org/projects/iptables/[Netfilter] project. The term iptables is also commonly used to refer to this kernel-level firewall. `iptables` is used for IPv4, and `ip6tables` is used for IPv6.
 
-_iptables_ is used to inspect, modify, redirect, and/or drop IPv4 packets. The code for filtering IPv4 packets is already built into the kernel and is organized into a collection of `tables`, each with a specific purpose. The tables are made up of a set of predefined `chains`, and the chains `rules` which are traversed in order. Each rule consists of a predicate of potential matches and a corresponding action (called a `target`) which is executed if the predicate is true; i.e. the conditions are matched.
+iptables is used to inspect, modify, redirect, and/or drop IPv4 packets. The code for filtering IPv4 packets is already built into the kernel and is organized into a collection of `tables`, each with a specific purpose. The tables are made up of a set of predefined `chains`, and the chains `rules` which are traversed in order. Each rule consists of a predicate of potential matches and a corresponding action (called a `target`) which is executed if the predicate is true; i.e. the conditions are matched.
 
-_iptables_ is the user utility which allows you to work with these chains/rules.
+iptables is the user utility which allows you to work with these chains/rules.
 
-image::/assets/firewall-netfilter-iptables/tables_traverse.gif[,60%,60%]
+image::/assets/firewall-netfilter-iptables/tables_traverse.gif[,55%,55%]
 
-The key to understanding how iptables works is the chart above. The _lowercase_ word on top is the table and the _uppercase_ word below is the chain. _Every IP packet that comes in on any network interface passes through this flow chart from top to bottom._
+The key to understanding how iptables works is the chart above. The lowercase word on top is the table and the uppercase word below is the chain. Every IP packet that comes in on any network interface passes through this flow chart from top to bottom.
 
 === Tables
 
 :network_address_translation: https://en.wikipedia.org/wiki/Network_address_translation
 :mandatory_access_control: https://wiki.archlinux.org/index.php/Security#Mandatory_access_control
+
 iptables contains five tables:
 
 * `raw` is used only for configuring packets so that they are exempt from connection tracking.
-* `filter` is the *_default table_*, and is where all the action typically associated with a firwall take place.
+
+* `filter` is the _default table_, and is where all the action typically associated with a firwall take place.
+
 * `nat` is used for {network_address_translation}[network address translation] (e.g. port forwarding).
+
 * `mangle` is used for specialized packet alterations.
+
 * `security` is used for {mandatory_access_control}[Mandatory Access Control] networking rules. (e.g. SELinux -- see http://lwn.net/Articles/267140/[this article] for more details).
 
-In most common use cases you will only use two of these: *`filter`* and *`nat`*.
+In most common use cases you will only use two of these: `filter` and `nat`.
 
 [source,text]
 ----
@@ -75,9 +80,9 @@ Routing decision                                                  |
 
 === Chains
 
-Tables consist of *chains*, which are lists of rules which are followed in order.
+Tables consist of _chains_, which are lists of rules which are followed in order.
 
-The default table, *filter*, contains three *_bultin-chain_*: `INPUT`, `OUTPUT` and `FORWARD` which are actived at different points of the packet filtering process, as illustrated in the flow chart.
+The default table, `filter`, contains three bultin-chain: `INPUT`, `OUTPUT` and `FORWARD` which are actived at different points of the packet filtering process, as illustrated in the flow chart.
 
 * `INPUT` - This chain is used to control the behavior for incoming connections.
 +
@@ -85,27 +90,27 @@ For example, if a user attempts to SSH into your PC/Server, iptables will attemp
 
 * `FORWARD` - This chain is used for incoming connections that aren't actually being delivered locally.
 +
-Think of a *_router_* - data is always being sent to it but rarely actually destined for the router itself; the data is just forwarded to its target. Unless you're doing some kind of routing, NATing, or something else your system that rquires forwarding, you won't even use this chain.
+Think of a _router_ - data is always being sent to it but rarely actually destined for the router itself; the data is just forwarded to its target. Unless you're doing some kind of routing, NATing, or something else your system that rquires forwarding, you won't even use this chain.
 
 * `OUTPUT` - This chain is used for outgoing connections.
 +
 For example, if you try to _ping blog.codefarm.me_, iptables will check output chain to see what the rules are regarding ping and blog.codefarm.me before making a decision to allow or deny the connection attempt.
 
-The *nat* table incudes `PREROUTING`, `POSTROUTING`, and `OUTPUT` chains.
+The `nat` table incudes `PREROUTING`, `POSTROUTING`, and `OUTPUT` chains.
 
 * `PREROUTING` - Alters packets before routing. i.e Packet translation happens immediately after the packet comes to the system and before routing.
 +
-This helps to translate the destination ip address of the packets to something that matches the routing on the local server. This is used for *_DNAT (destination NAT)_*.
+This helps to translate the destination ip address of the packets to something that matches the routing on the local server. This is used for DNAT (destination NAT).
 
 * `POSTROUTING` - Alters packets after routing. i.e Packet translation happens when the packets are leaving the system.
 +
-This helps to translate the source ip address of the packets to something that might match the routing on the desintation server. This is used for *_SNAT (source NAT)_*.
+This helps to translate the source ip address of the packets to something that might match the routing on the desintation server. This is used for SNAT (source NAT).
 
 * `OUTPUT` - NAT for locally generated packets on the firewall.
 
 === Rules
 
-Packet fitlering is based on *rules*, which are specified by multiple _matches_ (condition the packet must satisfy so that the rule can be applied), and on *target* (action taken when the packet matches all conditions).
+Packet fitlering is based on _rules_, which are specified by multiple _matches_ (condition the packet must satisfy so that the rule can be applied), and on _target_ (action taken when the packet matches all conditions).
 
 The typical things a rule might match on are what interface the packet came in on (e.g eth0 or eth1), what type of packet it is (ICMP, TCP, or UDP), or the desitination port of the packet.
 
@@ -119,7 +124,7 @@ Targets are specified using the `-j` or `--jump` option. Targets can be either _
 
 === Policy
 
-To see what the policy chains on the default table *filter* are currently configured to do with unmatched traffic, run the `iptables -L` command.
+To see what the policy chains on the default table `filter` are currently configured to do with unmatched traffic, run the `iptables -L` command.
 
 [source,console]
 ----
@@ -137,8 +142,7 @@ Chain POSTROUTING (policy ACCEPT)
 
 As you can see, we also used the `grep` command to give use cleaner output. In that screenshot, our chains are currently figured to accpet traffic.
 
-More times than not, you'll
-want your system to accept connections by default. Unless you've changed the policy chain rules previously, this setting should already be configured. Either way, here's the command to accept connections by default:
+More times than not, you'll want your system to accept connections by default. Unless you've changed the policy chain rules previously, this setting should already be configured. Either way, here's the command to accept connections by default:
 
 [source,console]
 ----
@@ -149,7 +153,7 @@ $ sudo iptables -P FORWARD ACCEPT
 
 By default to the ACCEPT rule, you can then use iptables to deny specific IP addresses or port numbers, while continuing to accept all other connections.
 
-If you would rather deny all connections manually specify which ones you want to allow to connect, you should change the default policy of yur chains to DROP. Doing this probably only be useful for servers that contain sensitive information and only ever have the same IP addresses connect to them.
+If you would rather deny all connections manually specify which ones you want to allow to connect, you should change the default policy of your chains to DROP. Doing this probably only be useful for servers that contain sensitive information and only ever have the same IP addresses connect to them.
 
 [source,console]
 ----
@@ -162,17 +166,15 @@ $ sudo iptables --policy FORWARD DROP
 
 [source,man]
 ----
-IPTABLES(8)                                                       iptables 1.4.21                                                       IPTABLES(8)
-
-
+IPTABLES(8)                          iptables 1.8.9                          IPTABLES(8)
 
 NAME
        iptables/ip6tables — administration tool for IPv4/IPv6 packet filtering and NAT
 
 SYNOPSIS
-       iptables [-t table] {-A|-C|-D} chain rule-specification
+       iptables [-t table] {-A|-C|-D|-V} chain rule-specification
 
-       ip6tables [-t table] {-A|-C|-D} chain rule-specification
+       ip6tables [-t table] {-A|-C|-D|-V} chain rule-specification
 
        iptables [-t table] -I chain [rulenum] rule-specification
 
@@ -199,149 +201,408 @@ SYNOPSIS
        target = -j targetname [per-target-options]
 
 DESCRIPTION
-       Iptables  and ip6tables are used to set up, maintain, and inspect the tables of IPv4 and IPv6 packet filter rules in the Linux kernel.  Sev‐
-       eral different tables may be defined.  Each table contains a number of built-in chains and may also contain user-defined chains.
+       Iptables  and  ip6tables  are used to set up, maintain, and inspect the tables of
+       IPv4 and IPv6 packet filter rules in the Linux kernel.  Several different  tables
+       may  be  defined.   Each  table contains a number of built-in chains and may also
+       contain user-defined chains.
 
-       Each chain is a list of rules which can match a set of packets.  Each rule specifies what to do with a packet that matches.  This is  called
-       a `target', which may be a jump to a user-defined chain in the same table.
+       Each chain is a list of rules which can match a set of packets.  Each rule speci‐
+       fies what to do with a packet that matches.  This is called a `target', which may
+       be a jump to a user-defined chain in the same table.
 
 TARGETS
-       A  firewall  rule specifies criteria for a packet and a target.  If the packet does not match, the next rule in the chain is examined; if it
-       does match, then the next rule is specified by the value of the target, which can be the name of a user-defined chain, one  of  the  targets
-       described in iptables-extensions(8), or one of the special values ACCEPT, DROP or RETURN.
+       A firewall rule specifies criteria for a packet and a target.  If the packet does
+       not  match,  the  next  rule in the chain is examined; if it does match, then the
+       next rule is specified by the value of the target, which can be  the  name  of  a
+       user-defined  chain,  one  of the targets described in iptables-extensions(8), or
+       one of the special values ACCEPT, DROP or RETURN.
 
-       ACCEPT  means to let the packet through.  DROP means to drop the packet on the floor.  RETURN means stop traversing this chain and resume at
-       the next rule in the previous (calling) chain.  If the end of a built-in chain is reached or a rule in a built-in chain with  target  RETURN
-       is matched, the target specified by the chain policy determines the fate of the packet.
+       ACCEPT means to let the packet through.  DROP means to drop  the  packet  on  the
+       floor.   RETURN  means  stop traversing this chain and resume at the next rule in
+       the previous (calling) chain.  If the end of a built-in chain  is  reached  or  a
+       rule  in  a built-in chain with target RETURN is matched, the target specified by
+       the chain policy determines the fate of the packet.
 
 TABLES
-       There are currently five independent tables (which tables are present at any time depends on the kernel configuration options and which mod‐
-       ules are present).
+       There are currently five independent tables (which tables are present at any time
+       depends on the kernel configuration options and which modules are present).
 
        -t, --table table
-              This option specifies the packet matching table which the command should operate on.  If the kernel is configured with automatic mod‐
-              ule loading, an attempt will be made to load the appropriate module for that table if it is not already there.
+              This  option  specifies the packet matching table which the command should
+              operate on.  If the kernel is configured with automatic module loading, an
+              attempt  will  be made to load the appropriate module for that table if it
+              is not already there.
 
               The tables are as follows:
 
               filter:
-                  This is the default table (if no -t option is passed). It contains the built-in chains INPUT (for packets destined to local sock‐
-                  ets), FORWARD (for packets being routed through the box), and OUTPUT (for locally-generated packets).
+                  This is the default table (if no -t option is passed). It contains the
+                  built-in chains INPUT (for packets destined to local sockets), FORWARD
+                  (for packets being routed through the box), and OUTPUT  (for  locally-
+                  generated packets).
 
               nat:
-                  This table is consulted when a packet that creates a new connection is encountered.  It consists of three  built-ins:  PREROUTING
-                  (for  altering  packets as soon as they come in), OUTPUT (for altering locally-generated packets before routing), and POSTROUTING
-                  (for altering packets as they are about to go out).  IPv6 NAT support is available since kernel 3.7.
+                  This table is consulted when a packet that creates a new connection is
+                  encountered.  It consists of four built-ins: PREROUTING (for  altering
+                  packets as soon as they come in), INPUT (for altering packets destined
+                  for local sockets), OUTPUT (for altering locally-generated packets be‐
+                  fore routing), and POSTROUTING (for altering packets as they are about
+                  to go out).  IPv6 NAT support is available since kernel 3.7.
 
               mangle:
-                  This table is used for specialized packet alteration.  Until kernel 2.4.17 it had two built-in chains: PREROUTING  (for  altering
-                  incoming  packets before routing) and OUTPUT (for altering locally-generated packets before routing).  Since kernel 2.4.18, three
-                  other built-in chains are also supported: INPUT (for packets coming into the box itself), FORWARD  (for  altering  packets  being
-                  routed through the box), and POSTROUTING (for altering packets as they are about to go out).
+                  This table is used for specialized packet  alteration.   Until  kernel
+                  2.4.17  it  had two built-in chains: PREROUTING (for altering incoming
+                  packets before routing) and  OUTPUT  (for  altering  locally-generated
+                  packets  before  routing).   Since kernel 2.4.18, three other built-in
+                  chains are also supported: INPUT (for packets coming into the box  it‐
+                  self),  FORWARD  (for  altering packets being routed through the box),
+                  and POSTROUTING (for altering packets as they are about to go out).
 
               raw:
-                  This  table is used mainly for configuring exemptions from connection tracking in combination with the NOTRACK target.  It regis‐
-                  ters at the netfilter hooks with higher priority and is thus called before ip_conntrack, or any other IP tables.  It provides the
-                  following  built-in  chains:  PREROUTING  (for packets arriving via any network interface) OUTPUT (for packets generated by local
-                  processes)
+                  This table is used mainly for configuring exemptions  from  connection
+                  tracking  in combination with the NOTRACK target.  It registers at the
+                  netfilter hooks with higher priority and is thus called before ip_con‐
+                  ntrack,  or  any  other IP tables.  It provides the following built-in
+                  chains: PREROUTING (for packets arriving via  any  network  interface)
+                  OUTPUT (for packets generated by local processes)
 
               security:
-                  This table is used for Mandatory Access Control (MAC) networking rules, such as those enabled by the SECMARK and CONNSECMARK tar‐
-                  gets.  Mandatory Access Control is implemented by Linux Security Modules such as SELinux.  The security table is called after the
-                  filter table, allowing any Discretionary Access Control (DAC) rules in the filter table to take effect before  MAC  rules.   This
-                  table provides the following built-in chains: INPUT (for packets coming into the box itself), OUTPUT (for altering locally-gener‐
-                  ated packets before routing), and FORWARD (for altering packets being routed through the box).
+                  This  table  is  used  for  Mandatory  Access Control (MAC) networking
+                  rules, such as those enabled by the SECMARK and  CONNSECMARK  targets.
+                  Mandatory Access Control is implemented by Linux Security Modules such
+                  as SELinux.  The security table is called after the filter table,  al‐
+                  lowing  any Discretionary Access Control (DAC) rules in the filter ta‐
+                  ble to take effect before MAC rules.  This table provides the  follow‐
+                  ing  built-in  chains: INPUT (for packets coming into the box itself),
+                  OUTPUT (for altering locally-generated packets  before  routing),  and
+                  FORWARD (for altering packets being routed through the box).
 
 OPTIONS
-       The options that are recognized by iptables and ip6tables can be divided into several different groups.
+       The  options  that  are  recognized by iptables and ip6tables can be divided into
+       several different groups.
 
    COMMANDS
-       These options specify the desired action to perform. Only one of them can be specified on the command line unless  otherwise  stated  below.
-       For long versions of the command and option names, you need to use only enough letters to ensure that iptables can differentiate it from all
-       other options.
+       These options specify the desired action to perform. Only  one  of  them  can  be
+       specified on the command line unless otherwise stated below. For long versions of
+       the command and option names, you need to use only enough letters to ensure  that
+       iptables can differentiate it from all other options.
 
        -A, --append chain rule-specification
-              Append one or more rules to the end of the selected chain.  When the source  and/or  destination  names  resolve  to  more  than  one
-              address, a rule will be added for each possible address combination.
+              Append  one  or  more  rules  to  the end of the selected chain.  When the
+              source and/or destination names resolve to more than one address,  a  rule
+              will be added for each possible address combination.
 
        -C, --check chain rule-specification
-              Check  whether  a  rule matching the specification does exist in the selected chain. This command uses the same logic as -D to find a
-              matching entry, but does not alter the existing iptables configuration and uses its exit code to indicate success or failure.
+              Check whether a rule matching the specification does exist in the selected
+              chain. This command uses the same logic as -D to find  a  matching  entry,
+              but  does  not alter the existing iptables configuration and uses its exit
+              code to indicate success or failure.
 
        -D, --delete chain rule-specification
        -D, --delete chain rulenum
-              Delete one or more rules from the selected chain.  There are two versions of this command: the rule can be specified as a  number  in
-              the chain (starting at 1 for the first rule) or a rule to match.
+              Delete one or more rules from the selected chain.  There are two  versions
+              of  this  command:  the  rule  can  be  specified as a number in the chain
+              (starting at 1 for the first rule) or a rule to match.
 
        -I, --insert chain [rulenum] rule-specification
-              Insert one or more rules in the selected chain as the given rule number.  So, if the rule number is 1, the rule or rules are inserted
-              at the head of the chain.  This is also the default if no rule number is specified.
+              Insert one or more rules in the selected chain as the given  rule  number.
+              So, if the rule number is 1, the rule or rules are inserted at the head of
+              the chain.  This is also the default if no rule number is specified.
 
        -R, --replace chain rulenum rule-specification
-              Replace a rule in the selected chain.  If the source and/or destination names resolve to multiple addresses, the command  will  fail.
-              Rules are numbered starting at 1.
+              Replace a rule in the selected chain.  If the  source  and/or  destination
+              names  resolve  to  multiple  addresses, the command will fail.  Rules are
+              numbered starting at 1.
 
        -L, --list [chain]
-              List  all rules in the selected chain.  If no chain is selected, all chains are listed. Like every other iptables command, it applies
-              to the specified table (filter is the default), so NAT rules get listed by
+              List all rules in the selected chain.  If no chain is selected, all chains
+              are listed. Like every other iptables command, it applies to the specified
+              table (filter is the default), so NAT rules get listed by
                iptables -t nat -n -L
-              Please note that it is often used with the -n option, in order to avoid long reverse DNS lookups.  It is  legal  to  specify  the  -Z
-              (zero)  option  as  well, in which case the chain(s) will be atomically listed and zeroed.  The exact output is affected by the other
-              arguments given. The exact rules are suppressed until you use
+              Please note that it is often used with the -n option, in  order  to  avoid
+              long  reverse DNS lookups.  It is legal to specify the -Z (zero) option as
+              well, in which case the chain(s) will be  atomically  listed  and  zeroed.
+              The exact output is affected by the other arguments given. The exact rules
+              are suppressed until you use
                iptables -L -v
+              or iptables-save(8).
 
        -S, --list-rules [chain]
-              Print all rules in the selected chain.  If no chain is selected, all chains are printed like iptables-save. Like every other iptables
-              command, it applies to the specified table (filter is the default).
+              Print all rules in the selected chain.   If  no  chain  is  selected,  all
+              chains  are printed like iptables-save. Like every other iptables command,
+              it applies to the specified table (filter is the default).
 
        -F, --flush [chain]
-              Flush the selected chain (all the chains in the table if none is given).  This is equivalent to deleting all the rules one by one.
+              Flush the selected chain (all the chains in the table if none  is  given).
+              This is equivalent to deleting all the rules one by one.
 
        -Z, --zero [chain [rulenum]]
-              Zero  the  packet and byte counters in all chains, or only the given chain, or only the given rule in a chain. It is legal to specify
-              the -L, --list (list) option as well, to see the counters immediately before they are cleared. (See above.)
+              Zero  the packet and byte counters in all chains, or only the given chain,
+              or only the given rule in a chain. It is legal to specify the  -L,  --list
+              (list)  option  as  well,  to see the counters immediately before they are
+              cleared. (See above.)
 
        -N, --new-chain chain
-              Create a new user-defined chain by the given name.  There must be no target of that name already.
+              Create a new user-defined chain by the given name.  There must be no  tar‐
+              get of that name already.
 
        -X, --delete-chain [chain]
-              Delete the optional user-defined chain specified.  There must be no references to the chain.   If  there  are,  you  must  delete  or
-              replace the referring rules before the chain can be deleted.  The chain must be empty, i.e. not contain any rules.  If no argument is
-              given, it will attempt to delete every non-builtin chain in the table.
+              Delete the chain specified.  There must be no references to the chain.  If
+              there are, you must delete or replace the referring rules before the chain
+              can  be deleted.  The chain must be empty, i.e. not contain any rules.  If
+              no argument is given, it will delete all empty chains in the table.  Empty
+              builtin chains can only be deleted with iptables-nft.
 
        -P, --policy chain target
-              Set the policy for the chain to the given target.  See the section TARGETS for the legal targets.  Only  built-in  (non-user-defined)
-              chains can have policies, and neither built-in nor user-defined chains can be policy targets.
+              Set the policy for the built-in (non-user-defined) chain to the given tar‐
+              get.  The policy target must be either ACCEPT or DROP.
 
        -E, --rename-chain old-chain new-chain
-              Rename the user specified chain to the user supplied name.  This is cosmetic, and has no effect on the structure of the table.
+              Rename the user specified chain to the user supplied name.  This  is  cos‐
+              metic, and has no effect on the structure of the table.
 
        -h     Help.  Give a (currently very brief) description of the command syntax.
 
-# ...
+   PARAMETERS
+       The  following  parameters  make  up  a  rule  specification (as used in the add,
+       delete, insert, replace and append commands).
+
+       -4, --ipv4
+              This option has no effect in iptables and iptables-restore.  If a rule us‐
+              ing  the  -4 option is inserted with (and only with) ip6tables-restore, it
+              will be silently ignored. Any other uses will throw an error. This  option
+              allows  IPv4  and IPv6 rules in a single rule file for use with both ipta‐
+              bles-restore and ip6tables-restore.
+
+       -6, --ipv6
+              If a rule using the -6 option is inserted with (and only  with)  iptables-
+              restore,  it will be silently ignored. Any other uses will throw an error.
+              This option allows IPv4 and IPv6 rules in a single rule file for use  with
+              both iptables-restore and ip6tables-restore.  This option has no effect in
+              ip6tables and ip6tables-restore.
+
+       [!] -p, --protocol protocol
+              The protocol of the rule or of the packet to check.  The specified  proto‐
+              col can be one of tcp, udp, udplite, icmp, icmpv6,esp, ah, sctp, mh or the
+              special keyword "all", or it can be a numeric value, representing  one  of
+              these  protocols  or a different one.  A protocol name from /etc/protocols
+              is also allowed.  A "!" argument before the  protocol  inverts  the  test.
+              The  number zero is equivalent to all. "all" will match with all protocols
+              and is taken as default when this option is omitted.  Note that, in ip6ta‐
+              bles,  IPv6  extension  headers  except  esp  are  not  allowed.   esp and
+              ipv6-nonext can be used with Kernel version 2.6.11 or later.   The  number
+              zero  is  equivalent to all, which means that you cannot test the protocol
+              field for the value 0 directly. To match on a HBH header, even if it  were
+              the last, you cannot use -p 0, but always need -m hbh.
+
+       [!] -s, --source address[/mask][,...]
+              Source  specification. Address can be either a network name, a hostname, a
+              network IP address (with /mask), or a plain IP address. Hostnames will  be
+              resolved  once  only,  before the rule is submitted to the kernel.  Please
+              note that specifying any name to be resolved with a remote query  such  as
+              DNS  is  a  really  bad idea.  The mask can be either an ipv4 network mask
+              (for iptables) or a plain number, specifying the number of 1's at the left
+              side  of  the network mask.  Thus, an iptables mask of 24 is equivalent to
+              255.255.255.0.  A "!" argument before the  address  specification  inverts
+              the  sense  of  the  address.  The flag --src is an alias for this option.
+              Multiple addresses can be specified, but  this  will  expand  to  multiple
+              rules  (when  adding  with -A), or will cause multiple rules to be deleted
+              (with -D).
+
+       [!] -d, --destination address[/mask][,...]
+              Destination specification.  See the description of the  -s  (source)  flag
+              for  a detailed description of the syntax.  The flag --dst is an alias for
+              this option.
+
+       -m, --match match
+              Specifies a match to use, that is, an extension module that  tests  for  a
+              specific  property. The set of matches make up the condition under which a
+              target is invoked. Matches are evaluated first to last as specified on the
+              command  line  and  work  in  short-circuit fashion, i.e. if one extension
+              yields false, evaluation will stop.
+
+       -j, --jump target
+              This specifies the target of the rule; i.e., what  to  do  if  the  packet
+              matches  it.   The  target can be a user-defined chain (other than the one
+              this rule is in), one of the special builtin targets which decide the fate
+              of  the  packet  immediately,  or an extension (see EXTENSIONS below).  If
+              this option is omitted in a rule (and -g is not used), then  matching  the
+              rule  will  have  no  effect on the packet's fate, but the counters on the
+              rule will be incremented.
+
+       -g, --goto chain
+              This specifies that the processing should continue  in  a  user  specified
+              chain.  Unlike  the  --jump  option return will not continue processing in
+              this chain but instead in the chain that called us via --jump.
+
+       [!] -i, --in-interface name
+              Name of an interface via which a packet was received (only for packets en‐
+              tering  the  INPUT, FORWARD and PREROUTING chains).  When the "!" argument
+              is used before the interface name, the sense is inverted.  If  the  inter‐
+              face  name  ends  in a "+", then any interface which begins with this name
+              will match.  If this option is omitted, any interface name will match.
+
+       [!] -o, --out-interface name
+              Name of an interface via which a packet is going to be sent  (for  packets
+              entering  the FORWARD, OUTPUT and POSTROUTING chains).  When the "!" argu‐
+              ment is used before the interface name, the sense is inverted.  If the in‐
+              terface name ends in a "+", then any interface which begins with this name
+              will match.  If this option is omitted, any interface name will match.
+
+       [!] -f, --fragment
+              This means that the rule only refers to second and further IPv4  fragments
+              of fragmented packets.  Since there is no way to tell the source or desti‐
+              nation ports of such a packet (or ICMP type), such a packet will not match
+              any  rules  which  specify  them.  When the "!" argument precedes the "-f"
+              flag, the rule will only match head fragments,  or  unfragmented  packets.
+              This option is IPv4 specific, it is not available in ip6tables.
+
+       -c, --set-counters packets bytes
+              This  enables the administrator to initialize the packet and byte counters
+              of a rule (during INSERT, APPEND, REPLACE operations).
+
+   OTHER OPTIONS
+       The following additional options can be specified:
+
+       -v, --verbose
+              Verbose output.  This option makes the list  command  show  the  interface
+              name,  the  rule options (if any), and the TOS masks.  The packet and byte
+              counters are also listed, with the  suffix  'K',  'M'  or  'G'  for  1000,
+              1,000,000  and 1,000,000,000 multipliers respectively (but see the -x flag
+              to change this).  For appending, insertion, deletion and replacement, this
+              causes  detailed information on the rule or rules to be printed. -v may be
+              specified multiple times to possibly emit more detailed debug  statements:
+              Specified  twice,  iptables-legacy will dump table info and entries in li‐
+              biptc, iptables-nft dumps rules in netlink (VM code) presentation.  Speci‐
+              fied three times, iptables-nft will also dump any netlink messages sent to
+              kernel.
+
+       -V, --version
+              Show program version and the kernel API used.
+
+       -w, --wait [seconds]
+              Wait for the xtables lock.  To prevent multiple instances of  the  program
+              from  running concurrently, an attempt will be made to obtain an exclusive
+              lock at launch.  By default, the program will exit if the lock  cannot  be
+              obtained.  This option will make the program wait (indefinitely or for op‐
+              tional seconds) until the exclusive lock can be obtained.
+
+       -n, --numeric
+              Numeric output.  IP addresses and port numbers will be printed in  numeric
+              format.   By  default, the program will try to display them as host names,
+              network names, or services (whenever applicable).
+
+       -x, --exact
+              Expand numbers.  Display the exact value of the packet and byte  counters,
+              instead  of only the rounded number in K's (multiples of 1000) M's (multi‐
+              ples of 1000K) or G's (multiples of 1000M).  This option is only  relevant
+              for the -L command.
+
+       --line-numbers
+              When listing rules, add line numbers to the beginning of each rule, corre‐
+              sponding to that rule's position in the chain.
+
+       --modprobe=command
+              When adding or inserting rules into a chain, use command to load any  nec‐
+              essary modules (targets, match extensions, etc).
+
+LOCK FILE
+       iptables uses the /run/xtables.lock file to take an exclusive lock at launch.
+
+       The  XTABLES_LOCKFILE  environment  variable  can be used to override the default
+       setting.
+
+MATCH AND TARGET EXTENSIONS
+       iptables can use extended packet matching and target modules.  A list of these is
+       available in the iptables-extensions(8) manpage.
+
+DIAGNOSTICS
+       Various  error  messages  are  printed to standard error.  The exit code is 0 for
+       correct functioning.  Errors which appear to be caused by invalid or abused  com‐
+       mand line parameters cause an exit code of 2, and other errors cause an exit code
+       of 1.
+
+BUGS
+       Bugs?   What's  this?  ;-)  Well,  you   might   want   to   have   a   look   at
+       http://bugzilla.netfilter.org/  iptables will exit immediately with an error code
+       of 111 if it finds that it was called as a setuid-to-root program.  iptables can‐
+       not  be  used  safely  in  this  manner  because  it  trusts the shared libraries
+       (matches, targets) loaded at run time, the search path can be set using  environ‐
+       ment variables.
+
+COMPATIBILITY WITH IPCHAINS
+       This  iptables is very similar to ipchains by Rusty Russell.  The main difference
+       is that the chains INPUT and OUTPUT are only traversed for  packets  coming  into
+       the  local  host  and  originating from the local host respectively.  Hence every
+       packet only passes through one of the  three  chains  (except  loopback  traffic,
+       which involves both INPUT and OUTPUT chains); previously a forwarded packet would
+       pass through all three.
+
+       The other main difference is that -i refers to the input interface; -o refers  to
+       the  output  interface,  and  both are available for packets entering the FORWARD
+       chain.
+
+       The various forms of NAT have been separated out; iptables is a pure packet  fil‐
+       ter when using the default `filter' table, with optional extension modules.  This
+       should simplify much of the previous confusion over the combination  of  IP  mas‐
+       querading  and  packet  filtering  seen previously.  So the following options are
+       handled differently:
+        -j MASQ
+        -M -S
+        -M -L
+       There are several other changes in iptables.
 
 SEE ALSO
        iptables-apply(8), iptables-save(8), iptables-restore(8), iptables-extensions(8),
 
-       The  packet-filtering-HOWTO  details  iptables usage for packet filtering, the NAT-HOWTO details NAT, the netfilter-extensions-HOWTO details
-       the extensions that are not in the standard distribution, and the netfilter-hacking-HOWTO details the netfilter internals.
+       The packet-filtering-HOWTO details iptables usage for packet filtering, the  NAT-
+       HOWTO details NAT, the netfilter-extensions-HOWTO details the extensions that are
+       not in the standard distribution, and  the  netfilter-hacking-HOWTO  details  the
+       netfilter internals.
        See http://www.netfilter.org/.
+
+AUTHORS
+       Rusty Russell originally wrote iptables, in early consultation with Michael Neul‐
+       ing.
+
+       Marc Boucher made Rusty abandon ipnatctl by lobbying for a generic packet  selec‐
+       tion  framework  in  iptables,  then wrote the mangle table, the owner match, the
+       mark stuff, and ran around doing cool stuff everywhere.
+
+       James Morris wrote the TOS target, and tos match.
+
+       Jozsef Kadlecsik wrote the REJECT target.
+
+       Harald Welte wrote the ULOG and NFQUEUE target, the new libiptc, as well  as  the
+       TTL, DSCP, ECN matches and targets.
+
+       The  Netfilter  Core  Team is: Jozsef Kadlecsik, Pablo Neira Ayuso, Eric Leblond,
+       Florian Westphal and  Arturo Borrero Gonzalez.  Emeritus Core Team  members  are:
+       Marc  Boucher, Martin Josefsson, Yasuyuki Kozakai, James Morris, Harald Welte and
+       Rusty Russell.
+
+       Man page originally written by Herve Eychenne <rv@wallfire.org>.
+
+VERSION
+       This manual page applies to iptables/ip6tables 1.8.9.
+
+iptables 1.8.9                                                               IPTABLES(8)
 ----
 
-==== *`iptables [-t table] -L [chain [rulenum]] [options...]`*
+==== `iptables [-t table] -L [chain [rulenum]] [options...]`
 
 * List all rules in the selected chain. If no chain is selected, all chains are listed.
 +
 [source,console]
 ----
-~]# iptables -L
+$ sudo iptables -L
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
 KUBE-SERVICES  all  --  anywhere             anywhere             ctstate NEW /* kubernetes service portals */
 KUBE-EXTERNAL-SERVICES  all  --  anywhere             anywhere             ctstate NEW /* kubernetes externally-visible service portals */
 ...
 
- ~]# iptables -L -n --line-numbers
+$ sudo iptables -L -n --line-numbers
 Chain INPUT (policy ACCEPT)
 num  target     prot opt source               destination         
 1    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
@@ -349,15 +610,15 @@ num  target     prot opt source               destination
  */
 ...
 
- ~]# iptables -L INPUT 1 -n
+$ sudo iptables -L INPUT 1 -n
 KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
 ----
 
-* Like every other _iptables_ command, it applies to the specified table (_filter_ is the default), so NAT rules get listed by:
+* Like every other `iptables` command, it applies to the specified table (`filter` is the default), so NAT rules get listed by:
 +
 [source,console]
 ----
-~]# iptables -t nat -L -n
+$ sudo iptables -t nat -L -n
 Chain PREROUTING (policy ACCEPT)
 target     prot opt source               destination         
 KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service portals */
@@ -369,7 +630,7 @@ CNI-HOSTPORT-DNAT  all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE m
 +
 [source,console]
 ----
-~]# iptables -L -n
+$ sudo iptables -L -n
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
 KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctstate NEW /* kubernetes service portals */
@@ -377,24 +638,24 @@ KUBE-EXTERNAL-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctsta
 ...
 ----
 
-=== *`iptables [-t table] -S [chain [rulenum]]`*
+=== `iptables [-t table] -S [chain [rulenum]]`
 
-* Print all rules in the selected chain. If no chain is selected, all chains are printed like _iptables-save_.
+* Print all rules in the selected chain. If no chain is selected, all chains are printed like `iptables-save`.
 +
 [source,console]
 ----
-~]# iptables -t nat -S
+$ sudo iptables -t nat -S
 -P PREROUTING ACCEPT
 -P INPUT ACCEPT
 -P OUTPUT ACCEPT
 -P POSTROUTING ACCEPT
 ----
 
-* Like every other _iptables_ command, it applies to the specified table (_filter_ is the default).
+* Like every other `iptables` command, it applies to the specified table (`filter` is the default).
 +
 [source,console]
 ----
- ~]# iptables -t nat -S OUTPUT
+$ sudo iptables -t nat -S OUTPUT
 -P OUTPUT ACCEPT
 -A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
 -A OUTPUT -m comment --comment "portmap/canal-portmap" -j CANAL-DNAT
@@ -402,24 +663,31 @@ KUBE-EXTERNAL-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0            ctsta
 -A OUTPUT -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT
 ----
 
-=== *`iptables [-t table] -F [chain [rulenum]] [options...]`*
+=== `iptables [-t table] -F [chain [rulenum]] [options...]`
 
 * Flush the selected chain (all the chains in the table if none is given).  This is equivalent to deleting all the rules one by one.
 +
 [source,sh]
 ----
 # Flush your iptables all chains rules at filter table
-~]# iptables -F
-
-~]# iptables -F INPUT    # Flush the INPUT chain only
-~]# iptables -F OUTPUT   # Flush the OUTPUT chain only
-~]# iptables -F FORWARD  # Flush the FORWARD chain only
-
-# Flush your iptables all chains rules at nat table
-~]# iptables -t nat -F
+$ sudo iptables -F
+----
++
+[source,sh]
+----
+# Flush your iptables the specfic chain rules at filter table
+$ sudo iptables -F INPUT    # Flush the INPUT chain only
+$ sudo iptables -F OUTPUT   # Flush the OUTPUT chain only
+$ sudo iptables -F FORWARD  # Flush the FORWARD chain only
+----
++
+[source,sh]
+----
+# Flush your iptables all chains rules at `nat` table
+$ sudo iptables -t nat -F
 ----
 
-=== *`iptables [-t table] {-A|-C|-I|-R|-D} chain ...`*
+=== `iptables [-t table] {-A|-C|-I|-R|-D} chain ...`
 
 [source,console]
 ----
@@ -444,18 +712,18 @@ To allow incomming traffic on the default SSH port (22), you could tell iptables
 
 [source,console]
 ----
-~]# iptables -C  INPUT -p tcp --dport ssh -j ACCEPT
+$ sudo iptables -C  INPUT -p tcp --dport ssh -j ACCEPT
 iptables: Bad rule (does a matching rule exist in that chain?).
 
-~]# iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+$ sudo iptables -A INPUT -p tcp --dport ssh -j ACCEPT
 
-~]# iptables -C INPUT -p tcp --dport ssh -j ACCEPT
+$ sudo iptables -C INPUT -p tcp --dport ssh -j ACCEPT
 ----
 
 Also, you can also specify the destination port with number.
 
 [source,sh]
-~]#  iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+$ sudo  iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
 Referring back to the list above, you can see that this tells iptables:
 
@@ -468,7 +736,7 @@ Lets check the rules: (only the first few lines shown, you will see more)
 
 [source,console]
 ----
- ~]# iptables -L INPUT -n
+ $ sudo iptables -L INPUT -n
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
 ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
@@ -478,19 +746,22 @@ Now, let's allow all incomming web traffic
 
 [source,console]
 ----
-~]# iptables -A INPUT -p tcp --dport http -j ACCEPT
-~]# iptables -A INPUT -p tcp --dport https -j ACCEPT
+$ sudo iptables -A INPUT -p tcp --dport http -j ACCEPT
+$ sudo iptables -A INPUT -p tcp --dport https -j ACCEPT
+----
 
-# or
+Or
 
-~]# iptables -A INPUT -p tcp -m multiport --dports http,https -j ACCEPT
+[source,console]
+----
+$ sudo iptables -A INPUT -p tcp -m multiport --dports http,https -j ACCEPT
 ----
 
 Checking our rules, we have
 
 [source,console]
 ----
- ~]# iptables -L INPUT -n
+ $ sudo iptables -L INPUT -n
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
 ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
@@ -503,9 +774,9 @@ Allow default port range for Kubernetes NodePort servies.
 
 [source,console]
 ----
-~]# iptables -A INPUT -p tcp --dport 30000:32767 -j ACCEPT -m comment --comment "Allow default port range of kubernetes nodeport services"
+$ sudo iptables -A INPUT -p tcp --dport 30000:32767 -j ACCEPT -m comment --comment "Allow default port range of kubernetes nodeport services"
 
-~]# iptables -L INPUT -n
+$ sudo iptables -L INPUT -n
 Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
 ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:22
@@ -667,15 +938,15 @@ target     prot opt source               destination
 ACCEPT     tcp  --  anywhere             anywhere
 ```
 
-=== *`iptables-save` & `iptables-restore`*
+=== `iptables-save` & `iptables-restore`
 
-Changes to **iptables** are transitory; if the system is rebooted or if the **iptables** service is restarted, the rules are automatically flushed and reset. To save the rules so that they are loaded when the **iptables** service is started, use the following command: 
+Changes to iptables are transitory; if the system is rebooted or if the iptables service is restarted, the rules are automatically flushed and reset. To save the rules so that they are loaded when the iptables service is started, use the following command: 
 
 ```console
 $ sudo service iptables save
 ```
 
-The rules are stored in the file **/etc/sysconfig/iptables** and are applied whenever the service is started or the machine is rebooted.
+The rules are stored in the file `/etc/sysconfig/iptables` and are applied whenever the service is started or the machine is rebooted.
 
 You can also save the current iptables into a file and restore it.
 
@@ -692,7 +963,14 @@ target     prot opt source               destination
 
 Chain OUTPUT (policy ACCEPT)
 target     prot opt source               destination         
-$ sudo iptables-save | tee iptables.rules # save current iptables into iptables.rules and print to standard output
+```
+
+```sh
+# save current iptables into iptables.rules and print to standard output
+sudo iptables-save | tee iptables.rules
+```
+
+```txt
 $ sudo Generated by iptables-save v1.6.0 on Fri Jan 18 16:43:19 2019
 *filter
 :INPUT DROP [0:0]
@@ -703,6 +981,9 @@ $ sudo Generated by iptables-save v1.6.0 on Fri Jan 18 16:43:19 2019
 -A INPUT -j DROP
 COMMIT
 $ sudo Completed on Fri Jan 18 16:43:19 2019
+```
+
+```console
 $ sudo iptables -P INPUT ACCEPT # allow any incomming traffic before delete all rules
 $ sudo iptables -F # delete all rules
 $ sudo iptables -L
@@ -714,7 +995,14 @@ target     prot opt source               destination
 
 Chain OUTPUT (policy ACCEPT)
 target     prot opt source               destination         
-$ sudo iptables-restore iptables.rules # restore iptables from iptables.rules
+```
+
+```sh
+# restore iptables from iptables.rules
+sudo iptables-restore iptables.rules
+```
+
+```console
 $ sudo iptables -L
 Chain INPUT (policy DROP)
 target     prot opt source               destination         
