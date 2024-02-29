@@ -3,13 +3,353 @@
 :page-categories: ['kubernetes']
 :page-tags: ['kubernetes', 'networking', 'iptables']
 :page-date: 2021-12-11 20:27:10 +0800
-:page-revdate: 2021-12-11 20:27:10 +0800
+:page-revdate: Thu Feb 29 01:38:52 PM CST 2024
+:toc:
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
 
+Networking is a central part of Kubernetes, but it can be challenging to understand exactly how it is expected to work. There are 4 distinct networking problems to address: <<kube-networking>>
 
+* Highly-coupled container-to-container communications
+
+* Pod-to-Pod communications
+
+* Pod-to-Service communications
+
+* External-to-Service communications
+
+Every Pod in a cluster gets its own unique cluster-wide IP address, called the "IP-per-pod" model, that exists at the Pod scope - containers within a Pod share their network namespaces - including their IP address and MAC address. <<kube-services-networking>>
+
+Kubernetes clusters require to allocate non-overlapping IP addresses for Pods, Services and Nodes, from a range of available addresses configured in the following components: <<kube-networking>>
+
+* The network plugin is configured to assign IP addresses to Pods.
+* The kube-apiserver is configured to assign IP addresses to Services.
+* The kubelet or the cloud-controller-manager is configured to assign IP addresses to Nodes.
+
+image::https://kubernetes.io/docs/images/kubernetes-cluster-network.svg["A figure illustrating the different network ranges in a kubernetes cluster",55%,55%]
+
+The network model is implemented by the container runtime on each node. The most common container runtimes use https://github.com/containernetworking/cni[Container Network Interface (CNI)] plugins to manage their network and security capabilities. <<kube-networking>>
+
+https://github.com/flannel-io/flannel[Flannel] is a simple and easy way to configure a layer 3 network fabric designed for Kubernetes.
+
+* Flannel runs a small, single binary agent called `flanneld` on each host, and is responsible for allocating a subnet lease to each host out of a larger, preconfigured address space.
+
+* Packets are forwarded using one of several backend mechanisms including https://en.wikipedia.org/wiki/Virtual_Extensible_LAN[VXLAN] and various cloud integrations.
+
+* Flannel does not control how containers are networked to the host, only how the traffic is transported between hosts.
+
+* Flannel does provide a CNI plugin for Kubernetes.
+
+== Services in Kubernetes
+
+In Kubernetes, a Service is a method for exposing a network application that is running as one or more Pods in your cluster. <<kube-service>>
+
+Kubernetes Service types allow you to specify what kind of Service you want.
+
+* ClusterIP
++
+Exposes the Service on a cluster-internal IP. Choosing this value makes the Service only reachable from within the cluster. This is the default that is used if you don't explicitly specify a `type` for a Service. You can expose the Service to the public internet using an Ingress or a Gateway.
+
+* NodePort
++
+Exposes the Service on each Node's IP at a static port (the `NodePort`). To make the node port available, Kubernetes sets up a cluster IP address, the same as if you had requested a Service of `type: ClusterIP`.
+
+* LoadBalancer
++
+Exposes the Service externally using an external load balancer. Kubernetes does not directly offer a load balancing component; you must provide one, or you can integrate your Kubernetes cluster with a cloud provider.
+
+* ExternalName
++
+Maps the Service to the contents of the `externalName` field (for example, to the hostname `api.foo.bar.example`). The mapping configures your cluster's DNS server to return a `CNAME` record with that external hostname value. No proxying of any kind is set up.
+
+TIP: If your workload speaks HTTP, you might choose to use an https://kubernetes.io/docs/concepts/services-networking/ingress/[Ingress] to control how web traffic reaches that workload. Ingress is not a Service type, but it acts as the entry point for your cluster. The https://gateway-api.sigs.k8s.io/#what-is-the-gateway-api[Gateway] API for Kubernetes provides extra capabilities beyond Ingress and Service.
+
+=== Services without selectors
+
+Services most commonly abstract access to Kubernetes Pods thanks to the selector, but when used with a corresponding set of EndpointSlices objects and without a selector, the Service can abstract other kinds of backends, including ones that run outside the cluster.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  # Because this Service has no selector, the corresponding EndpointSlice (and
+  # legacy Endpoints) objects are not created automatically.
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+---
+# You can map the Service to the network address and port where it's
+# running, by adding an EndpointSlice object manually.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: my-service-1 # by convention, use the name of the Service
+                     # as a prefix for the name of the EndpointSlice
+  labels:
+    # You should set the "kubernetes.io/service-name" label.
+    # Set its value to match the name of the Service
+    kubernetes.io/service-name: my-service
+addressType: IPv4
+ports:
+  - name: '' # empty because port 9376 is not assigned as a well-known
+             # port (by IANA)
+    appProtocol: http
+    protocol: TCP
+    port: 9376
+endpoints:
+  - addresses:
+      - "10.4.5.6"
+  - addresses:
+      - "10.1.2.3"
+```
+
+=== Headless Services
+
+For headless Services, a cluster IP is not allocated, by explicitly specifying "None" for the cluster IP address (`.spec.clusterIP`), kube-proxy does not handle these Services, and there is no load balancing or proxying done by the platform for them. How DNS is automatically configured depends on whether the Service has selectors defined:
+
+* With selectors
++
+For headless Services that define selectors, the endpoints controller creates EndpointSlices in the Kubernetes API, and modifies the DNS configuration to return A or AAAA records (IPv4 or IPv6 addresses) that point directly to the Pods backing the Service.
+
+* Without selectors
++
+For headless Services that do not define selectors, the control plane does not create EndpointSlice objects. However, the DNS system looks for and configures either:
+
+* DNS CNAME records for `type: ExternalName` Services.
+* DNS A / AAAA records for all IP addresses of the Service's ready endpoints, for all Service types other than `ExternalName`.
+** For IPv4 endpoints, the DNS system creates A records.
+** For IPv6 endpoints, the DNS system creates AAAA records.
++
+When you define a headless Service without a selector, the `port` must match the `targetPort`.
+
+=== Virtual IPs and Service Proxies
+
+Every node in a Kubernetes cluster runs a https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/[kube-proxy] (unless you have deployed your own alternative component in place of `kube-proxy`). <<kube-virtual-ips>>
+
+The `kube-proxy` component is responsible for implementing a `virtual IP` mechanism for Services of `type` other than `ExternalName`.
+
+* Each instance of kube-proxy watches the Kubernetes control plane for the addition and removal of Service and EndpointSlice objects.
+
+* For each Service, kube-proxy calls appropriate APIs (depending on the kube-proxy mode) to configure the node to capture traffic to the Service's `clusterIP` and `port`, and redirect that traffic to one of the Service's endpoints (usually a Pod, but possibly an arbitrary user-provided IP address).
+
+* A control loop ensures that the rules on each node are reliably synchronized with the Service and EndpointSlice state as indicated by the API server.
++
+image::https://kubernetes.io/images/docs/services-iptables-overview.svg[Virtual IPs and Service Proxies,35%,35%]
+
+The kube-proxy starts up in different modes, which are determined by its configuration.
+
+On Linux nodes, the available modes for kube-proxy are:
+
+* iptables
++
+A mode where the kube-proxy configures packet forwarding rules using iptables.
+
+* ipvs
++
+a mode where the kube-proxy configures packet forwarding rules using ipvs.
+
+* nftables
++
+a mode where the kube-proxy configures packet forwarding rules using nftables.
+
+There is only one mode available for kube-proxy on Windows:
+
+* kernelspace
++
+a mode where the kube-proxy configures packet forwarding rules in the Windows kernel
+
+==== iptables proxy mode
+
+In `iptables` mode, kube-proxy configures packet forwarding rules using the iptables API of the kernel netfilter subsystem.
+
+* When kube-proxy on a node sees a new Service, it installs a series of iptables rules which redirect from the virtual IP address to more iptables rules, defined per Service. 
+* The per-Service rules link to further rules for each backend endpoint, and the per-endpoint rules redirect traffic (using destination NAT) to the backends.
+
+* When a client connects to the Service's virtual IP address the iptables rule kicks in.
++
+A backend is chosen (either based on session affinity or randomly) and packets are redirected to the backend without rewriting the client IP address.
+
+Check the kube-proxy model with the `/proxyMode` endpoint.
+
+```console
+$ curl localhost:10249/proxyMode
+iptables
+```
+
+```console
+$ sudo iptables -t nat -n -L  KUBE-SERVICES
+Chain KUBE-SERVICES (2 references)
+target     prot opt source               destination
+KUBE-SVC-ERIFXISQEP7F7OF4  6    --  0.0.0.0/0            10.96.0.10           /* kube-system/kube-dns:dns-tcp cluster IP */ tcp dpt:53
+KUBE-SVC-JD5MR3NA4I4DYORP  6    --  0.0.0.0/0            10.96.0.10           /* kube-system/kube-dns:metrics cluster IP */ tcp dpt:9153
+KUBE-SVC-Z4ANX4WAEWEBLCTM  6    --  0.0.0.0/0            10.109.25.21         /* kube-system/metrics-server:https cluster IP */ tcp dpt:443
+KUBE-SVC-CG5I4G2RS3ZVWGLK  6    --  0.0.0.0/0            10.107.96.185        /* ingress-nginx/ingress-nginx-controller:http cluster IP */ tcp dpt:80
+KUBE-SVC-EDNDUDH2C75GIR6O  6    --  0.0.0.0/0            10.107.96.185        /* ingress-nginx/ingress-nginx-controller:https cluster IP */ tcp dpt:443
+KUBE-SVC-NPX46M4PTMTKRN6Y  6    --  0.0.0.0/0            10.96.0.1            /* default/kubernetes:https cluster IP */ tcp dpt:443
+KUBE-SVC-EZYNCFY2F7N6OQA2  6    --  0.0.0.0/0            10.103.76.154        /* ingress-nginx/ingress-nginx-controller-admission:https-webhook cluster IP */ tcp dpt:443
+KUBE-SVC-LWGIUP67CTAM2576  6    --  0.0.0.0/0            10.107.96.185        /* ingress-nginx/ingress-nginx-controller:prometheus cluster IP */ tcp dpt:10254
+KUBE-SVC-TCOU7JCQXEZGVUNU  17   --  0.0.0.0/0            10.96.0.10           /* kube-system/kube-dns:dns cluster IP */ udp dpt:53
+KUBE-NODEPORTS  0    --  0.0.0.0/0            0.0.0.0/0            /* kubernetes service nodeports; NOTE: this must be the last rule in this chain */ ADDRTYPE match dst-type LOCAL
+$ sudo iptables -t nat -n -L  KUBE-SVC-ERIFXISQEP7F7OF4
+Chain KUBE-SVC-ERIFXISQEP7F7OF4 (1 references)
+target     prot opt source               destination
+KUBE-MARK-MASQ  6    -- !10.244.0.0/16        10.96.0.10           /* kube-system/kube-dns:dns-tcp cluster IP */ tcp dpt:53
+KUBE-SEP-YXU7ECKUN6RQCSDC  0    --  0.0.0.0/0            0.0.0.0/0            /* kube-system/kube-dns:dns-tcp -> 10.244.1.99:53 */ statistic mode random probability 0.50000000000
+KUBE-SEP-C4WJXZ3GDNSPOCVX  0    --  0.0.0.0/0            0.0.0.0/0            /* kube-system/kube-dns:dns-tcp -> 10.244.2.142:53 */
+```
+
+=== Traffic policies
+
+You can set the `.spec.internalTrafficPolicy` and `.spec.externalTrafficPolicy` fields to control how Kubernetes routes traffic to healthy (“ready”) backends.
+
+* Internal traffic policy
++
+FEATURE STATE: Kubernetes v1.26 [stable]
++
+You can set the `.spec.internalTrafficPolicy` field to control how traffic from internal sources is routed. Valid values are `Cluster` and `Local`.
++
+Set the field to `Cluster` to route internal traffic to all ready endpoints and `Local` to only route to ready node-local endpoints.
++
+If the traffic policy is `Local` and there are no node-local endpoints, traffic is dropped by kube-proxy.
++
+[TIP]
+====
+Service Internal Traffic Policy enables internal traffic restrictions to only route internal traffic to endpoints within the node the traffic originated from.
+
+The "internal" traffic here refers to traffic originated from Pods in the current cluster. <<kube-service-traffic-policy>>
+====
+
+* External traffic policy
++
+You can set the `.spec.externalTrafficPolicy` field to control how traffic from external sources is routed. Valid values are `Cluster` and `Local`.
++
+Set the field to `Cluster` to route external traffic to all ready endpoints and `Local` to only route to ready node-local endpoints.
++
+If the traffic policy is Local and there are are no node-local endpoints, the kube-proxy does not forward any traffic for the relevant Service.
+
+* Traffic to terminating endpoints
++
+FEATURE STATE: Kubernetes v1.28 [stable]
++
+If the `ProxyTerminatingEndpoints` feature gate is enabled in kube-proxy and the traffic policy is `Local`, that node's kube-proxy uses a more complicated algorithm to select endpoints for a Service.
++
+With the feature enabled, kube-proxy checks if the node has local endpoints and whether or not *all* the local endpoints are marked as terminating. If there are local endpoints and all of them are terminating, then kube-proxy will forward traffic to those terminating endpoints. Otherwise, kube-proxy will always prefer forwarding traffic to endpoints that are not terminating.
+
+== DNS for Services and Pods
+
+Kubernetes creates DNS records for Services and Pods. You can contact Services with consistent DNS names instead of IP addresses. <<dns-pod-service>>
+
+Kubernetes publishes information about Pods and Services which is used to program DNS. Kubelet configures Pods' DNS so that running containers can lookup Services by name rather than IP.
+
+Services defined in the cluster are assigned DNS names. By default, a client Pod's DNS search list includes the Pod's own namespace and the cluster's default domain.
+
+A DNS query may return different results based on the namespace of the Pod making it. DNS queries that don't specify a namespace are limited to the Pod's namespace. Access Services in other namespaces by specifying it in the DNS query.
+
+DNS queries may be expanded using the Pod's `/etc/resolv.conf`. Kubelet configures this file for each Pod.
+
+```conf
+nameserver 10.32.0.10
+search <namespace>.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5
+```
+
+[TIP]
+====
+A Simple and Stupid https://github.com/ousiax/net-tools-container[Network Utilities] for Debugging Containers & Kubernetes.
+
+```sh
+kubectl create -n default deployment net-tools \
+  --image docker.io/qqbuby/net-tools:2.0 -- sleep 24h
+```
+
+```console
+$ kubectl get po -l app=net-tools -w
+NAME                         READY   STATUS        RESTARTS   AGE
+net-tools-8569ddf9fd-dn6wf   1/1     Running       0          8m37s
+```
+
+```console
+$ kubectl exec net-tools-8569ddf9fd-dn6wf -- dig +search kubernetes
+
+; <<>> DiG 9.18.24-1-Debian <<>> +search kubernetes
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 53501
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+; COOKIE: ca5d92ec874c299a (echoed)
+;; QUESTION SECTION:
+;kubernetes.default.svc.cluster.local. IN A
+
+;; ANSWER SECTION:
+kubernetes.default.svc.cluster.local. 30 IN A	10.96.0.1
+
+;; Query time: 1 msec
+;; SERVER: 10.96.0.10#53(10.96.0.10) (UDP)
+;; WHEN: Thu Feb 29 05:18:31 UTC 2024
+;; MSG SIZE  rcvd: 129
+```
+====
+
+*Services*
+
+* A/AAAA records
++
+"Normal" (not headless) Services are assigned DNS A and/or AAAA records, depending on the IP family or families of the Service, with a name of the form `my-svc.my-namespace.svc.cluster-domain.example`.
++
+Headless Services (without a cluster IP) Services are also assigned DNS A and/or AAAA records, with a name of the form `my-svc.my-namespace.svc.cluster-domain.example`. Unlike normal Services, this resolves to the set of IPs of all of the Pods selected by the Service. 
+
+* SRV records
++
+SRV Records are created for named ports that are part of normal or headless services. For each named port, the SRV record has the form `_port-name._port-protocol.my-svc.my-namespace.svc.cluster-domain.example`.
++
+```console
+$ kubectl exec net-tools-8569ddf9fd-dn6wf -- nslookup  _https._tcp.kubernetes
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+Name:	_https._tcp.kubernetes.default.svc.cluster.local
+Address: 10.96.0.1
+```
+
+*Pods*
+
+* A/AAAA records
++
+Kube-DNS versions, prior to the implementation of the DNS specification, had the following DNS resolution: `pod-ipv4-address.my-namespace.pod.cluster-domain.example`.
++
+Any Pods exposed by a Service have the following DNS resolution available: `pod-ipv4-address.service-name.my-namespace.svc.cluster-domain.example`.
++
+```console
+$ kubectl get pod -l app=net-tools -owide
+NAME                         READY   STATUS    RESTARTS   AGE   IP             NODE     NOMINATED NODE   READINESS GATES
+net-tools-8569ddf9fd-dn6wf   1/1     Running   0          20m   10.244.1.101   node-2   <none>           <none>
+$ kubectl exec net-tools-8569ddf9fd-dn6wf -- nslookup 10-244-1-101.default.pod
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+Name:	10-244-1-101.default.pod.cluster.local
+Address: 10.244.1.101
+```
+
+[bibliography]
 == References
 
-* https://kubernetes.io/docs/concepts/services-networking/service/
-* https://kubernetes.io/docs/concepts/cluster-administration/networking/
+* [[[kube-networking,1]]] https://kubernetes.io/docs/concepts/cluster-administration/networking/
+* [[[kube-services-networking,2]]] https://kubernetes.io/docs/concepts/services-networking/
+* [[[kube-service,3]]] https://kubernetes.io/docs/concepts/services-networking/service/
+* [[[kube-virtual-ips,4]]] https://kubernetes.io/docs/reference/networking/virtual-ips/
+* [[[kube-service-traffic-policy,5]]] https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+* [[[kube-dns-pod-service,6]]] https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
 * https://en.wikipedia.org/wiki/IP_address_management
 * https://en.wikipedia.org/wiki/TUN/TAP
 * https://www.kernel.org/doc/html/v5.12/networking/tuntap.html
