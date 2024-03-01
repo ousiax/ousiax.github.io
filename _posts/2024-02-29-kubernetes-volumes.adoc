@@ -150,8 +150,6 @@ While tmpfs is very fast be aware that, unlike disks, files you write count agai
 * hostPath
 +
 A `hostPath` volume mounts a file or directory from the host node's filesystem into your Pod. This is not something that most Pods will need, but it offers a powerful escape hatch for some applications.
-+
-WARNING: Using the `hostPath` volume type presents many security risks.
 
 * local
 +
@@ -179,6 +177,330 @@ A `projected` volume maps several existing volume sources into the same director
 +
 A `secret` volume is used to pass sensitive information, such as passwords, to Pods, which is backed by tmpfs (a RAM-backed filesystem) so they are never written to non-volatile storage.
 
+=== Container Storage Interface (CSI)
+
+:csi-spec: https://github.com/container-storage-interface/spec/blob/master/spec.md
+
+{csi-spec}[Container Storage Interface (CSI)] defines a standard interface for container orchestration systems (like Kubernetes) to expose arbitrary storage systems to their container workloads.
+
+Once a CSI compatible volume driver is deployed on a Kubernetes cluster, users may use the `csi` volume type to attach or mount the volumes exposed by the CSI driver.
+
+A `csi` volume can be used in a Pod in three different ways:
+
+:persistentvolumeclaim: https://kubernetes.io/docs/concepts/storage/volumes/#persistentvolumeclaim
+:generic-ephemeral-volumes: https://kubernetes.io/docs/concepts/storage/ephemeral-volumes/#generic-ephemeral-volumes
+:csi-ephemeral-volumes: https://kubernetes.io/docs/concepts/storage/ephemeral-volumes/#csi-ephemeral-volumes
+
+* through a reference to a {persistentvolumeclaim}[PersistentVolumeClaim]
+* with a {generic-ephemeral-volumes}[generic ephemeral volume]
+* with a {csi-ephemeral-volumes}[CSI ephemeral volume] if the driver supports that
+
+The following fields are available to storage administrators to configure a CSI persistent volume:
+
+* `driver`: A string value that specifies the name of the volume driver to use.
+
+* `volumeHandle`: A string value that uniquely identifies the volume.
+
+* `readOnly`: An optional boolean value indicating whether the volume is to be "ControllerPublished" (attached) as read only. Default is false.
+
+* `fsType`: If the PV's `VolumeMode` is `Filesystem` then this field may be used to specify the filesystem that should be used to mount the volume.
++
+If the volume has not been formatted and formatting is supported, this value will be used to format the volume.
+
+* `volumeAttributes`: A map of string to string that specifies static properties of a volume.
+
+* `controllerPublishSecretRef`: A reference to the secret object containing sensitive information to pass to the CSI driver to complete the CSI `ControllerPublishVolume` and `ControllerUnpublishVolume` calls.
+
+* `nodeExpandSecretRef`: A reference to the secret containing sensitive information to pass to the CSI driver to complete the CSI `NodeExpandVolume` call.
+
+* `nodePublishSecretRef`: A reference to the secret object containing sensitive information to pass to the CSI driver to complete the CSI `NodePublishVolume` call.
+
+* `nodeStageSecretRef`: A reference to the secret object containing sensitive information to pass to the CSI driver to complete the CSI `NodeStageVolume` call.
+
+=== Mount propagation
+
+Mount propagation <<kube-storage-volumes>> allows for sharing volumes mounted by a container to other containers in the same pod, or even to other pods on the same node, which is controlled by the `mountPropagation` field in `containers[*].volumeMounts`.
+
+* `None` - This volume mount will not receive any subsequent mounts that are mounted to this volume or any of its subdirectories by the host.
++
+In similar fashion, no mounts created by the container will be visible on the host.
++
+This is the default mode.
+
+* `HostToContainer` - This volume mount will receive all subsequent mounts that are mounted to this volume or any of its subdirectories.
+
+* `Bidirectional` - This volume mount behaves the same the `HostToContainer` mount.
++
+In addition, all volume mounts created by the container will be propagated back to the host and to all containers of all pods that use the same volume.
+
+=== Persistent Volumes
+
+Managing storage is a distinct problem from managing compute instances. The PersistentVolume subsystem provides an API for users and administrators that abstracts details of how storage is provided from how it is consumed.
+
+:storage-classes: https://kubernetes.io/docs/concepts/storage/storage-classes/
+
+A _PersistentVolume (PV)_ is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using {storage-classes}[Storage Classes].
+
+* It is a resource in the cluster just like a node is a cluster resource, that  captures the details of the implementation of the storage, be that NFS, iSCSI, or a cloud-provider-specific storage system.
++
+* PVs are volume plugins like Volumes, but have a lifecycle independent of any individual Pod that uses the PV.
+
+A _PersistentVolumeClaim (PVC)_ is a request for storage by a user. It is similar to a Pod.
+
+* Pods consume node resources and PVCs consume PV resources. Pods can request specific levels of resources (CPU and Memory).
+
+* Claims can request specific size and access modes (e.g., ReadWriteOnce, ReadOnlyMany, ReadWriteMany, or ReadWriteOncePod).
+
+* While PersistentVolumeClaims allow a user to consume abstract storage resources, it is common that users need PersistentVolumes with varying properties, such as performance, for different problems.
+
+A _StorageClass_ provides a way for administrators to describe the classes of storage they offer. Different classes might map to quality-of-service levels, or to backup policies, or to arbitrary policies determined by the cluster administrators. <<kube-storage-classes>>
+
+* Each StorageClass contains the fields `provisioner`, `parameters`, and `reclaimPolicy`, which are used when a PersistentVolume belonging to the class needs to be dynamically provisioned to satisfy a PersistentVolumeClaim (PVC).
+
+* The name of a StorageClass object is significant, and is how users can request a particular class. Administrators set the name and other parameters of a class when first creating StorageClass objects.
++
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+```
+
+==== Lifecycle of a volume and claim
+
+PVs are resources in the cluster. PVCs are requests for those resources and also act as claim checks to the resource. The interaction between PVs and PVCs follows this lifecycle: <<kube-persistent-volumes>>
+
+===== Provisioning
+
+There are two ways PVs may be provisioned: _statically_ or _dynamically_.
+
+* Static
++
+A cluster administrator creates a number of PVs. They carry the details of the real storage, which is available for use by cluster users. They exist in the Kubernetes API and are available for consumption.
+
+* Dynamic
++
+When none of the static PVs the administrator created match a user's PersistentVolumeClaim, the cluster may try to dynamically provision a volume specially for the PVC based on StorageClasses.
+
+===== Binding
+
+A control loop in the control plane watches for new PVCs, finds a matching PV (if possible), and binds them together.
+
+* If a PV was dynamically provisioned for a new PVC, the loop will always bind that PV to the PVC.
+
+* Otherwise, the user will always get at least what they asked for, but the volume may be in excess of what was requested.
+
+The `volumeBindingMode` field of a StorageClass controls when volume binding and dynamic provisioning should occur, and when unset, `Immediate` mode is used by default. <<kube-storage-classes>>
+
+* The `Immediate` mode indicates that volume binding and dynamic provisioning occurs once the PersistentVolumeClaim is created.
++
+For storage backends that are topology-constrained and not globally accessible from all Nodes in the cluster, PersistentVolumes will be bound or provisioned without knowledge of the Pod's scheduling requirements. This may result in unschedulable Pods.
+
+* A cluster administrator can address this issue by specifying the `WaitForFirstConsumer` mode which will delay the binding and provisioning of a PersistentVolume until a Pod using the PersistentVolumeClaim is created.
++
+PersistentVolumes will be selected or provisioned conforming to the topology that is specified by the Pod's scheduling constraints.
+
+===== Using
+
+Pods use claims as volumes.
+
+* The cluster inspects the claim to find the bound volume and mounts that volume for a Pod.
+
+* For volumes that support multiple access modes, the user specifies which mode is desired when using their claim as a volume in a Pod.
+
+===== Storage Object in Use Protection
+
+If a user deletes a PVC in active use by a Pod, the PVC is not removed immediately. PVC removal is postponed until the PVC is no longer actively used by any Pods. Also, if an admin deletes a PV that is bound to a PVC, the PV is not removed immediately. PV removal is postponed until the PV is no longer bound to a PVC.
+
+===== Reclaiming
+
+The reclaim policy for a PersistentVolume tells the cluster what to do with it after it has been released of its claim,  which can either be Retained or Deleted.
+
+===== PersistentVolume deletion protection finalizer
+
+FEATURE STATE: Kubernetes v1.23 [alpha]
+
+Finalizers can be added on a PersistentVolume to ensure that PersistentVolumes having Delete reclaim policy are deleted only after the backing storage are deleted.
+
+The newly introduced finalizers `kubernetes.io/pv-controller` and `external-provisioner.volume.kubernetes.io/finalizer` are only added to dynamically provisioned volumes.
+
+* The finalizer `kubernetes.io/pv-controller` is added to in-tree plugin volumes.
+
+* The finalizer `external-provisioner.volume.kubernetes.io/finalizer` is added for CSI volumes.
+
+===== Reserving a PersistentVolume
+
+If you want a PVC to bind to a specific PV, you need to pre-bind them.
+
+* By specifying a PersistentVolume in a PersistentVolumeClaim, you declare a binding between that specific PV and PVC.
+
+* If the PersistentVolume exists and has not reserved PersistentVolumeClaims through its `claimRef` field, then the PersistentVolume and PersistentVolumeClaim will be bound.
+
+* The binding happens regardless of some volume matching criteria, including node affinity.
++
+The control plane still checks that storage class, access modes, and requested storage size are valid.
+
+```yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: foo-pvc
+  namespace: foo
+spec:
+  # Empty string must be explicitly set otherwise default StorageClass will be set.
+  storageClassName: ""
+  volumeName: foo-pv
+  ...
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: foo-pv
+spec:
+  storageClassName: ""
+  claimRef:
+    name: foo-pvc
+    namespace: foo
+  ...
+```
+
+===== Expanding Persistent Volumes Claims
+
+FEATURE STATE: Kubernetes v1.24 [stable]
+
+To request a larger volume for a PVC, edit the PVC object and specify a larger size. This triggers expansion of the volume that backs the underlying PersistentVolume. A new PersistentVolume is never created to satisfy the claim. Instead, an existing volume is resized.
+
+You can only expand a PVC if its storage class's `allowVolumeExpansion` field is set to true.
+
+==== Claims As Volumes
+
+Pods access storage by using the claim as a volume.
+
+* Claims must exist in the same namespace as the Pod using the claim.
+
+* The cluster finds the claim in the Pod's namespace and uses it to get the PersistentVolume backing the claim.
+
+* The volume is then mounted to the host and into the Pod.
+
+==== Raw Block Volume Support
+
+FEATURE STATE: Kubernetes v1.18 [stable]
+
+The following volume plugins support raw block volumes, including dynamic provisioning where applicable:
+
+* CSI
+* FC (Fibre Channel)
+* iSCSI
+* Local volume
+* OpenStack Cinder
+* RBD (deprecated)
+* RBD (Ceph Block Device; deprecated)
+* VsphereVolume
+
+```yml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: block-pv
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  local:
+    path: /dev/sdb
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: node.local.io/block-storage
+          operator: In
+          values:
+          - local
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  volumeMode: Block
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: block-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    limits:
+      storage: 5Gi
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage
+  volumeMode: Block
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-block-volume
+spec:
+  containers:
+    - name: busybox
+      image: busybox:stable
+      command: ["/bin/sh", "-c"]
+      args: [ "tail -f /dev/null" ]
+      volumeDevices:
+        - name: data
+          devicePath: /dev/xvda
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: block-pvc
+```
+
+```console
+$ lsblk
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+loop0    7:0    0   10G  0 loop
+sda      8:0    0  100G  0 disk
+└─sda1   8:1    0  100G  0 part /
+sdb      8:16   0   10G  0 disk
+$ kubectl get storageclasses.storage.k8s.io local-storage
+NAME            PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+local-storage   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  3d11h
+```
+
+== CSI drivers on Azure Kubernetes Service (AKS)
+
+The Container Storage Interface (CSI) is a standard for exposing arbitrary block and file storage systems to containerized workloads on Kubernetes.
+
+By adopting and using CSI, Azure Kubernetes Service (AKS) can write, deploy, and iterate plug-ins to expose new or improve existing storage systems in Kubernetes without having to touch the core Kubernetes code and wait for its release cycles. <<azure-aks-csi-storage-drivers>>
+
+image::https://learn.microsoft.com/en-us/azure/aks/media/concepts-storage/aks-storage-options.png[Storage options for applications in an Azure Kubernetes Services (AKS) cluster,35%,35%]
+
+:azure-disk-csi: https://learn.microsoft.com/en-us/azure/aks/azure-disk-csi
+:azure-files-csi: https://learn.microsoft.com/en-us/azure/aks/azure-files-csi
+:azure-blob-csi: https://learn.microsoft.com/en-us/azure/aks/azure-blob-csi
+
+The CSI storage driver support on AKS allows you to natively use:
+
+* {azure-disk-csi}[Azure Disks] can be used to create a Kubernetes DataDisk resource.
++
+Disks can use Azure Premium Storage, backed by high-performance SSDs, or Azure Standard Storage, backed by regular HDDs or Standard SSDs. For most production and development workloads, use Premium Storage.
++
+Azure Disks are mounted as _ReadWriteOnce_ and are only available to one node in AKS. For storage volumes that can be accessed by multiple nodes simultaneously, use Azure Files.
+
+* {azure-files-csi}[Azure Files] can be used to mount an SMB 3.0/3.1 share backed by an Azure storage account to pods.
++
+With Azure Files, you can share data across multiple nodes and pods.
++
+Azure Files can use Azure Standard storage backed by regular HDDs or Azure Premium storage backed by high-performance SSDs.
+
+* {azure-blob-csi}[Azure Blob storage] can be used to mount Blob storage (or object storage) as a file system into a container or pod.
++
+Using Blob storage enables your cluster to support applications that work with large unstructured datasets like log file data, images or documents, HPC, and others.
++
+Additionally, if you ingest data into Azure Data Lake storage, you can directly mount and use it in AKS without configuring another interim filesystem.
+
 
 [bibliography]
 == Referenes
@@ -187,3 +509,6 @@ A `secret` volume is used to pass sensitive information, such as passwords, to P
 * [[[docker-storage-containerd,2]]] https://docs.docker.com/storage/containerd/
 * [[[docker-storage,3]]] https://docs.docker.com/storage/
 * [[[kube-storage-volumes,4]]] https://kubernetes.io/docs/concepts/storage/volumes/
+* [[[kube-storage-classes,5]]] https://kubernetes.io/docs/concepts/storage/storage-classes/
+* [[[kube-persistent-volumes,6]]] https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+* [[[azure-aks-csi-storage-drivers,5]]] https://learn.microsoft.com/en-us/azure/aks/csi-storage-drivers
