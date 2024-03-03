@@ -8,168 +8,151 @@
 :toclevels: 5
 :sectnums:
 
-== Kubernetes Logging Architecture
+== Kubernetes Logging
 
-Application logs can help you understand what is happening inside your application. The logs are particularly useful for debugging problems and monitoring cluster activity. Most modern applications have some kind of logging mechanism. Likewise, container engines are designed to support logging. The easiest and most adopted logging method for containerized applications is writing to *standard output* and *standard error* streams.
+In a Kubernetes cluster, logs should have a separate storage and lifecycle independent of nodes, pods, or containers, that is called _cluster-level logging_. <<kube-logging>>
 
-However, the native functionality provided by a container engine or runtime is usually not enough for a complete logging solution. For example, you may want access your application's logs if a container crashes; a pod gets evicted; or a node dies. In a cluster, logs should have a separate storage and lifecycle independent of nodes, pods, or containers. This concept is called *cluster-level logging*.
+=== Pod and container logs
 
-Cluster-level logging architectures require a separate backend to store, analyze, and query logs. Kubernetes does not provide a native storage solution for log data. Instead, there are many logging solutions that integrate with Kubernetes.
+Kubernetes captures logs from each container in a running Pod.
 
-=== Logging at the Node Level
+```yml
+# debug/counter-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: counter
+spec:
+  containers:
+  - name: count
+    image: busybox:1.28
+    args: [/bin/sh, -c,
+            'i=0; while true; do echo "$i: $(date)"; i=$((i+1)); sleep 1; done']
+```
 
-image::https://d33wubrfki0l68.cloudfront.net/59b1aae2adcfe4f06270b99a2789012ed64bec1f/4d0ad/images/docs/user-guide/logging/logging-node-level.png[,55%,55%]
+To run this pod, use the following command:
 
-A *container engine* handles and redirects any output generated to a containerized application's `stdout` and `stderr` streams. For example, the Docker container engine redirects those two streams to a https://docs.docker.com/engine/admin/logging/overview[logging driver], which is configured in Kubernetes to write to a file in JSON format.
+```sh
+kubectl apply -f https://k8s.io/examples/debug/counter-pod.yaml
+```
 
-By default, if a container restarts, the kubelet keeps one terminated container with its logs. If a pod is evicted from the node, all corresponding containers are also evicted, along with their logs.
+To fetch the logs, use the `kubectl logs` command, as follows:
 
-An important consideration in node-level logging is implementing *log rotation*, so that logs don't consume all available storage on the node. Kubernetes is not responsible for rotating logs, but rather a deployment tool should set up a solution to address that.
+```sh
+# kubectl logs [--previous] counter [-c count] [-f] [--tail 10]
+kubectl logs counter
+```
 
-When using a *CRI container runtime*, the kubelet is responsible for rotating the logs and managing the logging directory structure. The kubelet sends this information to the CRI container runtime and the runtime writes the container logs to the given location. The two kubelet parameters `containerLogMaxSize` and `containerLogMaxFiles` in kubelet config file can be used to configure the maximum size for each log file and the maximum number of files allowed for each container respectively.
+```console
+627: Sun Mar  3 06:29:05 UTC 2024
+628: Sun Mar  3 06:29:06 UTC 2024
+629: Sun Mar  3 06:29:07 UTC 2024
+630: Sun Mar  3 06:29:08 UTC 2024
+631: Sun Mar  3 06:29:09 UTC 2024
+```
 
-When you run `kubectl logs`, the kubelet on the node handles the request and reads directly from the log file. The kubelet returns the content of the log file.
+==== How nodes handle container logs
 
-==== System component logs
+image::https://kubernetes.io/images/docs/user-guide/logging/logging-node-level.png[Node level logging,35%,35%]
 
-There are two types of system components: those that run in a container and those that do not run in a container. For example:
+A _container runtime_ handles and redirects any output generated to a containerized application's _stdout_ and _stderr_ streams.
 
-* The Kubernetes scheduler and kube-proxy run in a container.
-* The kubelet and container runtime do not run in containers.
+* Different container runtimes implement this in different ways; however, the integration with the kubelet is standardized as the _CRI logging format_.
 
-On machines with systemd, the kubelet and container runtime write to *journald*. If systemd is not present, the kubelet and container runtime write to `.log` files in the `/var/log` directory. System components inside containers always write to the `/var/log` directory, bypassing the default logging mechanism.
+* By default, if a container restarts, the kubelet keeps one terminated container with its logs.
+
+* If a pod is evicted from the node, all corresponding containers are also evicted, along with their logs.
+
+==== Log locations
+
+On Linux nodes that use systemd, the kubelet and container runtime write to journald by default.
+
+For components that run in pods, these write to files inside the `/var/log` directory,and the kubelet always directs the container runtime to write logs into directories within `/var/log/pods`.
+
+[source,console]
+----
+$ sudo ls -l /var/log/{containers,pods}
+/var/log/containers:
+total 116
+... coredns-7b44686977-vlt44_kube-system_coredns-7...a.log -> /var/log/pods/kube-system_coredns-7b44686977-vlt44_36dc81bd-f2eb-4870-be75-330cb10f61ab/coredns/0.log
+... coredns-7b44686977-z9mwq_kube-system_coredns-3...e.log -> /var/log/pods/kube-system_coredns-7b44686977-z9mwq_236098b7-9988-4c29-9498-041f95b3393d/coredns/0.log
+... counter_default_count-4...f.log -> /var/log/pods/default_counter_5b0efb65-38fe-47f4-9d8d-dba07f9038b8/count/0.log
+
+/var/log/pods:
+total 80
+... default_counter_5b0efb65-38fe-47f4-9d8d-dba07f9038b8
+... kube-system_coredns-7b44686977-vlt44_36dc81bd-f2eb-4870-be75-330cb10f61ab
+... kube-system_coredns-7b44686977-z9mwq_236098b7-9988-4c29-9498-041f95b3393d
+
+$ sudo tree /var/log/pods/
+/var/log/pods/
+├── default_counter_5b0efb65-38fe-47f4-9d8d-dba07f9038b8
+│   └── count
+│       └── 0.log
+...
+----
+
+* The containers logs under `/var/log/containers` are with pod and container metadata embedded in the filename: `/var/log/containers/<pod_name>_<pod_namespace>_<container_name>-<container_id>.log`. <<kube-kubelet-cri-logging>>
+* The the pod-level log directory `/var/log/pods` store all container logs with the format: `/var/log/pods/<podUID>/<containerName>_<instance#>.log`. <<kube-kubelet-cri-logging>>
+* The each log entry is decorated with a RFC 3339Nano _timestamp_ prefix, the _stream_ type (i.e., "stdout" or "stderr"), the _tags_ of the log entry, the log _content_ that ends with a newline. <<kube-kubelet-cri-logging>>
+
+Use `crictl` to determine the log path of containers.
+
+. List pods filtered by pod name:
++
+```console
+$ sudo crictl pods --name counter
+POD ID              CREATED             STATE               NAME                NAMESPACE           ATTEMPT             RUNTIME
+9509134c36363       15 minutes ago      Ready               counter             default             0                   (default)
+4246eaf3effc6       8c811b4aec35f       17 minutes ago      Running             count               0                   9509134c36363       counter
+```
+. Show the pod-level log directory:
++
+```console
+$ sudo crictl inspectp -o go-template --template '{{.info.config.log_directory}}' 9509134c36363
+/var/log/pods/default_counter_5b0efb65-38fe-47f4-9d8d-dba07f9038b8
+```
+
+. List containers filtered by pod id:
++
+```console
+$ sudo crictl ps --pod 9509134c36363
+CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID              POD
+4246eaf3effc6       8c811b4aec35f       34 minutes ago      Running             count               0                   9509134c36363       counter
+```
+
+. Show the log path of a container:
++
+```console
+$ sudo crictl inspect -o go-template --template '{{.status.logPath}}' 4246eaf3effc6
+/var/log/pods/default_counter_5b0efb65-38fe-47f4-9d8d-dba07f9038b8/count/0.log
+```
+
+. Show the log content of a container:
++
+```console
+$ sudo tail -n 3 /var/log/pods/default_counter_5b0efb65-38fe-47f4-9d8d-dba07f9038b8/count/0.log
+2024-03-03T16:23:26.644901904+08:00 stdout F 2330: Sun Mar  3 08:23:26 UTC 2024
+2024-03-03T16:23:27.647833675+08:00 stdout F 2331: Sun Mar  3 08:23:27 UTC 2024
+2024-03-03T16:23:28.650085015+08:00 stdout F 2332: Sun Mar  3 08:23:28 UTC 2024
+```
 
 === Cluster-level logging architectures
 
-While Kubernetes does not provide a native solution for cluster-level logging, there are several common approaches you can consider. Here are some options:
+While Kubernetes does not provide a native solution for cluster-level logging, there are several common approaches you can consider. Here are some options: <<kube-logging>>
 
 * Use a node-level logging agent that runs on every node.
 +
-image::https://d33wubrfki0l68.cloudfront.net/2585cf9757d316b9030cf36d6a4e6b8ea7eedf5a/1509f/images/docs/user-guide/logging/logging-with-node-agent.png[,50%,50%]
+image::https://kubernetes.io/images/docs/user-guide/logging/logging-with-node-agent.png[Using a node level logging agent,35%,35%]
 
 * Include a dedicated sidecar container for logging in an application pod.
 +
-image::https://d33wubrfki0l68.cloudfront.net/5bde4953b3b232c97a744496aa92e3bbfadda9ce/39767/images/docs/user-guide/logging/logging-with-streaming-sidecar.png[,50%,50%]
+image::https://kubernetes.io/images/docs/user-guide/logging/logging-with-streaming-sidecar.png[Sidecar container with a streaming container,35%,35%]
 
 * Push logs directly to a backend from within an application.
 +
-image::https://d33wubrfki0l68.cloudfront.net/d55c404912a21223392e7d1a5a1741bda283f3df/c0397/images/docs/user-guide/logging/logging-with-sidecar-agent.png[,50%,50%]
+image::https://kubernetes.io/images/docs/user-guide/logging/logging-with-sidecar-agent.png[Sidecar container with a logging agent,35%,35%]
 
-=== CRI: Log Management for Container Stdout/Stderr Streams
-
-* Logging in kubernetes with docker
-+
-Docker supports various logging drivers (e.g., syslog, journal, and json-file), and allows users to configure the driver by passing flags to the docker daemon at startup.
-+
-Kubernetes defaults to the "json-file" logging driver, in which docker writes the stdout/stderr streams to a file in the json format as shown below.
-+
-[source,json]
-----
-{"log": "The actual log line", "stream": "stderr", "time": "2016-10-05T00:00:30.082640485Z"}
-----
-+
-In a production cluster, logs are usually collected, aggregated, and shipped to a remote store where advanced analysis/search/archiving functions are supported. In kubernetes, the default cluster-addons includes a per-node log collection daemon, *fluentd*. To facilitate the log collection, kubelet creates symbolic links to all the docker containers logs under `/var/log/containers` with pod and container metadata embedded in the filename.
-+
-[source,text]
-----
-/var/log/containers/<pod_name>_<pod_namespace>_<container_name>-<container_id>.log
-----
-+
-The fluentd daemon watches the `/var/log/containers/` directory and extract the metadata associated with the log from the path. 
-+
-Use `crictl` to determine the log path of containers:
-+
-[source,console]
-----
-$ sudo crictl version
-Version:  0.1.0
-RuntimeName:  docker
-RuntimeVersion:  20.10.11
-RuntimeApiVersion:  1.41.0
-
-$ sudo crictl ps --state Running | head -n 2
-CONTAINER           IMAGE               CREATED             STATE               NAME                      ATTEMPT             POD ID
-5aa9ed1035b18       a4ca41631cc7a       About an hour ago   Running             coredns                   0                   9ea61ef06c670
-
-$ sudo crictl inspectp -o go-template --template '{{.status.metadata.name}}_{{.status.metadata.namespace}}' 9ea61ef06c670
-coredns-64897985d-6ps6n_kube-system
-
-$ sudo crictl inspect -o go-template --template '{{.status.metadata.name}}-{{.status.id}}' 5aa9ed1035b18
-coredns-5aa9ed1035b1870f1c1551f4fcc4b195ca33ce0726109f3493a81508f315a087
-
-$ sudo readlink /var/log/containers/coredns-64897985d-6ps6n_kube-system_coredns-5aa9ed1035b1870f1c1551f4fcc4b195ca33ce0726109f3493a81508f315a087.log
-/var/log/pods/kube-system_coredns-64897985d-6ps6n_fb974956-1f41-41f1-ba30-2658262cdbd2/coredns/0.log
-
-$ sudo crictl inspect -o go-template --template '{{.status.logPath}}' 5aa9ed1035b18
-/var/log/pods/kube-system_coredns-64897985d-6ps6n_fb974956-1f41-41f1-ba30-2658262cdbd2/coredns/0.log
-
-$ sudo docker info -f '{{.LoggingDriver}}'
-json-file
-
-$ sudo tail -n 1 /var/log/pods/kube-system_coredns-64897985d-6ps6n_fb974956-1f41-41f1-ba30-2658262cdbd2/coredns/0.log
-{"log":"linux/amd64, go1.17.1, 13a9191\n","stream":"stdout","time":"2022-01-07T05:37:18.356105709Z"}
-----
-
-* Logging in kubernetes with CRI-compliant Runtimes
-+
-Kubelet will be configured with a root directory (e.g., `/var/log/pods` or `/var/lib/kubelet/logs/`) to store all container logs. Below is an example of a path to the log of a container in a pod.
-+
-[source,console]
-----
-/var/log/pods/<podUID>/<containerName>_<instance#>.log
-----
-+
-In CRI, this is implemented by setting the pod-level log directory when creating the pod sandbox, and passing the relative container log path when creating a container.
-+
-[source,console]
-----
-PodSandboxConfig.LogDirectory: /var/log/pods/<podUID>/
-ContainerConfig.LogPath: <containerName>_<instance#>.log
-----
-+
-The runtime should decorate each log entry with a RFC 3339Nano *timestamp* prefix, the *stream* type (i.e., "stdout" or "stderr"), the *tags* of the log entry, the log *content* that ends with a newline.
-+
-The `tags` fields can support multiple tags, delimited by :. Currently, only one tag is defined in CRI to support multi-line log entries: partial or full. Partial (P) is used when a log entry is split into multiple lines by the runtime, and the entry has not ended yet. Full (F) indicates that the log entry is completed -- it is either a single-line entry, or this is the last line of the multiple-line entry.
-+
-For example,
-+
-[source,console]
-----
-2016-10-06T00:17:09.669794202Z stdout F The content of the log entry 1
-2016-10-06T00:17:09.669794202Z stdout P First line of log entry 2
-2016-10-06T00:17:09.669794202Z stdout P Second line of the log entry 2
-2016-10-06T00:17:10.113242941Z stderr F Last line of the log entry 2
-----
-+
-Use `crictl` to determine the log path of containers:
-+
-[source,console]
-----
-$ sudo crictl version
-Version:  0.1.0
-RuntimeName:  containerd
-RuntimeVersion:  v1.5.8
-RuntimeApiVersion:  v1alpha2
-
-$ sudo crictl ps --state Running | head -n 2
-CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID
-a140d889bac72       ae1a7201ec954       3 hours ago         Running             controller          0                   97db7329bd6f2
-
-$ sudo crictl inspectp -o go-template --template '{{.info.config.log_directory}}' 97db7329bd6f2
-/var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9
-
-$ sudo crictl inspect -o go-template --template '{{.info.config.log_path}}' a140d889bac72
-controller/0.log
-
-$ sudo crictl inspect -o go-template --template '{{.status.logPath}}' a140d889bac72
-/var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9/controller/0.log
-
-$ sudo realpath /var/log/containers/ingress-nginx-controller-7dc8994d6f-w84bm_ingress-nginx_controller-a140d889bac72aeb8a94f706baca61d2a9f1a2490b4b8b546d7609108f9c0b92.log
-/var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9/controller/0.log
-
-$ sudo tail -n 1 /var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f-w84bm_f8a81dc8-5f3e-4e08-bcb7-46352b45e8e9/controller/0.log
-2022-01-07T14:00:57.629313444+08:00 stderr F I0107 06:00:57.629072       6 event.go:282] Event(v1.ObjectReference{Kind:"Ingress", Namespace:"devtools", Name:"echo.onelinkplus.com", UID:"1d67a4a8-5465-4c10-b103-289ffc2cd1a7", APIVersion:"networking.k8s.io/v1", ResourceVersion:"6772918", FieldPath:""}): type: 'Normal' reason: 'Sync' Scheduled for sync
-----
 
 == What is Fluent Bit?
 
@@ -177,23 +160,11 @@ $ sudo tail -n 1 /var/log/pods/ingress-nginx_ingress-nginx-controller-7dc8994d6f
 :cncf-io: https://cncf.io/
 :fluentd-org: http://fluentd.org/
 :apache-license-2-0: http://www.apache.org/licenses/LICENSE-2.0
-:treasuredata-com: https://www.treasuredata.com/
 
-{fluentbit-io}[*Fluent Bit*] is a Fast and Lightweight Logs and Metrics Processor and Forwarder for Linux, OSX, Windows and BSD family operating systems. It has been made with a strong focus on performance to allow the collection of events from different sources without complexity.
+{fluentbit-io}[Fluent Bit] is a Fast and Lightweight  is a Fast and Lightweight *Telemetry Agent* for Logs, Metrics, and Traces, which is a {cncf-io}[CNCF] sub-project under the umbrella of {fluentd-org}[Fluentd]. <<fluentbit-io>>
 
-{fluentbit-io}[Fluent Bit] is a {cncf-io}[*CNCF*] sub-project under the umbrella of {fluentd-org}[Fluentd], it's licensed under the terms of the {apache-license-2-0}[Apache License v2.0]. The project was originally created by {treasuredata-com}[Treasure Data] and is currently a vendor neutral and community driven project.
-
-=== Fluentd & Fluent Bit
-
-Logging and data processing in general can be complex, and at scale a bit more, that's why it was born.
-
-*Fluentd* has become more than a simple tool, it has grown into a fullscale ecosystem that contains SDKs for different languages and sub-projects like *Fluent Bit*.
-
-Both projects share a lot of similarities, Fluent Bit is fully designed and built on top of the best ideas of Fluentd architecture and general design. Choosing which one to use depends on the end-user needs.
-
-The following table describes a comparison in different areas of the projects:
-
-[%header,cols="1,2,3"]
+.Fluentd vs. Fluent Bit
+[%header,cols="1,3,3"]
 |===
 |
 |Fluentd
@@ -208,11 +179,11 @@ The following table describes a comparison in different areas of the projects:
 |C
 
 |Memory
-|~40MB
-|~650KB
+|> 60MB
+|~ 1MB
 
 |Performance
-|High Performance
+|Medium Performance
 |High Performance
 
 |Dependencies
@@ -220,15 +191,13 @@ The following table describes a comparison in different areas of the projects:
 |Zero dependencies, unless some special plugin requires them.
 
 |Plugins
-|More than 1000 plugins available
-|Around 70 plugins available
+|More than 1000 external plugins available
+|Around 100 built-in plugins available
 
 |License
 |{apache-license-2-0}[Apache License v2.0]
 |{apache-license-2-0}[Apache License v2.0]
 |===
-
-Both Fluentd and Fluent Bit can work as Aggregators or Forwarders, they both can complement each other or use them as standalone solutions.
 
 === Key Concepts
 
@@ -985,13 +954,12 @@ If you are running Fluent Bit to process logs coming from containers like Docker
 +
 The two options separated by a comma means multi-format: try `docker` and `cri` multiline formats.
 
+[bibliography]
 == References
 
-* https://kubernetes.io/docs/concepts/cluster-administration/logging/
-* https://docs.docker.com/config/containers/logging/json-file/
-* https://github.com/kubernetes/kubernetes/issues/53022
-* https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-cri-logging.md
-* https://docs.fluentbit.io/
+* [[[kube-logging,1]]] https://kubernetes.io/docs/concepts/cluster-administration/logging/
+* [[[kube-kubelet-cri-logging,2]]] https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-cri-logging.md
+* [[[fluentbit-io,3]]] https://docs.fluentbit.io/
 * https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file
 * https://docs.fluentbit.io/manual/installation/kubernetes
 * https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
