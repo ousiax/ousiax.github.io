@@ -51,7 +51,7 @@ kubectl logs counter
 631: Sun Mar  3 06:29:09 UTC 2024
 ```
 
-==== How nodes handle container logs
+=== How nodes handle container logs
 
 image::https://kubernetes.io/images/docs/user-guide/logging/logging-node-level.png[Node level logging,35%,35%]
 
@@ -63,7 +63,7 @@ A _container runtime_ handles and redirects any output generated to a containeri
 
 * If a pod is evicted from the node, all corresponding containers are also evicted, along with their logs.
 
-==== Log locations
+=== Log locations and format
 
 On Linux nodes that use systemd, the kubelet and container runtime write to journald by default.
 
@@ -95,6 +95,13 @@ $ sudo tree /var/log/pods/
 * The containers logs under `/var/log/containers` are with pod and container metadata embedded in the filename: `/var/log/containers/<pod_name>_<pod_namespace>_<container_name>-<container_id>.log`. <<kube-kubelet-cri-logging>>
 * The the pod-level log directory `/var/log/pods` store all container logs with the format: `/var/log/pods/<podUID>/<containerName>_<instance#>.log`. <<kube-kubelet-cri-logging>>
 * The each log entry is decorated with a RFC 3339Nano _timestamp_ prefix, the _stream_ type (i.e., "stdout" or "stderr"), the _tags_ of the log entry, the log _content_ that ends with a newline. <<kube-kubelet-cri-logging>>
++
+```console
+2016-10-06T00:17:09.669794202Z stdout F The content of the log entry 1
+2016-10-06T00:17:09.669794202Z stdout P First line of log entry 2
+2016-10-06T00:17:09.669794202Z stdout P Second line of the log entry 2
+2016-10-06T00:17:10.113242941Z stderr F Last line of the log entry 2
+```
 
 Use `crictl` to determine the log path of containers.
 
@@ -199,218 +206,61 @@ image::https://kubernetes.io/images/docs/user-guide/logging/logging-with-sidecar
 |{apache-license-2-0}[Apache License v2.0]
 |===
 
-=== Key Concepts
+Every incoming piece of data that belongs to a log or a metric that is retrieved by Fluent Bit is considered an Event or a Record, represented as a 2-element array with a nested array as the first element: `[[TIMESTAMP, METADATA], MESSAGE]`.
 
-* *Event or Record*
-+
-Every incoming piece of data that belongs to a log or a metric that is retrieved by Fluent Bit is considered an *Event* or a *Record*.
-+
-As an example consider the following content of a Syslog file:
-+
-[source,log]
-----
-Jan 18 12:52:16 flb systemd[2222]: Starting GNOME Terminal Server
-Jan 18 12:52:16 flb dbus-daemon[2243]: [session uid=1000 pid=2243] Successfully activated service 'org.gnome.Terminal'
-Jan 18 12:52:16 flb systemd[2222]: Started GNOME Terminal Server.
-Jan 18 12:52:16 flb gsd-media-keys[2640]: # watch_fast: "/org/gnome/terminal/legacy/" (establishing: 0, active: 0)
-----
-+
-It contains four lines and all of them represents four independent Events.
-+
-Internally, an Event always has two components (in an array form):
-+
-[source,log]
-----
-[TIMESTAMP, MESSAGE]
-----
+```sh
+docker run --rm  \
+    fluent/fluent-bit:2.2 \
+    -q \
+    -i dummy \
+    -p 'tag=dummy.data' \
+    -p 'samples=3' \
+    -p 'dummy={"data":"100 0.5 true This is example"}' \
+    -o stdout
+```
 
-* *Filtering*
-+
-In some cases it is required to perform modifications on the Events content, the process to alter, enrich or drop Events is called *Filtering*.
-+
-There are many use cases when Filtering is required like:
-+
---
-** Append specific information to the Event like an IP address or metadata.
-** Select a specific piece of the Event content.
-** Drop Events that matches certain pattern.
---
+```console
+[0] dummy.data: [[1709527380.566845126, {}], {"data"=>"100 0.5 true This is example"}]
+[0] dummy.data: [[1709527381.561442519, {}], {"data"=>"100 0.5 true This is example"}]
+[0] dummy.data: [[1709527382.561138285, {}], {"data"=>"100 0.5 true This is example"}]
+```
 
-* *Tag*
-+
-Every Event that gets into Fluent Bit gets assigned a *Tag*. This tag is an internal string that is used in a later stage by the Router to decide which Filter or Output phase it must go through.
-+
-Most of the tags are assigned manually in the configuration. If a tag is not specified, Fluent Bit will assign the name of the Input plugin instance from where that Event was generated from.
+[TIP]
+====
+Fluent Bit versions prior to v2.1.0 instead used `[TIMESTAMP, MESSAGE]` to represent events, which is still supported for reading input event streams.
 
-* *Timestamp*
-+
-The *Timestamp* represents the time when an Event was created. Every Event contains a Timestamp associated. The Timestamp is a numeric fractional integer in the format:
-+
-[source,log]
-SECONDS.NANOSECONDS
-+
---
-** SECONDS
-+
-It is the number of seconds that have elapsed since the Unix epoch.
-+
-** NANOSECONDS
-+
-Fractional second or one thousand-millionth of a second.
---
+```sh
+docker run --rm  \
+    fluent/fluent-bit:1.8 \
+    /fluent-bit/bin/fluent-bit \
+    -q \
+    -i dummy \
+    -p 'tag=dummy.data' \
+    -p 'samples=3' \
+    -p 'dummy={"data":"100 0.5 true This is example"}' \
+    -o stdout
+```
 
-* *Match*
-+
-Fluent Bit allows to deliver your collected and processed Events to one or multiple destinations, this is done through a routing phase. A *Match* represent a simple rule to select Events where its Tags matches a defined rule.
+```console
+[0] dummy.data: [1709528329.573776918, {"data"=>"100 0.5 true This is example"}]
+[1] dummy.data: [1709528330.572099654, {"data"=>"100 0.5 true This is example"}]
+[2] dummy.data: [1709528331.573172190, {"data"=>"100 0.5 true This is example"}]
+```
+====
 
-* *Structured Messages*
-+
-Source events can have or not have a structure. A structure defines a set of *keys* and *values* inside the Event message. As an example consider the following two messages:
-+
---
-** No structured message
-+
-[source,log]
-"Project Fluent Bit created on 1398289291"
+Fluent Bit collects and process logs (records) from different input sources and allows to parse and filter these records before they hit the Storage interface. Once data is processed and it's in a safe state (either in memory or the file system), the records are routed through the proper output destinations. <<fluentbit-io-stream-processing>>
 
-** Structured Message
-+
-[source,json]
-{"project": "Fluent Bit", "created": 1398289291}
---
-+
-At a low level both are just an array of bytes, but the Structured message defines keys and values, having a structure helps to implement faster operations on data modifications.
+image::/assets/efk/fluent-bit-data-pipeline.png[,55%,55%]
 
-=== Data Pipeline
+=== Configuring
 
-:input-plugins: https://docs.fluentbit.io/manual/pipeline/inputs
-:parsers: https://docs.fluentbit.io/manual/pipeline/parsers
-:filters: https://docs.fluentbit.io/manual/pipeline/filters
-:buffering-and-storage: https://docs.fluentbit.io/manual/administration/buffering-and-storage
-:outputs: https://docs.fluentbit.io/manual/pipeline/outputs
+:configuring-fluent-bit: https://docs.fluentbit.io/manual/administration/configuring-fluent-bit
 
-* **Input**
-+
-Fluent Bit provides different {input-plugins}[*Input Plugins*] to gather information from different sources, some of them just collect data from log files while others can gather metrics information from the operating system. There are many plugins for different needs.
-+
-image::/assets/fluent-bit/input.png[,70%,70%]
-+
-When an input plugin is loaded, an internal instance is created. Every instance has its own and independent configuration. Configuration keys are often called *properties*.
+Fluent Bit supports two configuration formats, {configuring-fluent-bit}/classic-mode[Classic mode] and {configuring-fluent-bit}/yaml[Yaml].
 
-* *Parser*
-+
-Dealing with raw strings or unstructured messages is a constant pain; having a structure is highly desired. Ideally we want to set a structure to the incoming data by the Input Plugins as soon as they are collected:
-+
-image::/assets/fluent-bit/parser.png[,70%,70%]
-+
-The {parsers}[Parser] allows you to convert from unstructured to structured data. As a demonstrative example consider the following Apache (HTTP Server) log entry:
-+
-[source,log]
-----
-192.168.2.20 - - [28/Jul/2006:10:27:10 -0300] "GET /cgi-bin/try/ HTTP/1.0" 200 3395
-----
-+
-The above log line is a raw string without format, ideally we would like to give it a structure that can be processed later easily. If the proper configuration is used, the log entry could be converted to:
-+
-[source,json]
-----
-{
-  "host":    "192.168.2.20",
-  "user":    "-",
-  "method":  "GET",
-  "path":    "/cgi-bin/try/",
-  "code":    "200",
-  "size":    "3395",
-  "referer": "",
-  "agent":   ""
-}
-----
+A simple example of a classic mode configuration file is as follows: <<fluentbit-io-classic-mode-format-schema>>
 
-* *Filter*
-+
-In production environments we want to have full control of the data we are collecting, {filters}[filtering] is an important feature that allows us to *alter* the data before delivering it to some destination.
-+
-image::/assets/fluent-bit/filter.png[,70%,70%]
-+
-Filtering is implemented through plugins, so each filter available could be used to match, exclude or enrich your logs with some specific metadata.
-
-* *Buffer*
-+
-The {buffering-and-storage}[buffer] phase in the pipeline aims to provide a unified and persistent mechanism to store your data, either using the primary in-memory model or using the filesystem based mode.
-+
-The buffer phase already contains the data in an *immutable state*, meaning, no other filter can be applied.
-+
-image::/assets/fluent-bit/buffer.png[,70%,70%]
-+
-Fluent Bit offers a buffering mechanism in the file system that acts as a *backup* system to avoid data loss in case of system failures.
-
-* *Router*
-+
-Routing is a core feature that allows to *route* your data through Filters and finally to one or multiple destinations. The router relies on the concept of Tags and Matching rules.
-+
-image::/assets/fluent-bit/router.png[,70%,70%]
-+
-When the data is generated by the input plugins, it comes with a *Tag* (most of the time the Tag is configured manually), the Tag is a human-readable indicator that helps to identify the data source.
-+
-In order to define *where* the data should be routed, a *Match* rule must be specified in the output configuration.
-+
-Consider the following configuration example that aims to deliver CPU metrics to an Elasticsearch database and Memory metrics to the standard output interface:
-+
 [source,conf]
-----
-[INPUT]
-    name cpu
-    tag  my_cpu
-
-[INPUT]
-    name mem
-    tag  my_mem
-
-[OUTPUT]
-    name   es
-    match  my_cpu
-
-[OUTPUT]
-    name   stdout
-    match  my_mem
-----
-+
-Routing works automatically reading the Input Tags and the Output Match rules. If some data has a Tag that doesn't match upon routing time, the data is deleted.
-+
-Routing is flexible enough to support *wildcard* in the Match pattern. The below example defines a common destination for both sources of data:
-+
-[source,conf]
-----
-[INPUT]
-    name cpu
-    tag  my_cpu
-
-[INPUT]
-    name mem
-    tag  my_mem
-
-[OUTPUT]
-    name   stdout
-    match  my_*
-----
-+
-The match rule is set to `my_*` which means it will match any Tag that starts with `my_`.
-
-* *Output*
-+
-The output interface allows us to define destinations for the data. Common destinations are remote services, local file system or standard interface with others. {outputs}[Outputs] are implemented as plugins and there are many available.
-+
-image::/assets/fluent-bit/output.png[,70%,70%]
-+
-When an output plugin is loaded, an internal instance is created. Every instance has its own independent configuration. Configuration keys are often called properties.
-
-=== Configuring Fluent Bit
-
-Fluent Bit might optionally use a configuration file to define how the service will behave.
-
-A simple example of a configuration file is as follows:
-
-[source,text]
 ----
 [SERVICE]
     # This is a commented line
@@ -418,227 +268,105 @@ A simple example of a configuration file is as follows:
     log_level debug
 ----
 
-The configuration schema is defined by three concepts:
+The schema is defined by three concepts:
 
-* *Sections*
+* Sections
 +
-A *section* is defined by a name or title inside brackets. Looking at the example above, a Service section has been set using `[SERVICE]` definition. Section rules:
+A _section_ is defined by a name or title inside brackets, e.g.,`[SERVICE]`.
 +
 ** All section content must be indented (4 spaces ideally).
 ** Multiple sections can exist on the same file.
 ** A section is expected to have comments and entries, it cannot be empty.
 ** Any commented line under a section, must be indented too.
+** End-of-line comments are not supported, only full-line comments.
 
-* *Entries*: Key/Value
+* Entries: Key/Value
 +
-A section may contain *Entries*, an entry is defined by a line of text that contains a *Key* and a *Value*, using the above example, the `[SERVICE]` section contains two entries, one is the key `Daemon` with value `off` and the other is the key `Log_Level` with the value `debug`. Entries rules:
+A section may contain _Entries_, an entry is defined by a line of text that contains a `Key` and a `Value`.
 +
 ** An entry is defined by a key and a value.
 ** A key must be indented.
 ** A key must contain a value which ends in the breakline.
 ** Multiple keys with the same name can exist.
 +
-Also commented lines are set prefixing the # character, those lines are not processed but they must be indented too.
+Also commented lines are set prefixing the `#` character, those lines are not processed but they must be indented too.
 
-* *Indented* Configuration Mode
+* Indented Configuration Mode
 +
-Fluent Bit configuration files are based in a strict *Indented Mode*, that means that each configuration file must follow the same pattern of alignment from left to right when writing text. By default an indentation level of four spaces from left to right is suggested.
+Fluent Bit configuration files are based in a strict _Indented Mode_, that means that each configuration file must follow the same pattern of alignment from left to right when writing text.
 
-One of the ways to configure Fluent Bit is using a main configuration file. The main configuration file supports four types of sections: *Service*, *Input*, *Filter*, *Output*. In addition, it's also possible to split the main configuration file in multiple files using the feature to include external files: Include File.
+:classic-mode-configuration-file: https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/configuration-file
 
-The following configuration file example demonstrates how to collect CPU metrics and flush the results every five seconds to the standard output:
+The following example demonstrates how to use a main {classic-mode-configuration-file}[configuration file] to generate and output dummy events:
 
-[source,text]
+[source,conf]
 ----
-[SERVICE]
-    flush     5
+# fluent-bit.conf
+[SERVICES]
+    flush     1
     daemon    off
-    log_level debug
 
 [INPUT]
-    name  cpu
-    tag   my_cpu
+    name        dummy
+    tag         dumy.data
+    samples     3
+    dummy       {"data":"100 0.5 true This is example"}
 
 [OUTPUT]
-    name  stdout
-    match my*cpu
+    name    stdout
+    match   *
 ----
 
-To avoid complicated long configuration files is better to split specific parts in different files and call them (include) from one main file.
+```sh
+docker run --rm \
+  -v $PWD/fluent-bit.conf:/etc/fluent-bit/fluent-bit.conf fluent/fluent-bit:2.2 \
+  -q \
+  -c /etc/fluent-bit/fluent-bit.conf
+```
 
-Starting from Fluent Bit 0.12 the new configuration command @INCLUDE has been added and can be used in the following way:
+```console
+[0] dumy.data: [[1709531349.562834986, {}], {"data"=>"100 0.5 true This is example"}]
+[0] dumy.data: [[1709531350.561133286, {}], {"data"=>"100 0.5 true This is example"}]
+[0] dumy.data: [[1709531351.561125139, {}], {"data"=>"100 0.5 true This is example"}]
+```
 
-[source,text]
-----
-@INCLUDE somefile.conf
-----
+=== Multiline Parsing
 
-The configuration reader will try to open the path somefile.conf, if not found, it will assume it's a relative path based on the path of the base configuration file.
+In an ideal world, applications might log their messages within a single line, but in reality applications generate multiple log messages that sometimes belong to the same context, like  stack traces. <<fluentbit-io-multiline-parsing>>
 
-The *@INCLUDE* command only works at top-left level of the configuration line, it cannot be used inside sections.
+The Multiline parser engine exposes two ways to configure and use the functionality:
 
-Wildcard character (`*`) is supported to include multiple files, e.g:
+* Without any extra configuration, Fluent Bit exposes certain pre-configured parsers (built-in) to solve specific multiline parser cases, e.g: `docker`, `cri`.
 
-[source,text]
-----
-@INCLUDE input_*.conf
-----
+* A  multiline parser is defined in a parsers configuration file by using a `[MULTILINE_PARSER]` section definition.
 
-Fluent Bit supports the usage of *environment variables* in any value associated to a key when using a configuration file.
+TIP: It is not possible to get the time key from the body of the multiline message. However, it can be extracted and set as a new key by using a filter.
 
-The variables are case sensitive and can be used in the following format:
-
-[source,text]
-----
-${MY_VARIABLE}
-----
-
-When Fluent Bit starts, the configuration reader will detect any request for `${MY_VARIABLE}` and will try to resolve its value.
+TIP: If you wish to concatenate messages read from a log file, it is highly recommended to use the multiline support in the https://docs.fluentbit.io/manual/pipeline/inputs/tail#multiline-support[Tail plugin] itself. <<fluentbit-io-filters-multiline-stacktrace>>
 
 === Parsers
 
 :parsers-json: https://docs.fluentbit.io/manual/pipeline/parsers/json
 :parsers-regular-expression: https://docs.fluentbit.io/manual/pipeline/parsers/regular-expression
 
-Parsers are an important component of Fluent Bit, with them you can take any unstructured log entry and give them a structure that makes easier it processing and further filtering.
+Parsers can be used to take any unstructured log entry and give them a structure that makes easier it processing and further filtering. <<fluentbit-io-parsers>>
 
 The parser engine is fully configurable and can process log entries based in two types of format:
 
 * {parsers-json}[JSON Maps]
 * {parsers-regular-expression}[Regular Expressions] (named capture)
 
-By default, Fluent Bit provides a set of pre-configured parsers that can be used for different use cases such as logs from:
+All parsers must be defined in a `parsers.conf` file, not in the Fluent Bit global configuration file. The parsers file expose all parsers available that can be used by the Input plugins that are aware of this feature.
 
-* Apache
-* Nginx
-* Docker
-* Syslog rfc5424
-* Syslog rfc3164
-
-Parsers are defined in one or multiple configuration files that are loaded at start time, either from the command line or through the main Fluent Bit configuration file.
-
-Note: If you are using Regular Expressions note that Fluent Bit uses Ruby based regular expressions and we encourage to use http://www.rubular.com/[*Rubular*] web site as an online editor to test them.
-
-Multiple parsers can be defined and each section has it own *properties*. The following table describes the available options for each parser definition:
-
-[%header,cols="1,5"]
-|===
-|Key
-|Description
-
-|Name
-|Set an unique name for the parser in question.
-
-|Format
-|Specify the format of the parser, the available options here are: `json`, `regex`, `ltsv` or `logfmt`.
-
-|Regex
-|If format is `regex`, this option must be set specifying the Ruby Regular Expression that will be used to parse and compose the structured message.
-
-|Time_Key
-|If the log entry provides a field with a timestamp, this option specify the name of that field.
-
-|Time_Format
-|Specify the format of the time field so it can be recognized and analyzed properly. Fluent-bit uses `strptime(3)`  to parse time so you can ferer to https://linux.die.net/man/3/strptime[strptime documentation] for available modifiers.
-
-|Time_Offset
-|Specify a fixed UTC time offset (e.g. -0600, +0200, etc.) for local dates.
-
-|Types
-|Specify the data type of parsed field. The syntax is types `<field_name_1>:<type_name_1> <field_name_2>:<type_name_2> ...`. The supported types are `string`(default), `integer`, `bool`, `float`, `hex`. The option is supported by `ltsv`, `logfmt` and `regex`.
-
-|Decode_Field
-|Decode a field value, the only decoder available is `json`. The syntax is: `Decode_Field json <field_name>`.
-
-|===
-
-All parsers must be defined in a *parsers.conf* file, not in the Fluent Bit global configuration file. The parsers file expose all parsers available that can be used by the Input plugins that are aware of this feature.
-
-* *JSON* Parser
-+
-The {parsers-json}[*JSON*] parser is the simplest option: if the original log source is a JSON map string, it will take it structure and convert it directly to the internal binary representation.
-+
-A simple configuration that can be found in the default parsers configuration file, is the entry to parse Docker log files (when the tail input plugin is used):
-+
-[source,text]
-----
-[PARSER]
-    name        docker
-    format      json
-    time_key    time
-    time_format %Y-%m-%dT%H:%M:%S %z
-----
-+
-The following log entry is a valid content for the parser defined above:
-+
-[source,json]
-----
-{"key1": 12345, "key2": "abc", "time": "2006-07-28T13:22:04Z"}
-----
-+
-After processing, it internal representation will be:
-+
-[source,text]
-----
-[1154103724, {"key1"=>12345, "key2"=>"abc"}]
-----
-+
-The time has been converted to Unix timestamp (UTC) and the map reduced to each component of the original message.
-
-* *Regex* Parser
-+
-The {parsers-regular-expression}[*regex*] parser allows to define a custom Ruby Regular Expression that will use a named capture feature to define which content belongs to which key name.
-+
-The following parser configuration example aims to provide rules that can be applied to a Nginx https://nginx.org/en/docs/http/ngx_http_log_module.html[combined] access log entry:
-+
-[source,text]
-----
-[PARSER]
-    name   nginx
-    format regex
-    # log_format combined '$remote_addr - $remote_user [$time_local] ' '"$request" $status $body_bytes_sent ''"$http_referer" "$http_user_agent"';
-    regex ^(?<remote_addr>[^ ]+) - (?<remote_user>[^ ]+) \[(?<time>[^\]]+)\] "(?<method>\w+) (?<path>[^ ]+) (?<proto>[^"]+)" (?<status>\d+) (?<body_byte_sent>\d+) "(?<referer>[^"]+)" "(?<user_agent>[^"]+)"$
-    time_key time
-    time_format %d/%b/%Y:%H:%M:%S %z
-    types status:integer body_byte_sent:integer
-----
-+
-As an example, takes the following Nginx access log entry:
-+
-[source,text]
-----
-192.168.91.1 - - [12/Jan/2022:08:24:28 +0000] "GET / HTTP/1.1" 200 615 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
-----
-+
-The above content do not provide a defined structure for Fluent Bit, but enabling the proper parser we can help to make a structured representation of it:
-+
-[source,text]
-----
-[
-  1641975868.000000000,
-  {
-    "remote_addr"=>"192.168.91.1",
-    "remote_user"=>"-",
-    "method"=>"GET",
-    "path"=>"/",
-    "proto"=>"HTTP/1.1",
-    "status"=>200,
-    "body_byte_sent"=>615,
-    "referer"=>"-",
-    "user_agent"=>"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
-  }
-]
-----
-+
-A common pitfall is that you cannot use characters other than alphabets, numbers and underscore in group names. For example, a group name like `(?<user-name>.*)` will cause an error due to containing an invalid character (`-`).
+For more information about the parsers available, please refer to the default parsers file distributed with Fluent Bit source code: https://github.com/fluent/fluent-bit/blob/v2.2.2/conf/parsers.conf.
 
 ===  Parser Filter
 
+Filtering is implemented through plugins, used to match, exclude or enrich logs with some specific metadata. <<fluentbit-io-data-pipeline-filter>>
+
 :filters-parser: https://docs.fluentbit.io/manual/pipeline/filters/parser
 
-The {filters-parser}[*Parser Filter*] plugin allows for parsing fields in event records.
-
-The plugin supports the following configuration parameters:
+The {filters-parser}[Parser Filter] plugin allows for parsing fields in event records, which supports the following configuration parameters:
 
 [%header,cols="1,9,1"]
 |===
@@ -646,46 +374,42 @@ The plugin supports the following configuration parameters:
 |Description
 |Default
 
-|Key_Name
+|`Key_Name`
 |Specify field name in record to parse.
 |
 
-|Parser
+|`Parser`
 |Specify the parser name to interpret the field. Multiple Parser entries are allowed (one per line).
 |
 
-|Preserve_Key
+|`Preserve_Key`
 |Keep original `Key_Name` field in the parsed result. If false, the field will be removed.
-|False
+|`False`
 
-|Reserve_Data
+|`Reserve_Data`
 |Keep all other original fields in the parsed result. If false, all other original fields will be removed.
-|False
+|`False`
 
-|Unescape_Key
+|`Unescape_Key`
 |If the key is an escaped string (e.g: stringify JSON), unescape the string before applying the parser.
-|False
+|`False`
 
 |===
 
-This is an example of parsing a record `{"data":"100 0.5 true This is example"}`.
+The following is an example of parsing a record `{"data":"100 0.5 true This is example"}`.
 
-The plugin needs a parser file which defines how to parse each field.
-
-.etc/parsers.conf
-[source,text]
+[source,conf]
 ----
+# parsers.conf
 [PARSER]
     name dummy_test
     format regex
     regex ^(?<INT>[^ ]+) (?<FLOAT>[^ ]+) (?<BOOL>[^ ]+) (?<STRING>.+)$
 ----
 
-The path of the parser file should be written in configuration file under the `[SERVICE]` section.
-
-.etc/fluent-bit.conf
-[source,text]
+[source,conf]
 ----
+# fluent-bit-with-parsers.conf
 [SERVICE]
     parsers_file parsers.conf
 
@@ -706,253 +430,186 @@ The path of the parser file should be written in configuration file under the `[
     match *
 ----
 
-The raw output *before* parser filtering is:
-
-[source,console]
-----
-docker run --rm  \
-    fluent/fluent-bit:1.8 \
-    /fluent-bit/bin/fluent-bit -q \
-    -i dummy \
-    -p 'tag=dummy.data' \
-    -p 'samples=3' \
-    -p 'dummy={"data":"100 0.5 true This is example"}' \
-    -o stdout
-
-[0] dummy.data: [1641963560.833349997, {"data"=>"100 0.5 true This is example"}]
-[1] dummy.data: [1641963561.834293264, {"data"=>"100 0.5 true This is example"}]
-[2] dummy.data: [1641963562.834409396, {"data"=>"100 0.5 true This is example"}]
-----
-
-
 The output after parser filtering is:
 
-[source,console,highlight="2,5"]
+[source,sh]
 ----
-$ docker run --rm \
-    -v $PWD/etc:/etc/fluent-bit \
-    fluent/fluent-bit:1.8 \
-    /fluent-bit/bin/fluent-bit -q \
-    -c /etc/fluent-bit/fluent-bit.conf
-
-[0] dummy.data: [1641970270.834847487, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
-[1] dummy.data: [1641970271.833919275, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
-[2] dummy.data: [1641970272.834001854, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
+#!/bin/sh
+docker run --rm \
+  -v $PWD/fluent-bit-with-parsers.conf:/etc/fluent-bit/fluent-bit.conf \
+  -v $PWD/parsers.conf:/etc/fluent-bit/parsers.conf \
+  fluent/fluent-bit:2.2 \
+  -q \
+  -c /etc/fluent-bit/fluent-bit.conf
 ----
-
-By default, the parser plugin only keeps the parsed fields in its output.
-
-If you enable `Reserve_Data`, all other fields are preserved:
-
-.etc2/parsers.conf
-[source,text]
-----
-[PARSER]
-    name dummy_test
-    format regex
-    regex ^(?<INT>[^ ]+) (?<FLOAT>[^ ]+) (?<BOOL>[^ ]+) (?<STRING>.+)$
-----
-
-.etc2/fluent-bit.conf
-[source,text,highlight='15']
-----
-[SERVICE]
-    parsers_file parsers.conf
-
-[INPUT]
-    name dummy
-    tag  dummy.data
-    dummy {"data":"100 0.5 true This is example", "key1":"value1", "key2":"value2"}
-    samples 3
-
-[FILTER]
-    name parser
-    match dummy.*
-    key_name data
-    parser dummy_test
-    reserve_data on
-
-[OUTPUT]
-    name stdout
-    match *
-----
-
-This will produce the output:
-
-[source,console,highlight="2"]
-----
-$ docker run --rm \
-    -v $PWD/etc2:/etc/fluent-bit \
-    fluent/fluent-bit:1.8 \
-    /fluent-bit/bin/fluent-bit -q \
-    -c /etc/fluent-bit/fluent-bit.conf
-
-[0] dummy.data: [1641971163.834882081, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "key1"=>"value1", "key2"=>"value2"}]
-[1] dummy.data: [1641971164.834110226, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "key1"=>"value1", "key2"=>"value2"}]
-[2] dummy.data: [1641971165.833051479, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "key1"=>"value1", "key2"=>"value2"}]
-----
-
-If you enable `Reserved_Data` and `Preserve_Key`, the original key field will be preserved as well:
-
-.etc3/parsers.conf
-[source,text]
-----
-[PARSER]
-    name dummy_test
-    format regex
-    regex ^(?<INT>[^ ]+) (?<FLOAT>[^ ]+) (?<BOOL>[^ ]+) (?<STRING>.+)$
-----
-
-.etc3/fluent-bit.conf
-[source,text,highlight='15-16']
-----
-[SERVICE]
-    parsers_file parsers.conf
-
-[INPUT]
-    name dummy
-    tag  dummy.data
-    dummy {"data":"100 0.5 true This is example", "key1":"value1", "key2":"value2"}
-    samples 3
-
-[FILTER]
-    name parser
-    match dummy.*
-    key_name data
-    parser dummy_test
-    reserve_data on
-    preserve_key on
-
-[OUTPUT]
-    name stdout
-    match *
-----
-
-This will produce the output:
-
-[source,console,highlight="2"]
-----
-$ docker run --rm \
-    -v $PWD/etc3:/etc/fluent-bit \
-    fluent/fluent-bit:1.8 \
-    /fluent-bit/bin/fluent-bit -q  \
-    -c /etc/fluent-bit/fluent-bit.conf
-
-[0] dummy.data: [1641971438.833271871, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "data"=>"100 0.5 true This is example", "key1"=>"value1", "key2"=>"value2"}]
-[1] dummy.data: [1641971439.834690742, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "data"=>"100 0.5 true This is example", "key1"=>"value1", "key2"=>"value2"}]
-[2] dummy.data: [1641971440.834035007, {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example", "data"=>"100 0.5 true This is example", "key1"=>"value1", "key2"=>"value2"}]
-----
-
-=== Docker
-
-Fluent Bit container images are available on Docker Hub ready for production usage. Current available images can be deployed in multiple architectures.
-
-The following (useless) test which makes Fluent Bit measure CPU usage by the container:
 
 [source,console]
 ----
-$ docker run -ti fluent/fluent-bit:1.8 /fluent-bit/bin/fluent-bit -i cpu -o stdout -f 1
+[0] dummy.data: [[1709535476.570488151, {}], {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
+[0] dummy.data: [[1709535477.573640185, {}], {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
+[0] dummy.data: [[1709535478.575603024, {}], {"INT"=>"100", "FLOAT"=>"0.5", "BOOL"=>"true", "STRING"=>"This is example"}]
 ----
 
-That command will let Fluent Bit measure CPU usage every second and flush the results to the standard output:
+=== Kubernetes Filter
 
-[source,console]
-----
-Fluent Bit v1.8.11
-* Copyright (C) 2019-2021 The Fluent Bit Authors
-* Copyright (C) 2015-2018 Treasure Data
-* Fluent Bit is a CNCF sub-project under the umbrella of Fluentd
-* https://fluentbit.io
+When Fluent Bit is deployed in Kubernetes as a DaemonSet and configured to read the log files from the containers (using tail or systemd input plugins), this filter aims to perform the following operations: <<fluentbit-io-filters-kubernetes>>
 
-[2022/01/07 05:02:04] [ info] [engine] started (pid=1)
-[2022/01/07 05:02:04] [ info] [storage] version=1.1.5, initializing...
-[2022/01/07 05:02:04] [ info] [storage] in-memory
-[2022/01/07 05:02:04] [ info] [storage] normal synchronization mode, checksum disabled, max_chunks_up=128
-[2022/01/07 05:02:04] [ info] [cmetrics] version=0.2.2
-[2022/01/07 05:02:04] [ info] [sp] stream processor started
-[0] cpu.0: [1641531724.834023688, {"cpu_p"=>1.750000, "user_p"=>0.500000, "system_p"=>1.250000, "cpu0.p_cpu"=>2.000000, "cpu0.p_user"=>1.000000, "cpu0.p_system"=>1.000000, "cpu1.p_cpu"=>1.000000, "cpu1.p_user"=>0.000000, "cpu1.p_system"=>1.000000, "cpu2.p_cpu"=>0.000000, "cpu2.p_user"=>0.000000, "cpu2.p_system"=>0.000000, "cpu3.p_cpu"=>4.000000, "cpu3.p_user"=>1.000000, "cpu3.p_system"=>3.000000}]
-----
+* Analyze the Tag and extract the metdata: Pod Name, Namespace, Container Name, Container ID.
 
-=== Kubernetes
+* Query Kubernetes API Server to obtain extra metadata for the PID in question: Pod ID, Labels, Annotations.
 
-:filters-kubernetes: https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
-:inputs-tail: https://docs.fluentbit.io/manual/pipeline/inputs/tail
-:inputs-systemd: https://docs.fluentbit.io/manual/pipeline/inputs/systemd
-:multiline-parsing: https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/multiline-parsing
+A flexible feature of Fluent Bit Kubernetes filter is that allow Kubernetes Pods to suggest certain behaviors for the log processor pipeline when processing the records. At the moment it support:
 
-Fluent Bit is a lightweight and extensible *Log Processor* that comes with full support for Kubernetes:
+* `fluentbit.io/parser[_stream][-container]`
++
+Suggest a pre-defined parser. The parser must be registered already by Fluent Bit. This option will only be processed if Fluent Bit configuration (Kubernetes Filter) have enabled the option K8S-Logging.Parser. If present, the stream (stdout or stderr) will restrict that specific stream. If present, the container can override a specific container in a Pod.
+
+
+* `fluentbit.io/exclude[_stream][-container]`
++
+Request to Fluent Bit to exclude or not the logs generated by the Pod. This option will only be processed if Fluent Bit configuration (Kubernetes Filter) have enabled the option `K8S-Logging.Exclude`. Default is False.
+
+== Kubernetes
+
+Fluent Bit is a lightweight and extensible Log Processor that comes with full support for Kubernetes: <<fluentbit-io-kubernetes>>
 
 * Process Kubernetes containers logs from the file system or Systemd/Journald.
 * Enrich logs with Kubernetes Metadata.
 * Centralize your logs in third party storage services like Elasticsearch, InfluxDB, HTTP, etc.
 
-Kubernetes manages a cluster of nodes, so our log agent tool will need to run on every node to collect logs from every POD, hence Fluent Bit is deployed as a DaemonSet (a POD that runs on every node of the cluster).
+:inputs-tail: https://docs.fluentbit.io/manual/pipeline/inputs/tail
+:inputs-systemd: https://docs.fluentbit.io/manual/pipeline/inputs/systemd
 
-When Fluent Bit runs, it will read, parse and filter the logs of every POD and will enrich each entry with the following information (metadata):
+Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Systemd] input plugins to process and enrich records with Kubernetes metadata. <<fluentbit-io-filters-kubernetes>>
 
-* Pod Name
-* Pod ID
-* Container Name
-* Container ID
-* Labels
-* Annotations
-
-To obtain this information, a built-in filter plugin called {filters-kubernetes}[*kubernetes*] talks to the Kubernetes API Server to retrieve relevant information such as the pod_id, labels and annotations, other fields such as pod_name, container_id and container_name are retrieved locally from the log file names. All of this is handled automatically, no intervention is required from a configuration aspect.
-
-Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Systemd] input plugins to process and enrich records with Kubernetes metadata. Here we will explain the workflow of Tail and how it configuration is correlated with Kubernetes filter. Consider the following configuration example (just for demo purposes, not production):
-
-[source,text]
-----
-[INPUT]
-    name    tail
-    tag     kube.*
-    path    /var/log/containers/*.log
-    parser  docker
-
-[FILTER]
-    name             kubernetes
-    match            kube.*
-    kube_url         https://kubernetes.default.svc:443
-    kube_ca_file     /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    kube_token_file  /var/run/secrets/kubernetes.io/serviceaccount/token
-    kube_tag_prefix  kube.var.log.containers.
-    merge_log        on
-    merge_log_key    log_processed
-----
-
-* Systemd
-+
-The {inputs-systemd}[*systemd*] input plugin allows to collect log messages from the *Journald* daemon on Linux environments.
-+
-[source,text]
-----
-[INPUT]
-    name            systemd
-    tag             host.*
-    systemd_filter  _SYSTEMD_UNIT=docker.service
-----
-+
-TIP: SYSTEMD-JOURNALD.SERVICE(8) JOURNALD.CONF(5)
-
-
-* Tail
-+
-The {inputs-tail}[*tail*] input plugin allows to monitor one or several text files. It has a similar behavior like `tail -f` shell command.
-+
-The plugin reads every matched file in the *Path* pattern and for every new line found, it generates a new record. Optionally a database file can be used so the plugin can have a history of tracked files and a state of offsets, this is very useful to resume a state if the service is restarted.
-+
-If you are running Fluent Bit to process logs coming from containers like Docker or CRI, you can use the new {multiline-parsing}[built-in modes] for such purposes. This will help to reassembly *multiline messages* originally split by Docker or CRI:
-+
-[source,text]
+[source,conf]
 ----
 [INPUT]
     name              tail
+    tag               kube.*
     path              /var/log/containers/*.log
-    # exclude_path      /var/log/containers/*_logging_*.log,/var/log/containers/*_default*.log
-    multiline.parser  docker, cri
+    #exclude_path      /var/log/containers/*_logging_*.log,/var/log/containers/*_default*.log
+    multiline.parser  docker,cri
+    db                /var/log/flb_kube.db
+    mem_buf_limit     10MB
+    skip_long_lines   on
+    refresh_interval  10
+
+[INPUT]
+    name              systemd
+    tag               host.*
+    db                /var/log/flb_host.db
+    systemd_filter    _SYSTEMD_UNIT=docker.service
+    systemd_filter    _SYSTEMD_UNIT=containerd.service
+    systemd_filter    _SYSTEMD_UNIT=kubelet.service
+    strip_underscores on
+
+[FILTER]
+    name                kubernetes
+    match               kube.*
+    kube_url            https://kubernetes.default.svc:443
+    kube_ca_file        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kube_token_file     /var/run/secrets/kubernetes.io/serviceaccount/token
+    kube_tag_prefix     kube.var.log.containers.
+    annotations         off
+    merge_log           on
+    #merge_log_key      merge_log
+    k8s-logging.parser  off
+    k8s-logging.exclude off
 ----
-+
-The two options separated by a comma means multi-format: try `docker` and `cri` multiline formats.
+
+Role Configuration for Fluent Bit DaemonSet Example:
+
+```yml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluentbitds
+  namespace: fluentbit-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluentbit
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - pods
+      - nodes
+      - nodes/proxy
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluentbit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluentbit
+subjects:
+  - kind: ServiceAccount
+    name: fluentbitds
+    namespace: fluentbit-system
+```
+
+DaemonSet config Example:
+
+```yml
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentbit
+  namespace: fluentbit-system
+  labels:
+    app.kubernetes.io/name: fluentbit
+spec:
+  selector:
+    matchLabels:
+      name: fluentbit
+  template:
+    metadata:
+      labels:
+        name: fluentbit
+    spec:
+      serviceAccountName: fluentbitds
+      containers:
+        - name: fluent-bit
+          imagePullPolicy: Always
+          image: fluent/fluent-bit:latest
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: fluentbit-config
+              mountPath: /fluent-bit/etc/
+          resources:
+            limits:
+              memory: 1500Mi
+            requests:
+              cpu: 500m
+              memory: 500Mi
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: fluentbit-config
+          configMap:
+            name: fluentbit-config
+```
 
 [bibliography]
 == References
@@ -960,9 +617,12 @@ The two options separated by a comma means multi-format: try `docker` and `cri` 
 * [[[kube-logging,1]]] https://kubernetes.io/docs/concepts/cluster-administration/logging/
 * [[[kube-kubelet-cri-logging,2]]] https://github.com/kubernetes/design-proposals-archive/blob/main/node/kubelet-cri-logging.md
 * [[[fluentbit-io,3]]] https://docs.fluentbit.io/
-* https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/configuration-file
-* https://docs.fluentbit.io/manual/installation/kubernetes
+* [[[fluentbit-io-stream-processing,4]]] https://docs.fluentbit.io/manual/stream-processing/overview
+* [[[fluentbit-io-classic-mode-format-schema,5]]] https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/format-schema
+* [[[fluentbit-io-multiline-parsing,6]]] https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/multiline-parsing
+* [[[fluentbit-io-filters-multiline-stacktrace,7]]] https://docs.fluentbit.io/manual/pipeline/filters/multiline-stacktrace
+* [[[fluentbit-io-parsers,8]]] https://docs.fluentbit.io/manual/pipeline/parsers/configuring-parser
+* [[[fluentbit-io-data-pipeline-filter,9]]] https://docs.fluentbit.io/manual/concepts/data-pipeline/filter
+* [[[fluentbit-io-filters-kubernetes,10]]] https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
+* [[[fluentbit-io-kubernetes,11]]] https://docs.fluentbit.io/manual/installation/kubernetes
 * https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
-* https://docs.fluentbit.io/manual/pipeline/inputs/tail
-* https://docs.fluentbit.io/manual/pipeline/inputs/systemd
-* https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
