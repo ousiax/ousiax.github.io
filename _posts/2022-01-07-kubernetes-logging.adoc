@@ -482,6 +482,8 @@ Fluent Bit is a lightweight and extensible Log Processor that comes with full su
 
 Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Systemd] input plugins to process and enrich records with Kubernetes metadata. <<fluentbit-io-filters-kubernetes>>
 
+TIP: Fluent Bit Kubernetes filter has an optional feature flag `Use_Kubelet` to send the request to kubelet /pods endpoint instead of kube-apiserver to retrieve the pods information and use it to enrich the log. 
+
 [source,conf]
 ----
 [INPUT]
@@ -489,9 +491,9 @@ Kubernetes Filter depends on either {inputs-tail}[Tail] and {inputs-systemd}[Sys
     tag               kube.*
     path              /var/log/containers/*.log
     #exclude_path      /var/log/containers/*_logging_*.log,/var/log/containers/*_default*.log
-    multiline.parser  docker,cri
+    multiline.parser  cri,docker
     db                /var/log/flb_kube.db
-    mem_buf_limit     10MB
+    mem_buf_limit     5MB
     skip_long_lines   on
     refresh_interval  10
 
@@ -537,6 +539,8 @@ rules:
     resources:
       - namespaces
       - pods
+      # The difference is that kubelet need a special permission
+      # for resource `nodes/proxy` to get HTTP request in.
       - nodes
       - nodes/proxy
     verbs:
@@ -597,6 +601,9 @@ spec:
             requests:
               cpu: 500m
               memory: 500Mi
+      # The key point is to set `hostNetwork` to `true` and
+      # `dnsPolicy` to `ClusterFirstWithHostNet` that fluent
+      # bit DaemonSet could call Kubelet locally.
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       volumes:
@@ -610,6 +617,8 @@ spec:
           configMap:
             name: fluentbit-config
 ```
+
+TIP: There is also a logging solution based on EFK (Elastic Search, Fluent Bit, Kibana) for Kubernetes on https://github.com/ousiax/kube-addons/tree/main/logging[GitHub].
 
 [bibliography]
 == References
@@ -625,4 +634,3 @@ spec:
 * [[[fluentbit-io-data-pipeline-filter,9]]] https://docs.fluentbit.io/manual/concepts/data-pipeline/filter
 * [[[fluentbit-io-filters-kubernetes,10]]] https://docs.fluentbit.io/manual/pipeline/filters/kubernetes
 * [[[fluentbit-io-kubernetes,11]]] https://docs.fluentbit.io/manual/installation/kubernetes
-* https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
