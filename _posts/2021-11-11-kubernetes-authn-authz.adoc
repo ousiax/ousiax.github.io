@@ -942,23 +942,18 @@ kubectl get csr developers \
 
 *  Create a kubeconfig file:
 +
-Below is a _bash_ script to generate the kubeconfig named `developer.config` in the current directory.
+Below is a script to generate the kubeconfig named `developer.config` in the current directory.
 +
-[source,bash]
+[source,sh]
 ----
-#!/bin/bash
-set -e
-
-certificate_authority=$(kubectl config view \
-    --raw \
-    -ojsonpath='{.clusters[].cluster.certificate-authority-data}' \
-    | base64 -d)
+# replace the CA file with your cluster
+certificate_authority=/etc/kubernetes/pki/ca.crt
 
 kubectl config set-cluster \
     kubernetes \
     --kubeconfig developer.config \
     --server $(kubectl config view --minify | grep server | awk '{print $NF}') \
-    --certificate-authority <(printf '%s' $certificate_authority) \
+    --certificate-authority $certificate_authority \
     --embed-certs
 
 kubectl config set-credentials \
@@ -979,83 +974,27 @@ kubectl config set-context \
 
 * Create Role and RoleBinding:
 +
-[source,console]
-----
-$ kubectl get ns --kubeconfig developer.config 
-Error from server (Forbidden): namespaces is forbidden: User "developer" cannot list resource "namespaces" in API group "" at the cluster scope
-
-$ kubectl create clusterrole developer:namespace:view \
+```sh
+# create a cluster role named developer:namespace:view
+# and assign the `get` and `list` permissions on `namespace` resources.
+kubectl create clusterrole developer:namespace:view \
     --resource namespace \
     --verb get \
     --verb list
-clusterrole.rbac.authorization.k8s.io/developer:namespace:view created
 
-$ kubectl create clusterrolebinding developer:namespace:view \
+kubectl create clusterrolebinding developer:namespace:view \
     --clusterrole=developer:namespace:view \
     --user developer
-clusterrolebinding.rbac.authorization.k8s.io/developer:namespace:view created
-
+```
++
+[source,console]
+----
 $ kubectl get ns --kubeconfig developer.config 
 NAME              STATUS   AGE
 default           Active   152d
 kube-node-lease   Active   152d
 kube-public       Active   152d
 kube-system       Active   152d
-----
-
-==== Create kubeconfig file based Service Account Token
-
-.conf.sh 
-[source,bash]
-----
-#!/bin/bash
-set -e
-
-secretname=$(kubectl get sa -n dev developer -ojsonpath="{.secrets[*].name}")
-
-kubectl config set-cluster \
-    kubernetes \
-    --kubeconfig developer.config \
-    --server $(kubectl config view --minify | grep server | awk '{print $NF}') \
-    --certificate-authority <(kubectl get secrets -n dev $secretname -ojsonpath="{.data.ca\.crt}" | base64 -d) \
-    --embed-certs
-
-kubectl config set-credentials \
-    developer \
-    --kubeconfig developer.config \
-    --token $(kubectl get secrets -n dev $secretname -ojsonpath="{.data.token}" | base64 -d)
-
-kubectl config set-context \
-    developer@kubernetes \
-    --kubeconfig developer.config \
-    --cluster kubernetes \
-    --user developer \
-    --namespace default
-
-kubectl config use-context developer@kubernetes --kubeconfig developer.config
-----
-[source,console]
-----
-$ kubectl create ns dev
-namespace/dev created
-
-$ kubectl create sa -n dev developer
-serviceaccount/developer created
-
-$ bash conf.sh 
-Cluster "kubernetes" set.
-User "developer" set.
-Context "developer@kubernetes" modified.
-Switched to context "developer@kubernetes".
-
-$ kubectl get po -n dev --kubeconfig developer.config 
-Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:dev:developer" cannot list resource "pods" in API group "" in the namespace "dev"
-
-$ kubectl create rolebinding dev:developer:view --clusterrole view --namespace dev --serviceaccount dev:developer
-rolebinding.rbac.authorization.k8s.io/dev:developer:view created
-
-$ kubectl get po -n dev --kubeconfig developer.config 
-No resources found in dev namespace.
 ----
 
 [bibliography]
@@ -1065,4 +1004,4 @@ No resources found in dev namespace.
 * [[[k8s-io-authn,2]]] https://kubernetes.io/docs/reference/access-authn-authz/authentication/
 * [[[k8s-io-authz,3]]] https://kubernetes.io/docs/reference/access-authn-authz/authorization/
 * [[[k8s-io-auth-csr,4]]] https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
-* https://www.cncf.io/blog/2018/08/01/demystifying-rbac-in-kubernetes/
+* [[[cncf-io-rbac,5]]] https://www.cncf.io/blog/2018/08/01/demystifying-rbac-in-kubernetes/
