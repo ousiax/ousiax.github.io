@@ -880,6 +880,107 @@ pipeline {
 }
 ```
 
+=== Deploying on Kubernetes
+
+. Install https://plugins.jenkins.io/kubernetes-cli[Kubernetes CLI] plugin. 
++
+--
+. Using the GUI: From the Jenkins dashboard navigate to *Manage Jenkins* > *Plugins* and select the *Available* tab. Locate this plugin by searching for `kubernetes-cli`.
+
+. Using the CLI tool:
++
+```sh
+jenkins-plugin-cli --plugins kubernetes-cli:1.12.1
+```
+--
+
+. Configure Credentials
++
+The following types of credentials are supported and can be used to authenticate against Kubernetes clusters:
++
+--
+:plain-credentials: https://plugins.jenkins.io/plain-credentials/
+:credentials: https://plugins.jenkins.io/credentials/
+:kubernetes-credentials: https://plugins.jenkins.io/kubernetes-credentials/
+
+* Token, as secrets (_Kind: Secret text_)(see {plain-credentials}[Plain Credentials plugin])
+* Plain KubeConfig files (_Kind: Secret file_) (see {plain-credentials}[Plain Credentials plugin])
+* Username and Password (see {credentials}[Credentials plugin])
+* Certificates (see {credentials}[Credentials plugin])
+* OpenShift OAuth tokens, as secrets (see {kubernetes-credentials}[Kubernetes Credentials plugin])
+--
++
+If the Jenkins Agent is running within a Pod (e.g. by using the https://plugins.jenkins.io/kubernetes/[Kubernetes plugin]), you can fallback to the Pod's ServiceAccount by not setting any credentials.
++
+Now, let's create a KubeConfig credential using the `Secret file`. On the Jenkins dashboard, go to *Manage Jenkins* > *Credentials*, move mouse over the *(global)* and select the *Add credentials*. Fill the fields as below:
++
+--
+* Kind: _Secret file_.
+* Scope: _Global (Jenkins, nodes, items, all child items, etc)_
+* File: Upload your cluster kubeconfig file.
+* ID: _kubernetes-admin_.
+* Description: (optional)
+--
+
+. Create a testing *Freestyle project* job:
++
+--
+* Scroll down to the *Build Environment* section.
++
+. Select *Configure Kubernetes CLI (kubectl) with multiple credentials*.
++
+. In the *Credential* dropdown, select the credentials (e.g., `kubernetes-admin`) to authenticate on the cluster or the kubeconfig stored in Jenkins.
+--
++
+* On the *Build Steps", using *Execute shell* with `kubectl cluster-info` command.
++
+* Click "Save", and select the option *Build Now* then go to *Console Output* page.
+
+. Wait a seconds and then go to *Console Output* page.
++
+```console
+Started by user admin
+Running as SYSTEM
+Building remotely on agent-dind-2 in workspace /home/jenkins/agent/workspace/First Job to K8s
+[First Job to K8s] $ /bin/sh -xe /tmp/jenkins17537654207595799867.sh
++ kubectl cluster-info
+/tmp/jenkins17537654207595799867.sh: 2: kubectl: not found <1>
+Build step 'Execute shell' marked build as failure
+[kubernetes-cli] kubectl configuration cleaned up
+Finished: FAILURE
+```
++
+--
+<1> To solve the `kubectl: not found` problem, it's required to install the `kubectl` command line tool to the agent node.
++
+See also https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-kubectl-on-linux[Install kubectl on Linux].
++
+You can also try to use the `docker cp` to copy the `kubectl` into the specific agent container.
++
+```console
+$ docker cp $(which kubectl) jenkins-agent-dind:/usr/local/bin
+Successfully copied 49.7MB to jenkins-agent-dind:/usr/local/bin
+```
+--
+
+. Again, click the *Build Now*, and see the log on the *Console Output* page.
++
+```console
+Started by user admin
+Running as SYSTEM
+Building remotely on agent-dind-2 in workspace /home/jenkins/agent/workspace/First Job to K8s
+[First Job to K8s] $ /bin/sh -xe /tmp/jenkins9182137363539535938.sh
++ kubectl cluster-info
+[0;32mKubernetes control plane[0m is running at [0;33mhttps://192.168.56.130:6443[0m
+[0;32mCoreDNS[0m is running at [0;33mhttps://192.168.56.130:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy[0m
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+[kubernetes-cli] kubectl configuration cleaned up
+Finished: SUCCESS
+```
+
+
+
 [appendix]
 == GitLab Jenkins Integration
 
