@@ -41,6 +41,53 @@ https://github.com/flannel-io/flannel[Flannel] is a simple and easy way to confi
 
 * Flannel does provide a CNI plugin for Kubernetes.
 
+== Network Utilities for Debugging Containers & Kubernetes
+
+A Simple and Stupid https://github.com/ousiax/net-tools-container[Network Utilities] for Debugging Containers & Kubernetes.
+
+```sh
+kubectl create -n default deployment net-tools \
+  --image docker.io/qqbuby/net-tools:2.0 \
+  -- tail -f /dev/null
+```
+
+```console
+$ kubectl get po -l app=net-tools -w
+NAME                         READY   STATUS        RESTARTS   AGE
+net-tools-8569ddf9fd-dn6wf   1/1     Running       0          8m37s
+```
+
+```console
+$ kubectl exec net-tools-8569ddf9fd-dn6wf -- ip r
+default via 10.244.1.1 dev eth0 
+10.244.0.0/16 via 10.244.1.1 dev eth0 
+10.244.1.0/24 dev eth0 proto kernel scope link src 10.244.1.4 
+$ kubectl exec net-tools-8569ddf9fd-dn6wf -- dig +search kubernetes
+
+; <<>> DiG 9.18.24-1-Debian <<>> +search kubernetes
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 53501
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+; COOKIE: ca5d92ec874c299a (echoed)
+;; QUESTION SECTION:
+;kubernetes.default.svc.cluster.local. IN A
+
+;; ANSWER SECTION:
+kubernetes.default.svc.cluster.local. 30 IN A	10.96.0.1
+
+;; Query time: 1 msec
+;; SERVER: 10.96.0.10#53(10.96.0.10) (UDP)
+;; WHEN: Thu Feb 29 05:18:31 UTC 2024
+;; MSG SIZE  rcvd: 129
+```
+
 == Services in Kubernetes
 
 In Kubernetes, a Service is a method for exposing a network application that is running as one or more Pods in your cluster. <<kube-service>>
@@ -62,6 +109,24 @@ Exposes the Service externally using an external load balancer. Kubernetes does 
 * ExternalName
 +
 Maps the Service to the contents of the `externalName` field (for example, to the hostname `api.foo.bar.example`). The mapping configures your cluster's DNS server to return a `CNAME` record with that external hostname value. No proxying of any kind is set up.
++
+```console
+$ cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-org
+spec:
+  type: ExternalName
+  externalName: httpbin.org
+EOF
+service/httpbin-org created
+$ kubectl get svc httpbin-org
+NAME          TYPE           CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+httpbin-org   ExternalName   <none>       httpbin.org   <none>    12s
+$ kubectl exec net-tools-8569ddf9fd-dn6wf -- dig +search +short httpbin-org CNAME
+httpbin.org.
+```
 
 TIP: If your workload speaks HTTP, you might choose to use an https://kubernetes.io/docs/concepts/services-networking/ingress/[Ingress] to control how web traffic reaches that workload. Ingress is not a Service type, but it acts as the entry point for your cluster. The https://gateway-api.sigs.k8s.io/#what-is-the-gateway-api[Gateway] API for Kubernetes provides extra capabilities beyond Ingress and Service.
 
@@ -118,11 +183,13 @@ For headless Services that define selectors, the endpoints controller creates En
 * Without selectors
 +
 For headless Services that do not define selectors, the control plane does not create EndpointSlice objects. However, the DNS system looks for and configures either:
-
++
+--
 * DNS CNAME records for `type: ExternalName` Services.
 * DNS A / AAAA records for all IP addresses of the Service's ready endpoints, for all Service types other than `ExternalName`.
 ** For IPv4 endpoints, the DNS system creates A records.
 ** For IPv6 endpoints, the DNS system creates AAAA records.
+--
 +
 When you define a headless Service without a selector, the `port` must match the `targetPort`.
 
@@ -256,49 +323,6 @@ nameserver 10.32.0.10
 search <namespace>.svc.cluster.local svc.cluster.local cluster.local
 options ndots:5
 ```
-
-[TIP]
-====
-A Simple and Stupid https://github.com/ousiax/net-tools-container[Network Utilities] for Debugging Containers & Kubernetes.
-
-```sh
-kubectl create -n default deployment net-tools \
-  --image docker.io/qqbuby/net-tools:2.0 -- sleep 24h
-```
-
-```console
-$ kubectl get po -l app=net-tools -w
-NAME                         READY   STATUS        RESTARTS   AGE
-net-tools-8569ddf9fd-dn6wf   1/1     Running       0          8m37s
-```
-
-```console
-$ kubectl exec net-tools-8569ddf9fd-dn6wf -- dig +search kubernetes
-
-; <<>> DiG 9.18.24-1-Debian <<>> +search kubernetes
-;; global options: +cmd
-;; Got answer:
-;; WARNING: .local is reserved for Multicast DNS
-;; You are currently testing what happens when an mDNS query is leaked to DNS
-;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 53501
-;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
-;; WARNING: recursion requested but not available
-
-;; OPT PSEUDOSECTION:
-; EDNS: version: 0, flags:; udp: 1232
-; COOKIE: ca5d92ec874c299a (echoed)
-;; QUESTION SECTION:
-;kubernetes.default.svc.cluster.local. IN A
-
-;; ANSWER SECTION:
-kubernetes.default.svc.cluster.local. 30 IN A	10.96.0.1
-
-;; Query time: 1 msec
-;; SERVER: 10.96.0.10#53(10.96.0.10) (UDP)
-;; WHEN: Thu Feb 29 05:18:31 UTC 2024
-;; MSG SIZE  rcvd: 129
-```
-====
 
 *Services*
 
