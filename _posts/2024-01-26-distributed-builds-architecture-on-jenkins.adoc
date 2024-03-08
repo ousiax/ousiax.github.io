@@ -195,6 +195,70 @@ $ sudo cat /var/lib/docker/volumes/jenkins-home/_data/secrets/initialAdminPasswo
 ```
 ====
 
+. (Optional) Expose Jeknins with a Kubernetes service.
++
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: jenkins
+  name: jenkins
+spec:
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+    name: ''
+  type: ClusterIP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: jenkins-1
+  labels:
+    kubernetes.io/service-name: jenkins
+addressType: IPv4
+ports:
+  - name: ''
+    appProtocol: http
+    protocol: TCP
+    port: 8080
+endpoints:
+  - addresses:
+      - "192.168.56.130" <1>
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins.dev.test
+  labels:
+    app: jenkins
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: "nginx"
+  tls: <2>
+    - hosts:
+      -  "*.dev.test"
+      secretName: "dev.test"
+  rules:
+    - host: jenkins.dev.test <2>
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: jenkins
+                port:
+                  number: 8080
+```
++
+<1> Replace the IP address with the server hosting the Jenkins controller, e.g, `192.168.56.130`.
++
+<2> Replace the TLS and hosts of the Ingress with your settings.
+
 === Configuring Jenkins SSH Credential
 
 . Generating an SSH key pair.
