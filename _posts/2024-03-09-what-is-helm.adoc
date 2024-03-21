@@ -11,9 +11,13 @@
 
 https://helm.sh/[Helm] is a package manager for Kubernetes that uses a packaging format called https://helm.sh/docs/topics/charts/[charts], and is implemented into two distinct parts: Helm Client and Helm Library. <<helm-sh-architecture>>
 
-A _chart_ is a bundle of information to create an instance of a Kubernetes application and a repository is the place where charts can be collected and shared.
+_Helm installs charts into Kubernetes, creating a new release for each installation. And to find new charts, you can search Helm chart repositories._
 
-A _release_ is a running instance of a chart, combined with a specific _config_ that contains configuration information that can be merged into a packaged chart to create a releasable object.
+* A _chart_ is a bundle of information to create an instance of a Kubernetes application called a release
+* and a repository is the place where charts can be collected and shared.
+* A _release_ is a running instance of a chart, combined with
+* a specific _config_ that contains configuration information that can be merged into a packaged chart to create a releasable object.
+
 
 == Installing Helm
 
@@ -27,10 +31,10 @@ Every release of Helm provides binary https://github.com/helm/helm/releases[rele
 
 For example, to install a version `3.14.x` Helm that supports Kubernetes between `1.29.x` and `1.26.x`:
 
-```console
-$ curl -sLO https://get.helm.sh/helm-v3.14.2-linux-amd64.tar.gz
-$ tar xf helm-v3.14.2-linux-amd64.tar.gz
-$ sudo cp linux-amd64/helm /usr/local/bin/
+```sh
+curl -sLO https://get.helm.sh/helm-v3.14.2-linux-amd64.tar.gz
+tar xf helm-v3.14.2-linux-amd64.tar.gz
+sudo cp linux-amd64/helm /usr/local/bin/
 ```
 
 The following script is used to install Helm from Apt (Debian/Ubuntu):
@@ -47,7 +51,7 @@ It's recommended to run the following command to generate the completion scripts
 
 ```sh
 helm completion bash | sudo tee /etc/bash_completion.d/helm > /dev/null
-source /etc/bash_completion # reload the completion scripts
+source /usr/share/bash-completion/bash_completion # reload the completion scripts
 ```
 
 == Initialize a Helm Chart Repository
@@ -71,7 +75,7 @@ bitnami/apisix                              	2.10.0       	3.8.0        	Apache 
 ...
 ```
 
-== Install an Example Chart
+== Using Helm
 
 To install a chart, you can run the `helm install` command. Helm has several ways to find and install a chart, but the easiest is to use the bitnami charts. <<helm-sh-quickstart>>
 
@@ -111,9 +115,129 @@ $ helm uninstall mysql-1709977095
 release "mysql-1709977095" uninstalled
 ```
 
+=== 'helm search': Finding Charts
+
+Helm comes with a powerful search command. It can be used to search two different types of source: <<helm-sh-using_helm>>
+
+* `helm search hub` searches the https://artifacthub.io/[Artifact Hub], which lists helm charts from dozens of different repositories.
+* `helm search repo` searches the repositories that you have added to your local helm client (with helm repo add). This search is done over local data, and no public network connection is needed.
+
+=== 'helm install': Installing a Package
+
+To install a new package, use the `helm install` command. At its simplest, it takes two arguments: A release name that you pick, and the name of the chart you want to install. <<helm-sh-using_helm>>
+
+The `helm install` command can install from several sources:
+
+* A chart repository
++
+```sh
+helm install happy-panda bitnami/wordpress
+```
+
+* A local chart archive (`helm install foo foo-0.1.1.tgz`)
+
+* An unpacked chart directory (`helm install foo path/to/foo`)
+
+* A full URL (`helm install foo https://example.com/charts/foo-1.2.3.tgz`)
+
+To keep track of a release's state, or to re-read configuration information, you can use `helm status`:
+
+```sh
+helm status happy-panda
+```
+
+*Customizing the Chart Before Installing*
+
+To see what options are configurable on a chart, use `helm show values`:
+
+```sh
+helm show values bitnami/wordpress
+```
+
+There are two ways to pass configuration data during install:
+
+* `--values` (or `-f`): Specify a YAML file with overrides. This can be specified multiple times and the rightmost file will take precedence
+
+* `--set`: Specify overrides on the command line.
+
+** Values that have been `--set` can be viewed for a given release with `helm get values <release-name>`.
+
+** Values that have been `--set` can be cleared by running `helm upgrade` with `--reset-values` specified.
+
+=== 'helm upgrade' and 'helm rollback': Upgrading a Release, and Recovering on Failure
+
+When a new version of a chart is released, or when you want to change the configuration of your release, you can use the helm upgrade command. <<helm-sh-using_helm>>
+
+```sh
+helm upgrade -f panda.yaml happy-panda bitnami/wordpress
+```
+
+Now, if something does not go as planned during a release, it is easy to roll back to a previous release using `helm rollback [RELEASE] [REVISION]`.
+
+```sh
+helm rollback happy-panda 1
+```
+
+And we can use `helm history [RELEASE]` to see revision numbers for a certain release.
+
+=== 'helm uninstall': Uninstalling a Release
+
+When it is time to uninstall a release from the cluster, use the `helm uninstall` command: <<helm-sh-using_helm>>
+
+```sh
+helm uninstall happy-panda
+```
+
+=== 'helm repo': Working with Repositories
+
+Helm 3 no longer ships with a default chart repository. The `helm repo` command group provides commands to add, list, and remove repositories. <<helm-sh-using_helm>>
+
+You can see which repositories are configured using `helm repo list`:
+
+```sh
+helm repo list
+```
+
+And new repositories can be added with `helm repo add`:
+
+```sh
+helm repo add dev https://example.com/dev-charts
+```
+
+Because chart repositories change frequently, at any point you can make sure your Helm client is up to date by running `helm repo update`.
+
+Repositories can be removed with `helm repo remove`.
+
+=== 'helm create': Creating Your Own Charts
+
+The https://helm.sh/docs/topics/charts/[Chart Development Guide] explains how to develop your own charts. But you can get started quickly by using the helm create command: <<helm-sh-using_helm>>
+
+```console
+$ helm create deis-workflow
+Creating deis-workflow
+```
+
+Now there is a chart in `./deis-workflow`. You can edit it and create your own templates.
+
+As you edit your chart, you can validate that it is well-formed by running `helm lint`.
+
+When it's time to package the chart up for distribution, you can run the `helm package` command:
+
+```console
+$ helm package deis-workflow
+deis-workflow-0.1.0.tgz
+```
+
+And that chart can now easily be installed by `helm install`:
+
+```console
+$ helm install deis-workflow ./deis-workflow-0.1.0.tgz
+```
+
 [bibliography]
 == References
 
 * [[[helm-sh-architecture,1]]] https://helm.sh/docs/topics/architecture/
 * [[[helm-sh-install,2]]] https://helm.sh/docs/intro/install/
 * [[[helm-sh-quickstart,3]]] https://helm.sh/docs/intro/quickstart/
+* [[[helm-sh-using_helm,4]]] https://helm.sh/docs/intro/using_helm/
