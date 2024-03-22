@@ -115,7 +115,7 @@ scrape_configs:
 - [https://prometheus.io/docs/instrumenting/exporters/](https://prometheus.io/docs/instrumenting/exporters/)
 - [https://github.com/prometheus/node\_exporter](https://github.com/prometheus/node_exporter)
 - [https://github.com/prometheus-net/prometheus-net](https://github.com/prometheus-net/prometheus-net)
-- [https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/monitoring_architecture.md](monitoring_architecture.md)
+- [https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/monitoring_architecture.md)
 - [https://github.com/kubernetes/kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)
 - [https://github.com/kubernetes-sigs/metrics-server/](https://github.com/kubernetes-sigs/metrics-server/)
 - [https://grafana.com/docs/grafana/latest/](https://grafana.com/docs/grafana/latest/)
