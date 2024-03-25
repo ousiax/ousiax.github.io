@@ -119,12 +119,12 @@ services:
         ARG JENKINS_TAG=2.426.3-jdk21
         FROM jenkins/jenkins:$${JENKINS_TAG} <1>
         COPY --chown=jenkins:jenkins executors.groovy /usr/share/jenkins/ref/init.groovy.d/executors.groovy <2>
-    restart: on-failure
+    restart: always <3>
     ports:
       - "8080:8080"
-      - "50000:50000" <3>
+      - "50000:50000" <4>
     volumes:
-      - jenkins-home:/var/jenkins_home:rw <4>
+      - jenkins-home:/var/jenkins_home:rw <5>
     networks:
       controller:
 volumes:
@@ -132,7 +132,7 @@ volumes:
     name: jenkins-home
 networks:
   controller:
-    external: true <5>
+    external: true <6>
     name: jenkins-controller
 ```
 +
@@ -141,13 +141,15 @@ networks:
 
 <2> Extend the image and change it to your desired number of executors (recommended 0 executors on the built-in node). <<docker-readme-md>>
 
-<3> In order to connect agents through an inbound TCP connection, map the port: `-p 50000:50000`. That port will be used when you connect agents to the controller.
+<3> Always restart the container if it stops. If it's manually stopped, it's restarted only when Docker daemon restarts or the container itself is manually restarted. (See the bullet listed in https://docs.docker.com/config/containers/start-containers-automatically/#restart-policy-details[restart policy details])
+
+<4> In order to connect agents through an inbound TCP connection, map the port: `-p 50000:50000`. That port will be used when you connect agents to the controller.
 +
 If you are only using https://plugins.jenkins.io/ssh-slaves[SSH (outbound) build agents], this port is not required, as connections are established from the controller. If you connect agents using web sockets (since Jenkins 2.217), the TCP agent port is not used either. <<docker-readme-md>>
 
-<4> NOTE: Avoid using a https://docs.docker.com/storage/bind-mounts/[bind mount] from a folder on the host machine into _/var/jenkins_home_, as this might result in file permission issues (the user used inside the container might not have rights to the folder on the host machine). If you _really_ need to bind mount jenkins_home, ensure that the directory on the host is accessible by the jenkins user inside the container (jenkins user - uid 1000) or use `-u some_other_user` parameter with `docker run`. <<docker-readme-md>>
+<5> NOTE: Avoid using a https://docs.docker.com/storage/bind-mounts/[bind mount] from a folder on the host machine into _/var/jenkins_home_, as this might result in file permission issues (the user used inside the container might not have rights to the folder on the host machine). If you _really_ need to bind mount jenkins_home, ensure that the directory on the host is accessible by the jenkins user inside the container (jenkins user - uid 1000) or use `-u some_other_user` parameter with `docker run`. <<docker-readme-md>>
 
-<5> `external` specifies that this network’s lifecycle is maintained outside of that of the application.
+<6> `external` specifies that this network’s lifecycle is maintained outside of that of the application.
 --
 
 . (Optional) Create a compose file named `compose.override.yml` with the following content.
@@ -317,7 +319,7 @@ services:
   agent:
     container_name: jenkins-agent
     image: jenkins/ssh-agent:alpine-jdk21
-    restart: on-failure
+    restart: always
     ports:
       - "2200:22"
     environment:
@@ -468,7 +470,7 @@ services:
             && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
                 docker-ce-cli=$${DOCKER_CE_CLI_VERSION} \ <1>
             && rm -rf /var/lib/apt/lists/*
-    restart: on-failure
+    restart: always
     ports:
       - "2210:22" <2>
     environment:
@@ -487,7 +489,7 @@ services:
   docker:
     container_name: jenkins-docker
     image: docker:25
-    restart: on-failure
+    restart: always
     ports:
       - "2376"
     privileged: true
@@ -1018,7 +1020,7 @@ services:
   gitlab-ce:
     container_name: gitlab-ce
     image: gitlab/gitlab-ce:16.5.8-ce.0 # Pin GitLab to a specific Community Edition version
-    restart: "on-failure:3"
+    restart: always
     volumes:
       - data:/var/opt/gitlab:rw # For storing application data.
       - logs:/var/log/gitlab:rw # For storing logs.
@@ -1118,7 +1120,7 @@ services:
     container_name: sonatype-nexus
     user: nexus:nexus
     image: sonatype/nexus3:3.64.0
-    restart: "on-failure:3"
+    restart: always
     volumes:
       - data:/nexus-data:rw
     networks:
