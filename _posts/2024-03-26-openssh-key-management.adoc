@@ -1,0 +1,375 @@
+= OpenSSH key management
+:page-layout: post
+:page-categories: ['linux']
+:page-tags: ['linux', 'ssh']
+:page-date: 2024-03-26 10:05:54 +0800
+:page-revdate: 2024-03-26 10:05:54 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+The https://en.wikipedia.org/wiki/Secure_Shell[Secure Shell Protocol (SSH)], designed on Unix-like operating systems, is a cryptographic network protocol for operating network services securely over an unsecured network. Its most notable applications are remote login and command-line execution.
+
+SSH uses https://en.wikipedia.org/wiki/Public-key_cryptography[public-key cryptography] to authenticate the remote computer and allow it to authenticate the user, if necessary. SSH may be used in several methodologies. In the simplest manner, both ends of a communication channel use automatically generated public-private key pairs to encrypt a network connection, and then use a password to authenticate the user. <<wiki-Secure_Shell>>
+
+On Unix-like systems, the list of authorized public keys is typically stored in the home directory of the user that is allowed to log in remotely, in the file `~/.ssh/authorized_keys` which is respected by SSH only if it is not writable by anything apart from the owner and root.
+
+When the public key is present on the remote end and the matching private key is present on the local end, typing in the password is no longer required. However, for additional security the private key itself can be locked with a passphrase.
+
+== OpenSSH 
+
+https://en.wikipedia.org/wiki/OpenSSH[OpenSSH] (also known as OpenBSD Secure Shell) is a suite of secure networking utilities based on the https://en.wikipedia.org/wiki/Secure_Shell[Secure Shell] (SSH) protocol, which provides a secure channel over an unsecured network in a client–server architecture. <<wiki-OpenSSH>>
+
+The OpenSSH suite includes the following command-line utilities and daemons:
+
+* `scp`, a replacement for `rcp`.
+* `sftp`, a replacement for `ftp` to copy files between computers.
+* `ssh`, a replacement for `rlogin`, `rsh` and `telnet` to allow shell access to a remote machine.
+* `ssh-add` and `ssh-agent`, utilities to ease authentication by holding keys ready and avoid the need to enter passphrases every time they are used.
+* `ssh-keygen`, a tool to inspect and generate the RSA, DSA and elliptic-curve keys that are used for user and host authentication.
++
+** generate new key pairs, either ECDSA, Ed25519, RSA, ECDSA-SK or Ed25519-SK.
++
+```sh
+ssh-keygen -t ed25519
+```
+
+** remove keys from known hosts
++
+```sh
+ssh-keygen -R github.com -f .ssh/known_hosts
+```
+
+** regenerate a public key from a private key
++
+```sh
+ssh-keygen -y -f .ssh/id_ed25519
+```
+
+** change the passphrase of a private key
++
+```sh
+ssh-keygen -p -f .ssh/id_ed25519
+```
+
+** change the comment text of a private key
++
+```sh
+ssh-keygen -c -f .ssh/id_ed25519
+```
+
+** show the fingerprint of a specific public key
++
+```sh
+ssh-keygen -lf .ssh/id_ed25519.pub
+```
+
+** show ASCII art fingerprint of a specific public key
++
+```sh
+ssh-keygen -lvf .ssh/id_ed25519.pub
+```
+
+** load or read a key to or from a smartcard, if the reader is available
+
+* `ssh-keyscan`, which scans a list of hosts and collects their public keys.
++
+```sh
+ssh-keyscan -t ed25519 -H github.com >> .ssh/known_hosts
+```
+
+* `sshd`, the SSH server daemon.
+
+=== Client Configuration Files
+
+Client configuration files can be per user or system wide, with the former taking precedence over the latter and run-time arguments in the shell overriding both. In these configuration files, one parameter per line is allowed. <<wikibooks-OpenSSH-Client_Configuration_Files>>
+
+* The syntax is the parameter name followed by its value or values.
+* Empty lines and lines starting with the hash (`#`) are ignored.
+* An equal sign (`=`) can be used instead of whitespace between the parameter name and the values.
+* Values are case-sensitive, but parameter names are not.
+* The first value assigned is used.
+
+==== System-wide Client Configuration Files
+
+System-wide client files set the default configuration for all users of OpenSSH clients on that system. These defaults can be overridden in most cases by the user's own default settings in a local configuration file.
+
+* `/etc/ssh/ssh_config`
++
+This file defines all the default settings for the client utilities for all users on that system. It must be readable by all users. The configuration options are described in detail in `ssh_config(5)`.
++
+Below a shortcut is made for connecting to `arc.example.org`.
++
+```conf
+Host arc
+        Port 2022
+        HostName arc.example.org
+        User fred
+        IdentityFile ~/.ssh/id_rsa_arc
+```
++
+So with that configuration, it is enough to enter `ssh arc` and the rest of the information gets filled in automatically.
+
+* `/etc/ssh/ssh_known_hosts`
++
+This contains the system-wide list of known host keys used to verify the identity of the remote host and thus hinder impersonation or eavesdropping. This file should be prepared by the system administrator to contain the public host keys of all necessary hosts. It should be world-readable.
+
+* `/etc/ssh/sshrc`
++
+This file resides on the server and programs in this file are executed there by `ssh (1)` when the user logs in, just before the user's shell or designated program is started. It is not run as root, but instead as the user who is logging in.
+
+==== User-specific Client Configuration Files
+
+Users can override the default system-wide client settings and choose their own defaults. For situations where the same change is made repeatedly it is recommended to add it to the user's local configuration.
+
+*Client-Side Files*
+
+These files reside on the client machine.
+
+* `~/.ssh/config`
++
+The user's own configuration file which, where applicable, overrides the settings in the global client configuration file, `/etc/ssh/ssh_config`.
++
+This file MUST NOT be accessible to other users in any way. Set strict permissions: read/write for the user, and not accessible by others. It may group-writable if and only if that user is the only member of the group in question.
+
+* Local Override of Client Defaults
++
+The file is usually named `~/.ssh/config`. However, a different configuration file can be specified at runtime using the `-F` option. General options intended to apply to all hosts can be set by matching all hosts and should be done at the end of the configuration file. The first match takes precedence, therefore more specific definitions must come first and more general overrides at the end of the file.
++
+```conf
+Host server1
+        ServerAliveInterval	200
+        HostName	203.0.113.76
+
+Host *
+        ExitOnForwardFailure	yes
+        Protocol	2
+        ServerAliveInterval	400
+```
++
+Options given as runtime arguments will override even those in the configuration file. However, not all options can be set or overriden by the user. Those options which may not be set or overridden will be ignored.
+
+* `~/.ssh/known_hosts`
++
+This file is local to the user account and contains the known keys for remote hosts. Often these are collected from the hosts when connecting for the first time, but they can be added manually. As with those keys stored in the global file, `/etc/ssh/ssh_known_hosts`, these keys are used to verify the identity of the remote host, thus protecting against impersonation or man-in-the-middle attacks. With each subsequent connection the key will be compared to the key provided by the remote server. If there is a match, the connection will proceed. If the match fails, `ssh (1)` will fail with an error message. If there is no key at all listed for that remote host, then the key's fingerprint will be displayed and there will be the option to automatically add the key to the file. This file can be created and edited manually, but if it does not exist it will be created automatically by `ssh (1)` when it first connects to a remote host.
++
+The `~/.ssh/known_hosts` file can use either hashed or clear text host names. Even with hashed names, it can still be searched using `ssh-keygen` using the `-F` option.
++
+```sh
+ssh-keygen -F server3.example.com
+```
++
+The default file to be searched will be `~/.ssh/known_hosts` and the key is printed if found. A different file can be searched using the `-f` option. If a key must be removed from the file, the `-R` option works similarly to search by host and then remove it if found even if the host name is hashed.
++
+```sh
+ssh-keygen -R server4.example.com -f ~/.ssh/known_hosts
+```
++
+When a key is removed, it will then be appended to the file `~/.ssh/known_hosts.old` in case it is needed later. Again, see the manual page for `sshd(8)` for the format of these known_host files.
++
+If the global file `/etc/ssh/ssh_known_hosts` is used then it should be prepared by the system administrator to contain the public host keys of all necessary hosts and it should be world-readable.
+
+* Manually Adding Public Keys to `~/.ssh/known_hosts`
++
+Manually adding public host keys to `known_hosts` is a matter of adding one unbroken line per key. How the key is obtained is not important, as long as it is complete, valid, and *guaranteed to be the real key and not a fake*. The utility `ssh-keyscan(1)` can fetch a key and `ssh-keygen(1)` can be used to show the fingerprint for verification.
+
+*Server-Side Client Files*
+
+These client files reside on the server. By default they are kept in the user's directory. However, the server can be configured to look for them in other locations if needed.
+
+* `~/.ssh/authorized_keys`
++
+`authorized_keys` is a one-key-per-line register of public ECDSA, RSA, and ED25519 keys that this account can use to log in with. The file's contents are not highly sensitive, but the recommended permissions are read/write for the user and not accessible by others. As always, the whole key including options and comments must be on a single, unbroken line.
++
+```txt
+ssh-rsa AAAAB3NzaC1yc2EAAA...41Ev521Ei2hvz7S2QNr1zAiVaOFy5Lwc8Lo+Jk=
+```
++
+Lines starting with a hash (`#`) are ignored and can be used as comments. Whitespace separates the key's fields, which are in sequence an optional list of login options, the key type (usually ssh-rsa or better like ecdsa-sha2-nistp256), the key itself encoded as base64, and an optional comment.
+
+* `~/.ssh/authorized_principals`
++
+By default this file does not exist. If it is specified in `sshd_config(5)`, it contains a list of names which can be used in place of the username when authorizing a certificate. This option is useful for role accounts, disjoint account namespaces and "user@realm"-style naming policies in certificates. Principals can also be specified in authorized_keys.
+
+* `~/.ssh/environment`
++
+If the server is configured to accept user-supplied, automatic changes to environment variables as part of the login process, then these changes can be set in this file.
+
+* `~/.ssh/rc`
++
+This is a script which is executed by `sh(1)` just before the user's shell or command is started. It is not run if `ForceCommand` is used. The script is run after reading the environment variables. The corresponding global file, `/etc/ssh/sshrc`, is not run if the user's rc script exists.
+
+=== SSH keys
+
+SSH keys can serve as a means of identifying yourself to an SSH server using https://en.wikipedia.org/wiki/Public-key_cryptography[public-key cryptography] and https://en.wikipedia.org/wiki/Challenge-response_authentication[challenge-response authentication]. The major advantage of key-based authentication is that, in contrast to password authentication, it is not prone to brute-force attacks, and you do not expose valid credentials if the server has been compromised (see https://tools.ietf.org/html/rfc4251#section-9.4.4[RFC 4251 9.4.4]). <<archlinux-org-SSH_keys>> <<ssh-ssh-keys>>
+
+* Generating an SSH key pair
++
+An SSH key pair can be generated by running the `ssh-keygen` command, see the `ssh-keygen(1)` man page for what is "generally considered sufficient" and should be compatible with virtually all clients and servers:
++
+```sh
+ssh-keygen -t ed25519
+```
+
+* Print the SSH public key from a private key
++
+```sh
+$ ssh-keygen -y -f .ssh/id_ed25519
+ssh-ed25519 AAAAC...gos3
+```
+
+* Changing the private key's passphrase without changing the key
++
+If the originally chosen SSH key passphrase is undesirable or must be changed, one can use the ssh-keygen command to change the passphrase without changing the actual key. This can also be used to change the password encoding format to the new standard.
++
+```sh
+ssh-keygen -f ~/.ssh/id_rsa -p
+```
+
+* Managing multiple keys
++
+If you have multiple SSH identities, you can set different keys to be used for different hosts or remote users by using the Match and IdentityFile directives in your configuration:
++
+```conf
+# ~/.ssh/config
+
+Match host=SERVER1
+   IdentitiesOnly yes
+   IdentityFile ~/.ssh/id_rsa_IDENTITY1
+
+Match host=SERVER2,SERVER3
+   IdentitiesOnly yes
+   IdentityFile ~/.ssh/id_ed25519_IDENTITY2
+```
+
+* Copying the public key to the remote server
++
+If your key file is `~/.ssh/id_rsa.pub` you can simply enter the following command.
++
+```sh
+ssh-copy-id remote-server.org
+```
++
+If your username differs on remote machine, be sure to prepend the username followed by `@` to the server name.
++
+```sh
+ssh-copy-id username@remote-server.org
+```
++
+If your public key filename is anything other than the default of `~/.ssh/id_rsa.pub`, you must explicitly provide the location of the public key.
++
+```sh
+ssh-copy-id -i ~/.ssh/id_ed25519.pub username@remote-server.org
+```
++
+If the ssh server is listening on a port other than default of `22`, be sure to include it within the host argument.
++
+```sh
+ssh-copy-id -i ~/.ssh/id_ed25519.pub -p 221 username@remote-server.org
+```
++
+.Manual method
+[TIP]
+====
+By default, for OpenSSH, the public key needs to be concatenated with `~/.ssh/authorized_keys`. Begin by copying the public key to the remote server.
+
+```sh
+scp ~/.ssh/id_ecdsa.pub username@remote-server.org:
+```
+
+The above example copies the public key (`id_ecdsa.pub`) to your home directory on the remote server via scp. Do not forget to include the `:` at the end of the server address. Also note that the name of your public key may differ from the example given.
+
+On the remote server, you will need to create the `~/.ssh` directory if it does not yet exist and append your public key to the `authorized_keys` file.
+
+```console
+$ ssh username@remote-server.org
+username@remote-server.org's password:
+$ mkdir ~/.ssh
+$ chmod 700 ~/.ssh
+$ cat ~/id_ecdsa.pub >> ~/.ssh/authorized_keys
+$ rm ~/id_ecdsa.pub
+$ chmod 600 ~/.ssh/authorized_keys
+```
+
+The last two commands remove the public key file from the server and set the permissions on the `authorized_keys` file such that it is only readable and writable by you, the owner.
+====
+
+* Getting remote system details from the known_hosts file <<linuxhandbook-known-hosts-file>>
++
+You can get the related entries from the known_hosts if you know the hostname or the IP address of the system:
++
+```sh
+ssh-keygen -l -F <server-IP-or-hostname>
+```
++
+But if you want a single command that could list all the servers and their details in clear text, that's not possible.
+
+* Remove an entry from the known_hosts <<linuxhandbook-known-hosts-file>>
++
+If you want to remove a specific entry from the known_hosts file, you can do so if you know the hostname or IP of the remote system.
++
+```sh
+ssh-keygen -R server-hostname-or-IP
+```
+
+* Bypassing SSH Server Verification at the Command Line
++
+We can bypass the SSH client interactive question with a command-line switch:
++
+```console
+$ ssh -o StrictHostKeyChecking=no test.rebex.net
+```
+
+* Adding a Host Public Key to the known_hosts File <<baeldung-public-key-known_hosts>>
++
+To add a public key to our known_hosts file, we need to find it from the server. We can scan the host’s public key using `ssh-keyscan`:
++
+```sh
+ssh-keyscan github.com
+```
++
+```conf
+# github.com:22 SSH-2.0-babeld-05989c77
+github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+# github.com:22 SSH-2.0-babeld-05989c77
+github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+# github.com:22 SSH-2.0-babeld-05989c77
+github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+# github.com:22 SSH-2.0-babeld-05989c77
+# github.com:22 SSH-2.0-babeld-05989c77
+```
++
+We can also use the `-H` to get the hasing and `-t` to specify the type of the key:
++
+```sh
+ssh-keyscan -t rsa -H github.com
+```
++
+```conf
+# github.com:22 SSH-2.0-babeld-05989c77
+|1|BB+YMCFo5Dpac/r1Ptr9DFwDZPA=|gShKP35K5VlC8clQ+MqLGnjvtXM= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+```
++
+And to add the host pub keys, we can append the above result to known_hosts:
++
+```sh
+ssh-keyscan -t rsa -H github.com >> >> ~/.ssh/known_hosts
+```
++
+Similarly, we can also add all host public keys to the known_hosts File:
++
+```sh
+ssh-keyscan -H github.com >> >> ~/.ssh/known_hosts
+```
+
+[bibliography]
+== References
+
+* [[[wiki-Secure_Shell,1]]] https://en.wikipedia.org/wiki/Secure_Shell
+* [[[wiki-OpenSSH,2]]] https://en.wikipedia.org/wiki/OpenSSH
+* [[[wikibooks-OpenSSH-Client_Configuration_Files,3]]] https://en.wikibooks.org/wiki/OpenSSH/Client_Configuration_Files
+* [[[archlinux-org-SSH_keys,4]]] https://wiki.archlinux.org/title/SSH_keys
+* [[[ssh-ssh-keys,5]]] https://www.ssh.com/academy/ssh-keys
+* [[[linuxhandbook-known-hosts-file,6]]] https://linuxhandbook.com/known-hosts-file/
+* [[[baeldung-public-key-known_hosts,7]]] https://www.baeldung.com/linux/public-key-known_hosts
