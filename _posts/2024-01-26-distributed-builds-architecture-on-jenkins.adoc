@@ -1343,14 +1343,19 @@ pipeline {
         //           https://github.com/dotnet/sdk/blob/main/src/Common/CliFolderPathCalculatorCore.cs#L14
         // System.UnauthorizedAccessException: Access to the path '/.dotnet' is denied.
         DOTNET_CLI_HOME = '/tmp'
+        // Replace the following variables with your container registry.
+        REGISTRY_SCHEME= 'http'
+        REGISTRY_HOSTNAME = '192.168.211.130'
+        REGISTRY_PORT = '8082'
     }
 
-    agent any
+    agent none
 
     stages {
         stage('Build') {
             agent {
                 docker {
+                    label 'docker && linux' <1>
                     image 'mcr.microsoft.com/dotnet/sdk:8.0'
                     // Run the container on the node specified at the
                     // top-level of the Pipeline, in the same workspace,
@@ -1362,9 +1367,11 @@ pipeline {
                 sh 'dotnet build'
             }
         }
+
         stage('Test') {
             agent {
                 docker {
+                    label 'docker && linux'
                     image 'mcr.microsoft.com/dotnet/sdk:8.0'
                     // Run the container on the node specified at the
                     // top-level of the Pipeline, in the same workspace,
@@ -1376,40 +1383,66 @@ pipeline {
                 sh 'dotnet test'
             }
         }
-        stage('Deploy') {
-            agent {
-                docker {
-                    image 'mcr.microsoft.com/dotnet/sdk:8.0'
-                    // Run the container on the node specified at the
-                    // top-level of the Pipeline, in the same workspace,
-                    // rather than on a new node entirely:
-                    reuseNode true
-                }
-            }
-            steps {
-                sh 'dotnet publish'
-            }
-        }
+
         stage('Docker') {
+            when { tag "*" }
+            agent { label 'docker && linux' }
             // Execute the stage on a node pre-configured to accept Docker-based Pipelines
             environment {
-                // Create the Docker Registry credential with ID as `jenkins-docker-registry-creds` on Jenkins.
-                DOCKER_REGISTRY_CREDS = credentials('jenkins-docker-registry-creds')
-                // Replace the following variables with your registry.
-                REGISTRY_SCHEME= 'http'
-                REGISTRY_HOSTNAME = '192.168.56.130'
-                REGISTRY_PORT = '8082'
+                // Create a Username and password credential with ID as `jenkins-docker-registry-creds` for your Docker Registry on Jenkins.
+                DOCKER_REGISTRY_CREDS = credentials('jenkins-docker-registry-creds') <2>
             }
             steps {
-                sh 'docker build . -t $REGISTRY_HOSTNAME:$REGISTRY_PORT/hello-world:$BRANCH_NAME'
+                sh 'docker build . -f src/WebApplication1/Dockerfile -t $REGISTRY_HOSTNAME:$REGISTRY_PORT/webapplication1:$TAG_NAME'
                 sh 'docker login -u $DOCKER_REGISTRY_CREDS_USR -p $DOCKER_REGISTRY_CREDS_PSW $REGISTRY_SCHEME://$REGISTRY_HOSTNAME:$REGISTRY_PORT'
-                sh 'docker push $REGISTRY_HOSTNAME:$REGISTRY_PORT/hello-world:$BRANCH_NAME'
+                sh 'docker push $REGISTRY_HOSTNAME:$REGISTRY_PORT/webapplication1:$BRANCH_NAME'
                 sh 'docker logout $REGISTRY_SCHEME://$REGISTRY_HOSTNAME:$REGISTRY_PORT'
+            }
+        }
+
+        stage('Deploy') {
+            when { <3>
+                tag "*"
+                expression {
+                    currentBuild.result == null || currentBuild.result == 'SUCCESS'
+                }
+            }
+            agent { label 'docker && linux' }
+            environment {
+                container_name="webapplication1"
+                image="$REGISTRY_HOSTNAME:$REGISTRY_PORT/webapplication1:$TAG_NAME"
+                login_name="jenkins"
+                destination_host="192.168.211.133"
+            }
+            steps {
+                // Create a SSH Username with private key credential with ID as `jenkins-ssh-key-for-node-3` on Jenkins.
+                withCredentials(bindings: [sshUserPrivateKey(credentialsId: 'jenkins-ssh-key-for-node-3', \
+                                                             keyFileVariable: 'JENKINS_SSH_KEY_FOR_NODE_3')]) {
+                    sh '''
+cat <<EOF | ssh -T -o StrictHostKeyChecking=no -i $JENKINS_SSH_KEY_FOR_NODE_3 -l $login_name $destination_host
+#!/bin/sh
+
+set -ex
+
+docker container inspect $container_name -f \'{{ json .State }}\' \\
+    && docker rm --force $container_name
+
+docker run --name $container_name --restart always --detach --publish 7890:80 $image \\
+    && docker ps -n 1
+EOF
+                       '''
+                }
             }
         }
     }
 }
 ```
++
+<1> See also https://www.jenkins.io/doc/book/pipeline/syntax/#agent
++
+<2> See also https://www.jenkins.io/doc/book/pipeline/jenkinsfile/#handling-credentials
++
+<3> See also https://www.jenkins.io/doc/book/pipeline/syntax/#when
 
 . The final project structure should be as below.
 +
