@@ -937,7 +937,7 @@ Now, let's create a KubeConfig credential using the `Secret file`. On the Jenkin
 . In the *Credential* dropdown, select the credentials (e.g., `kubernetes-admin`) to authenticate on the cluster or the kubeconfig stored in Jenkins.
 --
 +
-* On the *Build Steps", using *Execute shell* with `kubectl cluster-info` command.
+* On the *Build Steps*, using *Execute shell* with `kubectl cluster-info` command.
 +
 * Click "Save", and select the option *Build Now* then go to *Console Output* page.
 
@@ -984,7 +984,43 @@ To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 Finished: SUCCESS
 ```
 
+=== Using SSH on a remote machine
 
+. Create a SSH key pair with `ssh-keygen`
++
+```sh
+ssh-keygen -t ed25519 -f .ssh/id_ed25519
+```
++
+TIP: Regenerate the public key using `ssh-keygen -y -f .ssh/id_ed25519` if you lost it.
+
+. Copy the public key to the destination host
++
+```sh
+ssh-copy-id -i .ssh/id_ed25519.pub [user@]hostname // e.g., jenkins@node-3
+```
+
+. Create a *SSH Username with private key* credential with ID as `jenkins-ssh-key-for-node-3` 
++
+See also https://www.jenkins.io/doc/book/using/using-credentials/#configuring-credentials
+
+. The following snippet is used to execute a command (e.g., `date`) on a remote host (e.g, `192.168.211.133`).
++
+```groovy
+environment {
+    LOGIN_NAME="jenkins"
+    DESTINATION_HOST="192.168.211.133"
+}
+steps {
+    // Create a SSH Username with private key credential with ID as `jenkins-ssh-key-for-node-3` on Jenkins.
+    withCredentials(bindings: [sshUserPrivateKey(credentialsId: 'jenkins-ssh-key-for-node-3', \
+                                                 keyFileVariable: 'JENKINS_SSH_KEY_FOR_NODE_3')]) {
+        sh 'ssh -T -o StrictHostKeyChecking=no -i $JENKINS_SSH_KEY_FOR_NODE_3 -l $LOGIN_NAME $DESTINATION_HOST date'
+    }
+}
+```
++
+NOTE: By convention, variable names for environment variables are typically specified in capital case, with individual words separated by underscores. 
 
 [appendix]
 == GitLab Jenkins Integration
