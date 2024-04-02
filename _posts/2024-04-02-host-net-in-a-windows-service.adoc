@@ -497,7 +497,164 @@ Use the native Windows Service Control Manager's (`sc.exe`) delete command.
 sc.exe delete ".NET Example WorkerService"
 ```
 
+== Host ASP.NET Core in a Windows Service
 
+An ASP.NET Core app can be hosted on Windows as a https://learn.microsoft.com/en-us/dotnet/framework/windows-services/introduction-to-windows-service-applications[Windows Service] without using IIS. When hosted as a Windows Service, the app automatically starts after server reboots.
+
+=== Update project file
+
+[source,xml,highlight="7-14,18"]
+----
+<!-- Example.WebApp.csproj -->
+
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <PublishSingleFile Condition="'$(Configuration)' == 'Release'">true</PublishSingleFile>
+    <DebugType>embedded</DebugType>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>
+----
+
+=== Rewrite the `Program` class
+
+[source,cs,highlight="7-28"]
+----
+// Program.cs
+
+using Microsoft.Extensions.Hosting.WindowsServices;
+using Microsoft.Extensions.Logging.Configuration;
+using Microsoft.Extensions.Logging.EventLog;
+
+// See https://github.com/dotnet/AspNetCore.Docs/issues/23387#issuecomment-927317675
+WebApplicationOptions options = new()
+{
+    Args = args,
+    // Sets the content root to AppContext.BaseDirectory.
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
+};
+
+WebApplicationBuilder builder = WebApplication.CreateBuilder(options);
+
+// Sets the host lifetime to WindowsServiceLifetime.
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = ".NET Example WebApp";
+});
+
+builder.Logging.AddEventLog(options =>
+{
+    options.SourceName = ".NET Example WebApp";
+});
+
+LoggerProviderOptions.RegisterProviderOptions<EventLogSettings, EventLogLoggerProvider>(builder.Services);
+
+WebApplication app = builder.Build();
+
+app.MapGet("/", () => "Hello World!");
+
+app.Run();
+----
+=== Publish the app
+
+```console
+$ dotnet.exe publish
+MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
+Restore complete (0.4s)
+You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Example.WebApp succeeded (0.4s) → bin\Release\net8.0-windows\win-x64\publish\
+
+Build succeeded in 0.8s
+
+$ ls bin/Release/net8.0-windows/win-x64/publish/
+Example.WebApp.exe  appsettings.Development.json  appsettings.json
+```
+
+=== Create the Windows Service
+
+```powershell
+> mkdir D:\Example.WebApp\
+> cp .\bin\Release\net8.0-windows\win-x64\publish\Example.WebApp.exe D:\Example.WebApp\
+```
+
+```powershell
+New-Service -Name ".NET Example WebApp" -BinaryPathName D:\Example.WebApp\Example.WebApp.exe
+```
+
+```console
+Status   Name               DisplayName
+------   ----               -----------
+Stopped  .NET Example We... .NET Example WebApp
+```
+
+```powershell
+Start-Service -Name ".NET Example WebApp"
+```
+
+```powershell
+Get-Service -Name ".NET Example WebApp" | Format-List
+```
+
+```console
+Name                : .NET Example WebApp
+DisplayName         : .NET Example WebApp
+Status              : Running
+DependentServices   : {}
+ServicesDependedOn  : {}
+CanPauseAndContinue : False
+CanShutdown         : True
+CanStop             : True
+ServiceType         : Win32OwnProcess
+```
+
+```powershell
+Get-EventLog -LogName Application -Source ".NET Example WebApp"
+```
+
+```console
+   Index Time          EntryType   Source                 InstanceID Message
+   ----- ----          ---------   ------                 ---------- -------
+    4677 Apr 02 17:39  Information .NET Example WebApp             0 Service started successfully.
+```
+
+```powershell
+# Test the endpoint of the Web App
+Invoke-WebRequest -Uri http://localhost:5000
+```
+
+```console
+StatusCode        : 200
+StatusDescription : OK
+Content           : Hello World!
+RawContent        : HTTP/1.1 200 OK
+                    Transfer-Encoding: chunked
+                    Content-Type: text/plain; charset=utf-8
+                    Date: Tue, 02 Apr 2024 09:33:34 GMT
+                    Server: Kestrel
+
+                    Hello World!
+. . .
+```
+
+```powershell
+Stop-Service -Name ".NET Example WebApp"
+```
+
+```powershell
+sc.exe delete ".NET Example WebApp"
+```
 
 [bibliography]
 == References
@@ -507,3 +664,4 @@ sc.exe delete ".NET Example WorkerService"
 * [[[aspnet-servers,3]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/
 * [[[kestrel-http3,4]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/http3
 * [[[dotnet-windows-service,5]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service
+* [[[aspnet-windows-service,6]]] https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/windows-service?view=aspnetcore-8.0&tabs=netcore-cli
