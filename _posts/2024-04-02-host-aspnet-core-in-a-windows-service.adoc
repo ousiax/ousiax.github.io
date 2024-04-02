@@ -1,0 +1,509 @@
+= Host ASP.NET Core in a Windows Service
+:page-layout: post
+:page-categories: [dotnet]
+:page-tags: [dotnet]
+:page-date: 2024-04-02 10:40:51 +0800
+:page-revdate: 2024-04-02 10:40:51 +0800
+:toc:
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+== .NET Generic Host
+
+The .NET Generic Host, available in the https://www.nuget.org/packages/Microsoft.Extensions.Hosting[Microsoft.Extensions.Hosting] NuGet package, is responsible for app startup and lifetime management. A host is an object that encapsulates an app's resources and lifetime functionality, such as: <<dotnet-generic-host>> <<aspnet-generic-host>>
+
+:dependency-injection: https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection
+:logging: https://learn.microsoft.com/en-us/dotnet/core/extensions/logging
+:configuration: https://learn.microsoft.com/en-us/dotnet/core/extensions/configuration
+:host-shutdown: https://learn.microsoft.com/en-us/dotnet/core/extensions/generic-host#host-shutdown
+:ihostedservice: https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.ihostedservice
+
+* {dependency-injection}[Dependency injection (DI)]
+* {logging}[Logging]
+* {configuration}[Configuration]
+* {host-shutdown}[App shutdown]
+* {ihostedservice}[IHostedService] implementations
+
+When a host starts, it calls `IHostedService.StartAsync` on each implementation of `IHostedService` registered in the service container's collection of hosted services. In a worker service app, all `IHostedService` implementations that contain `BackgroundService` instances have their `BackgroundService.ExecuteAsync` methods called.
+
+The main reason for including all of the app's interdependent resources in one object is lifetime management: control over app startup and graceful shutdown.
+
+=== Set up a host
+
+```xml
+<!-- Example.WorkerService.csproj -->
+
+<!-- <Project Sdk="Microsoft.NET.Sdk.Worker"> -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+</Project>
+```
+
+```cs
+// Program.cs
+
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddHostedService<Worker>();
+using IHost host = builder.Build();
+host.Run();
+
+public sealed class Worker(ILogger<Worker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            logger.LogInformation("{}: I'm busy at work.", DateTime.Now.TimeOfDay);
+        }
+    }
+}
+```
+
+```console
+$ dotnet run
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+. . .
+info: Worker[0]
+      11:17:39.1114826: I'm busy at work.
+info: Worker[0]
+      11:17:44.1725394: I'm busy at work.
+info: Worker[0]
+      11:17:49.1739304: I'm busy at work.
+^Cinfo: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+```
+
+*For an HTTP workload:*
+
+```xml
+<!-- Example.WebApp.csproj -->
+
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
+```
+
+```cs
+// Program.cs
+
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+WebApplication app = builder.Build();
+
+app.MapGet("/", () => "Hello World!");
+
+app.Run();
+```
+
+```console
+$ ASPNETCORE_URLS=http://+:5000 dotnet run --no-launch-profile
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://[::]:5000
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+. . .
+^Cinfo: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+```
+
+```console
+$ curl -i localhost:5000
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Date: Tue, 02 Apr 2024 03:44:23 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+Hello World!
+```
+
+=== Kestrel server
+
+:HTTPsys: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/#korh
+
+https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel[Kestrel server] is the default, cross-platform HTTP server implementation. Kestrel provides the best performance and memory utilization, but it doesn't have some of the advanced features in {HTTPsys}[HTTP.sys]. <<aspnet-servers>>
+
+Use Kestrel:
+
+* By itself as an edge server processing requests directly from a network, including the Internet.
++
+image::https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/_static/kestrel-to-internet2.png[Kestrel communicates directly with the Internet without a reverse proxy server,35%,35%]
+
+* With a reverse proxy server, such as Internet Information Services (IIS), Nginx, or Apache. A reverse proxy server receives HTTP requests from the Internet and forwards them to Kestrel.
++
+image::https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/_static/kestrel-to-internet.png?view=aspnetcore-8.0[Kestrel communicates indirectly with the Internet through a reverse proxy server, such as IIS, Nginx, or Apache,35%,35%]
+
+Either hosting configuration—with or without a reverse proxy server—is supported.
+
+For Kestrel configuration guidance and information on when to use Kestrel in a reverse proxy configuration, see https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel?view=aspnetcore-8.0[Kestrel web server in ASP.NET Core.]
+
+=== Use HTTP/3 with the ASP.NET Core Kestrel web server
+
+https://datatracker.ietf.org/doc/rfc9114/[HTTP/3] is an approved standard and the third major version of HTTP. <<kestrel-http3>>
+
+HTTP/3 has different requirements depending on the operating system. If the platform that Kestrel is running on doesn't have all the requirements for HTTP/3, then it's disabled, and Kestrel will fall back to other HTTP protocols.
+
+* Windows
++
+** Windows 11 Build 22000 or later OR Windows Server 2022.
+** TLS 1.3 or later connection.
+
+* Linux
+
+* `libmsquic` package installed.
++
+`libmsquic` is published via Microsoft's official Linux package repository at `packages.microsoft.com`.
++
+NOTE: .NET 6 is only compatible with the 1.9.x versions of libmsquic. Libmsquic 2.x is not compatible due to breaking changes. Libmsquic receives updates to 1.9.x when needed to incorporate security fixes.
+
+* macOS
++
+HTTP/3 isn't currently supported on macOS and may be available in a future release.
+
+```console
+$ apt-cache madison libmsquic
+ libmsquic |      2.3.5 | https://packages.microsoft.com/debian/12/prod bookworm/main amd64 Packages
+ libmsquic |      2.3.4 | https://packages.microsoft.com/debian/12/prod bookworm/main amd64 Packages
+. . .  
+$ sudo apt-get install libmsquic -y
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  libnuma1
+The following NEW packages will be installed:
+  libmsquic libnuma1
+0 upgraded, 2 newly installed, 0 to remove and 3 not upgraded.
+. . .
+$ dpkg -S libmsquic
+libmsquic: /usr/share/doc/libmsquic
+libmsquic: /usr/lib/x86_64-linux-gnu/libmsquic.so.2.3.5
+libmsquic: /usr/lib/x86_64-linux-gnu/libmsquic.lttng.so.2.3.5
+libmsquic: /usr/lib/x86_64-linux-gnu/libmsquic.so.2
+libmsquic: /usr/share/doc/libmsquic/changelog.gz
+```
+
+```console
+$ ASPNETCORE_URLS=https://+:5001 dotnet run \
+    --no-launch-profile \
+    --Kestrel:EndpointDefaults:Protocols=Http1AndHttp2AndHttp3
+warn: Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServer[8]
+      The ASP.NET Core developer certificate is not trusted. For information about trusting the ASP.NET Core devel
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: https://[::]:5001
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+```
+
+```console
+$ docker run -it --rm --network host ymuski/curl-http3 curl -ik --http3 https://localhost:5001
+HTTP/3 200
+content-type: text/plain; charset=utf-8
+date: Tue, 02 Apr 2024 06:19:53 GMT
+server: Kestrel
+alt-svc: h3=":5001"; ma=86400
+
+Hello World!
+```
+
+== Create Windows Service using BackgroundService
+
+To interop with native Windows Services from .NET `IHostedService` implementations, it's needed to install the https://nuget.org/packages/Microsoft.Extensions.Hosting.WindowsServices[Microsoft.Extensions.Hosting.WindowsServices] NuGet package. <<dotnet-windows-service>>
+
+[NOTE]
+====
+
+The https://learn.microsoft.com/en-us/dotnet/core/extensions/logging-providers#windows-eventlog[`EventLog`] provider sends log output to the Windows Event Log. Unlike the other providers, the `EventLog` provider does NOT inherit the default non-provider settings. If `EventLog` log settings aren't specified, they default to `LogLevel.Warning`.
+
+To log events lower than `LogLevel.Warning`, explicitly set the log level. The following example sets the Event Log default log level to `LogLevel.Information`:
+
+```json
+"Logging": {
+  "EventLog": {
+    "LogLevel": {
+      "Default": "Information"
+    }
+  }
+}
+```
+
+`AddEventLog` overloads can pass in `EventLogSettings`. If `null` or not specified, the following default settings are used:
+
+* `LogName`: "Application"
+* `SourceName`: ".NET Runtime"
+* `MachineName`: The local machine name is used.
+
+The following code changes the `SourceName` from the default value of `".NET Runtime"` to `CustomLogs`:
+
+```cs
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+builder.Logging.AddEventLog(
+    config => config.SourceName = "CustomLogs");
+
+using IHost host = builder.Build();
+
+host.Run();
+```
+====
+
+===  Update project file
+
+[source,xml,highlight="9-14,19,26-27"]
+----
+<!-- Example.WorkerService.csproj -->
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <PublishSingleFile Condition="'$(Configuration)' == 'Release'">true</PublishSingleFile>
+    <DebugType>embedded</DebugType>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.Logging.Configuration" />
+    <Using Include="Microsoft.Extensions.Logging.EventLog" />
+  </ItemGroup>
+
+</Project>
+----
+
+=== Rewrite the `Program` class
+
+[source,cs,highlight="7-17"]
+----
+// Program.cs
+
+using Microsoft.Extensions.Logging.Configuration;
+using Microsoft.Extensions.Logging.EventLog;
+
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = ".NET Example WorkerService";
+});
+
+builder.Logging.AddEventLog(options =>
+{
+    options.SourceName = ".NET Example WorkerService";
+});
+
+LoggerProviderOptions.RegisterProviderOptions<EventLogSettings, EventLogLoggerProvider>(builder.Services);
+
+builder.Services.AddHostedService<Worker>();
+using IHost host = builder.Build();
+host.Run();
+
+public sealed class Worker(ILogger<Worker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                logger.LogInformation("{}: I'm busy at work.", DateTime.Now.TimeOfDay);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // When the stopping token is canceled, for example, a call made from services.msc,
+            // we shouldn't exit with a non-zero exit code. In other words, this is expected...
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{Message}", ex.Message);
+
+            // Terminates this process and returns an exit code to the operating system.
+            // This is required to avoid the 'BackgroundServiceExceptionBehavior', which
+            // performs one of two scenarios:
+            // 1. When set to "Ignore": will do nothing at all, errors cause zombie services.
+            // 2. When set to "StopHost": will cleanly stop the host, and log errors.
+            //
+            // In order for the Windows Service Management system to leverage configured
+            // recovery options, we need to terminate the process with a non-zero exit code.
+            Environment.Exit(1);
+        }
+    }
+}
+----
+
+=== Publish the app
+
+To create the .NET Worker Service app as a Windows Service, it's recommended that you publish the app as a https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview[single file] executable. It's less error-prone to have a https://learn.microsoft.com/en-us/dotnet/core/deploying/deploy-with-cli#self-contained-deployment[self-contained] executable, as there aren't any dependent files lying around the file system. But you may choose a different publishing modality, which is perfectly acceptable, so long as you create an `*.exe` file that can be targeted by the Windows Service Control Manager.
+
+[source,xml,highlight="7-10"]
+----
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <PublishSingleFile Condition="'$(Configuration)' == 'Release'">true</PublishSingleFile>
+    <DebugType>embedded</DebugType>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+. . .
+----
+
+```console
+$ dotnet publish
+MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
+Restore complete (0.3s)
+You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Example.WorkerService succeeded (2.1s) → bin\Release\net8.0-windows\win-x64\publish\
+
+Build succeeded in 2.6s
+
+$ ls bin/Release/net8.0-windows/win-x64/publish/
+Example.WorkerService.exe
+```
+
+=== Create the Windows Service
+
+To create a Windows Service, run PowerShell as an Administrator.
+
+```powershell
+New-Service -Name "TestService" -BinaryPathName 'C:\Path\To\App.WindowsService.exe'
+```
+
+Let's create a directory, and copy the executable file to it.
+
+```powershell
+> mkdir D:\Example.WorkerService\
+> cp .\bin\Release\net8.0-windows\win-x64\publish\Example.WorkerService.exe D:\Example.WorkerService\
+```
+
+* Create the `.NET Example WorkerService` service
++
+```powershell
+New-Service -Name ".NET Example WorkerService" -BinaryPathName D:\Example.WorkerService\Example.WorkerService.exe
+```
+
+* Start the `.NET Example WorkerService` service
++
+```powershell
+Start-Service -Name ".NET Example WorkerService"
+```
+
+* Start the `.NET Example WorkerService` service
++
+```powershell
+Get-Service -Name ".NET Example WorkerService" | Format-List
+```
+
+* Get events from the `.NET Example WorkerService` service
++
+```powershell
+Get-EventLog -LogName Application -Source ".NET Example WorkerService" | Format-List
+```
++
+```console
+Index              : 3884
+EntryType          : Warning
+InstanceId         : 0
+Message            : Category: Worker
+                     EventId: 0
+
+                     16:15:27.1390426: I'm busy at work.
+
+Category           : (0)
+CategoryNumber     : 0
+ReplacementStrings : {Category: Worker
+                     EventId: 0
+
+                     16:15:27.1390426: I'm busy at work.
+                     }
+Source             : .NET Example WorkerService
+TimeGenerated      : 04/02/2024 16:15:27
+TimeWritten        : 04/02/2024 16:15:27
+UserName           :
+
+Index              : 3883
+EntryType          : Information
+InstanceId         : 0
+Message            : Service started successfully.
+Category           : (0)
+CategoryNumber     : 0
+ReplacementStrings : {Service started successfully.}
+Source             : .NET Example WorkerService
+TimeGenerated      : 04/02/2024 16:15:22
+TimeWritten        : 04/02/2024 16:15:22
+UserName           :
+```
+
+* Stop the `.NET Example WorkerService` service
++
+```powershell
+Stop-Service -Name ".NET Example WorkerService"
+```
+
+* Remove the `.NET Example WorkerService` service
++
+```powershell
+Remove-Service -Name ".NET Example WorkerService"
+```
++
+NOTE: The `Remove-Service` cmdlet was introduced in PowerShell 6.0.
++
+Use the native Windows Service Control Manager's (`sc.exe`) delete command.
++
+```powershell
+sc.exe delete ".NET Example WorkerService"
+```
+
+
+
+[bibliography]
+== References
+
+* [[[dotnet-generic-host,1]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/generic-host
+* [[[aspnet-generic-host,2]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/generic-host
+* [[[aspnet-servers,3]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/
+* [[[kestrel-http3,4]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/http3
+* [[[dotnet-windows-service,5]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service
