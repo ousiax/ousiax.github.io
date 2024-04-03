@@ -431,7 +431,7 @@ New-Service -Name ".NET Example WorkerService" -BinaryPathName D:\Example.Worker
 Start-Service -Name ".NET Example WorkerService"
 ```
 
-* Start the `.NET Example WorkerService` service
+* Get the status of the `.NET Example WorkerService` service
 +
 ```powershell
 Get-Service -Name ".NET Example WorkerService" | Format-List
@@ -499,7 +499,7 @@ sc.exe delete ".NET Example WorkerService"
 
 == Host ASP.NET Core in a Windows Service
 
-An ASP.NET Core app can be hosted on Windows as a https://learn.microsoft.com/en-us/dotnet/framework/windows-services/introduction-to-windows-service-applications[Windows Service] without using IIS. When hosted as a Windows Service, the app automatically starts after server reboots.
+An ASP.NET Core app can be hosted on Windows as a https://learn.microsoft.com/en-us/dotnet/framework/windows-services/introduction-to-windows-service-applications[Windows Service] without using IIS. When hosted as a Windows Service, the app automatically starts after server reboots. <<aspnet-windows-service>>
 
 === Current directory and content root
 
@@ -585,6 +585,7 @@ app.MapGet("/", () => "Hello World!");
 
 app.Run();
 ----
+
 === Publish the app
 
 ```console
@@ -602,29 +603,37 @@ Example.WebApp.exe  appsettings.Development.json  appsettings.json
 
 === Create the Windows Service
 
+* Create work directory and copy files
++
 ```powershell
 > mkdir D:\Example.WebApp\
 > cp .\bin\Release\net8.0-windows\win-x64\publish\Example.WebApp.exe D:\Example.WebApp\
 ```
 
+* Create the `.NET Example WebApp` service
++
 ```powershell
 New-Service -Name ".NET Example WebApp" -BinaryPathName D:\Example.WebApp\Example.WebApp.exe
 ```
-
++
 ```console
 Status   Name               DisplayName
 ------   ----               -----------
 Stopped  .NET Example We... .NET Example WebApp
 ```
 
+* Start the `.NET Example WebApp` service
++
 ```powershell
 Start-Service -Name ".NET Example WebApp"
 ```
 
+* Get the status of the `.NET Example WebApp` service
++
 ```powershell
 Get-Service -Name ".NET Example WebApp" | Format-List
 ```
-
++
 ```console
 Name                : .NET Example WebApp
 DisplayName         : .NET Example WebApp
@@ -637,21 +646,24 @@ CanStop             : True
 ServiceType         : Win32OwnProcess
 ```
 
+* Get the events of the `.NET Example WebApp` service
++
 ```powershell
 Get-EventLog -LogName Application -Source ".NET Example WebApp"
 ```
-
++
 ```console
    Index Time          EntryType   Source                 InstanceID Message
    ----- ----          ---------   ------                 ---------- -------
     4677 Apr 02 17:39  Information .NET Example WebApp             0 Service started successfully.
 ```
 
+* Test the endpoint of the `.NET Example WebApp` service
++
 ```powershell
-# Test the endpoint of the Web App
 Invoke-WebRequest -Uri http://localhost:5000
 ```
-
++
 ```console
 StatusCode        : 200
 StatusDescription : OK
@@ -666,12 +678,151 @@ RawContent        : HTTP/1.1 200 OK
 . . .
 ```
 
+* Stop and delete the `.NET Example WebApp` service
++
+```powershell
+Stop-Service -Name ".NET Example WebApp"
+```
++
+```powershell
+sc.exe delete ".NET Example WebApp"
+```
+
+=== Static files in ASP.NET Core
+
+:web-root: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/?view=aspnetcore-8.0#web-root
+:aspnet-static-files: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
+
+Static files, such as HTML, CSS, images, and JavaScript, are assets an ASP.NET Core app serves directly to clients by default, which are stored within the project's {web-root}[web root] directory. <<aspnet-static-files>> For more information, see {aspnet-static-files}[Static files in ASP.NET Core].
+
+==== Create the `wwwroot` directory, and sample files
+
+```powershell
+mkdir wwwroot
+Write-Output "Hello Default Files!" | Out-File -Encoding ascii .\wwwroot\index.html
+Write-Output "Hello Windows Service!" | Out-File -Encoding ascii .\wwwroot\service.html
+```
+
+==== Rewrite the `Program` class
+
+[source,cs,highlight="32,35"]
+----
+// Program.cs
+
+using Microsoft.Extensions.Hosting.WindowsServices;
+using Microsoft.Extensions.Logging.Configuration;
+using Microsoft.Extensions.Logging.EventLog;
+
+// See https://github.com/dotnet/AspNetCore.Docs/issues/23387#issuecomment-927317675
+WebApplicationOptions options = new()
+{
+    Args = args,
+    // Sets the content root to AppContext.BaseDirectory.
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
+};
+
+WebApplicationBuilder builder = WebApplication.CreateBuilder(options);
+
+// Sets the host lifetime to WindowsServiceLifetime.
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = ".NET Example WebApp";
+});
+
+builder.Logging.AddEventLog(options =>
+{
+    options.SourceName = ".NET Example WebApp";
+});
+
+LoggerProviderOptions.RegisterProviderOptions<EventLogSettings, EventLogLoggerProvider>(builder.Services);
+
+WebApplication app = builder.Build();
+
+app.UseFileServer();
+
+// Set the path to `/hello`, instead of the root `/`.
+app.MapGet("/hello", () => "Hello World!");
+
+app.Run();
+----
+
+==== Publish the app
+
+```console
+$ dotnet publish
+MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
+Restore complete (0.7s)
+You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Example.WebApp succeeded (4.7s) → bin\Release\net8.0-windows\win-x64\publish\
+
+Build succeeded in 5.5s
+
+$ ls bin/Release/net8.0-windows/win-x64/publish/
+Example.WebApp.exe  appsettings.Development.json  appsettings.json  wwwroot
+```
+
+==== Update the Windows Service
+
+* Stop the `.NET Example WebApp` service
++
 ```powershell
 Stop-Service -Name ".NET Example WebApp"
 ```
 
+* Copy files
++
 ```powershell
-sc.exe delete ".NET Example WebApp"
+Copy-Item `
+    -Path .\bin\Release\net8.0-windows\win-x64\publish\* `
+    -Destination D:\Example.WebApp\ `
+    -Recurse `
+    -Force
+```
+
+* Start the `.NET Example WebApp` service
++
+```powershell
+Start-Service -Name ".NET Example WebApp"
+```
+
+* Test the endpoint of the `.NET Example WebApp service`
++
+```console
+> Invoke-WebRequest -Uri http://localhost:5000 `
+    | Select-Object -Property StatusCode,StatusDescription,Content `
+    | Format-List
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : Hello Index.html
+
+> Invoke-WebRequest -Uri http://localhost:5000/index.html `
+    | Select-Object -Property StatusCode,StatusDescription,Content `
+    | Format-List
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : Hello Default Files!
+
+> Invoke-WebRequest -Uri http://localhost:5000/service.html `
+    | Select-Object -Property StatusCode,StatusDescription,Content `
+    | Format-List
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : Hello Windows Service!
+
+> Invoke-WebRequest -Uri http://localhost:5000/hello `
+    | Select-Object -Property StatusCode,StatusDescription,Content `
+    | Format-List
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : Hello World!
 ```
 
 [bibliography]
@@ -683,3 +834,4 @@ sc.exe delete ".NET Example WebApp"
 * [[[kestrel-http3,4]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/http3
 * [[[dotnet-windows-service,5]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service
 * [[[aspnet-windows-service,6]]] https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/windows-service?view=aspnetcore-8.0&tabs=netcore-cli
+* [[[aspnet-static-files,7]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
