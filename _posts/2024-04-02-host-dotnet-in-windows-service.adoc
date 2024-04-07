@@ -797,7 +797,7 @@ Start-Service -Name ".NET Example WebApp"
 
 StatusCode        : 200
 StatusDescription : OK
-Content           : Hello Index.html
+Content           : Hello Default Files!
 
 > Invoke-WebRequest -Uri http://localhost:5000/index.html `
     | Select-Object -Property StatusCode,StatusDescription,Content `
@@ -827,6 +827,126 @@ StatusDescription : OK
 Content           : Hello World!
 ```
 
+== Create a Windows Service installer
+
+An installer bundles your app's executables and exposes a customizable installation user experience. <<dotnet-windows-service-with-installer>>
+
+* Start by installing the Wix Toolset. The Wix Toolset is a set of tools that build Windows installation packages from XML source code.
++
+```console
+> dotnet new tool-manifest
+The template "Dotnet local tool manifest file" was created successfully.
+> dotnet tool install wix
+You can invoke the tool from this directory using the following commands: 'dotnet tool run wix' or 'dotnet wix'.
+Tool 'wix' (version '5.0.0') was successfully installed.
+```
+
+* Create a WiX source file `Package.wxs` under the `Example.WebApp` project
++
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?define Name = ".NET Example WebApp" ?>
+<?define Manufacturer = ".NET Example Corporation" ?>
+<?define Version = "1.0.0.0" ?>
+<?define UpgradeCode = "288C8793-D5D7-427F-A82F-B647ECDBDCC1" ?>
+<?define ServiceName = ".NET Example WebApp" ?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="$(Name)"
+           Manufacturer="$(Manufacturer)"
+           Version="$(Version)"
+           UpgradeCode="$(var.UpgradeCode)"
+           Compressed="true">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ROOTDIRECTORY" Name="!(bind.Property.Manufacturer)">
+        <Directory Id="INSTALLFOLDER" Name="!(bind.Property.ProductName)">
+          <Directory Id="WEBROOTDIRECTORY" Name="wwwroot" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    
+    <ComponentGroup Id="WebAppServiceComponents" Directory="INSTALLFOLDER">
+      <Component Id="ServiceExecutable" Bitness="always64">
+        <File Source="$(var.Example.WebApp.TargetDir)publish\Example.WebApp.exe" />
+
+        <ServiceInstall Id="ServiceInstaller"
+                        Type="ownProcess"
+                        Name="$(ServiceName)"
+                        DisplayName="$(ServiceName)"
+                        Description="A joke service that periodically logs nerdy humor."
+                        Start="auto"
+                        ErrorControl="normal" />
+
+        <ServiceControl Id="StartService"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Name="$(ServiceName)"
+                        Wait="true" />
+      </Component>
+    </ComponentGroup>
+    
+    <ComponentGroup Id="AppSettingsComponents" Directory="INSTALLFOLDER">
+      <File Source="$(var.Example.WebApp.TargetDir)publish\appsettings.json" />
+      <Files Include="$(var.Example.WebApp.TargetDir)publish\appsettings.*.json" />
+    </ComponentGroup>
+
+    <ComponentGroup Id="WebRootComponents" Directory="INSTALLFOLDER">
+      <Files Directory="WEBROOTDIRECTORY" Include="$(var.Example.WebApp.TargetDir)publish\wwwroot\**" />
+    </ComponentGroup>
+    
+    <Feature Id="WebApp">
+      <ComponentGroupRef Id="WebAppServiceComponents"/>
+      <ComponentGroupRef Id="AppSettingsComponents" />
+      <ComponentGroupRef Id="WebRootComponents" />
+    </Feature>
+  </Package>
+</Wix>
+```
+
+* Publish the `Example.WebApp` project.
++
+```console
+> dotnet publish
+MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
+Restore complete (0.2s)
+You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Example.WebApp succeeded (1.2s) → bin\Release\net8.0-windows\win-x64\publish\
+
+Build succeeded in 1.6s
+```
+
+* Build the MSI installer
++
+```console
+> $outdir = dotnet msbuild -getProperty:OutDir -p:Configuration=Release
+> dotnet wix build -arch x64 Package.wxs -d var.Example.WebApp.TargetDir=$outdir -out Example.WebApp.msi
+```
+
+* Test installation
++
+Double click the `Example.WebApp.msi` to install the `.NET Example WebApp` service. You need to run the installation as an administrator.
++
+Once the service is installed, you can open `Services` to see the service running. To uninstall the service, use the `Windows Add or Remove Programs` feature to call the installer.
++
+Run the following command on PowerShell to test the service.
++
+```console
+> Invoke-WebRequest -Uri http://localhost:5000 `
+>>     | Select-Object -Property StatusCode,StatusDescription,Content `
+>>     | Format-List
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : Hello Default Files!
+```
+
 [bibliography]
 == References
 
@@ -837,3 +957,4 @@ Content           : Hello World!
 * [[[dotnet-windows-service,5]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service
 * [[[aspnet-windows-service,6]]] https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/windows-service?view=aspnetcore-8.0&tabs=netcore-cli
 * [[[aspnet-static-files,7]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
+* [[[dotnet-windows-service-with-installer,9]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service-with-installer
