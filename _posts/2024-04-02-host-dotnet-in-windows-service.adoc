@@ -392,7 +392,7 @@ To create the .NET Worker Service app as a Windows Service, it's recommended tha
 ----
 
 ```console
-$ dotnet publish
+$ dotnet publish <1>
 MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
 Restore complete (0.3s)
 You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
@@ -403,6 +403,23 @@ Build succeeded in 2.6s
 $ ls bin/Release/net8.0-windows/win-x64/publish/
 Example.WorkerService.exe
 ```
+
+<1> The https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish[dotnet publish command] now uses the `Release` configuration instead of the `Debug` configuration by default if the target framework is .NET 8 or a later version.
+
+[TIP]
+====
+You can also publish .NET apps using the .NET CLI with the following switches.
+
+```sh
+dotnet publish \
+    -f net8.0-windows \
+    -r win-x64 \
+    --sc \
+    -p:PublishSingleFile=true \
+    -p:IncludeNativeLibrariesForSelfExtract=true \
+    -p:DebugType=embedded
+```
+====
 
 === Create the Windows Service
 
@@ -829,19 +846,32 @@ Content           : Hello World!
 
 == Create a Windows Service installer
 
-An installer bundles your app's executables and exposes a customizable installation user experience. <<dotnet-windows-service-with-installer>>
+An https://learn.microsoft.com/en-us/windows/win32/msi/windows-installer-portal[Windows Installer], an installation and configuration service provided with Windows, bundles the app's executables and exposes a customizable installation user experience. <<dotnet-windows-service-with-installer>>
 
-* Start by installing the Wix Toolset. The Wix Toolset is a set of tools that build Windows installation packages from XML source code.
+The following steps will use the `Example.WebApp` project as an example to package a Windows Installer.
+
+=== Install the Wix Toolset
+
+The https://wixtoolset.org/[Wix Toolset] is a set of tools that build Windows installation packages from XML source code.
+
+* Create the local tool manifest file in root directory of the `Example.WebApp` project
 +
 ```console
 > dotnet new tool-manifest
 The template "Dotnet local tool manifest file" was created successfully.
-> dotnet tool install wix
-You can invoke the tool from this directory using the following commands: 'dotnet tool run wix' or 'dotnet wix'.
-Tool 'wix' (version '5.0.0') was successfully installed.
 ```
 
-* Create a WiX source file `Package.wxs` under the `Example.WebApp` project
+* Install the Wix Toolset
++
+```console
+> dotnet tool install wix --version 5.0.0
+You can invoke the tool from this directory using the following commands: 'dotnet tool run wix' or 'dotnet wix'.
+Tool 'wix' (version '5.0.0') was successfully installed. . . .
+```
+
+=== Create a WiX package source file
+
+* Create a WiX source file `Package.wxs` in the root directory of the `Example.WebApp` project
 +
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -855,10 +885,10 @@ Tool 'wix' (version '5.0.0') was successfully installed.
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="$(Name)"
            Manufacturer="$(Manufacturer)"
-           Version="$(Version)"
+           Version="$(Version)" <1>
            UpgradeCode="$(var.UpgradeCode)"
            Compressed="true">
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." /> <2>
 
     <MediaTemplate EmbedCab="yes" />
 
@@ -909,6 +939,12 @@ Tool 'wix' (version '5.0.0') was successfully installed.
 </Wix>
 ```
 
+<1> Windows Installer uses only the first three fields of the product version. See https://learn.microsoft.com/en-us/windows/win32/msi/productversion[ProductVersion] Property for descriptions of these fields. If you include a fourth field in your product version, the installer ignores the fourth field.
+
+<2> During a major upgrade using Windows Installer, the installer searches the user's computer for applications that are related to the pending upgrade, and when it detects one, it retrieves the version of the installed application from the system registry. The installer then uses information in the upgrade database to determine whether to upgrade the installed application. See also https://learn.microsoft.com/en-us/windows/win32/msi/major-upgrades[Major Upgrades.
+
+=== Build the MSI installer
+
 * Publish the `Example.WebApp` project.
 +
 ```console
@@ -927,19 +963,42 @@ Build succeeded in 1.6s
 > $outdir = dotnet msbuild -getProperty:OutDir -p:Configuration=Release
 > dotnet wix build -arch x64 Package.wxs -d var.Example.WebApp.TargetDir=$outdir -out Example.WebApp.msi
 ```
-
-* Test installation
 +
-Double click the `Example.WebApp.msi` to install the `.NET Example WebApp` service. You need to run the installation as an administrator.
+[TIP]
+====
+```console
+> dotnet msbuild -getProperty:OutDir -p:Configuration=Release
+bin\Release\net8.0-windows\win-x64\
+```
+====
+
+* Test in Windows Sandbox
++
+.*_Enabling Windows Sandbox_*
+[TIP]
+====
+
+Windows Sandbox comes with Windows but isn't installed by default. The https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-overview[documentation] tells you to search from the taskbar for `Turn Windows Features on or off` to bring up the feature list. Another way to get to that list is to visit our old friend ARP (Programs and Features) and click on the Turn Windows Features on or off link on the left.
+
+That brings up a list of features. Scroll to almost the bottom of the list and you'll see `Windows Sandbox`. If you do NOT see it, that means your machine isn't modern enough to satisfy Windows's cravings for the newest CPUs. If it's there and checked, you're all done. If it's there and unchecked, check it and click OK. You'll have to go through a reboot and spinner churn as Sandbox is installed.
+
+Once it's installed, search for `sandbox` and choose the `Windows Sandbox` shortcut. The first time you run it, it might take a little while to come up (newbie jitters) but soon enough, you'll have a window with a familiar-looking Windows desktop.
+
+See also https://www.firegiant.com/docs/wix/tutorial/sprint3/enabling-windows-sandbox/.
+====
++
+** Select `Example.WebApp.msi` and press `Ctrl+C` (or choose `Copy` from the context menu). Go to your running Windows Sandbox and press `Ctrl+V` (or `Paste`) on the desktop.
++
+** Double click the `Example.WebApp.msi` to install the `.NET Example WebApp` service. You need to run the installation as an administrator.
 +
 Once the service is installed, you can open `Services` to see the service running. To uninstall the service, use the `Windows Add or Remove Programs` feature to call the installer.
 +
-Run the following command on PowerShell to test the service.
+** Run the following command on PowerShell to test the service.
 +
 ```console
 > Invoke-WebRequest -Uri http://localhost:5000 `
->>     | Select-Object -Property StatusCode,StatusDescription,Content `
->>     | Format-List
+     | Select-Object -Property StatusCode,StatusDescription,Content `
+     | Format-List
 
 
 StatusCode        : 200
