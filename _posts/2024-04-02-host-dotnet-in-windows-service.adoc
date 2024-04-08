@@ -848,13 +848,19 @@ Content           : Hello World!
 
 An https://learn.microsoft.com/en-us/windows/win32/msi/windows-installer-portal[Windows Installer], an installation and configuration service provided with Windows, bundles the app's executables and exposes a customizable installation user experience. <<dotnet-windows-service-with-installer>>
 
-The following steps will use the `Example.WebApp` project as an example to package a Windows Installer.
-
-=== Install the Wix Toolset
-
 The https://wixtoolset.org/[Wix Toolset] is a set of tools that build Windows installation packages from XML source code.
 
-* Create the local tool manifest file in root directory of the `Example.WebApp` project
+WARNING: The WiX Toolset only supports Windows.
+
+The following steps will use the `Example.WebApp` project as an example to package a Windows Installer.
+
+=== WiX Command-line .NET tool
+
+WiX, available as a https://wixtoolset.org/docs/tools/wixexe/[.NET tool], supports commands to perform particular operations. For example, the `build` command can be used to build MSI packages, bundles, and other package types.
+
+* Install the Wix Toolset
+
+* Create the local tool manifest file
 +
 ```console
 > dotnet new tool-manifest
@@ -869,9 +875,7 @@ You can invoke the tool from this directory using the following commands: 'dotne
 Tool 'wix' (version '5.0.0') was successfully installed. . . .
 ```
 
-=== Create a WiX package source file
-
-* Create a WiX source file `Package.wxs` in the root directory of the `Example.WebApp` project
+* Create the WiX package source file `Package.wxs`
 +
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -938,16 +942,14 @@ Tool 'wix' (version '5.0.0') was successfully installed. . . .
   </Package>
 </Wix>
 ```
-
++
 <1> Windows Installer uses only the first three fields of the product version. See https://learn.microsoft.com/en-us/windows/win32/msi/productversion[ProductVersion] Property for descriptions of these fields. If you include a fourth field in your product version, the installer ignores the fourth field.
 +
 To create an upgrade installer package, you can update the `version` and repackage it.
-
++
 <2> During a major upgrade using Windows Installer, the installer searches the user's computer for applications that are related to the pending upgrade, and when it detects one, it retrieves the version of the installed application from the system registry. The installer then uses information in the upgrade database to determine whether to upgrade the installed application.
 +
 See also https://learn.microsoft.com/en-us/windows/win32/msi/major-upgrades.
-
-=== Build the MSI installer
 
 * Publish the `Example.WebApp` project.
 +
@@ -1008,6 +1010,71 @@ Once the service is installed, you can open `Services` to see the service runnin
 StatusCode        : 200
 StatusDescription : OK
 Content           : Hello Default Files!
+```
+
+=== WiX MSBuild on the command line and CI/CD build systems
+
+WiX, available as an https://wixtoolset.org/docs/tools/msbuild/[MSBuild SDK] for building from the command line using `dotnet build` from the .NET SDK or the .NET Framework-based `MSBuild` from Visual Studio, have smart defaults that make for simple `.wixproj` project authoring. For example, here's a minimal `.wixproj` that builds an MSI from the `.wxs` source files in the project directory:
+
+```xml
+<Project Sdk="WixToolset.Sdk/5.0.0">
+</Project>
+```
+
+TIP: https://www.firegiant.com/[FireGiant] has released https://www.firegiant.com/wix/heatwave/[HeatWave Community Edition], available free of charge, to support WiX SDK-style MSBuild projects in Visual Studio. 
+
+* Create the WiX SDK-style project directory
++
+```powershell
+> mkdir .\src\Example.WebApp.Installer
+```
+
+* Create the WiX SDK-style project file
++
+```powershell
+> ni .\src\Example.WebApp.Installer\Example.WebApp.Installer.wixproj
+```
++
+```xml
+<!-- Example.WebApp.Installer.wixproj -->
+
+<Project Sdk="WixToolset.Sdk/5.0.0">
+  <ItemGroup>
+    <ProjectReference Include="..\Example.WebApp\Example.WebApp.csproj" />
+  </ItemGroup>
+</Project>
+```
+
+* Add the WiX SDK-style project to the solution
++
+```powershell
+> dotnet sln add .\src\Example.WebApp.Installer\
+```
+
+* Copy the `Package.wxs` from the project `Example.WebApp` to `Example.WebApp.Installer`
++
+```powershell
+> cp .\src\Example.WebApp\Package.wxs .\src\Example.WebApp.Installer\
+```
+
+* Publish the `Example.WebApp` and build the MSI package
++
+```console
+> dotnet publish .\src\Example.WebApp\
+MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
+Restore complete (0.6s)
+You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Example.WebApp succeeded (7.5s) → src\Example.WebApp\bin\Release\net8.0-windows\win-x64\publish\
+
+Build succeeded in 8.3s
+> dotnet build -r win-x64 -c Release -p:InstallerPlatform=x64 .\src\Example.WebApp.Installer\
+MSBuild version 17.10.0-preview-24101-01+07fd5d51f for .NET
+Restore complete (0.4s)
+You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Example.WebApp succeeded (0.3s) → src\Example.WebApp\bin\Release\net8.0-windows\win-x64\Example.WebApp.dll
+  Example.WebApp.Installer succeeded (0.0s) → src\Example.WebApp.Installer\bin\Release\Example.WebApp.Installer.msi
+
+Build succeeded in 0.9s
 ```
 
 [bibliography]
