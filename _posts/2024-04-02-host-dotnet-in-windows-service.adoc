@@ -1077,6 +1077,100 @@ You are using a preview version of .NET. See: https://aka.ms/dotnet-support-poli
 Build succeeded in 0.9s
 ```
 
+=== Signing Windows Installer MSI packages
+
+Windows Installer packages can be signed directly by signing tools like https://learn.microsoft.com/en-us/dotnet/framework/tools/signtool-exe[Signtool.exe]. <<wixtoolset-signing>>
+
+SignTool is available as part of the Windows SDK, which you can download from https://developer.microsoft.com/windows/downloads/windows-sdk[Windows SDK]. The tool is installed in the `\bin` folder of the SDK installation path, for example: `C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe`. <<sdk-signtool>> <<digitally-sign-msi-installers-with-code-signing>>
+
+* Use `New-SelfSignedCertificate` to create a self-signed certificate for testing
++
+See https://learn.microsoft.com/en-us/windows/msix/package/create-certificate-package-signing
++
+```powershell
+New-SelfSignedCertificate `
+  -Type Custom `
+  -Subject "CN=Contoso Software, O=Contoso Corporation, C=US" `
+  -KeyUsage DigitalSignature ` <1>
+  -FriendlyName "Your friendly name goes here" `
+  -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}") ` <2>
+  -CertStoreLocation "Cert:\CurrentUser\My"
+```
++
+<1> `KeyUsage`: This parameter defines what the certificate may be used for. For a self-signing certificate, this parameter should be set to `DigitalSignature`.
++
+<2> `TextExtension`: This parameter includes settings for the following extensions:
++
+`Extended Key Usage (EKU)`: This extension indicates additional purposes for which the certified public key may be used. For a self-signing certificate, this parameter should include the extension string "2.5.29.37={text}1.3.6.1.5.5.7.3.3", which indicates that the certificate is to be used for code signing.
++
+`Basic Constraints`: This extension indicates whether or not the certificate is a Certificate Authority (CA). For a self-signing certificate, this parameter should include the extension string "2.5.29.19={text}", which indicates that the certificate is an end entity (not a CA).
+
+* You can view your certificate in a PowerShell window by using the following commands:
++
+```powershell
+Get-ChildItem Cert:\CurrentUser\My | Format-Table Subject, FriendlyName, Thumbprint
+```
+
+* Export a certificate
++
+To export the certificate in the local store to a Personal Information Exchange (PFX) file, use the `Export-PfxCertificate` cmdlet.
++
+When using `Export-PfxCertificate`, you must either create and use a password or use the "-ProtectTo" parameter to specify which users or groups can access the file without a password. Note that an error will be displayed if you don't use either the "-Password" or "-ProtectTo" parameter.
++
+** Password usage
++
+```powershell
+$password = ConvertTo-SecureString -String <Your Password> -Force -AsPlainText
+Export-PfxCertificate `
+  -cert "Cert:\CurrentUser\My\<Certificate Thumbprint>" `
+  -FilePath <FilePath>.pfx `
+  -Password $password
+```
++
+** ProtectTo usage
++
+```powershell
+Export-PfxCertificate `
+  -cert Cert:\CurrentUser\My\<Certificate Thumbprint> `
+  -FilePath <FilePath>.pfx `
+  -ProtectTo <Username or group name>
+```
++
+```console
+> Get-ChildItem Cert:\CurrentUser\My | Format-Table Subject, FriendlyName, Thumbprint
+
+Subject                                          FriendlyName                               Thumbprint
+-------                                          ------------                               ----------
+CN=localhost                                     ASP.NET Core HTTPS development certificate 621654A0E5B9683E1129FE5D0871FAB5995F30E6
+CN=Contoso Software, O=Contoso Corporation, C=US Your friendly name goes here               532554756AC84D83A274B094A76A8C38FE821227
+> $password = ConvertTo-SecureString -String "<Your Password>" -Force -AsPlainText
+> Export-PfxCertificate -Cert Cert:\CurrentUser\My\532554756AC84D83A274B094A76A8C38FE821227 -FilePath cert.pfx -Password $password
+
+. . .
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        04/08/2024     17:01           2782 cert.pfx
+```
+
+* Sign MSI package using SignTool
++
+```console
+> signtool sign /v /fd SHA256 /f cert.pfx /p "<Your Password>" Example.WebApp.Installer.msi
+The following certificate was selected:
+    Issued to: Contoso Software
+    Issued by: Contoso Software
+    Expires:   Tue Apr 08 16:54:26 2025
+    SHA1 hash: 532554756AC84D83A274B094A76A8C38FE821227
+
+Done Adding Additional Store
+Successfully signed: .\Example.WebApp.Installer.msi
+
+Number of files successfully Signed: 1
+Number of warnings: 0
+Number of errors: 0
+```
+
 [bibliography]
 == References
 
@@ -1088,3 +1182,6 @@ Build succeeded in 0.9s
 * [[[aspnet-windows-service,6]]] https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/windows-service?view=aspnetcore-8.0&tabs=netcore-cli
 * [[[aspnet-static-files,7]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
 * [[[dotnet-windows-service-with-installer,9]]] https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service-with-installer
+* [[[wixtoolset-signing,10]]] https://wixtoolset.org/docs/tools/signing/
+* [[[sdk-signtool,11]]] https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool
+* [[[digitally-sign-msi-installers-with-code-signing,12]]] https://codesigningstore.com/digitally-sign-msi-installers-with-code-signing
