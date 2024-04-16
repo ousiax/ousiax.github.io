@@ -497,6 +497,539 @@ try {
 // false
 ```
 
+* Custom https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error[error] types
++
+```js
+class CustomError extends Error {
+  constructor(foo = "bar", ...params) {
+    // Pass remaining arguments (including vendor specific ones) to parent constructor
+    super(...params);
+
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, CustomError);
+    }
+
+    this.name = "CustomError";
+    // Custom debugging information
+    this.foo = foo;
+    this.date = new Date();
+  }
+}
+
+try {
+  throw new CustomError("baz", "bazMessage");
+} catch (e) {
+  console.error(e.name); // CustomError
+  console.error(e.foo); // baz
+  console.error(e.message); // bazMessage
+  console.error(e.stack); // stacktrace
+}
+```
+
+== Loops and iteration
+
+=== For
+
+* A `for` loop repeats until a specified condition evaluates to false. The JavaScript for loop is similar to the Java and C `for` loop.
++
+```js
+// similar to the Java and C for loop.
+for (initialization; condition; afterthought)
+  statement
+```
++
+```js
+for (let i = 0; i < 3; i++) {
+  console.log(i);
+}
+// 0
+// 1
+// 2
+```
+
+* The `for...in` statement iterates a specified variable over all the enumerable properties of an object. For each distinct property, JavaScript executes the specified statements.
++
+```js
+for (variable in object)
+  statement
+```
++
+```js
+const car = { make: "Ford", model: "Mustang" };
+for (const p in car) {
+  console.log(`car.${p} = ${car[p]}`);
+}
+// car.make = Ford
+// car.model = Mustang
+```
++
+Although it may be tempting to use this as a way to iterate over Array elements, the `for...in` statement will return the name of the user-defined properties in addition to the numeric indexes.
++
+```js
+const nums = [3, 4, 5];
+nums.foo = 'bar';
+for (const idx in nums) {
+  console.log(`nums[${idx}] = ${nums[idx]}`);
+}
+// nums[0] = 3
+// nums[1] = 4
+// nums[2] = 5
+// nums[foo] = bar
+```
+
+* The `for...of` statement creates a loop Iterating over https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols[iterable objects] (including `Array`, `Map`, `Set`, `arguments` object and so on), invoking a custom iteration hook with statements to be executed for the value of each distinct property. 
++
+```js
+for (variable of object)
+  statement
+```
++
+```js
+const nums = [3, 4, 5];
+nums.foo = 'bar';
+for (const num of nums) {
+  console.log(num);
+}
+// 3
+// 4
+// 5
+```
+
+* The `for...of` and `for...in` statements can also be used with https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment[destructuring].
++
+```js
+const obj = { foo: 1, bar: 2 };
+
+for (const [key, val] of Object.entries(obj)) {
+  console.log(key, val);
+}
+// "foo" 1
+// "bar" 2
+```
+
+=== While
+
+* The `while` statement executes its statements as long as a specified condition evaluates to `true`.
++
+```js
+while (condition)
+  statement
+```
++
+```js
+let i = 0;
+while (i < 3) {
+  console.log(i);
+  i++;
+}
+// 0
+// 1
+// 2
+```
+
+* The `do...while` statement repeats until a specified condition evaluates to false. 
++
+```js
+do
+  // statement is always executed once before the condition is checked.
+  statement
+while (condition);
+```
++
+```js
+let i = 0;
+do {
+  console.log(i);
+  i++;
+} while(i < 3)
+// 0
+// 1
+// 2
+```
+
+=== Label, break, continue
+
+* A `label` provides a statement with an identifier that lets you refer to it elsewhere in your program. 
++
+```js
+label:
+  statement
+```
+
+*  Use the `break` statement to terminate a loop, `switch`, or in conjunction with a labeled statement.
++
+--
+** When you use `break` without a label, it terminates the innermost enclosing `while`, `do-while`, `for`, or `switch` immediately and transfers control to the following statement.
+** When you use `break` with a label, it terminates the specified labeled statement.
+--
++
+```js
+break;
+break label;
+```
++
+```js
+let x = 0;
+let z = 0;
+labelCancelLoops: while (true) {
+  console.log("Outer loops:", x);
+  x += 1;
+  z = 1;
+  while (true) {
+    console.log("Inner loops:", z);
+    z += 1;
+    if (z === 10 && x === 10) {
+      break labelCancelLoops;
+    } else if (z === 10) {
+      break;
+    }
+  }
+}
+```
+
+* The `continue` statement can be used to restart a `while`, `do-while`, `for`, or `label` statement.
++
+--
+** When you use `continue` without a label, it terminates the current iteration of the innermost enclosing `while`, `do-while`, or `for` statement and continues execution of the loop with the next iteration.
++
+In contrast to the `break` statement, `continue` does not terminate the execution of the loop entirely.
++
+In a `while` loop, it jumps back to the condition.
++
+In a `for` loop, it jumps to the `increment-expression`.
+
+** When you use `continue` with a label, it applies to the looping statement identified with that label.
+--
++
+```js
+continue;
+continue label;
+```
++
+```js
+let i = 0;
+let j = 10;
+checkiandj: while (i < 4) {
+  console.log(i);
+  i += 1;
+  checkj: while (j > 4) {
+    console.log(j);
+    j -= 1;
+    if (j % 2 === 0) {
+      continue checkj;
+    }
+    console.log(j, "is odd.");
+  }
+  console.log("i =", i);
+  console.log("j =", j);
+}
+```
+
+== Functions
+
+* A *function definition* (also called a *function declaration*, or *function statement*) consists of the `function` keyword, followed by:
++
+--
+** The name of the function.
+
+** A list of parameters to the function, enclosed in parentheses and separated by commas.
++
+*** Parameters are essentially passed to functions by value.
+*** When pass an object as a parameter, if the function changes the object's properties, that change is visible outside the function.
+
+** The JavaScript statements that define the function, enclosed in curly braces, `{ /* … */ }`.
+--
++
+```js
+function square(number) {
+  return number * number;
+}
+```
+
+* The `function` keyword can be used to define a function inside an https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/function[expression].
++
+--
+** Such a function can be *anonymous*; it does not have to have a name.
++
+```js
+const square = function (number) {
+  return number * number;
+};
+
+console.log(square(4)); // 16
+```
+
+** Providing a name allows the function to refer to itself, and also makes it easier to identify the function in a debugger's stack traces:
++
+```js
+const factorial = function fac(n) {
+  return n < 2 ? 1 : n * fac(n - 1);
+};
+
+console.log(factorial(3)); // 6
+```
+
+** Function expressions are convenient when passing a function as an argument to another function.
++
+```js
+const nums = [1, 3, 5];
+const square = nums.map(function(num) { return num * num});
+console.log(square.join()); // 1,9,25
+```
+--
+
+* Use the https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function[Function] constructor to create functions from a string at runtime, much like `eval()`.
++
+```js
+const sum = new Function('a', 'b', 'console.log(a + b)');
+sum(2, 6); // 8
+```
++
+[TIP]
+====
+The `call()` and `apply()` methods of the Function object can also be used to call functions.
+
+```js
+sum.call(null, 1, 1); // 2
+sum.apply(null, [1, 1]); // 2
+```
+====
+
+* A *method* is a function that is a property of an object.
++
+```js
+const car = {
+  make: "Ford",
+  model: "Mustang",
+  greet() { console.log(`${this.make}, ${this.model}`) }
+};
+car.greet(); // Ford, Mustang
+```
+
+* JavaScript interpreter *hoists* the entire function _declaration_ — not with function _expressions_ to the top of the current scope.
++
+```js
+console.log(square(5)); // 25
+
+function square(n) {
+  return n * n;
+}
+```
++
+```js
+console.log(square(5)); // ReferenceError: Cannot access 'square' before initialization
+const square = function (n) {
+  return n * n;
+};
+```
+
+* A function that calls itself is called a *recursive function*. There are three ways for a function to refer to itself:
++
+--
+** The function's name
+** https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments/callee[arguments.callee]
+** An in-scope variable that refers to the function
+--
++
+```js
+const foo = function bar() {
+  // statements go here
+
+  // bar()
+  // arguments.callee()
+  // foo()
+};
+```
+
+* A function can be nested within another function, which forms a *closure*. The nested (inner) function is private to its containing (outer) function.
++
+```js
+function outside(x) {
+  function inside(y) {
+    return x + y;
+  }
+  return inside;
+}
+
+const fnInside = outside(3); // Think of it like: give me a function that adds 3 to whatever you give it
+console.log(fnInside(5)); // 8
+console.log(outside(3)(5)); // 8
+```
++
+TIP: A closure is an expression (most commonly, a function) that can have free variables together with an environment that binds those variables (that "closes" the expression).
++
+TIP: A closure must preserve the arguments and variables in all scopes it references. Since each call provides potentially different arguments, a new closure is created for each call to `outside`. The memory can be freed only when the returned `inside` is no longer accessible.
+
+* When two arguments or variables in the scopes (_scope chaning_) of a closure have the same name, the more nested scopes take precedence.
++
+```js
+function outside() {
+  const x = 5;
+  function inside(x) {
+    return x * 2;
+  }
+  return inside;
+}
+
+console.log(outside()(10)); // 20 (instead of 10)
+```
+
+* Creating closures in loops: a common mistake
++
+```js
+const funcs = [];
+for (var i = 0; i < 3; i++) { // var-based index
+  funcs.push(function () { console.log(i); });
+  // solution: using the scope chaining to override the outer variable.
+  // funcs.push(function (i) { return function () { console.log(i); } }(i));
+}
+for(const func of funcs) {
+  func();
+}
+// 3
+// 3
+// 3
+```
++
+```js
+const funcs = [];
+for (let i = 0; i < 3; i++) { // let-based index
+  funcs.push(function () { console.log(i); });
+}
+for(const func of funcs) {
+  func();
+}
+// 0
+// 1
+// 2
+```
+
+* The `arguments` of a function are maintained in an array-like object, but not an array.
++
+It is array-like in that it has a numbered index and a `length` property. However, it does not possess all of the array-manipulation methods.
++
+Using the `arguments` object, you can call a function with more arguments than it is formally declared to accept.
++
+```js
+function seq() {
+  console.log(arguments.length);
+  for (const arg of arguments) {
+    console.log(arg);
+  }
+}
+seq(0, 1, 2);
+// 3
+// 0
+// 1
+// 2
+```
+
+* In JavaScript, parameters of functions default to `undefined`. However, in some situations it might be useful to set a different default value. This is exactly what https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Default_parameters[default parameters] do.
++
+```js
+// function multiply(a, b) {
+//   b = typeof b !== "undefined" ? b : 1;
+//   return a * b;
+// }
+// With default parameters, a manual check in the function body is no longer necessary. 
+function multiply(a, b = 1) {
+  return a * b;
+}
+console.log(multiply(5)); // 5
+```
+
+* The https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/rest_parameters[rest parameter] (i.e., https://en.wikipedia.org/wiki/Variadic_function[variadic]) syntax allows us to represent an indefinite number of arguments as an array.
++
+```js
+function multiply(multiplier, ...theArgs) {
+  return theArgs.map((x) => multiplier * x);
+}
+const arr = multiply(2, 1, 2, 3);
+console.log(arr); // [2, 4, 6]
+```
+
+* An https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions[arrow function expression] (also called a _fat arrow_ to distinguish from a hypothetical `+++->+++` syntax in future JavaScript) has a shorter syntax compared to function expressions and does not have its own `this`, `arguments`, `super`, or `new.target`.
++
+--
+** Arrow functions are always anonymous.
+** Two factors influenced the introduction of arrow functions: _shorter functions_ and _non-binding_ of `this`.
+--
++
+```js
+const a = ["Hydrogen", "Helium", "Lithium", "Beryllium"];
+
+const a2 = a.map(function (s) {
+  return s.length;
+});
+
+console.log(a2); // [8, 6, 7, 9]
+
+const a3 = a.map((s) => s.length); // shorter functions
+
+console.log(a3); // [8, 6, 7, 9]
+```
++
+** Until arrow functions, every new function defined its own `this` value (a new object in the case of a constructor, undefined in https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode[strict mode] function calls, the base object if the function is called as an "object method", etc.). 
++
+```js
+function Person() {
+  // The Person() constructor defines `this` as itself.
+  this.age = 0;
+
+  setInterval(function growUp() {
+    // In nonstrict mode, the growUp() function defines `this`
+    // as the global object, which is different from the `this`
+    // defined by the Person() constructor.
+    this.age++;
+  }, 1000);
+}
+```
++
+** In ECMAScript 3/5, this issue was fixed by assigning the value in `this` to a variable that could be closed over.
++
+```js
+// ECMAScript 3/5 closures
+function Person() {
+  // Some choose `that` instead of `self`.
+  // Choose one and be consistent.
+  const self = this;
+  self.age = 0;
+
+  setInterval(function growUp() {
+    // The callback refers to the `self` variable of which
+    // the value is the expected object.
+    self.age++;
+  }, 1000);
+}
+```
++
+** Alternatively, a https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/bind[bound function] could be created so that the proper `this` value would be passed to the `growUp()` function.
++
+```js
+function Person() {
+  this.age = 0;
+
+  setInterval(function growUp() {
+    this.age++;
+  }.bind(this), 1000);
+}
+```
++
+** An arrow function does not have its own `this`; the `this` value of the enclosing execution context is used.
++
+```js
+function Person() {
+  this.age = 0;
+
+  setInterval(() => {
+    this.age++; // `this` properly refers to the person object
+  }, 1000);
+}
+```
+
+
+
 
 
 
