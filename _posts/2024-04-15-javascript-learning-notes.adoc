@@ -9,7 +9,7 @@
 :sectnums:
 :sectnumlevels: 4
 
-JavaScript is a cross-platform, object-oriented scripting language. The core language of JavaScript is standardized by the ECMA TC39 committee as a language named ECMAScript.
+JavaScript is a cross-platform, https://en.wikipedia.org/wiki/Prototype-based_programming[prototype-based], https://en.wikipedia.org/wiki/Object-oriented_programming[object-oriented] https://en.wikipedia.org/wiki/Scripting_language[scripting] language. The core language of JavaScript is standardized by the ECMA TC39 committee as a language named ECMAScript.
 
 TIP: "ECMAScript" is the term for the language standard, but "ECMAScript" and "JavaScript" can be used interchangeably.
 
@@ -128,7 +128,7 @@ console.log(x === undefined); // true
 x = 3;
 ```
 
-=== ECMAScript standard data types
+=== Data types
 
 The latest ECMAScript standard defines eight data types:
 
@@ -1453,6 +1453,49 @@ console.log(auto instanceof Object);
 // Expected output: true
 ```
 
+=== Grouping operator
+
+The https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Grouping[*grouping*] `( )` operator controls the precedence of evaluation in expressions. It also acts as a container for arbitrary expressions in certain syntactic constructs, where ambiguity or syntax errors would otherwise occur.
+
+* Evaluating addition and subtraction before multiplication and division.
++
+```js
+const a = 1;
+const b = 2;
+const c = 3;
+
+// default precedence
+a + b * c; // 7
+// evaluated by default like this
+a + (b * c); // 7
+
+// now overriding precedence
+// addition before multiplication
+(a + b) * c; // 9
+
+// which is equivalent to
+a * c + b * c; // 9
+```
+
+* Using the grouping operator to eliminate parsing ambiguity
++
+```js
+// An IIFE (Immediately Invoked Function Expression)
+(function () {
+  // code
+})();
+```
++
+```js
+// an arrow function expression body
+const f = () => ({ a: 1 });
+```
++
+```js
+// a property accessor dot `.` may be ambiguous with a decimal point
+(1).toString(); // "1"
+```
+
 == Regular expressions
 
 * Regular expression literals (`/pattern/flags`) provide compilation of the regular expression when the script is loaded. If the regular expression remains constant, using this can improve performance.
@@ -1666,6 +1709,185 @@ for (const item of mySet) {
 ** Equality works like the identity comparison operator `===`.
 ** `-0` and `+0` are considered equal.
 ** `NaN` is considered equal to itself (contrary to `===`).
+
+== Inheritance and the prototype chain
+
+> In object-oriented programming, https://en.wikipedia.org/wiki/Inheritance_(object-oriented_programming)[*inheritance*] is the mechanism of basing an object or class upon another object (https://en.wikipedia.org/wiki/Prototype-based_programming[prototype-based inheritance]) or class (https://en.wikipedia.org/wiki/Class-based_programming[class-based inheritance]), retaining similar implementation.
+>
+> -- Inheritance (object-oriented programming) - Wikipedia
+
+JavaScript is a prototype-based, object-oriented scripting language, which implements inheritance by using objects.
+
+* Each object has an internal link to another object called its *prototype*.
+
+* That prototype object has a prototype of its own, and so on until an object is reached with `null` as its prototype.
+
+* By definition, `null` has no prototype and acts as the final link in this *prototype chain*.
+
+* It is possible to mutate any member of the prototype chain or even swap out the prototype at runtime, so concepts like https://en.wikipedia.org/wiki/Static_dispatch[static dispatching] do not exist in JavaScript.
+
+=== Properties
+
+JavaScript objects are dynamic "bags" of properties (referred to as *own properties*) and have a link to a prototype object. When trying to access a property of an object,
+
+* the property will not only be sought on the object but on the prototype of the object, the prototype of the prototype,
+* and so on until either a property with a matching name is found or the end of the prototype chain is reached.
+
+[NOTE]
+====
+Following the ECMAScript standard, the notation `+++someObject.[[Prototype]]+++` is used to designate the prototype of `someObject`.
+
+The `+++[[Prototype]]+++` internal slot can be accessed and modified with the `Object.getPrototypeOf()` and `Object.setPrototypeOf()` functions respectively.
+
+It is equivalent to the JavaScript accessor `+++__proto__+++` which is non-standard but de-facto implemented by many JavaScript engines.
+
+It's worth noting that the `+++{ __proto__: ... }+++` syntax is different from the `+++obj.__proto__+++` accessor: the former is standard and not deprecated, and the later is non-standard and deprecated. .
+
+It should not be confused with the `func.prototype` property of functions, which instead specifies the `[[Prototype]]` to be assigned to all instances of objects created by the given function when used as a constructor.
+====
+
+In an object literal like `+++{ a: 1, b: 2, __proto__: c }+++`, the value `c` (which has to be either `null` or another object) will become the `+++[[Prototype]]+++` of the object represented by the literal, while the other keys like `a` and `b` will become the _own properties_ of the object.
+
+```js
+const o = {
+  a: 1,
+  b: 2,
+  // __proto__ sets the [[Prototype]]. It's specified here as another object literal.
+  __proto__: {
+    b: 3,
+    c: 4,
+    // a longer prototype chain
+    __proto__: {
+      // Object literals (without the `__proto__` key) automatically
+      // have `Object.prototype` as their `[[Prototype]]`
+      d: 5,
+    },
+  },
+};
+
+// { a: 1, b: 2 } ---> { b: 3, c: 4 } ---> { d: 5 } ---> Object.prototype ---> null
+```
+
+* In JavaScript, any function can be added to an object in the form of a property, aka *"method"*. When the function is executed, the value of `this` points to the inheriting object, not to the prototype object where the function is an own property.
++
+```js
+const parent = {
+  value: 2,
+  method() {
+    return this.value + 1;
+  },
+};
+
+console.log(parent.method()); // 3
+// When calling parent.method in this case, 'this' refers to parent
+
+// child is an object that inherits from parent
+const child = {
+  __proto__: parent,
+};
+console.log(child.method()); // 3
+// When child.method is called, 'this' refers to child.
+// So when child inherits the method of parent,
+// The property 'value' is sought on child. However, since child
+// doesn't have an own property called 'value', the property is
+// found on the [[Prototype]], which is parent.value.
+
+child.value = 4; // assign the value 4 to the property 'value' on child.
+// This shadows the 'value' property on parent.
+// The child object now looks like:
+// { value: 4, __proto__: { value: 2, method: [Function] } }
+console.log(child.method()); // 5
+// Since child now has the 'value' property, 'this.value' means
+// child.value instead
+```
+
+* To check whether an object has a property defined on itself, it is necessary to use the `Object.hasOwn` or `Object.prototype.hasOwnProperty` methods.
++
+TIP: All objects, except those with `null` as `+++[[Prototype]]+++`, inherit `hasOwnProperty` from `Object.prototype` — unless it has been overridden further down the prototype chain.
++
+TIP: `Object.hasOwn()` is intended as a replacement for `Object.prototype.hasOwnProperty()`.
++
+```js
+const example = {};
+example.prop = "exists";
+
+// `hasOwn` will only return true for direct properties:
+Object.hasOwn(example, "prop"); // true
+Object.hasOwn(example, "toString"); // false
+Object.hasOwn(example, "hasOwnProperty"); // false
+```
+
+
+=== Constructors and classes
+
+* A *constructor* is a function with a special property called `prototype`, which works with the https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/new[`new`] operator.
++
+```js
+// A constructor function, with good reason, to use a capital initial letter
+function Box(value) {
+  this.value = value;
+}
+
+// Properties all boxes created from the Box() constructor
+// will have
+Box.prototype.getValue = function () {
+  return this.value;
+};
+
+const boxes = [new Box(1), new Box(2), new Box(3)];
+```
+
+* A https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes[*class*] is a syntax sugar over constructor function.
++
+```js
+class Box {
+  constructor(value) {
+    this.value = value;
+  }
+
+  // Methods are created on Box.prototype
+  getValue() {
+    return this.value;
+  }
+}
+```
++
+```js
+// without constructor
+const boxPrototype = {
+  getValue() {
+    return this.value;
+  },
+};
+
+const boxes = [
+  { value: 1, __proto__: boxPrototype },
+  { value: 2, __proto__: boxPrototype },
+  { value: 3, __proto__: boxPrototype },
+];
+```
+
+To build longer prototype chains, set the `+++[[Prototype]]+++` of `Constructor.prototype` via the `Object.setPrototypeOf()` function.
+
+```js
+function Base() {}
+function Derived() {}
+// Set the `[[Prototype]]` of `Derived.prototype`
+// to `Base.prototype`
+Object.setPrototypeOf(Derived.prototype, Base.prototype);
+
+const obj = new Derived();
+// obj ---> Derived.prototype ---> Base.prototype ---> Object.prototype ---> null
+```
+
+```js
+// It is equivalent to using the `extends` syntax in class terms.
+class Base {}
+class Derived extends Base {}
+
+const obj = new Derived();
+// obj ---> Derived.prototype ---> Base.prototype ---> Object.prototype ---> null
+```
 
 == Objects and classes
 
