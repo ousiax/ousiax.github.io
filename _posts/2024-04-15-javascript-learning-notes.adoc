@@ -2035,19 +2035,78 @@ class MyClass {
 
 == Promises and asynchronous programming
 
+JavaScript has a runtime model based on an *event loop*, which is responsible for executing the code, collecting and processing events, and executing queued sub-tasks.
+
+image::https://developer.mozilla.org/en-US/docs/Web/JavaScript/Event_loop/the_javascript_runtime_environment_example.svg["A diagram showing how stacks are comprised of frames, heaps are comprised of objects, and queues are comprised of messages.", 295px, 271px]
+
+* Function calls form a stack of _frames_.
+* Objects are allocated in a _heap_ which is just a name to denote a large (mostly unstructured) region of memory.
+* A JavaScript runtime uses a message _queue_, which is a list of messages to be processed one by one by an associated function.
++
+```js
+// waits synchronously for a message to arrive
+while (queue.waitForMessage()) {
+  // Each message is processed completely before any other message is processed.
+  queue.processNextMessage();
+}
+```
+
+*  Handling I/O is typically performed via _events_ and _callbacks_, so when the application is waiting for an `IndexedDB` query to return or a `fetch()` request to return, it can still process other things like user input.
++
+```js
+const xhr = new XMLHttpRequest();
+
+xhr.addEventListener("loadend", () => {
+  console.log(`Finished with status: ${xhr.status}`);
+});
+
+xhr.open(
+  "GET",
+  "https://httpbin.org/headers",
+);
+xhr.send();
+```
++
+```js
+const fetchPromise = fetch(
+  "https://httpbin.org/headers",
+);
+
+fetchPromise.then((response) => {
+  console.log(`Received response: ${response.status}`);
+});
+```
+
 A https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise[Promise] is an object representing the eventual completion or failure of an asynchronous operation.
 
 image::https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/promises.png['Flowchart showing how the Promise state transitions between pending, fulfilled, and rejected via then/catch handlers. A pending promise can become either fulfilled or rejected. If fulfilled, the "on fulfillment" handler, or first parameter of the then() method, is executed and carries out further asynchronous actions. If rejected, the error handler, either passed as the second parameter of the then() method or as the sole parameter of the catch() method, gets executed.',801px,297px]
-
+ 
+* With a promise-based API, the asynchronous function starts the operation and returns a Promise object.
++
 ```js
+// callback hell
+fetch("https://httpbin.org/headers")
+  .then(response => {
+    response.json()
+      .then(data => {
+        console.log(data['headers']['User-Agent']);
+      });
+  })
+  .catch(error => console.log(error))
+  .finally(() => console.log("finally"));
+```
++
+```js
+// promise chaining
 fetch("https://httpbin.org/headers")
   .then(response => response.json())
   .then(headers => console.log(headers['headers']['User-Agent']))
   .catch(error => console.log(error))
   .finally(() => console.log("finally"));
 ```
-
++
 ```js
+// async and await
 async function fetchRquestHeaders() {
   try {
     const response = await fetch("https://httpbin.org/headers");
@@ -2060,6 +2119,129 @@ async function fetchRquestHeaders() {
   }
 }
 ```
+
+* The `Promise()` constructor creates `Promise` objects. It is primarily used to wrap callback-based APIs that do not already support promises.
++
+```js
+new Promise(executor)
+```
++
+** The `executor` is a function to be executed by the constructor. Its signature is expected to be:
++
+```js
+function executor(resolveFunc, rejectFunc) {
+  // Typically, some asynchronous operation that accepts a callback,
+  // like the `readFile` function above
+}
+```
++
+** It receives two functions as parameters: `resolveFunc` and `rejectFunc`.
++
+```js
+resolveFunc(value); // call on resolved
+rejectFunc(reason); // call on rejected
+```
++
+--
+*** The `value` parameter passed to `resolveFunc` can be another promise object, in which case the newly constructed promise's state will be "locked in" to the promise passed.
+
+*** The `rejectFunc` has semantics close to the `throw` statement, so reason is typically an `Error` instance. If the `executor` function throws an error, `reject` is called automatically.
+
+*** If either `value` or `reason` is omitted, the promise is fulfilled/rejected with `undefined`.
+--
++
+```js
+const readFilePromise = (path) =>
+  new Promise((resolve, reject) => {
+    readFile(path, (error, result) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+
+readFilePromise("./data.txt")
+  .then((result) => console.log(result))
+  .catch((error) => console.error("Failed to read data"));
+```
+
+** Turning a callback-based API into a promise-based one
++
+```js
+function myGetAsync(url) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url);
+    xhr.onload = () => resolve(xhr.responseText);
+    xhr.onerror = () => reject(xhr.statusText);
+    xhr.send();
+  });
+}
+
+myGetAsync('https://httpbin.org/headers').then(txt => console.log(txt));
+```
+
+** If the `executor` function throws an error, `reject` is called automatically.
++
+```js
+function alarm(person, delay) {
+  return new Promise((resolve, reject) => {
+    if (delay < 0) {
+      reject(new Error("Alarm delay must not be negative"));
+    } else {
+      setTimeout(() => {
+        resolve(`Wake up, ${person}!`);
+      }, delay);
+    }
+  });
+}
+
+alarm("Jon", 500).then(m => console.log(m)); // Wake up, Jon!
+```
++
+Same as:
++
+```js
+function alarm(person, delay) {
+  return new Promise((resolve) => {
+    if (delay < 0) {
+      throw new Error("Alarm delay must not be negative");
+    }
+    setTimeout(() => {
+      resolve(`Wake up, ${person}!`);
+    }, delay);
+  });
+}
+```
+
+* async and await
++
+The `async` keyword can be used to define an define an https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function[async function] to a given name, and an https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/async_function[async function] inside an expression. The https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/await[await] operator is used to wait for a Promise and get its fulfillment value inside an async function or at the top level of a module, enabling asynchronous, promise-based behavior to be written in a cleaner style and avoiding the need to explicitly configure promise chains.
++
+```js
+async function setAlarm(person, delay) {
+  try {
+    const message = await alarm(person, delay);
+    console.log(message);
+  }
+  catch (error) {
+    console.log(error.message);
+  }
+}
+
+setAlarm("Jon", 500); // Wake up, Jon!
+setAlarm("Jon", -50); // Alarm delay must not be negative
+```
+
+
+
+
+
+
+
+
 
 == References
 
