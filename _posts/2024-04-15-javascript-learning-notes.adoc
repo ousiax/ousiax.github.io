@@ -2432,9 +2432,9 @@ for (const value of myIterable) {
 [...myIterable]; // [1, 2, 3]
 ```
 
-== JavaScript modules
+== Modules
 
-JS modules (also known as “ES modules” or “ECMAScript modules”) are a major new feature, or rather a collection of new features.
+JavaScript modules (also known as “JS modules”, “ES modules” or “ECMAScript modules”) are a major new feature, or rather a collection of new features.
 
 * https://nodejs.org/docs/latest/api/modules.html[CommonJS modules] are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes.
 
@@ -2496,9 +2496,175 @@ shout('Modules in action');
 // → 'MODULES IN ACTION!'
 ```
 
-* Importing modules using import maps.
+* Renaming imports and exports with `as` to avoid naming conflicts
 +
-https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap[Import maps] allow developers to instead specify almost any text they want in the module specifier when importing a module; the map provides a corresponding value that will replace the text when the module URL is resolved.
+```js
+// inside module.js
+export { function1 as newFunctionName, function2 as anotherNewFunctionName };
+
+// inside main.js
+import { newFunctionName, anotherNewFunctionName } from "./modules/module.js";
+```
++
+```js
+// inside module.js
+export { function1, function2 };
+
+// inside main.js
+import {
+  function1 as newFunctionName,
+  function2 as anotherNewFunctionName,
+} from "./modules/module.js";
+```
++
+```js
+// import module's features inside a module object
+import * as Module from "./modules/module.js";
+Module.function1();
+Module.function2();
+```
+
+* When importing modules, the string that specifies the location of the module is called the *“module specifier”* or the “import specifier”, that the JavaScript environment can resolve to a path to the module file.
++
+```js
+// For now, module specifiers must be full URLs, or relative URLs starting with `/`, `./`, or `../`.
+import { name as squareName, draw } from "./shapes/square.js";
+import { name as circleName } from "https://example.com/shapes/circle.js";
+```
+
+** https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap[Import maps] allow developers to instead specify almost any text they want in the module specifier when importing a module; the map provides a corresponding value that will replace the text when the module URL is resolved.
+
+*** The import map is defined using a JSON object inside a `<script>` element with the `type` attribute set to `importmap`.
++
+```js
+<script type="importmap">
+  {
+    "imports": {
+      "shapes": "./shapes/square.js",
+      "shapes/square": "./modules/shapes/square.js",
+      "https://example.com/shapes/square.js": "./shapes/square.js",
+      "https://example.com/shapes/": "/shapes/square/",
+      "../shapes/square": "./shapes/square.js"
+    }
+  }
+</script>
+```
+
+*** There can only be one import map in the document, and because it is used to resolve which modules are loaded in both static and dynamic imports, it must be declared before any `<script>` elements that import modules.
+
+*** Note that the import map only applies to the document — the specification does not cover how to apply an import map in a worker or worklet context.
+
+***  If there is no trailing forward slash on the module specifier key then the whole module specifier key is matched and substituted.
++
+```js
+// Bare module names as module specifiers
+import { name as squareNameOne } from "shapes";
+import { name as squareNameTwo } from "shapes/square";
+
+// Remap a URL to another URL
+import { name as squareNameThree } from "https://example.com/shapes/square.js";
+```
+
+*** If the module specifier has a trailing forward slash then the value must have one as well, and the key is matched as a "path prefix".
++
+```js
+// Remap a URL as a prefix ( https://example.com/shapes/)
+import { name as squareNameFour } from "https://example.com/shapes/moduleshapes/square.js";
+```
+
+* Using JS modules in the browser.
++
+```html
+<!-- Use a `<script>` element as a module by setting the `type` attribute to `module`. -->
+<script type="module" src="main.mjs"></script>
+<!-- Browsers that understand type="module" ignore scripts with a `nomodule` attribute. -->
+<script nomodule defer src="fallback.js"></script>
+```
++
+```html
+<!-- embed the module's script directly into the HTML file -->
+<script type="module">
+  /* JavaScript module code here */
+</script>
+```
+
+* Modules are a little different from classic scripts:
+
+** Modules have https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode[strict mode] enabled by default.
+
+** HTML-style comment syntax is not supported in modules, although it works in classic scripts.
++
+```js
+// Don’t use HTML-style comment syntax in JavaScript!
+const x = 42; <!-- TODO: Rename x to y.
+// Use a regular single-line comment instead:
+const x = 42; // TODO: Rename x to y.
+```
+
+** Modules have a lexical top-level scope. This means that for example, running `var foo = 42`; within a module does _NOT_ create a global variable named `foo`, accessible through `window.foo` in a browser, although that would be the case in a classic script.
+
+** Similarly, the `this` within modules does not refer to the global `this`, and instead is `undefined`. (Use https://v8.dev/features/globalthis[globalThis] if you need access to the global `this`.)
+
+** The new static `import` and `export` syntax is only available within modules — it doesn’t work in classic scripts.
+
+** https://v8.dev/features/top-level-await[Top-level await] is available in modules, but not in classic scripts. Relatedly, `await` cannot be used as a variable name anywhere in a module, although variables in classic scripts can be named `await` outside of async functions.
+
+** Also, module scripts and their dependencies are fetched with CORS. This means that any cross-origin module scripts must be served with the proper headers, such as `Access-Control-Allow-Origin: *`. This is not true for classic scripts. For example, the `file://` URL will run into CORS errors.
+
+** There is no need to use the `defer` attribute when loading a module script; modules are deferred automatically.
++
+image::https://v8.dev/_img/modules/async-defer.svg["Modules are deferred by default", 75%, 75%]
+
+** The `async` attribute does not work for inline classic scripts, but it does work for inline `<script type="module">`.
+
+** Modules are only executed once, even if they have been referenced in multiple `<script>` tags.
++
+```html
+<script src="classic.js"></script>
+<script src="classic.js"></script>
+<!-- classic.js executes multiple times. -->
+
+<script type="module" src="module.mjs"></script>
+<script type="module" src="module.mjs"></script>
+<script type="module">import './module.mjs';</script>
+<!-- module.mjs executes only once. -->
+```
+
+* The function `import()` with a path to the module as a parameter returns a Promise which fulfills with a module object, and can be used for dynamic module loading.
++
+```js
+// dynamic module loading
+import("./modules/myModule.js").then((module) => {
+  // Do something with the module.
+});
+```
++
+```js
+<script type="module">
+  (async () => {
+    const moduleSpecifier = './lib.mjs';
+    const {repeat, shout} = await import(moduleSpecifier);
+    repeat('hello');
+    // → 'hello hello'
+    shout('Dynamic import in action');
+    // → 'DYNAMIC IMPORT IN ACTION!'
+  })();
+</script>
+```
++
+TIP: Dynamic import is permitted in the browser main thread, and in shared and dedicated workers. However `import()` will throw if called in a service worker or worklet. 
+
+* Import declarations are hoisted
++
+```js
+// …
+const myCanvas = new Canvas("myCanvas", document.body, 480, 320);
+myCanvas.create();
+import { Canvas } from "./modules/canvas.js";
+myCanvas.createReportList();
+// …
+```
+
 
 == References
 
