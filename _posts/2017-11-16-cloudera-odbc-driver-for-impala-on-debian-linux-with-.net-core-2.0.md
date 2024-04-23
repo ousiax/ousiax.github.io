@@ -1,8 +1,8 @@
 ---
 layout: post
-title: "Cloudera ODBC Driver for Impala on Debian/Linux with .NET Core 2.0"
+title: "Cloudera ODBC Driver for Impala on Debian/Linux with .NET"
 date: 2017-11-16 15:30:14 +0800
-categories: ['odbc']
+categories: ['odbc', 'dotnet']
 tags: ['odbc', 'dotnet', 'linux', 'kerberos', 'impala']
 ---
 
@@ -310,7 +310,7 @@ namespace clouderaimpalaodbc
                 conn.Open();
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT COUNT(*) FROM mydatabase.session WHERE profile_id=2160 AND day=20171115";
+                    cmd.CommandText = "SELECT COUNT(*) FROM mydatabase.session WHERE profile_id=2160 AND day=20170125";
                     Console.WriteLine(cmd.ExecuteScalar());
                 }
             }
