@@ -13,8 +13,6 @@ https://en.wikipedia.org/wiki/WebSocket[WebSocket] is a computer communications 
 
 The WebSocket Protocol is designed to work over HTTP ports 80 and 443 as well as to support HTTP proxies and intermediaries in the context of the existing HTTP infrastructure, and future implementations could also use a simpler handshake over a dedicated port without reinventing the entire protocol. <<rfc6455>>
 
-WebSockets were originally designed for HTTP/1.1 but have since been adapted to work over HTTP/2. (https://www.rfc-editor.org/rfc/rfc8441[RFC 8441])
-
 == Design philosophy
 
 Conceptually, WebSocket is really just a layer on top of TCP that does the following: <<rfc6455>>
@@ -286,9 +284,113 @@ while True: # decode messages from the client
     print(payload)
 ```
 
+== WebSockets support in ASP.NET Core
+
+WebSocket (RFC 6455) is a protocol that enables two-way persistent communication channels over TCP connections. It's used in apps that benefit from fast, real-time communication, such as chat, dashboard, and game apps. <<aspnet-websockets>>
+
+Using WebSockets over HTTP/2 takes advantage of new features such as:
+
+* Header compression.
+
+* Multiplexing, which reduces the time and resources needed when making multiple requests to the server.
+
+These supported features are available in Kestrel on all HTTP/2 enabled platforms. The version negotiation is automatic in browsers and Kestrel, so no new APIs are needed.
+
+NOTE: HTTP/2 WebSockets use `CONNECT` requests rather than `GET`.
+
+WebSockets were originally designed for HTTP/1.1 but have since been adapted to work over HTTP/2. (https://www.rfc-editor.org/rfc/rfc8441[RFC 8441])
+
+* Add the WebSockets middleware in `Program.cs`:
++
+```cs
+var webSocketOptions = new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromMinutes(2)
+};
+
+webSocketOptions.AllowedOrigins.Add("https://client.com");
+webSocketOptions.AllowedOrigins.Add("https://www.client.com");
+
+app.UseWebSockets(webSocketOptions);
+```
+
+* Accept WebSocket requests
++
+```cs
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/ws")
+    {
+        if (context.WebSockets.IsWebSocketRequest)
+        {
+            using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+            await Echo(webSocket);
+        }
+        else
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        }
+    }
+    else
+    {
+        await next(context);
+    }
+
+});
+```
++
+A similar approach can be taken in a controller method:
++
+```cs
+public class WebSocketController : ControllerBase
+{
+    [Route("/ws")] // HTTP/2 WebSockets use CONNECT requests rather than GET. 
+    public async Task Get()
+    {
+        if (HttpContext.WebSockets.IsWebSocketRequest)
+        {
+            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            await Echo(webSocket);
+        }
+        else
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+        }
+    }
+```
+
+* Send and receive messages
++
+```cs
+private static async Task Echo(WebSocket webSocket)
+{
+    var buffer = new byte[1024 * 4];
+    var receiveResult = await webSocket.ReceiveAsync(
+        new ArraySegment<byte>(buffer), CancellationToken.None);
+
+    while (!receiveResult.CloseStatus.HasValue)
+    {
+        await webSocket.SendAsync(
+            new ArraySegment<byte>(buffer, 0, receiveResult.Count),
+            receiveResult.MessageType,
+            receiveResult.EndOfMessage,
+            CancellationToken.None);
+
+        receiveResult = await webSocket.ReceiveAsync(
+            new ArraySegment<byte>(buffer), CancellationToken.None);
+    }
+
+    await webSocket.CloseAsync(
+        receiveResult.CloseStatus.Value,
+        receiveResult.CloseStatusDescription,
+        CancellationToken.None);
+}
+```
+
 [bibliography]
 == References
 
 * [[[wiki-WebSocket,1]]] https://en.wikipedia.org/wiki/WebSocket
 * [[[rfc6455,2]]] https://datatracker.ietf.org/doc/html/rfc6455
 * [[[rfc2616,3]]] https://datatracker.ietf.org/doc/html/rfc2616
+* [[[aspnet-websockets,4]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/websockets
