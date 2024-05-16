@@ -358,6 +358,161 @@ ws.onmessage = (e) => {
 
 == Server-sent events
 
+https://en.wikipedia.org/wiki/Server-sent_events[Server-Sent Events (SSE)] is a server push technology enabling a client to receive automatic updates from a server via an HTTP connection, and describes how servers can initiate data transmission towards clients once an initial client connection has been established. <<wiki-Server-sent_events>>
+
+=== Event stream format
+
+The event stream is a simple stream of text data messages which are separated by a pair of newline characters (`\n\n`), and must be encoded using UTF-8. <<mdn-Using_server-sent_events>>
+
+* A colon (`:`) as the first character of a line is in essence a comment, and is ignored.
+
+* Each message consists of one or more lines of text listing the fields for that message.
+
+* Each field is represented by the field name (`event`, `data`, `id`, and `retry`), followed by a colon, followed by the text data for that field's value.
++
+```txt
+: this is a test stream <1>
+
+
+event: userconnect <2>
+data: {"username": "bobby", "time": "02:33:48"}
+
+
+data: another message <3>
+data: with two lines <3>
+
+
+event: usermessage <2>
+data: {"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}
+```
++
+--
+<1> The first is just a comment, since it starts with a colon character.
+
+<2> This sends custom named events.
+
+<3> The third message contains a data field with the value "another message\nwith two lines". Note the newline special character in the value.
+--
+
+=== Sending events from the server
+
+The server-side that sends events needs to respond using the MIME type `text/event-stream`. Each notification is sent as a block of text terminated by a pair of newlines. <<mdn-Using_server-sent_events>>
+
+Here is the .NET code for the example:
+
+```cs
+app.UseCors(policy => policy.AllowAnyOrigin()); // builder.Services.AddCors();
+
+var summaries = new[]
+{
+    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+};
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/sse")
+    {
+        if (context.Request.Headers.Accept.Any(x => x != null && x.Contains("text/event-stream")))
+        {
+            context.Response.Headers.ContentType = "text/event-stream";
+            context.Response.Headers.CacheControl = "no-cache";
+
+            await context.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes($"event: ping\ndata: pong!\n\n"));
+            await context.Response.Body.FlushAsync();
+
+            foreach (var summary in summaries)
+            {
+                await context.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes($"data: {summary}\n\n"));
+                await context.Response.Body.FlushAsync();
+            }
+
+            // the stream terminated by a data: [DONE]
+            await context.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("data: [DONE]\n\n"));
+            await context.Response.Body.FlushAsync();
+        }
+        else
+        {
+            context.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
+        }
+    }
+    else
+    {
+        await next(context);
+    }
+});
+
+app.Run();
+```
+
+```console
+$ curl -i localhost:5000/sse -H 'accept: text/event-stream'
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Date: Thu, 16 May 2024 10:09:07 GMT
+Server: Kestrel
+Cache-Control: no-cache
+Transfer-Encoding: chunked
+
+event: ping
+data: pong!
+
+data: Freezing
+
+data: Bracing
+
+data: Chilly
+
+data: Cool
+
+data: Mild
+
+data: Warm
+
+data: Balmy
+
+data: Hot
+
+data: Sweltering
+
+data: Scorching
+
+data: [DONE]
+
+```
+
+=== Receiving events from the server
+
+:mdn-API_EventSource: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
+
+The server-sent event API is contained in the {mdn-API_EventSource}[EventSource] interface.
+
+```js
+// Creating an EventSource instance
+const evtSource = new EventSource('//localhost:5000/sse', {
+  // withCredentials: true
+})
+// Listening for message events
+evtSource.onmessage = (event) => {
+  console.log(`message: ${event.data}`)
+  // the stream terminated by a data: [DONE]
+  if (event.data === '[DONE]') {
+    // Closing event streams
+    evtSource.close()
+  }
+}
+// Listening for custom events
+evtSource.addEventListener('ping', (event) => {
+  console.log(`ping: ${event.data}`)
+})
+// Error handling
+evtSource.onerror = (err) => {
+  console.error('EventSource failed:', err)
+}
+```
+
+
+
+
 [bibliography]
 == References
 
@@ -368,3 +523,5 @@ ws.onmessage = (e) => {
 * [[[aspnet-websockets,5]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/websockets
 * [[[dotnet-websockets,6]]] https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/websockets
 * [[[mdn-websockets-api,7]]] https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API
+* [[[wiki-Server-sent_events,8]]] https://en.wikipedia.org/wiki/Server-sent_events
+* [[[mdn-Using_server-sent_events,9]]]https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
