@@ -191,24 +191,18 @@ While WebSockets leverage the initial HTTP connection for the handshake, proxy s
 * A single proxy server can manage both HTTP and WebSocket traffic.
 * However, it differentiates between the two protocols during the initial handshake and then employs separate handling mechanisms for each to ensure optimal performance and proper data flow.
 
-=== WebSockets in .NET
+=== WebSockets support in .NET
 
-WebSocket (RFC 6455) is a protocol that enables two-way persistent communication channels over TCP connections. It's used in apps that benefit from fast, real-time communication, such as chat, dashboard, and game apps. <<aspnet-websockets>>
-
-Using WebSockets over HTTP/2 takes advantage of new features such as:
+Using WebSockets over HTTP/2 takes advantage of new features are available in Kestrel on all HTTP/2 enabled platforms such as: <<aspnet-websockets>>
 
 * Header compression.
 
 * Multiplexing, which reduces the time and resources needed when making multiple requests to the server.
 
-These supported features are available in Kestrel on all HTTP/2 enabled platforms. The version negotiation is automatic in browsers and Kestrel, so no new APIs are needed.
-
 NOTE: HTTP/2 WebSockets use `CONNECT` requests rather than `GET`.
 
-WebSockets were originally designed for HTTP/1.1 but have since been adapted to work over HTTP/2. (https://www.rfc-editor.org/rfc/rfc8441[RFC 8441])
+*WebSockets Server in ASP.NET Core*
 
-* Add the WebSockets middleware in `Program.cs`:
-+
 ```cs
 var webSocketOptions = new WebSocketOptions
 {
@@ -218,20 +212,19 @@ var webSocketOptions = new WebSocketOptions
 webSocketOptions.AllowedOrigins.Add("https://client.com");
 webSocketOptions.AllowedOrigins.Add("https://www.client.com");
 
+// Add the WebSockets middleware in `Program.cs`:
 app.UseWebSockets(webSocketOptions);
-```
 
-* Accept WebSocket requests
-+
-```cs
 app.Use(async (context, next) =>
 {
+    // [Route("/ws")] // HTTP/2 WebSockets use CONNECT requests rather than GET. 
     if (context.Request.Path == "/ws")
     {
+        // Accept WebSocket requests
         if (context.WebSockets.IsWebSocketRequest)
         {
             using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-            await Echo(webSocket);
+            await EchoAsync(webSocket);
         }
         else
         {
@@ -244,32 +237,11 @@ app.Use(async (context, next) =>
     }
 
 });
-```
-+
-A similar approach can be taken in a controller method:
-+
-```cs
-public class WebSocketController : ControllerBase
-{
-    [Route("/ws")] // HTTP/2 WebSockets use CONNECT requests rather than GET. 
-    public async Task Get()
-    {
-        if (HttpContext.WebSockets.IsWebSocketRequest)
-        {
-            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-            await Echo(webSocket);
-        }
-        else
-        {
-            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-        }
-    }
-```
 
-* Send and receive messages
-+
-```cs
-private static async Task Echo(WebSocket webSocket)
+app.Run(); 
+
+// Send and receive messages
+static async Task EchoAsync(WebSocket webSocket)
 {
     var buffer = new byte[1024 * 4];
     var receiveResult = await webSocket.ReceiveAsync(
@@ -294,6 +266,60 @@ private static async Task Echo(WebSocket webSocket)
 }
 ```
 
+*WebSockets Client in .NET*
+
+```cs
+string[] messages = [
+    "我们的生命不是消逝于那些重大的事件中，而是流逝在那些日常琐碎的小事里。",
+    "生活是由无数微不足道的细节构建起来的，而记忆正是这些细节的忠实记录者，它们在某个不经意的瞬间被唤醒，带我们穿越回往昔。",
+    "人们在追求他们以为是幸福的东西时，常常错过真正的幸福。",
+    "在失去之后，我们才开始寻找那些曾经拥有但未被珍惜的东西，而记忆，则成了我们找回那些失落时光的唯一线索。"
+    ];
+
+Uri uri = new("ws://localhost:5000/ws");
+using ClientWebSocket ws = new();
+var cts = new CancellationTokenSource();
+await ws.ConnectAsync(uri, cts.Token);
+
+foreach (var message in messages)
+{
+    var bytes = Encoding.UTF8.GetBytes(message);
+    await ws.SendAsync(bytes, WebSocketMessageType.Text, true, cts.Token);
+}
+
+ThreadPool.QueueUserWorkItem(async _ =>
+{
+    while (!cts.Token.IsCancellationRequested)
+    {
+        var (echoMessage, _, _, _, _) = await ReadMessageAsync(ws, cts.Token);
+        Console.WriteLine(Encoding.UTF8.GetString(echoMessage.ToArray()));
+    }
+});
+
+await Task.Delay(1000);
+
+await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client closed", cts.Token);
+
+// Read a complete message from a WebSocket.
+static async Task<(IList<byte>, WebSocketMessageType, bool, WebSocketCloseStatus?, string?)> ReadMessageAsync(WebSocket webSocket, CancellationToken token = default)
+{
+    var message = new List<byte>(1024 * 2);
+    var buffer = new byte[8 * 4];
+    var receiveResult = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token).ConfigureAwait(false);
+    while (true)
+    {
+        message.AddRange(new ArraySegment<byte>(buffer, 0, receiveResult.Count));
+        if (receiveResult.CloseStatus.HasValue || receiveResult.EndOfMessage)
+        {
+            break;
+        }
+        receiveResult = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token).ConfigureAwait(false);
+    }
+
+    return (message.AsReadOnly(), receiveResult.MessageType, receiveResult.EndOfMessage, receiveResult.CloseStatus, receiveResult.CloseStatusDescription);
+}
+```
+
 [bibliography]
 == References
 
@@ -301,5 +327,5 @@ private static async Task Echo(WebSocket webSocket)
 * [[[rfc6455,2]]] https://www.rfc-editor.org/rfc/rfc6455
 * [[[rfc8441,3]]] https://www.rfc-editor.org/rfc/rfc8441
 * [[[rfc2616,4]]] https://www.rfc-editor.org/rfc/rfc2616
-* [[[aspnet-websockets,4]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/websockets
-* [[[dotnet-websockets,5]]] https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/websockets
+* [[[aspnet-websockets,5]]] https://learn.microsoft.com/en-us/aspnet/core/fundamentals/websockets
+* [[[dotnet-websockets,6]]] https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/websockets
