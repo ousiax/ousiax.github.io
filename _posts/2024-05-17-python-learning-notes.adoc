@@ -758,7 +758,7 @@ a > b  # False
 {num for num in range(10) if num % 2 == 0}  # {0, 2, 4, 6, 8}
 ```
 
-== Functions, generators, decorators, and exceptions
+== Functions
 
 ```py
 # pass
@@ -835,6 +835,14 @@ print_data(('meow', 'bark', 'moo'))
 print_data(('meow', 'bark', 'moo'), start=1)
 # bark	moo	
 
+# docstring
+def echo(anything):
+    'echo returns its input argument'
+    return anything
+
+print(echo.__doc__)  # 'echo returns its input argument'
+help(echo)
+
 def the_order_of_arguments(
     required: str,
     optional: str = None,
@@ -863,10 +871,178 @@ def the_order_of_arguments(
   print(f"Keyword arguments (as dictionary): {kwargs}")
 
 the_order_of_arguments("This is required", "This is optional", x=10, y="hello")
+
+# functions are first-class citizens
+def answer():
+    print(42)
+
+def run_sth(func):
+    func()
+
+run_sth(answer)  # 42
+
+# inner functions
+def outer(a, b):
+    def inner(c, d):
+        return c+d
+    return inner(a, b)
+
+# closures
+def wow(voice):
+    def inner():
+        return f'Wow: {voice}'
+    return inner
+
+cat = wow('meow')
+dog = wow('bark')
+cat()  # 'Wow: meow'
+dog()  # 'Wow: bark'
+
+# recursion
+def flatten(lol):
+    for item in lol:
+        if isinstance(item, list):
+            yield from flatten(item)  # yield from expression
+        else:
+            yield item
+
+lol = [1, 2, [3, 4, 5], [6, [7, 8, 9], []]]
+list(flatten(lol))
+[1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+# anonymous functions: lambda
+def is_odd(num):
+    return num % 2 == 1
+
+nums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+list(filter(is_odd, nums))
+# [1, 3, 5, 7, 9]
+list(filter(lambda num: num % 2 == 0, nums))
+# [0, 2, 4, 6, 8]
 ```
 
+=== Generators
 
+A _generator_ is a Python sequence creation object, which is often the source of data for iterators.
 
+* It can be used to iterate through potentially huge sequences without creating and storing the entire sequence in memory at once.
+
+* Every time iteration through a generator, it keeps track of where it was the last time it was called and returns the next value.
+
+* A generator can be run only once, and can't be to restart or back up.
+
+* A _generator function_ is a normal function, but it returns its value with a `yield` statement rather than `return`.
++
+```py
+def xrange(start=0, stop=10, step=1):
+    number = start
+    while number < stop:
+        yield number
+        number += step
+
+ranger = xrange(1, 5)
+print(ranger)  # <generator object xrange at 0x7f119757b220>
+
+for num in ranger:
+    print(num, end='\t')  # 1	2	3	4
+```
+
+=== Decorators
+
+A _decorator_ is a function that takes one function as input and returns another function.
+
+```py
+def document_it(func):
+    def new_function(*args, **kwargs):
+        print('Running function:', func.__name__)
+        print('Positional arguments:', args)
+        print('Keyword arguments:', kwargs)
+        result = func(*args, **kwargs)
+        print('Result:', result)
+        return result
+    return new_function
+
+def add_ints(a, b):
+    return a+b
+
+cooler_add_ints = document_it(add_ints)  # manual decorator assignment
+cooler_add_ints(1, 2)
+# Running function: add_ints
+# Positional arguments: (1, 2)
+# Keyword arguments: {}
+# Result: 3
+# 3
+
+@document_it  # an alternative to the manual decorator assignment
+def add_floats(a: float, b: float) -> float:
+    return a + b
+
+def square_it(func):
+    def new_function(*args, **kargs):
+        result = func(*args, **kargs)
+        return result*result
+    return new_function
+
+# more than one decorator for a function
+@document_it
+@square_it
+def add_numbers(a: float, b: float) -> float:
+    return a + b
+
+add_numbers(2, 3)
+# Running function: new_function
+# Positional arguments: (2, 3)
+# Keyword arguments: {}
+# Result: 25
+# 25
+```
+
+=== Exceptions
+
+An exception is a class, which is a child of the class `Exception`.
+
+```py
+class OopsException(Exception):
+    pass
+
+try:
+    raise OopsException('panic')
+except OopsException as err:
+    print(err)  # panic
+except Exception as other:  # except to catch all exceptions
+    pass
+except:  # bare except to catch all exceptions
+    pass
+```
+
+=== locals() and globals()
+
+Python provides two functions to access the contents of the namespaces:
+
+* `locals()` returns a dictionary of the contents of the local namespace.
+
+* `globals()` returns a dictionary of the contents of the global namespace.
+
+```py
+a = 5.21
+
+def print_global_a():
+ global a  # the global keyword: explicit is better than implicit
+ print(a)
+
+print_global_a()
+# 5.21
+
+def print_locals_globals():
+    a: int = 0
+    b: float = 3.14
+    print(locals())
+    print(globals())
+
+print_locals_globals()
+# {'a': 0, 'b': 3.14}
+# {'__name__': '__main__', '__doc__': None, '__package__': None, '__loader__': <class '_frozen_importlib.BuiltinImporter'>, '__spec__': None, '__annotations__': {}, '__builtins__': <module 'builtins' (built-in)>, 'print_locals': <function print_locals at 0x7fab761ade40>, 'print_globals': <function print_globals at 0x7fab761adee0>, 'print_locals_globals': <function print_locals_globals at 0x7fab761bbba0>, 'a': 5.21}
+```
 
 [bibliography]
 == References
