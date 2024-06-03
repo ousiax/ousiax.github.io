@@ -1,0 +1,655 @@
+= Lua Learning Notes
+:page-layout: post
+:page-categories: [lua]
+:page-tags: [lua]
+:page-date: 2024-06-03 11:21:44 +0800
+:page-revdate: 2024-06-03 11:21:44 +0800
+:toc: preamble
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+Lua is a powerful, efficient, lightweight, embeddable scripting language. It supports procedural programming, object-oriented programming, functional programming, data-driven programming, and data description. <<lua-manual>>
+
+* Lua combines simple procedural syntax with powerful data description constructs based on associative arrays and extensible semantics.
+
+* Lua is dynamically typed, runs by interpreting bytecode with a register-based virtual machine, and has automatic memory management with a generational garbage collection, making it ideal for configuration, scripting, and rapid prototyping.
+
+* Lua is implemented as a library, written in clean C, the common subset of standard C and C++.
+
+* The Lua distribution includes a host program called `lua`, which uses the Lua library to offer a complete, standalone Lua interpreter, for interactive or batch use.
+
+* Lua is intended to be used both as a powerful, lightweight, embeddable scripting language for any program that needs one, and as a powerful but lightweight and efficient stand-alone language.
+
+* As an extension language, Lua has no notion of a "main" program: it works embedded in a host client, called the _embedding program_ or simply the _host_. 
+
+== The stand-alone interpreter
+
+The stand-alone interpreter (also called `lua.c` due to its source file or simply `lua` due to its executable) is a small program that allows the direct use of Lua. <<programming-in-lua>>
+
+```sh
+# Debian
+apt install lua5.4
+```
+
+```powershell
+# Windows
+winget install DEVCOM.Lua --version 5.4.6
+```
+
+* When the interpreter loads a file, it ignores its first line if this line starts with a hash (`#`).
++
+```lua
+#!/usr/bin/env lua
+print("Hello World!")
+```
+
+* Without arguments the interpreter enters the interactive mode.
++
+```console
+$ lua
+Lua 5.4.4  Copyright (C) 1994-2022 Lua.org, PUC-Rio
+> math.pi / 4
+0.78539816339745
+> os.exit()
+$
+```
+
+* A script can retrieve its arguments through the predefined global variable `arg`.
++
+In a call like `% lua script a b c`, the interpreter creates the table `arg` with all the command-line arguments, before running any code.
++
+--
+** The script name goes into index 0; its first argument ("a" in the example) goes to index 1, and so on.
+
+** Preceding options go to negative indices, as they appear before the script.
+--
++
+For instance, consider this call:
++
+```console
+% lua -e "sin=math.sin" script a b
+```
++
+The interpreter collects the arguments as follows:
++
+```lua
+arg[-3] = "lua"
+arg[-2] = "-e"
+arg[-1] = "sin=math.sin"
+arg[0] = "script"
+arg[1] = "a"
+arg[2] = "b"
+```
+
+== Lexical 
+
+```lua
+-- Lua is case-sensitive: and is a reserved word, but And and AND are two different identifiers.
+and	break	do	else	elseif
+end	false	for	function	goto
+if	in	local	nil	not
+or	repeat	return	then	true
+until	while
+```
+
+* A *chunk* is simply a sequence of commands (or statements), that is a piece of code that Lua executes, such as a file or a single line in interactive mode. <<programming-in-lua>>
+
+
+* A *comment* starts anywhere with two consecutive hyphens (`--`) and runs until the end of the line. Lua also offers long comments, which start with two hyphens followed by two opening square brackets and run until the first occurrence of two consecutive closing square brackets, like here:
++
+```lua
+--[[A multi-line
+long comment
+]]
+```
+
+* Lua needs no separator (i.e. semicolon, `;`) between consecutive statements.
++
+```lua
+a = 1
+b = a * 2
+
+a = 1;
+b = a * 2;
+
+a = 1; b = a * 2
+
+a = 1 b = a * 2 -- ugly, but valid
+```
+
+* It is not an error to access a non-initialized variable (`nil`).
++
+```console
+$ lua -e 'print(x)'
+nil
+```
+
+== Values and Types
+
+Lua is a dynamically typed language, which means that variables do not have types; only values do. <<lua-manual>>
+
+* All values carry their own type.
+
+* All values in Lua are *first-class* values, which means that all values can be stored in variables, passed as arguments to other functions, and returned as results.
+
+There are eight basic types in Lua: `nil`, `boolean`, `number`, `string`, `function`, `userdata`, `thread`, and `table`.
+
+The type `userdata` is provided to allow arbitrary C data to be stored in Lua variables. A userdata value represents a block of raw memory. There are two kinds of userdata: full userdata, which is an object with a block of memory managed by Lua, and light userdata, which is simply a C pointer value. Userdata has no predefined operations in Lua, except assignment and identity test. By using metatables, the programmer can define operations for full userdata values.
+
+The type `thread` represents independent threads of execution and it is used to implement coroutines. Lua threads are not related to operating-system threads. Lua supports coroutines on all systems, even those that do not support threads natively.
+
+Tables, functions, threads, and (full) userdata values are _objects_: variables do not actually contain these values, only references to them. Assignment, parameter passing, and function returns always manipulate references to such values; these operations do not imply any kind of copy.
+
+=== Nil
+
+The type `nil` has one single value, `nil`, whose main property is to be different from any other value; it often represents the absence of a useful value.
+
+```console
+$ lua
+Lua 5.4.4  Copyright (C) 1994-2022 Lua.org, PUC-Rio
+> undefined
+nil
+> not undefined
+true
+>
+```
+
+=== Booleans
+
+The type `boolean` has two values, `false` and `true`.
+
+** Both `nil` and `false` make a condition false; they are collectively called false values. Any other value makes a condition true.
+
+** Despite its name, `false` is frequently used as an alternative to `nil`, with the key difference that `false` behaves like a regular value in a table, while a `nil` in a table represents an absent key.
+
+* Lua supports a conventional set of logical operators: `and`, `or`, and `not`.
++
+Both `and` and `or` use short-circuit evaluation, that is, they evaluate their second operand only when necessary.
+
+** The result of the `and` operator is its first operand if that operand is false; otherwise, the result is its second operand.
++
+```lua
+4 and 5      --> 5
+nil and 13   --> nil
+false and 13 --> false
+```
+
+** The result of the `or` operator is its first operand if it is not false; otherwise, the result is its second operand:
++
+```lua
+0 or 5        --> 0
+false or "hi" --> "hi"
+nil or false  --> false
+```
+
+** The `not` operator always gives a Boolean value.
++
+```lua
+not nil     --> true
+not false   --> true
+not 0       --> false
+not not 1   --> true
+not not nil --> false
+```
+
+=== Numbers
+
+The type `number` represents both integer numbers and real (floating-point) numbers, using two subtypes: _integer_ and _float_.
+
+* Integers and floats with the same value compare as equal in Lua:
++
+```lua
+1 == 1.0     --> true
+-3 == -3.0   --> true
+0.2e3 == 200 --> true
+```
+
+* To distinguish between floats and integers, use `math.type`:
++
+```lua
+math.type(3)   --> integer
+math.type(3.0) --> float
+```
+
+* If both operands are integers, the operation gives an integer result; otherwise, the operation results in a float. In case of mixed operands, Lua converts the integer one to a float before the operation:
++
+```lua
+13.0 + 25  --> 38.0
+-(3 * 6.0) --> -18.0
+```
+
+* To avoid different results between division of integers and divisions of floats, division always operates on floats and gives float results:
++
+```lua
+3.0 / 2.0 --> 1.5
+3 / 2     --> 1.5
+3 // 2    --> 1 -- floor division and denoted by //
+```
+
+* Lua provides the following relational operators, and all these operators always produce a Boolean value:
++
+```lua
+<	>	<=	>=	==	~=
+```
+
+* To force a number to be a float, simply add `0.0` to it.
++
+```lua
+-3 + 0.0                  --> -3.0
+0x7fffffffffffffff + 0.0  --> 9.2233720368548e+18
+```
+
+* To force a number to be an integer, OR it with zero:
++
+```lua
+2^53      --> 9.007199254741e+15 (float)
+2^53 | 0  --> 9007199254740992
+```
++
+```lua
+-- number has no integer representation
+3.2 | 0   -- fractional part
+2^64 | 0  -- out of range
+```
+
+=== Strings
+
+The type `string` represents immutable sequences of bytes.
+
+* Lua is 8-bit clean: strings can contain any 8-bit value, including embedded zeros ('\0').
+
+* Lua is also encoding-agnostic; it makes no assumptions about the contents of a string.
+
+* Get the length of a string using the length operator (denoted by `#`):
++
+```lua
+hi = 'Hello 世界'
+print(#hi)  --> 12  -- always counts the length in bytes
+```
+
+* Concatenate two strings with the concatenation operator .. (two dots):
++
+```lua
+"Hello " .. "World"  --> Hello World
+"result is " .. 3    --> result is 3
+```
+
+* Multiple line literal strings can be delimited  also by matching double square brackets, as with long comments. Moreover, it ignores the first character of the string when this character is a newline.
++
+```lua
+page = [[
+<html>
+<head>
+    <title>An HTML Page</title>
+</head>
+<body>
+    <a href="http://www.lua.org">Lua</a>
+</body>
+</html>
+]]
+```
+
+* Lua provides automatic conversions between numbers and strings at run time.
+
+* To convert a string to a number explicitly, we can use the function `tonumber`, which returns `nil` if the string does not denote a proper number.
++
+```lua
+tonumber(" -3 ")      --> -3
+tonumber(" 10e4 ")    --> 100000.0
+tonumber("10e")       --> nil (not a valid number)
+tonumber("0x1.3p-4")  --> 0.07421875
+```
+
+* To convert a number to a string explicitly, call the function `tostring`:
++
+```lua
+print(tostring(10) == "10") --> true
+```
+
+* Since version 5.3, Lua includes a small library (`utf8`) to support operations on Unicode strings encoded in UTF-8.
++
+```lua
+hi = 'Hello 世界'
+print(string.len(hi))  -- 12
+print(utf8.len(hi))  -- 8
+```
+
+=== Tables
+
+The type `table` implements associative arrays, that is, arrays that can have as indices not only numbers, but any Lua value except `nil` and `NaN`.
+
+* Tables can be heterogeneous; that is, they can contain values of all types (except `nil`).
+
+* Any key associated to the value `nil` is not considered part of the table. Conversely, any key that is not part of a table has an associated value `nil`.
+
+* Lua uses tables to represent packages and objects as well. For Lua, the `math.sin` means “index the table math using the string "sin" as the key”.
+
+* Lua stores global variables in ordinary tables.
+
+* Tables are created by means of a constructor expression, which in its simplest form is written as `{}`:
++
+```lua
+a = {}  -- create a table and assign its reference
+a['x'] = 10  -- new entry, with key="x" and value=10
+print(a.x)  --> 10
+```
+
+==== Table Indices
+
+* Each table can store values with different types of indices, and it grows as needed to accommodate new entries.
++
+```lua
+a = {} -- empty table
+-- create 1000 new entries
+for i = 1, 1000 do a[i] = i*2 end
+a[9]           --> 18
+a['x'] = 10
+a['x']         --> 10
+a['y']         --> nil
+```
+
+* Lua supports to use the field name as an index by providing `a.name` as syntactic sugar for `a['name']`.
++
+```lua
+a = { x = 10 }
+a.x == a['x']  --> true  -- indexed by the string 'x'
+a.x == a[x]  --> false
+```
+
+==== Table Constructors
+
+Constructors are expressions that create and initialize tables, and the simplest constructor is the empty constructor, `{}`.
+
+```lua
+-- empty constructor
+a = {}
+
+-- record-style and list-style initializations
+days = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }  -- initialize a list
+a = { x = 10, y = 20 }  -- initialize a record-like table
+
+-- explicitly write each index as an expression, between square brackets, to
+-- initialize fields with negative indices, nor with string indices
+opnames = {
+    ["+"] = "add",
+    ["-"] = "sub",
+    ["*"] = "mul",
+    ["/"] = "div"
+}
+```
+
+==== Arrays, Lists, and Sequences
+
+To represent a conventional array or a list, simply use a table with integer keys.
+
+```lua
+-- read 10 lines, storing them in a table
+a = {}
+for i = 1, 10 do
+    a[i] = io.read()
+end
+```
+
+* Sequences are lists without holes.
+
+** For sequences, Lua offers the length operator (`#`) to give the length of the sequence represented by a table.
+
+** The length operator (`#`) is unreliable for lists with holes (nils).
++
+```lua
+a = { [1] = 1, [3] = 3, }
+print(#a)  -- 1
+```
+
+==== Table Traversal
+
+* Tables can be traversed all key–value pairs with the `pairs` iterator, the order that elements appear in a traversal is undefined.
++
+```lua
+t = { 10, print, x = 12, k = "hi" }
+for k, v in pairs(t) do
+    print(k, v)
+end
+-- 1	10
+-- 2	function: 0x5595d1eb1730
+-- k	hi
+-- x	12
+```
+
+* For lists, they can be traversed by using the `ipairs` iterator:
++
+```lua
+t = { 10, print, 12, "hi" }
+for k, v in ipairs(t) do
+    print(k, v)
+end
+-- 1	10
+-- 2	function: 0x558e75c75730
+-- 3	12
+-- 4	hi
+```
++
+Or, with a numerical for:
++
+```lua
+t = { 10, print, 12, "hi" }
+for k = 1, #t do
+    print(k, t[k])
+end
+-- 1	10
+-- 2	function: 0x561090ff8730
+-- 3	12
+-- 4	hi
+```
+
+==== The table library
+
+* The function `table.insert` inserts an element in a given position of a sequence, moving up other elements to open space. Without a position, it inserts the element in the last position of the sequence, moving no elements.
++
+```lua
+t = { 10, 20, 30 }
+table.insert(t, 1, 50)
+for k, v in ipairs(t) do
+    print(k, v)
+end
+-- 1	50
+-- 2	10
+-- 3	20
+-- 4	30
+```
+
+* The function `table.remove` removes and returns an element from the given position in a sequence, moving subsequent elements down to fill the gap. Without a position, it removes the last element of the sequence.
++
+```lua
+t = { 10, 20, 30 }
+table.remove(t)
+for k, v in ipairs(t) do
+    print(k, v)
+end
+-- 1	10
+-- 2	20
+```
+
+=== Functions
+
+Functions are the main mechanism for abstraction of statements and expressions in Lua.
+
+```lua
+print(8*9, 9/8)  -- as a statement
+a = math.sin(3) + math.cos(10)  -- as an expression
+print(os.date())
+```
+
+If a function has one single argument and that argument is either a literal string or a table constructor, then the parentheses in the call are optional:
+
+```lua
+print "Hello World"   --> print("Hello World")
+dofile 'a.lua'        --> dofile ('a.lua')
+print [[a multi-line  --> print([[a multi-line
+message]] message]])
+f{x=10, y=20}         --> f({x=10, y=20})
+type{}                --> type({})
+```
+
+* A Lua program can use functions defined both in Lua and in C (or in any other language used by the host application).
+
+* A function definition in Lua has a conventional syntax, like here:
++
+```lua
+-- add the elements of sequence 'a'
+function add(a)
+    local sum = 0
+    for i = 1, #a do
+        sum = sum + a[i]
+    end
+    return sum
+end
+```
+
+* Lua adjusts the number of arguments to the number of parameters by throwing away extra arguments and supplying nils to extra parameters.
++
+```lua
+function f(a, b) print(a, b) end
+
+f()        -- nil 	nil
+f(3)       -- 3		nil
+f(3, 4)    -- 3		4
+f(3, 4, 5) -- 3		4	(5 is discarded)
+```
+
+==== Multiple results
+
+* Functions that we write in Lua also can return multiple results, by listing them all after the `return` keyword.
++
+```lua
+function maximum(a)
+    local mi = 1    -- index of the maximum value
+    local m = a[mi] -- maximum value
+    for i = 1, #a do
+        if a[i] > m then
+            mi = i; m = a[i]
+        end
+    end
+    return m, mi
+end
+
+print(maximum({ 8, 10, 23, 12, 5 }))  -- 23	3
+```
+
+* Lua always adjusts the number of results from a function to the circumstances of the call.
+
+** When call a function as a statement, Lua discards all results from the function.
+
+** When use a call as an expression (e.g., the operand of an addition), Lua keeps only the first result.
+
+** Lua gives all results only when the call is the last (or the only) expression in a list of expressions: multiple assignments, arguments to function calls, table constructors, and return statements.
++
+```lua
+function foo0() end                  -- returns no results
+function foo1() return "a" end       -- returns 1 result
+function foo2() return "a", "b" end  -- returns 2 results
+```
++
+--
+... In a multiple assignment, a function call as the last (or only) expression produces as many results as needed to match the variables:
++
+```lua
+x, y = foo2()        -- x="a", y="b"
+x = foo2()           -- x="a", "b" is discarded
+x, y, z = 10, foo2() -- x=10, y="a", z="b"
+
+-- In a multiple assignment, if a function has fewer results than we
+-- need, Lua produces nils for the missing values:
+x, y = foo0()        -- x=nil, y=nil
+x, y = foo1()        -- x="a", y=nil
+x, y, z = foo2()     -- x="a", y="b", z=nil
+
+-- A function call that is not the last
+-- element in the list always produces exactly one result:
+x, y = foo2(), 20    -- x="a", y=20 ('b' discarded)
+x, y = foo0(), 20, 30 -- x=nil, y=20 (30 is discarded)
+```
+
+... When a function call is the last (or the only) argument to another call, all results from the first call go as arguments.
++
+```lua
+print(foo0())        --> (no results)
+print(foo1())        --> a
+print(foo2())        --> a b
+print(foo2(), 1)     --> a 1
+print(foo2() .. "x") --> ax
+```
+
+... A constructor also collects all results from a call, without any adjustments:
++
+```lua
+t = { foo0() }          -- t = {} (an empty table)
+t = { foo1() }          -- t = {"a"}
+t = { foo2() }          -- t = {"a", "b"}
+t = { foo0(), foo2(), 4 } -- t[1] = nil, t[2] = "a", t[3] = 4
+```
+
+... Finally, a statement like `return f()` returns all values returned by `f`:
++
+```lua
+function foo(i)
+    if i == 0 then
+        return foo0()
+    elseif i == 1 then
+        return foo1()
+    elseif i == 2 then
+        return foo2()
+    end
+end
+
+print(foo(1))     --> a
+print(foo(2))     --> a b
+print(foo(0))     -- (no results)
+print(foo(3))     -- (no results)
+
+-- force a call to return exactly one result by enclosing it in an
+-- extra pair of parentheses:
+print((foo0())) --> nil
+print((foo1())) --> a
+print((foo2())) --> a
+```
+--
+
+==== Variadic Functions
+
+A function in Lua can be variadic (`...`), that is, it can take a variable number of arguments.
+
+* To iterate over its extra arguments as a sequence, a function can use the expression `{...}` or `table.pack` to collect them all in a table.
++
+```lua
+function add(...)
+    local s = 0
+    for _, v in ipairs { ... } do
+        s = s + v
+    end
+    return s
+end
+
+print(add(3, 4, 10, 25, 12))     --> 54
+```
+
+* The three-dot expression is a _vararg expression_, which behaves like a multiple return function, returning all _extra arguments_ of the current function.
++
+```lua
+function echo(...)
+    return ...
+end
+
+print(echo(1, 3, 5, 7))  -- 1	3	5	7
+```
+
+
+
+
+
+
+[bibliography]
+== References
+* [[[lua-manual,1]]] https://lua.org/manual/5.4/manual.html
+* [[[programming-in-lua,2]]] Programming in Lua, Fourth Edition, Roberto Ierusalimschy
