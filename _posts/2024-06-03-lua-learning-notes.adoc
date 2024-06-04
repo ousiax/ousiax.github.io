@@ -125,6 +125,167 @@ $ lua -e 'print(x)'
 nil
 ```
 
+=== Local variables and blocks
+
+By default, variables in Lua are global. Unlike global variables, a local variable has its scope limited to the block where it is declared.
+
+* A block is the body of a control structure, the body of a function, or a chunk (the file or string where the variable is declared):
++
+```lua
+x = 10
+local i = 1     -- local to the chunk
+while i <= x do
+    local x = i * 2 -- local to the while body
+    print(x)    --> 2, 4, 6, 8, ...
+    i = i + 1
+end
+if i > 20 then
+    local x  -- local to the "then" body
+    x = 20
+    print(x + 2) -- (would print 22 if test succeeded)
+else
+    print(x) --> 10 (the global one)
+end
+print(x)     --> 10 (the global one)
+```
+
+* In interactive mode, each line is a chunk by itself (unless it is not a complete command).
++
+```console
+$ lua
+Lua 5.4.4  Copyright (C) 1994-2022 Lua.org, PUC-Rio
+> local x = 10
+> print(x)
+nil
+> do
+>> local x = 20
+>> print(x)
+>> end
+20
+>
+```
+
+* The _do-end_ blocks are useful to finer control over the scope of some local variables:
++
+```lua
+local x1, x2
+do
+    local a2 = 2 * a
+    local d = (b ^ 2 - 4 * a * c) ^ (1 / 2)
+    x1 = (-b + d) / a2
+    x2 = (-b - d) / a2
+end           -- scope of 'a2' and 'd' ends here
+print(x1, x2) -- 'x1' and 'x2' still in scope
+```
+
+* It is good programming style to use local variables whenever possible.
+
+** Local variables avoid cluttering the global environment with unnecessary names; they also avoid name clashes between different parts of a program.
+
+** Moreover, the access to local variables is faster than to global ones.
+
+** Finally, a local variable vanishes as soon as its scope ends, allowing the garbage collector to release its value.
+
+* The Lua distribution comes with a module `strict.lua` for global-variable checks; it raises an error if we try to assign to a non-existent global inside a function or to use a non-existent global.
+
+* A common idiom in Lua is `local foo = foo` to create a local variable, `foo`, and initializes it with the value of the global variable `foo`.
+
+=== Control structures
+
+Lua provides a small and conventional set of control structures, with `if` for conditional execution and `while`, `repeat`, and `for` for iteration.
+
+* All control structures have a syntax with an explicit terminator: `end` terminates `if`, `for` and `while` structures; `until` terminates `repeat` structures.
+
+* The condition expression of a control structure can result in any value.
+
+==== if then else
+
+An *if* statement tests its condition and executes its then-part or its else-part accordingly.
+
+```lua
+if op == "+" then
+    r = a + b
+elseif op == "-" then
+    r = a - b
+elseif op == "*" then
+    r = a * b
+elseif op == "/" then
+    r = a / b
+else
+    error("invalid operation")
+end
+```
+
+==== While 
+
+A *while* loop repeats its body while a condition is true. As usual, Lua first tests the while condition; if the condition is false, then the loop ends; otherwise, Lua executes the body of the loop and repeats the process.
+
+```lua
+local i = 1
+while a[i] do
+    print(a[i])
+    i = i + 1
+end
+```
+
+==== repeat
+
+A *repeat–until* statement repeats its body until its condition is true. It does the test after the body, so that it always executes the body at least once.
+
+```lua
+-- print the first non-empty input line
+local line
+repeat
+    line = io.read()
+until line ~= ""
+print(line)
+```
+
+```lua
+-- computes the square root of 'x' using Newton-Raphson method
+local sqr = x / 2
+repeat
+    sqr = (sqr + x / sqr) / 2
+    local error = math.abs(sqr ^ 2 - x)
+until error < x / 10000 -- local 'error' still visible here
+```
+
+==== For
+
+The *for* statement has two variants: the _numerical_ for and the _generic_ for.
+
+* A numerical for has the following syntax:
++
+```lua
+for var = from, to, step = 1 do
+    -- something
+end
+```
++
+```lua
+for i = 0, 3 do
+    io.write(i .. '\t')
+end
+-- 0	1	2	3	
+```
++
+```lua
+for i = 0, 10, 2 do
+    io.write(i .. '\t')
+end
+-- 0	2	4	6	8	10	
+```
+
+* The generic for loop traverses all values returned by an iterator function, with `pairs`, `ipairs`, `io.lines`, etc.
+
+* Unlike the numerical for, the generic for can have multiple variables, which are all updated at each iteration. The loop stops when the first variable gets `nil`.
+
+==== break, return, and goto
+
+The *break* and *return* statements are used to jump out of a block, and the *goto* statement is used  jump to almost any point in a function.
+
+In Lua, the syntax for a *goto* statement is quite conventional: it is the reserved word *goto* followed by the label name, which can be any valid identifier: it has two colons followed by the label name followed by more two colons, like in `::name::`, which is intentional, to highlight labels in a program.
+
 == Values and Types
 
 Lua is a dynamically typed language, which means that variables do not have types; only values do. <<lua-manual>>
