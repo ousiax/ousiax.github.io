@@ -53,7 +53,7 @@ end
 date = DateTime.now
 disqus_identifier = SecureRandom::uuid.gsub('-','').hex
 
-filename = filename.gsub(' ', '-').gsub(/\(|\)|\./, '').downcase
+filename = filename.gsub(/\W+/, '-').gsub(/^\W+|\W+$/, '').downcase
 filename = date.strftime('%Y-%m-%d') + '-' + filename + ".adoc"
 revdate = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
