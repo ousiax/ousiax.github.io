@@ -1,0 +1,237 @@
+= Running LLMs Locally: Ollama, vLLM, and Hugging Face
+:page-layout: post
+:page-categories: []
+:page-tags: []
+:page-date: 2024-06-12 14:07:43 +0800
+:page-revdate: 2024-06-12 14:07:43 +0800
+:toc:
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+
+Ollama, vLLM, and llama.cpp are all tools related to running large language models (LLMs) locally on the own computer.
+
+*Ollama:*
+
+* https://github.com/ollama/ollama[Ollama] (/ˈɒlˌlæmə/) is a user-friendly, *higher-level interface* for running various LLMs, including Llama, Qwen, Jurassic-1 Jumbo, and others.
+
+* It provides a *streamlined workflow* for downloading models, configuring settings, and interacting with LLMs through a command-line interface (CLI) or Python API.
+
+* Ollama acts as a central hub for managing and running *multiple LLM models* from different providers, and integrates with underlying tools like llama.cpp for efficient execution.
+
+* To pull a model checkpoint and run the model, use the `ollama run` command.
++
+[TIP]
+====
+```console
+// Please keep Ollama service running whenever using ollama
+$ ollama run qwen2:0.5b-instruct
+Error: could not connect to ollama app, is it running?
+
+$ systemctl status ollama.service
+○ ollama.service - Ollama Service
+     Loaded: loaded (/etc/systemd/system/ollama.service; disabled; preset: enabled)
+     Active: inactive (dead)
+```
+====
++
+[TIP]
+====
+To run https://devblogs.microsoft.com/commandline/systemd-support-is-now-available-in-wsl/[systemd inside of Windows Subsystem for Linux (WSL)] distros:
+
+
+. Add these lines to the https://docs.microsoft.com/windows/wsl/wsl-config#wslconf[/etc/wsl.conf] to ensure systemd starts up on boot.
++
+```conf
+[boot]
+systemd=true
+```
+
+. Run `wsl.exe --shutdown` from PowerShell to restart the WSL instances.
+
+. Start and check the Ollama service status.
++
+```console
+$ sudo systemctl start ollama.service
+$ systemctl status ollama.service
+● ollama.service - Ollama Service
+     Loaded: loaded (/etc/systemd/system/ollama.service; disabled; preset: enabled)
+     Active: active (running) since Wed 2024-06-12 15:21:39 CST; 5min ago
+   Main PID: 914 (ollama)
+      Tasks: 15 (limit: 9340)
+     Memory: 576.9M
+     CGroup: /system.slice/ollama.service
+             └─914 /usr/local/bin/ollama serve
+$ sudo ss -ntlp
+State     Recv-Q    Send-Q    Local Address:Port     Peer Address:Port    Process
+LISTEN    0         4096          127.0.0.1:11434         0.0.0.0:*        users:(("ollama",pid=914,fd=3))
+```
+====
+
+* The ollama service can also be accessed via its OpenAI-compatible API when the model checkpoint is prepared.
++
+```console
+//  ensure that the model checkpoint is prepared.
+$ ollama list
+NAME                    ID              SIZE    MODIFIED
+qwen2:0.5b-instruct     6f48b936a09f    352 MB  3 hours ago
+```
++
+*Python*
++
+```sh
+pip install openai
+```
++
+```py
+from openai import OpenAI
+client = OpenAI(
+    base_url='http://localhost:11434/v1/',
+    api_key='ollama',  # required but ignored
+)
+chat_completion = client.chat.completions.create(
+    messages=[
+        {
+            'role': 'user',
+            'content': 'Say this is a test',
+        }
+    ],
+    model='qwen2:0.5b-instruct',
+)
+```
++
+*C#/.NET*
++
+```sh
+# The official .NET library for the OpenAI API
+dotnet add package OpenAI --prerelease
+```
++
+```cs
+using OpenAI.Chat;
+
+ChatClient client = new(
+    model: "qwen2:0.5b-instruct",
+    credential: "EMPTY_OPENAI_API_KEY",
+    options: new OpenAI.OpenAIClientOptions { Endpoint = new Uri("http://localhost:11434/v1/") });
+
+ChatCompletion completion = client.CompleteChat("Say 'this is a test.'");
+
+Console.WriteLine($"[ASSISTANT]: {completion}");
+```
+
+*vLLM:*
+
+* https://github.com/vllm-project/vllm[vLLM] (Very Low Latency Model) primarily *focuses on deploying LLMs as low-latency inference servers*.
+
+* It prioritizes speed and efficiency, making it suitable for *serving LLMs to multiple users* in real-time applications.
+
+* vLLM offers APIs that allow developers to integrate LLM functionality into their applications. While it can be used locally, server deployment is its main strength.
+
+* To deploy a model as a service:
++
+```sh
+pip install vllm
+```
++
+```console
+$ pip list | egrep 'vllm|transformers'
+transformers                      4.41.2
+vllm                              0.5.0
+vllm-flash-attn                   2.5.9
+$ python -m vllm.entrypoints.openai.api_server --help
+vLLM OpenAI-Compatible RESTful API server.
+
+options:
+  --api-key API_KEY     If provided, the server will require this key to be presented in the header.
+  --model MODEL         Name or path of the huggingface model to use.
+  --max-model-len MAX_MODEL_LEN
+                        Model context length. If unspecified, will be automatically derived from the model config.
+  --served-model-name SERVED_MODEL_NAME [SERVED_MODEL_NAME ...]
+                        The model name(s) used in the API. If multiple names are provided, the server will respond to any of the provided names. The model name in the model field of a response will be the
+                        first name in this list. If not specified, the model name will be the same as the `--model` argument. Noted that this name(s)will also be used in `model_name` tag content of
+                        prometheus metrics, if multiple names provided, metricstag will take the first one.
+```
++
+```sh
+python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2-0.5B-Instruct
+```
++
+[TIP]
+====
+If saw connection to https://huggingface.co/ failed, try:
+
+```sh
+HF_ENDPOINT=https://hf-mirror.com python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2-0.5B-Instruct
+```
+
+Run in a firewalled or https://huggingface.co/docs/transformers/v4.41.2/en/installation#offline-mode[offline] environment with locally cached files by setting the environment variable `TRANSFORMERS_OFFLINE=1`.
+
+```sh
+HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+    HF_ENDPOINT=https://hf-mirror.com \
+    python -m vllm.entrypoints.openai.api_server \
+    --model Qwen/Qwen2-0.5B-Instruct \
+    --max-model-len 4096
+```
+====
++
+[WARNING]
+====
+The vLLM requires a NVIDIA GPU on the host system, and the `--device cpu` doesn't work.
+
+```console
+$ python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2-0.5B-Instruct --device cpu
+RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+```
+
+====
+
+*llama.cpp:*
+
+* https://github.com/ggerganov/llama.cpp[llama.cpp] is a C++ library as a *core inference engine* that provides the core functionality for running LLMs on CPUs and GPUs.
+
+* It's designed to efficiently execute LLM models for tasks like text generation and translation.
+
+* Ollama and other tools like Hugging Face Transformers can use llama.cpp as the underlying engine for running LLM models locally.
+
+Think of Ollama as a user-friendly car with a dashboard and controls that simplifies running different LLM models (like choosing a destination). vLLM is more like a high-performance racing engine focused on speed and efficiency, which is optimized for serving LLMs to many users (like a racing car on a track). llama.cpp is the core engine that does the actual work of moving the car (like the internal combustion engine), and other tools can utilize it for different purposes.
+
+* Use Ollama for a simple and user-friendly experience running different LLM models locally.
+
+* Consider vLLM if the focus is on deploying a low-latency LLM server for real-time applications.
+
+* llama.cpp is a low-level library that serves as the core engine for other tools to run LLMs efficiently.
+
+*Hugging Face*
+
+* https://huggingface.co/[Hugging Face] is a popular *open-source community* and platform focused on advancing natural language processing (NLP) research and development, which is well-known for the *Transformers library*, a widely used open-source framework written in Python that provides tools and functionalities for training, fine-tuning, and deploying various NLP models, including LLMs.
+
+* Hugging Face maintains a *Model Hub*, a vast repository of pre-trained NLP models, including LLMs like Qwen, Jurassic-1 Jumbo, and many others which can be downloaded and used with the Transformers library or other compatible tools.
+
+* https://huggingface.co/modelscope[Model Scope] is a platform that *focus on model access* and aims to democratize access to a wide range of machine learning models, including LLMs. It goes beyond NLP models and encompasses various domains like computer vision, audio processing, and more. It acts as a *model hosting service*, allowing developers to access and utilize pre-trained models through APIs or a cloud-based environment.
+
+* While Model Scope has its own model repository, it also *collaborates with Hugging Face*. Some models from the Hugging Face Model Hub are also available on Model Scope, providing users with additional access options.
+
+* Here's a table summarizing the key differences:
++
+[cols='1,3,3']
+|===
+|Feature|Hugging Face|Model Scope
+
+|Focus
+|Open-source community, NLP research & development
+|Model access across various domains (including NLP)
+
+|Core Strength
+|Transformers library, Model Hub
+|Model hosting service, API access
+
+|Model Scope
+|Primarily NLP, but expanding
+|Wide range of machine learning models
+
+|Community Focus
+|Strong community focus, education, collaboration
+|Less emphasis on community, more on commercial aspect
+|===
