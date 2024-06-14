@@ -23,11 +23,69 @@ Milvus adopts a shared-storage architecture featuring storage and computing disa
 
 image::https://milvus.io/docs/v2.4.x/assets/milvus_architecture.png[Milvus Architecture,75%,75%]
 
-== Milvus Lite
+== Install Milvus
 
-Milvus Lite is the lightweight version of Milvus included in the https://github.com/milvus-io/pymilvus[Python SDK of Milvus], which can be imported into a Python application, providing the core vector search functionality of Milvus. <<milvus_lite>> <<milvus-quickstart>>
+Milvus Lite is good for getting started with vector search or building demos and prototypes, and supports the following OS distributions and sillicon types: Ubuntu >= 20.04 (x86_64), and macOS >= 11.0 (Apple Silicon and x86_64), and Debian 12 (x86_64) on Windows with WSL 2 enabled. <<milvus_lite>> <<milvus-quickstart>>
 
-Milvus Lite is good for getting started with vector search or building demos and prototypes, and supports the following OS distributions and sillicon types: Ubuntu >= 20.04 (x86_64), and macOS >= 11.0 (Apple Silicon and x86_64), and Debian 12 (x86_64) on Windows with WSL 2 enabled.
+For a production use case, It's recommended using Milvus on https://milvus.io/docs/install_standalone-docker.md[Docker] and https://milvus.io/docs/install_cluster-milvusoperator.md[Kubenetes], or considering the fully-managed Milvus on https://zilliz.com/cloud[Zilliz Cloud].
+
+All deployment modes of Milvus share the same API, so your client side code doesn't need to change much if moving to another deployment mode. Simply specify the https://milvus.io/api-reference/pymilvus/v2.4.x/MilvusClient/Client/MilvusClient.md[URI and Token] of a Milvus server deployed anywhere: <<milvus-quickstart>>
+
+```py
+client = MilvusClient(uri="http://localhost:19530", token="root:Milvus")
+```
+
+Milvus provides REST and gRPC API, with client libraries in languages such as Python, Java, Go, C# and Node.js.
+
+=== Run Milvus with Docker Compose
+
+Milvus provides a Docker Compose configuration file in the Milvus repository. To install Milvus using Docker Compose, just run <<install_standalone-docker-compose>>
+
+```sh
+# Download the configuration file
+$ wget https://github.com/milvus-io/milvus/releases/download/v2.4.4/milvus-standalone-docker-compose.yml -O docker-compose.yml
+
+# Start Milvus
+$ sudo docker compose up -d
+
+Creating milvus-etcd  ... done
+Creating milvus-minio ... done
+Creating milvus-standalone ... done
+```
+
+After starting up Milvus, containers named `milvus-standalone`, `milvus-minio`, and `milvus-etcd` are up.
+
+* The `milvus-etcd` container does not expose any ports to the host and maps its data to `volumes/etcd` in the current folder.
+
+* The `milvus-minio` container serves ports `9090` and `9091` locally with the default authentication credentials and maps its data to `volumes/minio` in the current folder.
+
+* The `milvus-standalone` container serves ports `19530` locally with the default settings and maps its data to `volumes/milvus` in the current folder.
+
+You can check if the containers are up and running using the following command:
+
+```console
+$ sudo docker compose ps
+
+      Name                     Command                  State                            Ports
+--------------------------------------------------------------------------------------------------------------------
+milvus-etcd         etcd -advertise-client-url ...   Up             2379/tcp, 2380/tcp
+milvus-minio        /usr/bin/docker-entrypoint ...   Up (healthy)   9000/tcp
+milvus-standalone   /tini -- milvus run standalone   Up             0.0.0.0:19530->19530/tcp, 0.0.0.0:9091->9091/tcp
+```
+
+You can stop and delete this container as follows
+
+```console
+# Stop Milvus
+$ sudo docker compose down
+
+# Delete service data
+$ sudo rm -rf volumes
+```
+
+=== Run Milvus Lite locally
+
+Milvus Lite is the lightweight version of Milvus included in the https://github.com/milvus-io/pymilvus[Python SDK of Milvus], which can be imported into a Python application, providing the core vector search functionality of Milvus.
 
 * Install Milvus
 +
@@ -235,10 +293,61 @@ client.drop_collection(collection_name="demo_collection")
 [3, 4, 5]
 ```
 
+=== Milvus Command-Line Interface (CLI)
+
+Milvus Command-Line Interface (CLI), based on https://github.com/milvus-io/pymilvus[Milvus Python SDK], is a command-line tool that supports database connection, data operations, and import and export of data. <<milvus-cli_overview>>
+
+* Install via pip
++
+```sh
+pip install milvus-cli
+```
+
+* Install with Docker
++
+```sh
+docker run -it zilliz/milvus_cli:latest
+```
+
+* Commands
++
+```console
+milvus_cli > connect -uri http://127.0.0.1:19530
+milvus_cli > list databases
+milvus_cli > use database -db testdb
+milvus_cli > list collections
+milvus_cli > show collection -c test_collection_insert
+milvus_cli > list connections
+milvus_cli > search
+
+Collection name (car, test_collection): car
+
+The vectors of search data(the length of data is number of query (nq), the dim of every vector in data must be equal to vector field’s of collection. You can also import a csv file
+out headers): examples/import_csv/search_vectors.csv
+
+The vector field used to search of collection (vector): vector
+
+Metric type: L2
+
+Search parameter nprobe's value: 10
+
+The max number of returned record, also known as topk: 2
+
+The boolean expression used to filter attribute []: id > 0
+
+The names of partitions to search (split by "," if multiple) ['_default'] []: _default
+
+timeout []:
+
+Guarantee Timestamp(It instructs Milvus to see all operations performed before a provided timestamp. If no such timestamp is provided, then Milvus will search all operations performed to date) [0]:
+```
+
 [bibliography]
 == References
 
 * [[[milvus-overview,1]]] https://milvus.io/docs/overview.md
 * [[[milvus-architecture_overview,2]]] https://milvus.io/docs/architecture_overview.md
-* [[[milvus_lite,3]]] https://milvus.io/docs/milvus_lite.md
-* [[[milvus-quickstart, 4]]] https://milvus.io/docs/quickstart.md
+* [[[milvus-install_standalone-docker-compose, 3]]] https://milvus.io/docs/install_standalone-docker-compose.md
+* [[[milvus_lite,4]]] https://milvus.io/docs/milvus_lite.md
+* [[[milvus-quickstart, 5]]] https://milvus.io/docs/quickstart.md
+* [[[milvus-cli_overview,6]]] https://milvus.io/docs/cli_overview.md
