@@ -2061,6 +2061,176 @@ if __name__ == "__main__":
 #         Number 5 of 1000000. Honk!
 ```
 
+=== Queues, processes, and threads
+
+A queue is like a list: things are added at one end and taken away from the other, which most common is referred to as FIFO (first in, first out). In general, queues transport messages, which can be any kind of information, for distributed task management, also known as _work queues_, _job queues_, or _task queues_.
+
+Threads can be dangerous. Like manual memory management in languages such as C and C++, they can cause bugs that are extremely hard to find, let alone fix. To use threads, all the code in the program (and in external libraries that it uses) must be _thread safe_.
+
+In Python, threads do not speed up CPU-bound tasks because of an implementation detail in the standard Python system called the _Global Interpreter Lock_ (GIL).
+
+* Use threads for I/O-bound problems
+
+* Use processes, networking, or events (discussed in the next section) for CPU-bound problems
+
+```py
+import multiprocessing as mp
+
+def washer(dishes, output):
+    for dish in dishes:
+        print('Washing', dish, 'dish')
+        output.put(dish)
+
+def dryer(input):
+    while True:
+        dish = input.get()
+        print('Drying', dish, 'dish')
+        input.task_done()
+
+dish_queue = mp.JoinableQueue()
+dryer_proc = mp.Process(target=dryer, args=(dish_queue,))
+dryer_proc.daemon = True
+dryer_proc.start()
+dishes = ['salad', 'bread', 'entree', 'dessert']
+washer(dishes, dish_queue)
+dish_queue.join()
+
+# Washing salad dish
+# Washing bread dish
+# Washing entree dish
+# Washing dessert dish
+# Drying salad dish
+# Drying bread dish
+# Drying entree dish
+# Drying dessert dish
+```
+
+```py
+import threading
+import queue
+import time
+
+def washer(dishes, dish_queue):
+    for dish in dishes:
+        print("Washing", dish)
+        time.sleep(5)
+        dish_queue.put(dish)
+
+def dryer(dish_queue):
+    while True:
+        dish = dish_queue.get()
+        print("Drying", dish)
+        time.sleep(10)
+        dish_queue.task_done()
+
+dish_queue = queue.Queue()
+for n in range(2):
+    dryer_thread = threading.Thread(target=dryer, args=(dish_queue,))
+    dryer_thread.start()
+dishes = ['salad', 'bread', 'entree', 'dessert']
+washer(dishes, dish_queue)
+dish_queue.join()
+
+# Washing salad
+# Washing bread
+# Drying salad
+# Washing entree
+# Drying bread
+# Washing dessert
+# Drying entree
+# Drying dessert
+```
+
+=== concurrent.futures
+
+The `concurrent.futures` module in the standard library can be used to schedule an asynchronous pool of workers, using threads (when I/O-bound) or processes (when CPU-bound), and get back a `future` to track their state and collect the results.
+
+Use concurrent.futures any time to launch a bunch of concurrent tasks, such as the following:
+
+* Crawling URLs on the web
+* Processing files, such as resizing images
+* Calling service APIs
+
+```py
+from concurrent import futures
+import math
+import sys
+
+def calc(val):
+    result = math.sqrt(float(val))
+    return val, result
+
+def use_threads(num, values):
+    with futures.ThreadPoolExecutor(num) as tex:
+        tasks = [tex.submit(calc, value) for value in values]
+        for f in futures.as_completed(tasks):
+            yield f.result()
+
+def use_processes(num, values):
+    with futures.ProcessPoolExecutor(num) as pex:
+        tasks = [pex.submit(calc, value) for value in values]
+        for f in futures.as_completed(tasks):
+            yield f.result()
+
+def main(workers, values):
+    print(f"Using {workers} workers for {len(values)} values")
+    print("Using threads:")
+    for val, result in use_threads(workers, values):
+        print(f'{val} {result:.4f}')
+    print("Using processes:")
+    for val, result in use_processes(workers, values):
+        print(f'{val} {result:.4f}')
+
+if __name__ == '__main__':
+    workers = 3
+    if len(sys.argv) > 1:
+        workers = int(sys.argv[1])
+        values = list(range(1, 6))  # 1 .. 5
+    main(workers, values)
+```
+
+=== Asynchronous programming with async and await
+
+In Python 3.4, Python added a standard _asynchronous_ module called `asyncio`. Python 3.5 then added the keywords `async` and `await`. These implement some new concepts: 
+
+* _Coroutines_ are functions that pause at various points
+
+* An _event loop_ that schedules and runs coroutines
+
+```py
+import asyncio
+
+async def say(phrase, seconds):
+    print(phrase)
+    await asyncio.sleep(seconds)
+
+async def wicked():
+    task_1 = asyncio.create_task(say("Surrender,", 2))
+    task_2 = asyncio.create_task(say("Dorothy!", 0))
+    await task_1
+    await task_2
+
+#  blocking: runs the passed coroutine in the default executor, which given a timeout duration of 5 minutes to shutdown
+asyncio.run(wicked())
+```
+
+```py
+import asyncio
+
+async def say(phrase, seconds):
+    print(phrase)
+    await asyncio.sleep(seconds)
+
+async def wicked():
+    task_1 = asyncio.create_task(say("Surrender,", 2))
+    task_2 = asyncio.create_task(say("Dorothy!", 0))
+    await asyncio.gather(task_1, task_2)  # Wait for all tasks to finish concurrently
+
+loop = asyncio.get_event_loop()
+loop.run_until_complete(wicked())
+loop.close()
+```
+
 [bibliography]
 == References
 
