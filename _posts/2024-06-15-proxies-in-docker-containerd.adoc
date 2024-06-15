@@ -66,3 +66,134 @@ By setting `https_proxy`, `curl` knows to route its request through the specifie
 --
 
 With this understanding of `http_proxy` and `https_proxy`, you can navigate proxy servers and access the resources you need!
+
+== Unveiling the Proxy Duo with containerd and Dockerd
+
+* A Secure Connection for Container Images
++
+When working with containerized applications, pulling images from registries is a common task. But what if your network environment requires a proxy server for internet access? This guide explores how to configure `https_proxy` for secure communication with container image registries using containerd and Dockerd.
+
+* Understanding the Players:
+
+** *containerd*: A container runtime engine that manages the lifecycle of containers (creation, starting, stopping, and deletion).
+
+** *Dockerd*: A container engine built on top of containerd, offering a user-friendly interface and additional functionalities for building, managing, and sharing containers.
+
+* The Pull Process:
++
+By default, Dockerd takes the lead in pulling container images from registries. During this process, Dockerd establishes a connection with the registry to download the image. If you're behind a proxy server, proper configuration is essential for secure communication.
+
+* Configuring the Proxy:
++
+To ensure a secure connection, configure `https_proxy` for both Dockerd and containerd.
++
+--
+Here are the common methods:
+
+. Environment Variables on Systemd Service Files:
+
+* Set the `HTTPS_PROXY` environment variable with the address and port of your HTTPS proxy server. For example:
++
+```sh
+export HTTPS_PROXY=https://your_proxy_server:port
+```
+
+* This approach applies to both Dockerd and containerd, as they inherit environment variables from the host system.
+
+
+** Locate the systemd service file for containerd and dockerd (e.g., `/etc/systemd/system/docker.service`).
+
+** Edit the file (e.g., `sudo systemctl edit docker.service`) and add the following lines under the `[Service]` section:
++
+```conf
+[Service]
+Environment="HTTPS_PROXY=https://your_proxy_server:port"
+```
+
+** Reload systemd and restart the service:
++
+```sh
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+. Docker Configuration File (Recommended for Docker):
+
+* Create or edit the `/etc/docker/daemon.json` file (path might vary) and add a JSON object specifying the proxy details:
++
+```json
+{
+ "proxies": {
+   "default": {
+     "httpProxy": "http://your_proxy_server:port",
+     "httpsProxy": "https://your_proxy_server:port",
+     "noProxy": "*.test.example.com,.example.org,127.0.0.0/8"
+   }
+ }
+}
+```
++
+NOTE: This method exposes the proxy details in plain text. Consider using environment variables for a more secure approach. This configuration primarily benefits Dockerd, but if containerd leverages Docker's image pulling mechanism, it can indirectly benefit from the proxy settings.
+
+. `docker run` Command (Optional):
++
+* You can also specify the proxy during container creation using the `--proxy` flag with the `docker run` command:
++
+```sh
+docker run --proxy https://your_proxy_server:port my_image
+```
+--
+
+* In Conclusion:
++
+Understanding https_proxy is crucial for secure communication with container image registries when using Dockerd or containerd behind a proxy server. By configuring the proxy for both tools (primarily through environment variables), you can ensure a secure flow of container image data, protecting your credentials and sensitive information. While Dockerd directly utilizes the proxy configuration, containerd can benefit indirectly during the image pulling process within Docker.
+
+== Install Docker Engine on Debian
+
+. Set up Docker's `apt` repository.
++
+```sh
+# Add Docker's official GPG key:
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+```
++
+[TIP]
+====
+To use the mirro form Alibaba Cloud, replace the `https://download.docker.com` with `https://mirrors.aliyun.com/docker-ce` at the `/etc/apt/sources.list.d/docker.list`.
+====
+
+. Install the Docker packages.
++
+** To install the latest version, run:
++
+```sh
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
++
+** To install a specific version of Docker Engine, start by listing the available versions in the repository:
++
+```sh
+# List the available versions:
+apt-cache madison docker-ce | awk '{ print $3 }'
+
+5:26.1.0-1~debian.12~bookworm
+5:26.0.2-1~debian.12~bookworm
+...
+```
++
+```sh
+# Select the desired version and install:
+VERSION_STRING=5:26.1.0-1~debian.12~bookworm
+sudo apt-get install docker-ce=$VERSION_STRING docker-ce-cli=$VERSION_STRING containerd.io docker-buildx-plugin docker-compose-plugin
+```
