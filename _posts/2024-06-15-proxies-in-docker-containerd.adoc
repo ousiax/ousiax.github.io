@@ -1,4 +1,4 @@
-= Proxies in Docker & containerd
+= Proxies in Docker and containerd
 :page-layout: post
 :page-categories: ['networking']
 :page-tags: ['networking', 'proxy', 'http_proxy', 'https_prox', 'curl', 'docker', 'containerd']
@@ -9,41 +9,42 @@
 :sectnums:
 :sectnumlevels: 4
 
-== Unveiling the Proxy Duo: http_proxy & https_proxy
+== Unveiling the Proxy Trio: http_proxy, https_proxy, and no_proxy
 
 Ever tried downloading a file online but encountered a restrictive firewall (security barrier) blocking your way?
 
 Fear not! This guide unveils the magic behind `http_proxy` and `https_proxy`, the environment variables that act as passports for your tools to navigate these gatekeepers.
 
-* `http_proxy` and `https_proxy`: The Gate-Openers
-+
---
-Imagine `curl`, a popular tool for downloading files from the internet, needs to access a website. But a firewall stands between them, potentially for security reasons. This is where `http_proxy` and `https_proxy` come in:
+Imagine `curl`, a popular Swiss army knife tool for downloading files from the internet, needs to access a website, but a firewall stands between them, potentially for restriction of information access, and security reasons. Here is where the environment variables `http_proxy` and `https_proxy` come in:
 
-* `http_proxy`: specifies the address and port of a proxy server specifically for handling *regular, unencrypted HTTP traffic*.
+* `http_proxy` specifies the address and port of a proxy server specifically for handling *regular, unencrypted HTTP traffic*.
 +
 Think of it as a translator, converting your request into a format the proxy understands before forwarding it to the website.
 
 * `https_proxy`: caters to *HTTPS traffic*, which is encrypted for security.
 +
 When set, `curl` establishes a secure tunnel with the proxy server using TLS/SSL before sending any data. It's like whispering your request through a hidden passage.
---
 
-* Why Separate Passports?
+* `no_proxy` specifies a list of hostnames, domains, or IP addresses that should bypass the proxy server. Traffic destined for these entries will be sent directly to the internet without going through the proxy.
 +
---
-You might wonder why there are two separate variables. It offers flexibility:
-
-* You might only need a proxy for regular HTTP traffic (downloads), not secure HTTPS connections (online banking).
-
-* Different proxy servers could be used for HTTP and HTTPS depending on your needs.
---
+```sh
+export no_proxy="localhost,127.0.0.1,internal.mycompany.com"
+```
 +
-In most cases, *setting both variables to the same value (pointing to the same proxy server)* is the common practice for proxying all traffic.
+The `no_proxy` list takes precedence over `http_proxy` and `https_proxy`. Any traffic destined for a hostname or IP address listed in `no_proxy` will bypass the proxy, even if a proxy server is defined using the other variables.
 
-* Let's see how this works with `curl`!
-+
---
+
+In most cases, *setting `http_proxy` and `https_proxy` to the same value (pointing to the same proxy server)* is the common practice for proxying all traffic.
+
+[TIP]
+====
+It's important to note that `no_proxy` might support wildcard patterns (e.g., `*.mycompany.com`) depending on the specific tool or library interpreting the environment variable. However, it is not a guaranteed feature, and its behavior can vary across applications.
+
+* Whenever possible, it's safer and more reliable to specify exact hostnames or IP addresses in `no_proxy` instead of relying on wildcards.
+
+* If you must use wildcards, thoroughly consult the documentation for the specific tool or library to understand how it interprets wildcard patterns in `no_proxy`.
+====
+
 Imagine you want to download a file using `curl` but a firewall with a proxy server is in place. Here's how you would use the environment variables:
 
 ```sh
@@ -55,90 +56,52 @@ curl https://example.com/file.txt
 ```
 
 By setting `https_proxy`, `curl` knows to route its request through the specified proxy server, allowing you to download the file despite the firewall and proxy combination.
---
 
-* Remember:
+TIP: While `curl` itself is generally case-insensitive for these variables, using lowercase (`http_proxy` and `https_proxy`) is recommended for consistency.
+
+With the understanding of `http_proxy` and `https_proxy`, you can navigate proxy servers and access the resources you need!
+
+== Unveiling the Proxy Trio with Docker and containerd
+
+When working with containerized applications, pulling images from registries is a common task. But what if your network environment requires a proxy server for internet access? This guide explores how to configure `https_proxy` for secure communication with container image registries using Docker and containerd.
+
+* *Docker*: A container engine built on top of containerd, offering a user-friendly interface and additional functionalities for managing images and containers.
+
+* *containerd*: A container runtime engine that manages the lifecycle of containers (creation, starting, stopping, and deletion).
+
+While Docker, built on top of containerd, manages container image pulling by default, containerd also has its own built-in image pulling plugin (e.g., used by Kubernetes). To ensure consistent proxy behavior regardless of which tool pulls the image, it's recommended to configure the proxy for both Docker and containerd.
+
+* Set the `HTTPS_PROXY` environment variable on systemd service files with the address and port of your HTTPS proxy server, which applies to both Dockerd and containerd, as they inherit environment variables from the host system.
 +
 --
-** While `curl` itself is generally case-insensitive for these variables, using lowercase (`http_proxy` and `https_proxy`) is recommended for consistency.
+* Locate the systemd service file for containerd and dockerd (e.g., `/etc/systemd/system/docker.service`).
 
-** Ensure your proxy server supports the types of connections used by tools like `curl` (usually TCP).
---
-
-With this understanding of `http_proxy` and `https_proxy`, you can navigate proxy servers and access the resources you need!
-
-== Unveiling the Proxy Duo with containerd and Dockerd
-
-* A Secure Connection for Container Images
-+
-When working with containerized applications, pulling images from registries is a common task. But what if your network environment requires a proxy server for internet access? This guide explores how to configure `https_proxy` for secure communication with container image registries using containerd and Dockerd.
-
-* Understanding the Players:
-
-** *containerd*: A container runtime engine that manages the lifecycle of containers (creation, starting, stopping, and deletion).
-
-** *Dockerd*: A container engine built on top of containerd, offering a user-friendly interface and additional functionalities for building, managing, and sharing containers.
-
-* The Pull Process:
-+
-By default, Dockerd takes the lead in pulling container images from registries. During this process, Dockerd establishes a connection with the registry to download the image. If you're behind a proxy server, proper configuration is essential for secure communication.
-
-* Configuring the Proxy:
-+
-To ensure a secure connection, configure `https_proxy` for both Dockerd and containerd.
-+
---
-Here are the common methods:
-
-. Environment Variables on Systemd Service Files:
-
-* Set the `HTTPS_PROXY` environment variable with the address and port of your HTTPS proxy server. For example:
-+
-```sh
-export HTTPS_PROXY=https://your_proxy_server:port
-```
-
-* This approach applies to both Dockerd and containerd, as they inherit environment variables from the host system.
-
-
-** Locate the systemd service file for containerd and dockerd (e.g., `/etc/systemd/system/docker.service`).
-
-** Edit the file (e.g., `sudo systemctl edit docker.service`) and add the following lines under the `[Service]` section:
+* Edit the file (e.g., `sudo systemctl edit docker.service`) and add the following lines under the `[Service]` section:
 +
 ```conf
 [Service]
 Environment="HTTPS_PROXY=https://your_proxy_server:port"
 ```
 
-** Reload systemd and restart the service:
+* Reload systemd and restart the service:
 +
 ```sh
 sudo systemctl daemon-reload
 sudo systemctl restart docker
 ```
+--
 
-. Docker Configuration File (Recommended for Docker):
-
-* Create or edit the `/etc/docker/daemon.json` file (path might vary) and add a JSON object specifying the proxy details:
+* https://docs.docker.com/config/daemon/systemd/#httphttps-proxy[Configure the Docker daemon to use a proxy server] in the https://docs.docker.com/config/daemon/#configure-the-docker-daemon[daemon.json] file:
 +
 ```json
 {
- "proxies": {
-   "default": {
-     "httpProxy": "http://your_proxy_server:port",
-     "httpsProxy": "https://your_proxy_server:port",
-     "noProxy": "*.test.example.com,.example.org,127.0.0.0/8"
-   }
- }
+  "proxies": {
+    "http-proxy": "http://proxy.example.com:3128",
+    "https-proxy": "https://proxy.example.com:3129",
+    "no-proxy": "*.test.example.com,.example.org,127.0.0.0/8"
+  }
 }
 ```
-+
-NOTE: This method exposes the proxy details in plain text. Consider using environment variables for a more secure approach. This configuration primarily benefits Dockerd, but if containerd leverages Docker's image pulling mechanism, it can indirectly benefit from the proxy settings.
---
-
-* In Conclusion:
-+
-Understanding https_proxy is crucial for secure communication with container image registries when using Dockerd or containerd behind a proxy server. By configuring the proxy for both tools (primarily through environment variables), you can ensure a secure flow of container image data, protecting your credentials and sensitive information. While Dockerd directly utilizes the proxy configuration, containerd can benefit indirectly during the image pulling process within Docker.
 
 == Install Docker Engine on Debian
 
