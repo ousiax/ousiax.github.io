@@ -360,6 +360,273 @@ timeout []:
 Guarantee Timestamp(It instructs Milvus to see all operations performed before a provided timestamp. If no such timestamp is provided, then Milvus will search all operations performed to date) [0]:
 ```
 
+== Schema and collections
+
+In Milvus, schema is used to define the properties of a collection and the fields within. <<milvus-schema>>
+
+* A _field schema_ is the logical definition of a field, and Milvus supports only one primary key field in a collection.
++
+To reduce the complexity in data inserts, Milvus allows to specify a default value for each scalar field during field schema creation, excluding the primary key field.
+
+** Create a regular field schema:
++
+```py
+from pymilvus import FieldSchema
+id_field = FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, description="primary id")
+age_field = FieldSchema(name="age", dtype=DataType.INT64, description="age")
+embedding_field = FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=128, description="vector")
+
+# The following creates a field and use it as the partition key
+position_field = FieldSchema(name="position", dtype=DataType.VARCHAR, max_length=256, is_partition_key=True)
+```
+
+** Create a field schema with default field values:
++
+```py
+from pymilvus import FieldSchema
+
+fields = [
+  FieldSchema(name="id", dtype=DataType.INT64, is_primary=True),
+  # configure default value `25` for field `age`
+  FieldSchema(name="age", dtype=DataType.INT64, default_value=25, description="age"),
+  embedding_field = FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=128, description="vector")
+]
+```
+
+* A _collection schema_ is the logical definition of a collection.
++
+TIP: Define the field schemas before defining a collection schema.
+
+** Create a collection schema
++
+```py
+from pymilvus import FieldSchema, CollectionSchema
+id_field = FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, description="primary id")
+age_field = FieldSchema(name="age", dtype=DataType.INT64, description="age")
+embedding_field = FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=128, description="vector")
+
+# Enable partition key on a field if you need to implement multi-tenancy based on the partition-key field
+position_field = FieldSchema(name="position", dtype=DataType.VARCHAR, max_length=256, is_partition_key=True)
+
+# Set enable_dynamic_field to True if you need to use dynamic fields.
+schema = CollectionSchema(fields=[id_field, age_field, embedding_field], auto_id=False, enable_dynamic_field=True, description="desc of a collection")
+```
++
+TIP: Enable dynamic schema by setting `enable_dynamic_field` to `True` in the collection schema.
+
+** Create a collection with the schema specified:
++
+```py
+from pymilvus import Collection
+collection_name1 = "tutorial_1"
+collection1 = Collection(name=collection_name1, schema=schema, using='default', shards_num=2)
+```
+
+The https://milvus.io/docs/enable-dynamic-field.md[dynamic field] in a collection is a reserved JSON field named `$meta`. It can hold non-schema-defined fields and their values as key-value pairs. Using the dynamic field, search and query both schema-defined fields and any non-schema-defined fields they may have.
+
+* Enable dynamic field
++
+When defining a schema for a collection, set `enable_dynamic_field` to `True` to enable the reserved dynamic field, indicating that any non-schema-defined fields and their values inserted later on will be saved as key-value pairs in the reserved dynamic field.
++
+```py
+import random, time
+from pymilvus import connections, MilvusClient, DataType
+
+SERVER_ADDR = "http://localhost:19530"
+
+# 1. Set up a Milvus client
+client = MilvusClient(
+    uri=SERVER_ADDR
+)
+
+# 2. Create a collection
+schema = MilvusClient.create_schema(
+    auto_id=False,
+    # highlight-next-line
+    enable_dynamic_field=True,
+)
+
+schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
+schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=5)
+
+index_params = MilvusClient.prepare_index_params()
+
+index_params.add_index(
+    field_name="id",
+    index_type="STL_SORT"
+)
+
+index_params.add_index(
+    field_name="vector",
+    index_type="IVF_FLAT",
+    metric_type="L2",
+    params={"nlist": 1024}
+)
+
+client.create_collection(
+    collection_name="test_collection",
+    schema=schema,
+    index_params=index_params
+)
+
+res = client.get_load_state(
+    collection_name="test_collection"
+)
+
+print(res)
+
+# Output
+#
+# {
+#     "state": "<LoadState: Loaded>"
+# }
+```
++
+```py
+# check the details of the collection.
+res = client.describe_collection(
+    collection_name="test_collection"
+)
+
+print(res)
+
+# Output
+# 
+# {
+#   "collection_name": "test_collection",
+#   "auto_id": false,
+#   "num_shards": 1,
+#   "description": "",
+#   "fields": [
+#     {
+#       "field_id": 100,
+#       "name": "id",
+#       "description": "",
+#       "type": 5,
+#       "params": {},
+#       "is_primary": true
+#     },
+#     {
+#       "field_id": 101,
+#       "name": "vector",
+#       "description": "",
+#       "type": 101,
+#       "params": {
+#         "dim": 5
+#       }
+#     }
+#   ],
+#   "aliases": [],
+#   "collection_id": 450568843971279780,
+#   "consistency_level": 2,
+#   "properties": {},
+#   "num_partitions": 1,
+#   "enable_dynamic_field": true
+# }
+```
+
+* Insert dynamic data
+
+** Prepare some randomly generated data for the insertion later on.
++
+```py
+colors = ["green", "blue", "yellow", "red", "black", "white", "purple", "pink", "orange", "brown", "grey"]
+data = []
+
+for i in range(1000):
+    current_color = random.choice(colors)
+    current_tag = random.randint(1000, 9999)
+    data.append({
+        "id": i,
+        "vector": [ random.uniform(-1, 1) for _ in range(5) ],
+        "color": current_color,
+        "tag": current_tag,
+        "color_tag": f"{current_color}_{str(current_tag)}"
+    })
+
+print(data[0])
+```
+
+** Insert the data into the collection.
++
+```py
+res = client.insert(
+    collection_name="test_collection",
+    data=data,
+)
+
+print(res)
+
+# Output
+#
+# {
+#     "insert_count": 1000,
+#     "ids": [
+#         0,
+#         1,
+#         2,
+#         3,
+#         4,
+#         5,
+#         6,
+#         7,
+#         8,
+#         9,
+#         "(990 more items hidden)"
+#     ]
+# }
+
+time.sleep(5)
+```
+
+* Search with dynamic fields
++
+```py
+# 4. Search with dynamic fields
+query_vectors = [[0.3580376395471989, -0.6023495712049978, 0.18414012509913835, -0.26286205330961354, 0.9029438446296592]]
+
+res = client.search(
+    collection_name="test_collection",
+    data=query_vectors,
+    filter="color in [\"red\", \"green\"]",
+    search_params={"metric_type": "L2", "params": {"nprobe": 10}},
+    limit=3
+)
+
+print(res)
+
+# Output
+#
+# [
+#     [
+#         {
+#             "id": 863,
+#             "distance": 0.188413605093956,
+#             "entity": {
+#                 "id": 863,
+#                 "color_tag": "red_2371"
+#             }
+#         },
+#         {
+#             "id": 799,
+#             "distance": 0.29188022017478943,
+#             "entity": {
+#                 "id": 799,
+#                 "color_tag": "red_2235"
+#             }
+#         },
+#         {
+#             "id": 564,
+#             "distance": 0.3492690920829773,
+#             "entity": {
+#                 "id": 564,
+#                 "color_tag": "red_9186"
+#             }
+#         }
+#     ]
+# ]
+```
+
 [bibliography]
 == References
 
@@ -369,3 +636,4 @@ Guarantee Timestamp(It instructs Milvus to see all operations performed before a
 * [[[milvus_lite,4]]] https://milvus.io/docs/milvus_lite.md
 * [[[milvus-quickstart, 5]]] https://milvus.io/docs/quickstart.md
 * [[[milvus-cli_overview,6]]] https://milvus.io/docs/cli_overview.md
+* [[[milvus-schema,7]]] https://milvus.io/docs/schema.md
