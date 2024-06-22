@@ -110,7 +110,337 @@ The best tool or approach depends on your specific needs and available resources
 
 By combining vector databases with the right context enrichment tools and automatic prompt construction techniques, we can build a robust RAG system that leverages the power of LLMs to generate more informative and relevant responses.
 
+== Build RAG with Milvus
+
+We will use https://azure.microsoft.com/en-us/products/phi-3[Phi-3], an open small language model, to provide an OpenAI-compatible API.
+
+.Prepare the Phi3 LLM with Ollama on Linux
+[TIP]
+====
+* Install Ollama on Linux:
++
+```sh
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+* Pull model `phi3:mini`, and make sure the model checkpoint is prepared:
++
+```sh
+ollama pull phi3:mini
+```
++
+```console
+$ ollama list
+NAME                    ID              SIZE    MODIFIED
+phi3:mini               64c1188f2485    2.4 GB  17 minutes ago
+```
+
+* Check the Phi3 model with the Chat Completion API:
++
+```sh
+curl http://localhost:11434/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{"model":"phi3:mini","messages":[{"role":"user","content":"Hi, who are you?"}]}'
+```
++
+```console
+{
+  "id": "chatcmpl-866",
+  "object": "chat.completion",
+  "created": 1718872510,
+  "model": "phi3:mini",
+  "system_fingerprint": "fp_ollama",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": " I am Phi, an AI developed to provide information and answer questions to the best of my ability. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 0,
+    "completion_tokens": 30,
+    "total_tokens": 30
+  }
+}
+```
+====
+
+=== Prepare the data in Milvus
+
+* Dependencies and Environment
++
+```sh
+pip install --upgrade 'pymilvus[model]==2.4.4' 'numpy<2' openai requests
+# pipenv install -v 'pymilvus[model]==2.4.4' 'numpy<2'  openai requests
+```
+
+* Prepare the embedding model
++
+```py
+from pymilvus.model.dense import SentenceTransformerEmbeddingFunction  # Sentence Transformer pre-trained models
+
+# If connection to https://huggingface.co/ failed, uncomment the following path
+# import os
+# os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+ef = SentenceTransformerEmbeddingFunction(
+    model_name='all-MiniLM-L6-v2',  # Specify the model name
+)
+```
+
+* Create the collection in Milvus
++
+```py
+from pymilvus import MilvusClient, DataType
+
+COLLECTION_NAME = "my_rag_collection"
+SERVER_ADDR = "http://localhost:19530"
+ACCESS_TOKEN = "root:Milvus"
+DB_NAME = "default"
+
+# 1. Set up a Milvus client
+client = MilvusClient(
+    uri=SERVER_ADDR,
+    token=ACCESS_TOKEN,
+    db_name=DB_NAME,
+)
+
+# 2. Check if the collection already exists and drop it if it does.
+if client.has_collection(COLLECTION_NAME):
+    client.drop_collection(COLLECTION_NAME)
+
+# 3. Create a new collection with specified parameters.
+client.create_collection(
+    collection_name=COLLECTION_NAME,
+    dimension=384,  # The vector has 384 dimensions, matching the SBERT embedding function with all-MiniLM-L6-v2
+    auto_id=True,  # default is False
+    # primary_field_name="id",
+    # id_type="int",
+    # vector_field_name="vector",
+    # metric_type="COSINE",
+    # enable_dynamic_field=True,
+)
+
+# 4. (optional) To load a collection, use the load_collection() method.
+# client.load_collection(
+#     collection_name=COLLECTION_NAME
+# )
+#
+# To release a collection, use the release_collection() method.
+# client.release_collection(
+#     collection_name=COLLECTION_NAME
+# )
+
+# 5. (optional) The collection created above is loaded automatically.
+res = client.get_load_state(
+    collection_name=COLLECTION_NAME
+)
+
+print(res)
+
+# 6. (optional) List detailed information about the collection.
+import json
+desc = client.describe_collection(
+    collection_name=COLLECTION_NAME,
+)
+print(json.dumps(desc, indent=2))
+```
++
+```console
+{'state': <LoadState: Loaded>}
+{
+  "collection_name": "my_rag_collection",
+  "auto_id": true,
+  "num_shards": 1,
+  "description": "",
+  "fields": [
+    {
+      "field_id": 100,
+      "name": "id",
+      "description": "",
+      "type": 5,
+      "params": {},
+      "auto_id": true,
+      "is_primary": true
+    },
+    {
+      "field_id": 101,
+      "name": "vector",
+      "description": "",
+      "type": 101,
+      "params": {
+        "dim": 384
+      }
+    }
+  ],
+  "aliases": [],
+  "collection_id": 450568843972908135,
+  "consistency_level": 2,
+  "properties": {},
+  "num_partitions": 1,
+  "enable_dynamic_field": true
+}
+```
+
+* Use the https://github.com/milvus-io/milvus/blob/master/DEVELOPMENT.md[Milvus development guide] to be as the private knowledge in our RAG, which is a good data source for a simple RAG pipeline.
++
+```py
+# download and save it as a local text file.
+import os
+import urllib.request
+
+URL = "https://raw.githubusercontent.com/milvus-io/milvus/master/DEVELOPMENT.md"
+FILE_PATH = "./Milvus_DEVELOPMENT.md1"
+
+if not os.path.exists(FILE_PATH):
+    urllib.request.urlretrieve(URL, FILE_PATH)
+```
+
+* Create embeddings, and then insert the data into Milvus
++
+```py
+from pymilvus import MilvusClient, model
+
+COLLECTION_NAME = "my_rag_collection"
+SERVER_ADDR = "http://localhost:19530"
+ACCESS_TOKEN = "root:Milvus"
+DB_NAME = "default"
+
+client = MilvusClient(
+    uri=SERVER_ADDR,
+    token=ACCESS_TOKEN,
+    db_name=DB_NAME,
+)
+
+# If connection to https://huggingface.co/ failed, uncomment the following path
+# import os
+# os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+ef = model.dense.SentenceTransformerEmbeddingFunction(
+    model_name='all-MiniLM-L6-v2',
+)
+
+FILE_PATH = "./Milvus_DEVELOPMENT.md"
+
+with open(FILE_PATH, "r+t", encoding='utf-8') as fi:
+    text = fi.read()
+
+# Use "# " to separate the content in the file, which can roughly separate
+# the content of each main part of the markdown file.
+docs = text.split("# ")
+
+vectors = ef.encode_documents(docs)
+data = [{"vector": vectors[i], "text": docs[i]} for i in range(len(vectors))]
+
+res = client.insert(collection_name=COLLECTION_NAME, data=data)
+print(res)
+```
++
+```console
+{'insert_count': 47, 'ids': [450568843971283844, ... , 450568843971283889, 450568843971283890], 'cost': 0}
+```
+
+=== Use LLM to get a RAG response
+
+```py
+from openai import OpenAI
+from pymilvus import MilvusClient, model
+
+COLLECTION_NAME = "my_rag_collection"
+SERVER_ADDR = "http://localhost:19530"
+ACCESS_TOKEN = "root:Milvus"
+DB_NAME = "default"
+
+client = MilvusClient(
+    uri=SERVER_ADDR,
+    token=ACCESS_TOKEN,
+    db_name=DB_NAME,
+)
+
+# If connection to https://huggingface.co/ failed, uncomment the following path
+# import os
+# os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+ef = model.dense.SentenceTransformerEmbeddingFunction(
+    model_name='all-MiniLM-L6-v2',
+)
+
+# Define a query question about the content of the development guide documentation.
+question = "what is the hardware requirements specification if I want to build Milvus and run from source code?"
+
+# Search for the question in the collection and retrieve the semantic top-3 matches.
+res = client.search(
+    collection_name=COLLECTION_NAME,
+    data=ef.encode_queries([question]),
+    limit=3,  # Return top 3 results
+    output_fields=["text"],  # Return the text field
+)
+
+retrieved_lines_with_distances = [
+    (r["entity"]["text"], r["distance"]) for r in res[0]
+]
+# [
+#   [
+#     "Hardware Requirements\n\nThe following specification (either physical or virtual machine resources) is recommended for Milvus to build and run from source code.\n\n```\n- 8GB of RAM\n- 50GB of free disk space\n```\n\n##",
+#     0.8904632329940796
+#   ],
+#   [
+#     "Software Requirements\n\nAll Linux distributions are available for Milvus development. However a majority of our contributor worked with Ubuntu or CentOS systems, with a small portion of Mac (both x86_64 and Apple Silicon) contributors. If you would like Milvus to build and run on other distributions, you are more than welcome to file an issue and contribute!\n\nHere's a list of verified OS types where Milvus can successfully build and run:\n\n- Debian/Ubuntu\n- Amazon Linux\n- MacOS (x86_64)\n- MacOS (Apple Silicon)\n\n##",
+#     0.7089803814888
+#   ],
+#   [
+#     "Building Milvus on a local OS/shell environment\n\nThe details below outline the hardware and software requirements for building on Linux and MacOS.\n\n##",
+#     0.7013456225395203
+#   ]
+# ]
+
+# Convert the retrieved documents into a string format.
+context = "\n".join(
+    [line_with_distance[0]
+        for line_with_distance in retrieved_lines_with_distances]
+)
+
+# Define system and user prompts for the Lanage Model.
+SYSTEM_PROMPT = """
+Human: You are an AI assistant. You are able to find answers to the questions from the contextual passage snippets provided.
+"""
+USER_PROMPT = f"""
+Use the following pieces of information enclosed in <context> tags to provide an answer to the question enclosed in <question> tags.
+<context>
+{context}
+</context>
+<question>
+{question}
+</question>
+"""
+
+# Use OpenAI Chat Completion API to generate a response based on the prompts.
+OAI_API_KEY = "EMPTY"
+OAI_API_BASE = "http://localhost:11434/v1"
+
+oai_client = OpenAI(
+    api_key=OAI_API_KEY,
+    base_url=OAI_API_BASE,
+)
+
+response = oai_client.chat.completions.create(
+    model="phi3:mini",
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": USER_PROMPT},
+    ],
+)
+print(response.choices[0].message.content)
+
+# The hardware requirements specification for building Milvus and running it from source code includes having at least 8GB of RAM and 50GB of free disk space.
+```
+
 [bibliography]
 == References
 
 * [[[ms-az-ai-rag, 1]]] https://learn.microsoft.com/en-us/azure/ai-studio/concepts/retrieval-augmented-generation
+* [[[milvus-arg,2 ]]] https://milvus.io/docs/build-rag-with-milvus.md
