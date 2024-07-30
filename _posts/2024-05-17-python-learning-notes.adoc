@@ -1385,21 +1385,43 @@ This notation is new in Python 3.X—and goes well beyond the original intent of
 
 * `yield` sends a result object back to the caller, but remembers where it left off, to produce a series of results over time.
 
-* `global` declares module-level variables that are to be assigned.
+* `global` declares module-level variables that are to be assigned, that tells Python that a function plans to change one or more global names—that is, names that live in the enclosing module’s scope (namespace).
 +
-By default, all names assigned in a function are local to that function and exist only while the function runs. To assign a name in the enclosing module, functions need to list it in a `global` statement.
+```py
+X = 88  # Global X
 
-* `nonlocal` declares enclosing function variables that are to be assigned.
+def func():
+    global X
+    X = 99  # Global X: outside def
 
-* Arguments are passed by assignment (object reference).
+func()
+print(X)  # Prints 99
+```
+
+* `nonlocal` declares enclosing function variables that are to be assigned, that is declaring the enclosing scopes’ names in a nonlocal statement enables nested functions to assign and thus change such names as well.
 +
-Changing an argument name within a function does not also change the corresponding name in the caller, but changing passed-in mutable objects in place can change objects shared by the caller, and serve as a function result.
+```py
+def tester(start):
+    state = start  # Each call gets its own state
 
-* Arguments are passed by position, unless saying otherwise.
+    def nested(label):
+        nonlocal state  # Remembers state in enclosing scope
+        print(label, state)
+        state += 1  # Allowed to change it if nonlocal
+    return nested
+
+# Increments state on each call
+F = tester(0)
+F('spam')  # spam 0
+F('ham')   # ham 1
+F('eggs')  # eggs 2
+```
+
+* Arguments are *passed by assignment* (object reference), and are passed by position, unless saying otherwise.
 
 ** Values passed in a function call match argument names in a function’s definition from left to right by default.
 
-** For flexibility, function calls can also pass arguments by name with `name=value` keyword syntax, and unpack arbitrarily many arguments to send with `+++*pargs+++` and `+++**kargs+++` starred-argument notation.
+** Function calls can also pass arguments by name with `name=value` keyword syntax, and unpack arbitrarily many arguments to send with `+++*args+++` and `+++**kargs+++` starred-argument notation.
 
 ** Function definitions use the same two forms to specify argument defaults, and collect arbitrarily many arguments received.
 
@@ -1579,6 +1601,65 @@ list(filter(lambda num: num % 2 == 0, nums))
 # [0, 2, 4, 6, 8]
 ```
 
+=== Factory functions: Closures
+
+```py
+def maker(N):
+    def action(X):  # make and return action
+        return X ** N  # action retains N from enclosing scope
+    return action
+
+f = maker(2)
+f  # <function maker.<locals>.action at 0x7faba988f240>
+f(3)  # 9
+f(4)  # 16
+g = maker(3)  # g remembers 3, f remembers 2
+g(4)  # 64
+f(4)  # 16
+```
+
+```py
+def func():
+    x = 4
+    action = (lambda n: x ** n)  # x remembered from enclosing def
+    return action
+
+x = func()
+print(x(2))  # Prints 16, 4 ** 2
+```
+
+```py
+# If a lambda or def defined within a function is nested inside a loop, and
+# the nested function references an enclosing scope variable that is changed
+# by that loop, all functions generated within the loop will have the same
+# value—the value the referenced variable had in the last loop iteration.
+#
+# It's because the enclosing scope variable is looked up when the nested
+# functions are later called, they all effectively remember the same value:
+# the value the loop variable had on the last loop iteration.
+def make_actions():
+    acts = []
+    for i in range(5):  # Tries to remember each i
+        acts.append(lambda x: i ** x)  # But all remember same last i!
+    return acts
+
+acts = make_actions()
+[act(2) for act in acts]  # [16, 16, 16, 16, 16]
+
+# That is, to make this sort of code work, we must pass in the current value
+# of the enclosing scope’s variable with a default. Because defaults are
+# evaluated when the nested function is created (not when it’s later called),
+# each remembers its own value for i:
+def make_actions():
+    acts = []
+    for i in range(5):  # Use defaults instead
+        acts.append(lambda x, i=i: i ** x)  # Remember current i
+    return acts
+
+acts = make_actions()
+[act(2) for act in acts]  # [0, 1, 4, 9, 16]
+```
+
 === Generators
 
 A _generator_ is a Python sequence creation object, which is often the source of data for iterators.
@@ -1689,6 +1770,14 @@ except:  # bare except to catch all exceptions
 ```
 
 === locals() and globals()
+
+When talking about the search for a name’s value in relation to code, the term _scope_ refers to a _namespace_—a place where names live. Python’s name-resolution scheme is sometimes called the _LEGB rule_, after the scope names:
+
+* When using an unqualified name inside a function, Python searches up to four scopes—the local (_L_) scope, then the local scopes of any enclosing (_E_) ``def``s and ``lambda``s, then the global (_G_) scope, and then the built-in (_B_) scope—and stops at the first place the name is found. If the name is not found during this search, Python reports an error.
+
+* When assigning a name in a function (instead of just referring to it in an expression), Python always creates or changes the name in the local scope, unless it’s declared to be `global` or `nonlocal` in that function.
+
+* When assigning a name outside any function (i.e., at the top level of a module file, or at the interactive prompt), the local scope is the same as the global scope—the module’s namespace.
 
 Python provides two functions to access the contents of the namespaces:
 
