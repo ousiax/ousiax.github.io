@@ -1449,7 +1449,7 @@ print(echo.__doc__)  # 'echo returns its input argument'
 help(echo)
 ```
 
-=== Namespaces and scopes
+=== Namespaces
 
 When talking about the search for a name’s value in relation to code, the term _scope_ refers to a _namespace_—a place where names live. Python’s name-resolution scheme is sometimes called the _LEGB rule_, after the scope names:
 
@@ -1678,6 +1678,24 @@ print(tracer(func, 1, 2, c=3, d=4))
 ```
 
 ```py
+# recursion
+def flatten(lol):
+    for item in lol:
+        if isinstance(item, list):
+            yield from flatten(item)  # yield from expression
+        else:
+            yield item
+
+lol = [1, 2, [3, 4, 5], [6, [7, 8, 9], []]]
+list(flatten(lol))
+[1, 2, 3, 4, 5, 6, 7, 8, 9]
+```
+
+=== Attributes
+
+In Python, functions are objects, which may be assigned to other names, passed to other functions, embedded in data structures, returned from one function to another, and more, as if they were simple numbers or strings.
+
+```py
 # functions are first-class citizens
 def answer():
     print(42)
@@ -1692,42 +1710,89 @@ def outer(a, b):
     def inner(c, d):
         return c+d
     return inner(a, b)
-
-# closures
-def wow(voice):
-    def inner():
-        return f'Wow: {voice}'
-    return inner
-
-cat = wow('meow')
-dog = wow('bark')
-cat()  # 'Wow: meow'
-dog()  # 'Wow: bark'
-
-# recursion
-def flatten(lol):
-    for item in lol:
-        if isinstance(item, list):
-            yield from flatten(item)  # yield from expression
-        else:
-            yield item
-
-lol = [1, 2, [3, 4, 5], [6, [7, 8, 9], []]]
-list(flatten(lol))
-[1, 2, 3, 4, 5, 6, 7, 8, 9]
-
-# anonymous functions: lambda
-def is_odd(num):
-    return num % 2 == 1
-
-nums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-list(filter(is_odd, nums))
-# [1, 3, 5, 7, 9]
-list(filter(lambda num: num % 2 == 0, nums))
-# [0, 2, 4, 6, 8]
 ```
 
-=== Factory functions: Closures
+Function objects are not limited to the system-defined attributes, but also can be attached arbitrary user-defined attributes.
+
+```py
+def func(): ...
+
+dir(func)  # ['__annotations__', '__code__', '__name__', ...]
+
+func.count = 0
+func.count += 1
+func.count  # 1
+
+func.handles = 'Button-Press'
+func.handles  # 'Button-Press'
+```
+
+=== Annotations
+
+In Python 3.X, it’s also possible to attach annotation information—arbitrary user-defined data about a function’s arguments and result—to a function object, and when present are simply attached to the function object’s `+++__annotations__+++` attribute for use by other tools.
+
+```py
+def func(a: 'spam', b: (1, 10), c: float) -> int: return a + b + c
+func.__annotations__  # {'a': 'spam', 'b': (1, 10), 'c': <class 'float'>, 'return': <class 'int'>}
+```
+
+=== Lambda
+
+Python provides a `lambda` expression form that generates anonymous (i.e., unnamed) function objects. Its general form is the keyword `lambda`, followed by one or more arguments (exactly like the arguments list enclosed in parentheses in a `def` header), followed by an expression after a colon:
+
+```py
+lambda argument1, argument2,... argumentN : expression using arguments
+```
+
+```py
+# defs and lambdas do the same sort of work:
+def func(x, y, z): return x + y + z
+func(2, 3, 4)  # 9
+f = func
+f(2, 3, 4)  # 9
+
+g = lambda x, y, z: x + y + z
+g(2, 3, 4)  # 9
+
+# defaults work on lambda arguments, just like in a def:
+x = (lambda a="fee", b="fie", c="foe": a + b + c)
+x("wee")  # 'weefiefoe'
+```
+
+```py
+# lambda is also commonly used to code jump tables, which are lists or dictionaries of
+# actions to be performed on demand. For example:
+L = [lambda x: x ** 2,  # Inline function definition
+     lambda x: x ** 3,
+     lambda x: x ** 4]  # A list of three callable functions
+for f in L:
+    print(f(2))  # Prints 4, 8, 16
+print(L[0](3))  # Prints 9
+
+key = 'got'
+actions = {
+    'already': (lambda: 2 + 2),
+    'got': (lambda: 2 * 4),
+    'one': (lambda: 2 ** 6),
+}
+actions[key]()  # 8
+```
+
+```py
+from functools import reduce
+nums = range(10)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+# map: mapping functions over iterables
+list(map(lambda x: x+1, nums))  # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# filter: selecting items in iterables
+list(filter(lambda x: x % 2 == 0, nums))  # [0, 2, 4, 6, 8]
+
+# reduce: combining items in iterables
+reduce(lambda x, y: x+y, nums)  # 45
+```
+
+### Closures
 
 ```py
 def maker(N):
@@ -1742,15 +1807,12 @@ f(4)  # 16
 g = maker(3)  # g remembers 3, f remembers 2
 g(4)  # 64
 f(4)  # 16
-```
 
-```py
-def func():
-    x = 4
-    action = (lambda n: x ** n)  # x remembered from enclosing def
+def maker(N):
+    action = (lambda x: x ** N)  # N remembered from enclosing def
     return action
 
-x = func()
+x = maker(4)
 print(x(2))  # Prints 16, 4 ** 2
 ```
 
