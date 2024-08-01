@@ -1850,29 +1850,102 @@ acts = make_actions()
 
 === Generators
 
-A _generator_ is a Python sequence creation object, which is often the source of data for iterators.
-
-* It can be used to iterate through potentially huge sequences without creating and storing the entire sequence in memory at once.
-
-* Every time iteration through a generator, it keeps track of where it was the last time it was called and returns the next value.
-
-* A generator can be run only once, and can't be to restart or back up.
-
-* A _generator function_ is a normal function, but it returns its value with a `yield` statement rather than `return`.
+* A function `def` statement that contains a `yield` statement is turned into a _generator function_.
++
+When called, it returns a new generator object with automatic retention of local scope and code position; an automatically created `+++__iter__+++` method that simply returns itself; and an automatically created `+++__next__+++` method (`next` in 2.X) that starts the function or resumes it where it last left off, and raises `StopIteration` when finished producing results.
 +
 ```py
-def xrange(start=0, stop=10, step=1):
-    number = start
-    while number < stop:
-        yield number
-        number += step
+def gensquares(N):
+    for i in range(N):
+        yield i ** 2  # Resume here later
 
-ranger = xrange(1, 5)
-print(ranger)  # <generator object xrange at 0x7f119757b220>
 
-for num in ranger:
-    print(num, end='\t')  # 1	2	3	4
+for i in gensquares(5):  # Resume the function
+    print(i, end=' : ')  # Print last yielded value
+# 0 : 1 : 4 : 9 : 16 :
+
+x = gensquares(4)
+# iter() is not required: a no-op here
+iter(x) is x  # True
+x.__next__()  # 0
+x.__next__()  # 1
+x.__next__()  # 4
+x.__next__()  # 9
+x.__next__()  # StopIteration
 ```
++
+--
+* State suspension
+
+** Unlike normal functions that return a value and exit, generator functions automatically suspend and resume their execution and state around the point of value generation.
++
+Because of that, they are often a useful alternative to both computing an entire series of values up front and manually saving and restoring state in classes.
+
+** The _state_ that generator functions retain when they are suspended includes both their code location, and their entire local scope. Hence, their _local variables_ retain information between results, and make it available when the functions are resumed.
+
+** The chief code difference between generator and normal functions is that a generator _yields_ a value, rather than _returning_ one—the `yield` statement suspends the function and sends a value back to the caller, but retains enough state to enable the function to resume from where it left off.
++
+When resumed, the function continues execution immediately after the last `yield` run. From the function’s perspective, this allows its code to produce a series of values over time, rather than computing them all at once and sending them back in something like a list.
+
+* Iteration protocol integration
+
+** Generator functions, coded as def statements containing yield statements, are automatically made to support the _iteration object protocol_ and thus may be used in any iteration context to produce results over time and on demand.
++
+To support this protocol, functions containing a `yield` statement are compiled specially as generators—they are not normal functions, but rather are built to return an object with the expected iteration protocol methods. When later called, they return a generator object that supports the iteration interface with an automatically created method named `+++__next__+++` to start or resume execution.
+
+** Generator functions may also have a `return` statement that, along with falling off the end of the `def` block, simply terminates the generation of values—technically, by raising a `StopIteration` exception after any normal function exit actions.
++
+From the caller’s perspective, the generator’s `+++__next__+++` method resumes the function and runs until either the next yield result is returned or a `StopIteration` is raised.
+--
+
+* A comprehension expression enclosed in parentheses is known as a _generator expression_.
++
+When run, it returns a new generator object with the same automatically created method interface and state retention as a generator function call’s results —with an `+++__iter__+++` method that simply returns itself; and a `+++__next__+++` method (`next` in 2.X) that starts the implied loop or resumes it where it last left off, and raises `StopIteration` when finished producing results.
++
+```py
+[x ** 2 for x in range(4)]  # list comprehension: build a list
+# [0, 1, 4, 9]
+(x ** 2 for x in range(4))  # generator expression: make an iterable
+# <generator object <genexpr> at 0x7fcd7069b780>
+```
++
+--
+* Generator expressions are a _memory-space_ optimization —they do not require the entire result list to be constructed all at once, as the squarebracketed list comprehension does.
+
+* Generator expressions may run slightly slower than list comprehensions in practice, so they are probably best used only for very large result sets, or applications that cannot wait for full results generation.
+--
+
+* Python 3.3 introduces extended syntax for the `yield` statement that allows delegation to a subgenerator with a `from generator` clause.
++
+```py
+def both(N):
+    for i in range(N):
+        yield i
+    for i in (x ** 2 for x in range(N)):
+        yield i
+
+list(both(5))  # [0, 1, 2, 3, 4, 0, 1, 4, 9, 16]
+
+def both(N):
+    yield from range(N)
+    yield from (x ** 2 for x in range(N))
+
+list(both(5))  # [0, 1, 2, 3, 4, 0, 1, 4, 9, 16]
+
+' : '.join(str(i) for i in both(5))  # '0 : 1 : 2 : 3 : 4 : 0 : 1 : 4 : 9 : 16'
+```
+
+* Generators are single-iteration objects, that support just one active iteration, and can’t have multiple iterators of either positioned at different locations in the set of results.
++
+Because of this, a generator’s iterator is the generator itself; in fact, as suggested earlier, calling `iter` on a generator expression or function is an optional no-op.
++
+```py
+G = (c * 4 for c in 'SPAM')
+iter(G) is G  # My iterator is myself: G has __next__
+# True
+```
+
+
 
 === Decorators
 
