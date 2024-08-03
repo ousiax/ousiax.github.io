@@ -2466,35 +2466,34 @@ sys.path
 # ['/tmp', '', '/usr/lib/python311.zip', '/usr/lib/python3.11', '/usr/lib/python3.11/lib-dynload', '/usr/local/lib/python3.11/dist-packages', '/usr/lib/python3/dist-packages']
 ```
 
-=== main
-
-Identifying the main module: the entry point for a Python program's execution.
-
-- Python uses a special variable called `+++__name__+++`.
-
-- When a module is directly executed (as a script), the `+++__name__+++` variable within that module is set to the string `+++'__main__'+++`.
-
-- When a module is imported by another module, the `+++__name__+++` variable within the imported module gets the actual module name (e.g., `'my_module'`).
+=== +++__init__.py+++
 
 ```py
-# cat.py
-def wow():
-    return __name__
+# dir0\ # Container on module search path
+#     dir1\
+#         __init__.py
+#         dir2\
+#             __init__.py
+#             mod.py
 
-if __name__ == '__main__':
-    print(f'executed: {wow()}')
+import dir1.dir2.mod
 ```
 
-```console
-$ python3 cat.py  # directly executed (as a script)
-executed: __main__
-```
+* `dir1` and `dir2` both must contain an `+++__init__.py+++` file at least until Python 3.3.
 
-```py
-# imported by another module
-from cat import wow
-print(f'imported: {wow()}')  # imported: cat
-```
+* `dir0`, the container, does not require an `+++__init__.py+++` file; this file will simply be ignored if present.
+
+* `dir0`, not `dir0\dir1`, must be listed on the module search path `sys.path`.
+
+The `+++__init__.py+++` file serves as a hook for package initialization-time actions, declares a directory as a package, generates a module namespace for a directory, and implements the behavior of `from *` (i.e., `from .. import *`) statements when used with directory imports:
+
+* Package initialization: The first time a Python program imports through a directory, it automatically runs all the code in the directory’s `+++__init__.py+++` file which a natural place to put code to initialize the state required by files in a package.
+
+* Module usability declarations: Package `+++__init__.py+++` files are also partly present to declare that a directory is a regular module package.
+
+* Module namespace initialization: In the package import model, the directory paths in a script become real nested object paths after an import.
+
+* `from *` statement behavior: As an advanced feature, the `+++__all__+++` lists in `+++__init__.py+++` files can define what is exported when a directory is imported with the `from *` statement form.
 
 === the import and from statements, and the reload call
 
@@ -2543,11 +2542,49 @@ from module_name import *
 # ...use module.attributes...
 ```
 
-* The leftmost component, separated by periods, in a package import path is still relative to a directory included in the `sys.path` module search path list.
+* A _namespace package_ is not fundamentally different from a _regular package_ (must have an `+++__init__.py+++` file that is run automatically); it is just a different way of creating packages which are still relative to `sys.path` at the
+top level: the leftmost component of a dotted namespace package path must still be located in an entry on the normal module search path.
 +
 ```py
 import dir1.dir2.mod
 from dir1.dir2.mod import x
+import splitdir.mod
+```
++
+```sh
+mkdir -p /code/ns/dir{1,2}/sub  # two dirs of same name in different dirs
+```
++
+```py
+# module files in different directories
+
+# /code/ns/dir1/sub/mod1.py
+print(r'dir1\sub\mod1')
+
+# /code/ns/dir2/sub/mod2.py
+print(r'dir2\sub\mod2')
+```
++
+```sh
+PYTHONPATH=/code/ns/dir1:/code/ns/dir2 python -q
+```
++
+```py
+import sub
+sub  # namespace packages: nested search paths
+# <module 'sub' (<_frozen_importlib_external.NamespaceLoader object at 0x7fd1eeda5c50>)>
+sub.__path__
+# _NamespacePath(['/code/ns/dir1/sub', '/code/ns/dir2/sub'])
+
+from sub import mod1
+# dir1\sub\mod1
+import sub.mod2  # content from two different directories
+# dir2\sub\mod2
+
+mod1
+# <module 'sub.mod1' from '/code/ns/dir1/sub/mod1.py'>
+sub.mod2
+# <module 'sub.mod2' from '/code/ns/dir2/sub/mod2.py'>
 ```
 
 * The `from` statement can use leading dots (`.`) to specify that it require modules located within the same package (known as _package relative imports_), instead of modules located elsewhere on the module import search path (called _absolute imports_).
@@ -2584,6 +2621,70 @@ from spam import ham
 ```console
 $ python3 main.py
 eggs
+```
+
+=== +++__all__+++, +++__name__+++, and +++__main__+++
+
+
+* Python looks for an `+++__all__+++` list in the module first and copies its names irrespective of any underscores; if `+++__all__+++` is not defined, `from *` copies all names without a single leading underscore:
++
+```py
+# unders.py
+a, _b, c, _d = 1, 2, 3, 4
+```
++
+```py
+from unders import * # Load non _X names only
+a, c  # (1, 3)
+_b  # NameError: name '_b' is not defined
+
+import unders # But other importers get every name
+unders._b  # 2
+```
++
+```py
+# alls.py
+__all__ = ['a', '_c'] # __all__ has precedence over _X
+a, b, _c, _d = 1, 2, 3, 4
+```
++
+```py
+from alls import *  # load __all__ names only
+a, _c  # (1, 3)
+b  # NameError: name 'b' is not defined
+from alls import a, b, _c, _d  # but other importers get every name
+a, b, _c, _d  # (1, 2, 3, 4)
+
+import alls
+alls.a, alls.b, alls._c, alls._d  # (1, 2, 3, 4)
+```
+
+* Each module has a built-in attribute called `+++__name__+++`, which Python creates and assigns automatically as follows:
++
+--
+** If the file is being run as a top-level program file, `+++__name__+++` is set to the string "+++__main__+++" when it starts.
+
+** If the file is being imported instead, `+++__name__+++` is set to the module’s name as known by its clients.
+--
++
+```py
+# cat.py
+def wow():
+    return __name__
+
+if __name__ == '__main__':
+    print(f'executed: {wow()}')
+```
++
+```console
+$ python3 cat.py  # directly executed (as a script)
+executed: __main__
+```
++
+```py
+# imported by another module
+from cat import wow
+print(f'imported: {wow()}')  # imported: cat
 ```
 
 === pip install packages
