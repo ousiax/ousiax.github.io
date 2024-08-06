@@ -2361,6 +2361,284 @@ tom = Cat('tom', 3)
 print(tom)  # Cat(name='tom', age=3, color='blue')
 ```
 
+=== Operator overloading
+
+* Operator overloading lets classes intercept normal Python operations.
+* Classes can overload all Python expression operators.
+* Classes can also overload built-in operations such as printing, function calls, attribute access, etc.
+* Overloading makes class instances act more like built-in types.
+* Overloading is implemented by providing specially named methods in a class.
+
+==== Constructors and destructions: +++__init__+++, +++__del__+++
+
+The `+++__init__+++` _constructor_ is called whenever an instance is generated, and its counterpart, the `+++__del__+++` _destructor_ is run automatically when an instance’s space is being reclaimed (i.e., at “garbage collection” time).
+
+* Technically, instance creation first triggers the `+++__new__+++` method, which creates and returns the new instance object, which is then passed into `+++__init__+++` for initialization.
+
+* Python automatically reclaims all memory space held by an instance when the instance is reclaimed, destructors are not necessary for space management. It’s often better to code termination activities in an explicitly called method (e.g., `shutdown`), and the `try/finally` statement also supports termination actions, as does the `with` statement for objects that support its context manager model.
++
+```py
+class Life:
+    def __init__(self, name='unknown'):
+        print('Hello ' + name)
+        self.name = name
+
+    def live(self):
+        print(self.name)
+
+    def __del__(self):
+        print('Goodbye ' + self.name)
+```
++
+```py
+brian = Life('Brian')  # Hello Brian
+brian.live()  # Brian
+brian = 'loretta'  # Goodbye Brian
+```
+
+==== Indexing and slicing: +++__getitem__+++ and +++__setitem__+++
+
+* When an instance `X` appears in an _indexing expression_ like `X[i]`, Python calls the `+++__getitem__+++` method inherited by the instance, passing `X` and the index in brackets to the arguments.
++
+```py
+class Indexer:
+    def __getitem__(self, index):
+        return index ** 2
+
+X = Indexer()
+X[2]  # X[i] calls X.__getitem__(i)
+# 4
+for i in range(5):
+    print(X[i], end=' ')  # Runs __getitem__(X, i) each time
+# 0 1 4 9 16
+```
+
+* In addition to indexing, `+++__getitem__+++` is also called for _slice expressions_—using upper and lower bounds and a stride bundled up into a slice object.
++
+```py
+class Indexer:
+    data = [5, 6, 7, 8, 9]
+
+    def __getitem__(self, index: int | slice) -> int | list[int]:  # Called for index or slice
+        print('getitem:', index)
+        return self.data[index]  # Perform index or slice
+```
++
+```py
+X = Indexer()
+X[0]
+# getitem: 0
+# 5
+X[-1]
+# getitem: -1
+# 9
+X[2:4]
+# getitem: slice(2, 4, None)
+# [7, 8]
+X[1:]
+# getitem: slice(1, None, None)
+# [6, 7, 8, 9]
+X[:-1]
+# getitem: slice(None, -1, None)
+# [5, 6, 7, 8]
+X[::2]
+# getitem: slice(None, None, 2)
+# [5, 7, 9]
+```
+
+* The `+++__getitem__+++` may be also called automatically as an iteration fallback option (all iteration contexts will try the `+++__iter__+++` method first), for example, the `for` loops, `in` membership test, list comprehensions, the `map` built-in, list and tuple assignments, and type constructors.
++
+```py
+class StepperIndex:
+    def __init__(self, data):
+        self.data = data
+
+    def __getitem__(self, i):
+        return self.data[i]
+```
++
+```py
+X = StepperIndex('Spam')
+
+X[1]  # Indexing calls __getitem__
+# 'p'
+
+for item in X:  # for loops call __getitem__
+    print(item, end=' ')  # for indexes items 0..N
+# S p a m 
+'p' in X  # All call __getitem__ too
+# True
+[c for c in X]  # List comprehension
+# ['S', 'p', 'a', 'm']
+list(map(str.upper, X))  # map calls
+# ['S', 'P', 'A', 'M']
+(a, b, c, d) = X  # Sequence assignments
+a, c, d
+# ('S', 'a', 'm')
+list(X), tuple(X), ''.join(X)  # And so on...
+# (['S', 'p', 'a', 'm'], ('S', 'p', 'a', 'm'), 'Spam')
+```
+
+* The `+++__setitem__+++` index assignment method similarly intercepts both index and slice assignments.
++
+```py
+class IndexSetter:
+    def __init__(self, data):
+        self.data = data
+
+    def __setitem__(self, index, value):  # Intercept index or slice assignment
+        self.data[index] = value  # Assign index or slice
+```
+
+* The `+++__index__+++` method returns an integer value for an instance when needed and is used by built-ins that convert to digit strings.
++
+```py
+class C:
+    def __index__(self):
+        return 255
+```
++
+```py
+X = C()
+hex(X)  # '0xff'
+bin(X)  # '0b11111111'
+oct(X)  # '0o377'
+```
+
+==== Iterable objects: `+++__iter__+++` and `+++__next__+++`
+
+* Technically, iteration contexts work by passing an iterable object to the `iter` built-in function to invoke an `+++__iter__+++` method, which is expected to return an iterator object.
+
+* If it’s provided, Python then repeatedly calls the iterator object’s `+++__next__+++` method to produce items until a `StopIteration` exception is raised.
+
+* A `next` built-in function is also available as a convenience for manual iterations—`next(I)` is the same as `I.__next__()`.
+
+* The iterable object interface (i.e., _iteration protocol_) is given priority and attempted first, and only if no such `+++__iter__+++` method is found, Python falls back on the `+++__getitem__+++` scheme and repeatedly indexes by offsets as before, until an `IndexError` exception is raised.
++
+```py
+class Squares:
+    def __init__(self, start, stop):  # Save state when created
+        self.value = start - 1
+        self.stop = stop
+
+    def __iter__(self):  # Get iterator object on iter
+        return self  # One-shot iteration, single traversal only
+
+    def __next__(self):  # Return a square on each iteration
+        if self.value == self.stop:  # Also called by next built-in
+            raise StopIteration
+        self.value += 1
+        return self.value ** 2
+```
+
+* To achieve the multiple-iterator effect on one object, `+++__iter__+++` simply needs to define a new stateful object for the iterator, instead of returning `self` for each iterator request.
++
+```py
+class SkipObject:
+    def __init__(self, wrapped):  # Save item to be used
+        self.wrapped = wrapped
+
+    def __iter__(self):
+        return SkipIterator(self.wrapped)  # New iterator each time
+
+class SkipIterator:
+    def __init__(self, wrapped):
+        self.wrapped = wrapped  # Iterator state information
+        self.offset = 0
+
+    def __next__(self):
+        if self.offset >= len(self.wrapped):  # Terminate iterations
+            raise StopIteration
+        else:
+            item = self.wrapped[self.offset]  # else return and skip
+            self.offset += 2
+            return item
+```
+
+==== Membership: +++__contains__, __iter__, and __getitem__+++
+
+* In the iterations domain, classes can implement the `in` membership operator as an iteration, using either the `+++__iter__+++` or `+++__getitem__+++` methods.
+
+* To support more specific membership, though, classes may code a `+++__contains__+++` method—when present, this method is preferred over `+++__iter__+++`, which is preferred over `+++__getitem__+++`.
+
+* The `+++__contains__+++` method should define membership as applying to keys for a mapping (and can use quick lookups), and as a search for _sequences_.
++
+```py
+class Iters:
+    def __init__(self, value):
+        self.data = value
+
+    def __getitem__(self, i):  # Fallback for iteration
+        print('get[%s]:' % i, end='')  # Also for index, slice
+        return self.data[i]
+
+    def __iter__(self):  # Preferred for iteration
+        print('iter=> next:', end='')  # Allows multiple active iterators
+        for x in self.data:  # no __next__ to alias to next
+            yield x
+            print('next:', end='')
+
+    def __contains__(self, x):  # Preferred for 'in'
+        print('contains: ', end='')
+        return x in self.data
+```
+
+==== Attribute access: +++__getattr__ and __setattr__+++
+
+* The `+++__getattr__+++` method intercepts attribute references.
+
+** It’s called with the attribute name as a string whenever trying to qualify an instance with an undefined (nonexistent) attribute name.
+
+** It is not called if Python can find the attribute using its inheritance tree search procedure.
++
+```py
+class Empty:
+    def __getattr__(self, attrname):  # On self.undefined
+        if attrname == 'age':  # age becomes a dynamically computed attribute
+            return 40
+        else:
+            raise AttributeError(attrname)  # raises the builtin AttributeError exception
+```
++
+```py
+X = Empty()
+X.age  # 40
+X.name  # AttributeError: name
+```
+
+* In the same department, the `+++__setattr__+++` intercepts all attribute assignments.
+
+** If the method is defined or inherited, `self.attr = value` becomes `+++self.__setattr__('attr', value)+++`.
+
+** Assigning to any `self` attributes within `+++__setattr__+++` calls `+++__setattr__+++` again, potentially causing an infinite recursion loop.
+
+** Avoid loops by coding instance attribute assignments as assignments to attribute dictionary keys:  `self.__dict__['name'] = x`, not `self.name = x`.
++
+```py
+class Accesscontrol:
+    def __setattr__(self, attr, value):
+        if attr == 'age':
+            self.__dict__[attr] = value + 10  # Not self.name=val or setattr
+            # It’s also possible to avoid recursive loops in a class that uses __setattr__ by routing
+            # any attribute assignments to a higher superclass with a call, instead of assigning keys
+            # in __dict__:
+            #    self.__dict__[attr] = value + 10 # OK: doesn't loop
+            #    object.__setattr__(self, attr, value + 10) # OK: doesn't loop (new-style only)
+        else:
+            raise AttributeError(attr + ' not allowed')
+```
++
+```py
+X = Accesscontrol()
+X.age = 40
+X.age  # 50
+X.name = 'Bob'  # AttributeError: name not allowed
+```
+
+* A third attribute management method, `+++__delattr__+++`, is passed the attribute name string and invoked on all attribute deletions (i.e., `del object.attr`).
+
+** Like `+++__setattr__+++`, it must avoid recursive loops by routing attribute deletions with the using class through `+++__dict__+++` or a superclass.
+
 == Automatic resource management
 
 ```py
