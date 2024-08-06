@@ -2034,13 +2034,14 @@ except:  # bare except to catch all exceptions
     pass
 ```
 
-== Objects and classes
+== Classes
 
 * Like the function `def` statement, the Python `class` statement is an executable statement, and generates a new class object and assigns it to the name in the class header when reached and run, and provides default behavior and serve as factories for instance objects.
-
-* Like in module files, top-level assignments within a `class` statement (not nested in a `def`) generate attributes in the class object's local scope.
-
-* A class object's attributes record state information and behavior to be shared by all instances created from the class and function `def` statements nested inside a `class` generate _methods_, which process instances.
++
+```py
+class name: ...  # standard class definition
+class name(): ...  # less common approach (equivalent in functionality)
+```
 
 * The first argument (called `self` by convention) inside a class’s method functions references the instance object being processed and assignments to attributes of `self` create or change data in the instance, not the class.
 +
@@ -2055,11 +2056,42 @@ class name(superclass, ...):  # assign to name
         self.attr = value  # per-instance data
 ```
 
+* Like in module files, top-level assignments within a `class` statement (not nested in a `def`) generate attributes in the class object's local scope.
+
+* A class object's attributes record state information and behavior to be shared by all instances created from the class and function `def` statements nested inside a `class` generate _methods_, which process instances.
+
 *  Like a function, each time a class is called, it creates and returns a new instance object that inherits class attributes and gets its own namespace.
++
+```py
+class Cat:
+    color = 'red'
+
+cat = Cat()  # create an object from a class
+tom = Cat()
+jerry = Cat()
+print(tom.color)  # red
+print(jerry.color)  # red
+
+tom.color = 'black'  # object attributes take precedence over class attributes when accessed or modified
+Cat.color = 'blue'  # affect existing and new objects
+
+butch = Cat()
+print(jerry.color)  # blue
+print(tom.color)  # black
+print(butch.color)  # blue
+```
 
 * An instance method call `instance.method(args...)` is automatically mapped to a class’s method functions as `class.method(instance, args...)`.
++
+```py
+class Cat:
+    def wow(self):
+        print('meow!')
 
-* In classes, operator overloading is implemented by providing specially methods named with double underscores (`+++__X__+++`) to intercept operations.
+tom = Cat()
+tom.wow()  # meow!
+Cat.wow(tom)  # meow!
+```
 
 * The built-in `+++instance.__class__+++` attribute provides a link from an instance to the class from which it was created, and classes in turn have a `+++__name__+++`, and a `+++__bases__+++` sequence that provides access to superclasses.
 
@@ -2106,22 +2138,8 @@ x.__dict__['hello']
 
 * In Python, the `super()` function is used to access the parent class's methods and attributes and helps to call the parent class constructors in `+++__init__+++` in the correct order based on the method resolution order (MRO).
 
-```py
-# define a class
-class Cat:  # standard class definition
-    pass
-
-class Cat():  # less common approach (equivalent in functionality)
-    pass
-
-# create an object from a class
-cat = Cat()
-
-# assign attributes directly to an object anytime after its creation.
-cat.wow = 'meow'
-cat.wow  # 'meow'
-```
-
+* In classes, operator overloading is implemented by providing specially methods named with double underscores (`+++__X__+++`) to intercept operations.
++
 ```py
 # initialization: __init__(), to save syllables, double underscores (__), also pronounce as dunder.
 class Cat:
@@ -2139,29 +2157,11 @@ cat.wow()  # Tom: meow!
 Cat.wow(cat)  # Tom: meow!
 ```
 
-```py
-# class and object attributes
-class Cat:
-    color = 'red'
-
-tom = Cat()
-jerry = Cat()
-print(tom.color)  # red
-print(jerry.color)  # red
-
-tom.color = 'black'  # object attributes take precedence over class attributes when accessed or modified
-Cat.color = 'blue'  # affect existing and new objects
-
-butch = Cat()
-print(jerry.color)  # blue
-print(tom.color)  # black
-print(butch.color)  # blue
-```
+=== Inheritances
 
 ```py
-# inheritance
 class Animal:
-    def __init__(self, voice) -> None:
+    def __init__(self, voice):
         self.voice = voice
 
     def wow(self):
@@ -2171,7 +2171,7 @@ class Cat(Animal):
     pass
 
 class Dog(Animal):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__('bark')
 
     def wow(self):
@@ -2220,7 +2220,7 @@ class PrettyMixin():
         pprint.pprint(vars(self))
 
 class Thing():
-    def __init__(self) -> None:
+    def __init__(self):
         self.name = "Nyarlathotep"
         self.feature = "ichor"
         self.age = "eldritch"
@@ -2237,7 +2237,7 @@ t.dump()  # {'age': 'eldritch', 'feature': 'ichor', 'name': 'Nyarlathotep'}
 # Python doesn’t have private attributes, but has a naming convention for attributes that
 # should not be visible outside of their class definition: begin with two underscores (__).
 class Cat:
-    def __init__(self, name) -> None:
+    def __init__(self, name):
         self.__name = name
 
     @property
@@ -2505,7 +2505,7 @@ bin(X)  # '0b11111111'
 oct(X)  # '0o377'
 ```
 
-==== Iterable objects: `+++__iter__+++` and `+++__next__+++`
+==== Iterable objects: +++__iter__+++ and +++__next__+++
 
 * Technically, iteration contexts work by passing an iterable object to the `iter` built-in function to invoke an `+++__iter__+++` method, which is expected to return an iterator object.
 
@@ -2638,6 +2638,158 @@ X.name = 'Bob'  # AttributeError: name not allowed
 * A third attribute management method, `+++__delattr__+++`, is passed the attribute name string and invoked on all attribute deletions (i.e., `del object.attr`).
 
 ** Like `+++__setattr__+++`, it must avoid recursive loops by routing attribute deletions with the using class through `+++__dict__+++` or a superclass.
+
+==== String representation: +++__repr__ and __str__+++
+
+If defined, `+++__repr__+++` (or its close relative, `+++__str__+++`) is called automatically when class instances are printed or converted to strings.
+
+* `+++__str__+++` is tried first for the `print` operation and the `str` built-in function (the internal equivalent of which `print` runs). It generally should return a user-friendly display.
+
+* `+++__repr__+++` is used in all other contexts: for interactive echoes, the `repr` function, and nested appearances, as well as by `print` and `str` if no `+++__str__+++` is present. It should generally return an as-code string that could be used to re-create the object, or a detailed display for developers.
++
+```py
+class adder:
+    def __init__(self, value=0):
+        self.data = value  # Initialize data
+
+    def __add__(self, other):
+        self.data += other  # Add other in place (bad form?)
+```
++
+```py
+x = adder()  # Default displays
+print(x)
+# <__main__.adder object at 0x7fd1fd745a50>
+x
+# <__main__.adder object at 0x7fd1fd745a50>
+```
++
+```py
+class addrepr(adder):  # Inherit __init__, __add__
+    def __repr__(self):  # Add string representation
+        return 'addrepr(%s)' % self.data  # Convert to as-code string
+```
++
+```py
+x = addrepr(2)
+x  # Runs __repr__
+# addrepr(2)
+print(x)  # Runs __repr__
+# addrepr(2)
+str(x), repr(x)  # Runs __repr__ for both
+# ('addrepr(2)', 'addrepr(2)')
+```
++
+```py
+class addstr(adder):
+    def __str__(self):  # __str__ but no __repr__
+        return '[Value: %s]' % self.data  # Convert to nice string
+```
++
+```py
+x = addstr(3)
+x  # Default __repr__
+# <demo.addstr object at 0x7fd1fd63d2d0>
+print(x)  # # Runs __str__
+# [Value: 3]
+str(x), repr(x)
+# ('[Value: 3]', '<demo.addstr object at 0x7fd1fd63d2d0>')
+```
++
+```py
+class addboth(adder):
+    def __str__(self):
+        return '[Value: %s]' % self.data  # User-friendly string
+
+    def __repr__(self):
+        return 'addboth(%s)' % self.data  # As-code string
+```
++
+```py
+x = addboth(4)
+x  # Runs __repr__
+# addboth(4)
+print(x)  # Runs __str__
+# [Value: 4]
+str(x), repr(x)
+# ('[Value: 4]', 'addboth(4)')
+```
+
+==== Right-side and in-place uses: +++__radd__ and __iadd__+++
+
+* Every binary operator has a left, right, and in-place variant overloading methods (e.g., `+++__add__+++`, `+++__radd__+++`, and `+++__iadd__+++`).
+
+* For example, the `+++__add__+++` for objects on the left is called instead in all other cases and does not support the use of instance objects on the right side of the `+` operator.
++
+```py
+class Number:
+    def __init__(self, value=0):
+        self.data = value
+
+    def __add__(self, other):
+        return self.data+other
+```
++
+```py
+x = Number(5)
+x + 2
+# 7
+2 + x
+# TypeError: unsupported operand type(s) for +: 'int' and 'Number'
+```
+
+* To implement more general expressions, and hence support commutative-style operators, code the `+++__radd__+++` method as well.
++
+```py
+class Number:
+    def __init__(self, value=0):
+        self.data = value
+
+    def __add__(self, other):
+        return self.data+other
+
+    def __radd__(self, other):
+        return self.data+other
+
+    # Reusing __add__ in __radd__
+    # def __radd__(self, other):
+    #     return self.__add__(other)  # Call __add__ explicitly
+    #     return self + other  # Swap order and re-add
+    # __radd__ = __add__  # Alias: cut out the middleman
+```
++
+```py
+x = Number(5)
+x + 2
+# 7
+2 + x
+# 7
+```
+
+* To also implement `+=` in-place augmented addition, code either an `+++__iadd__+++` or an `+++__add__+++`. The latter is used if the former is absent, but may not be able optimize in-place cases.
++
+```py
+class Number:
+    def __init__(self, value=0):
+        self.data = value
+
+    def __add__(self, other):
+        return self.data+other
+
+    __radd__ = __add__
+
+    def __iadd__(self, other):  # __iadd__ explicit: x += y
+        self.data += other  # Usually returns self
+        return self
+```
++
+```py
+x = Number(5)
+x += 1
+x += 1
+x.data
+# 7
+```
 
 == Automatic resource management
 
