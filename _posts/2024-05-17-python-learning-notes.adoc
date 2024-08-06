@@ -2513,7 +2513,7 @@ oct(X)  # '0o377'
 
 * A `next` built-in function is also available as a convenience for manual iterations—`next(I)` is the same as `I.__next__()`.
 
-* The iterable object interface (i.e., _iteration protocol_) is given priority and attempted first, and only if no such `+++__iter__+++` method is found, Python falls back on the `+++__getitem__+++` scheme and repeatedly indexes by offsets as before, until an `IndexError` exception is raised.
+* In all iteration contexts, Python tries to use `+++__iter__+++` first, which returns an object that supports the iteration protocol with a `+++__next__+++` method: if no `+++__iter__+++` is found by inheritance search, Python falls back on the `+++__getitem__+++` indexing method, which is called repeatedly, with successively higher indexes, until an `IndexError` exception is raised.
 +
 ```py
 class Squares:
@@ -2529,6 +2529,19 @@ class Squares:
             raise StopIteration
         self.value += 1
         return self.value ** 2
+```
+
+* If used, the `yield` statement can create the `+++__next__+++` method automatically.
++
+```py
+class Squares:                          # __iter__ + yield generator
+    def __init__(self, start, stop):    # __next__ is automatic/implied
+        self.start = start
+        self.stop = stop
+
+    def __iter__(self):
+        for value in range(self.start, self.stop + 1):
+            yield value ** 2
 ```
 
 * To achieve the multiple-iterator effect on one object, `+++__iter__+++` simply needs to define a new stateful object for the iterator, instead of returning `self` for each iterator request.
@@ -2791,7 +2804,94 @@ x.data
 # 7
 ```
 
-== Automatic resource management
+==== Call expressions: +++__call__+++
+
+* Python runs a `+++__call__+++` method for function call expressions applied to the instances, passing along whatever positional or keyword arguments were sent.
++
+```py
+class Callee:
+    def __call__(self, *pargs, **kargs):  # Intercept instance calls
+        print('Called:', pargs, kargs)  # Accept arbitrary arguments
+```
++
+```py
+C = Callee()
+C(1, 2, 3)  # C is a callable object
+# Called: (1, 2, 3) {}
+C(1, 2, 3, x=4, y=5)
+# Called: (1, 2, 3) {'y': 5, 'x': 4}
+```
++
+```py
+class C:
+    def __call__(self, a, b, c=5, d=6): ...  # Normals and defaults
+
+class C:
+    def __call__(self, *pargs, **kargs): ...  # Collect arbitrary arguments
+
+class C:
+    def __call__(self, *pargs, d=6, **kargs): ...  # 3.X keyword-only argument
+```
+
+==== Boolean tests: +++__bool__+++ and +++__len__+++
+
+* In Boolean contexts, Python first tries `+++__bool__+++` to obtain a direct Boolean value; if that method is missing, Python tries `+++__len__+++` to infer a truth value from the object’s length.
++
+```py
+class Truth:
+    def __bool__(self): return True
+```
++
+```py
+X = Truth()
+if X: print('yes!')
+# yes!
+```
++
+```py
+class Truth:
+    def __bool__(self): return False
+```
++
+```py
+X = Truth()
+bool(X)
+# False
+```
++
+```py
+class Truth:
+    def __len__(self): return 0
+X = Truth()
+if not X: print('no!')
+# no!
+```
+
+* If both methods are present Python prefers `+++__bool__+++` over `+++__len__+++`, because it is more specific:
++
+```py
+class Truth:
+    def __bool__(self): return True # 3.X tries __bool__ first
+    def __len__(self): return 0 # 2.X tries __len__ first
+X = Truth()
+if X: print('yes!')
+# yes!
+```
+
+* If neither truth method is defined, the object is vacuously considered true (though any potential implications for more metaphysically inclined readers are strictly coincidental):
++
+```py
+class Truth:
+    pass
+```
++
+```py
+X = Truth()
+bool(X)
+# True
+```
+
+==== with/as Context Managers: +++__enter__+++ and +++__exit__+++
 
 ```py
 fi = open('test.txt', 'w', encoding='utf-8')
